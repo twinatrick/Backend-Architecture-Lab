@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.Ingnore;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Filter.JwtAuthenticationToken;
+import com.example.BackendArchitectureLab.Security.JwtAuthenticationToken;
 import com.example.BackendArchitectureLab.Dto.Vo.LoginRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;

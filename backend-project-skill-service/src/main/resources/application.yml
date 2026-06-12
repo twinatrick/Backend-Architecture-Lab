@@ -12,13 +12,18 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+  task:
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
   cloud:
     nacos:
       discovery:
         server-addr: localhost:8848
 jwt:
   secret:
-    use: ${JWT_SECRET_USE:secretsecretsecretsecretsecretll}
-  issuer: ${JWT_ISSUER:backedApi}
-  audience: ${JWT_AUDIENCE:backedApi}
-  expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+    use: ${JWT_SECRET_USE:qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+  issuer: ${JWT_ISSUER:BackendArchitectureLab}
+  audience: ${JWT_AUDIENCE:BackendArchitectureLab}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440}

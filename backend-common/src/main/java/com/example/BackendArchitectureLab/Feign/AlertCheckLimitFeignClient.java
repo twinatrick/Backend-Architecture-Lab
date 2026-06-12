@@ -22,12 +22,4 @@ public interface AlertCheckLimitFeignClient {
     void insertLimit(@RequestParam("tableName") String tableName,
                      @RequestParam("columnName") String columnName,
                      @RequestParam("maxChange") int maxChange);
-
-    @GetMapping("/init-check/inner/init-and-check")
-    void initAndCheck();
-
-    @GetMapping("/init-check/inner/check-exist")
-    boolean checkIsExist(@RequestParam("oneLayer") String oneLayer,
-                         @RequestParam("twoLayer") String twoLayer,
-                         @RequestParam("threeLayer") String threeLayer);
 }

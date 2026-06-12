@@ -176,12 +176,28 @@ graph LR
         ETCD[(etcd<br/>port: 2379)]
         MINIO[(MinIO<br/>port: 9000/9001)]
         MILVUS[(Milvus<br/>port: 19530)]
-        ATTU[(Attu UI<br/>port: 8001)]
+        ATTU[(Attu UI<br/>port: 8002)]
     end
 
-    Backend[Spring Boot<br/>port: 8000] --> PG
-    Backend --> RD
-    Backend --> KF
+    subgraph "微服務 (port)"
+        GW[Gateway<br/>8000]
+        IAM[IAM Service<br/>8001]
+        PSS[Project-Skill Service<br/>8004]
+        JOB[Job Service<br/>8006]
+        AI[AI Service<br/>8007]
+        ALT[Alert Service<br/>8008]
+    end
+
+    subgraph "Nacos 服務發現"
+        NC((Nacos<br/>8848))
+    end
+
+    NC -.-> GW & IAM & PSS & JOB & AI & ALT
+
+    GW --> IAM & PSS & JOB & AI & ALT
+    IAM & PSS & JOB & ALT --> PG
+    IAM & ALT --> RD
+    JOB & ALT --> KF
     KF --> ZK
     MILVUS --> ETCD
     MILVUS --> MINIO
@@ -616,42 +632,88 @@ set WHISPER_MODEL_PATH=models/ggml-tiny.bin
 
 ## 啟動方式
 
-### Docker Compose
+本專案採用微服務架構，啟動流程分為「基礎設施」→「微服務」兩階段。
 
-1. 啟動基礎服務（PostgreSQL、Redis、Kafka、Zookeeper）
+### Phase 0：前置準備
+
+```bash
+# 1. 複製環境變數模板
+cp .env.example .env
+# 編輯 .env 填入必要的 API Key（GEMINI_API_KEY, GROQ_API_KEY 等）
+```
+
+### Phase 1：啟動基礎設施
+
+使用 Docker Compose 啟動 PostgreSQL、Redis、Kafka、Milvus、Nacos 等依賴服務：
 
 ```bash
 docker compose -f compose.yaml up -d
 ```
 
-2. 可選：先複製環境變數模板再調整
+### Phase 2：啟動微服務
 
-```bash
-cp .env.example .env
+**選項 A：一鍵啟動所有服務（推薦）**
+
+```powershell
+# 1. 編譯 + 啟動全部 6 個微服務 + Gateway
+.\scripts\start-all.ps1
+
+# 2. 驗證服務註冊狀態
+.\scripts\e2e-verify.ps1
+
+# 3. 執行 HTTP 健康檢查
+.\scripts\e2e-health.ps1
 ```
 
-3. 本機啟動後端（見下方）
+**選項 B：個別啟動（開發除錯）**
 
-### 本機啟動
+依序在獨立終端機中執行：
 
 ```bash
-./mvnw spring-boot:run
+# 啟動順序：iam-service → 其他服務 → gateway（最後）
+./mvnw spring-boot:run -pl backend-iam-service
+./mvnw spring-boot:run -pl backend-project-skill-service
+./mvnw spring-boot:run -pl backend-job-service
+./mvnw spring-boot:run -pl backend-ai-service
+./mvnw spring-boot:run -pl backend-alert-service
+./mvnw spring-boot:run -pl backend-gateway
 ```
 
-### Docker 內啟動後端
+### 服務埠一覽
 
-若後端服務跑在 Docker 內，請設定 `APP_IN_DOCKER=true`。
-當 `APP_IN_DOCKER=true` 且未手動指定 `KAFKA_BOOTSTRAP_SERVERS` 時，後端會自動使用 `kafka:9092`。
-否則（預設）會使用 `localhost:9092`。
+| 服務 | Port | 說明 |
+|------|------|------|
+| Gateway | `8000` | API 入口閘道 |
+| IAM Service | `8001` | 身分識別與授權 |
+| Project-Skill Service | `8004` | 專案與技能管理 |
+| Job Service | `8006` | 職缺管理 |
+| AI Service | `8007` | AI 語音辨識 |
+| Alert Service | `8008` | 告警通知 |
+| Nacos | `8848` | 服務發現主控台 |
 
-Kafka 對外廣播主機可用 `KAFKA_ADVERTISED_HOST` 控制：
+### Docker 內啟動 Gateway
 
-- Docker 內互連：`KAFKA_ADVERTISED_HOST=kafka`
-- 本機連線：`KAFKA_ADVERTISED_HOST=localhost`
+若需將 Gateway 部署至 Docker：
+
+```bash
+# 使用 dockerBuild.bat（建置映像 + 啟動基礎設施）
+.\dockerBuild.bat
+
+# 或手動建置與執行
+docker build -t backend-gateway:latest .
+docker run -p 8000:8000 --network my_network backend-gateway:latest
+```
+
+### Kafka 連線設定
+
+| 執行環境 | 設定值 |
+|---------|--------|
+| 本機開發 | `KAFKA_ADVERTISED_HOST=localhost`（預設） |
+| Docker 內執行 | `APP_IN_DOCKER=true`（自動切換為 `kafka:9092`） |
 
 ## 重要設定
 
-- 服務埠：`8000`
+- Gateway 埠：`8000`
 - JWT Secret：`jwt.secret.use`
 - PostgreSQL：`localhost:5432`
 - Redis：`localhost:6379`

@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Security;
 import com.example.BackendArchitectureLab.Annotation.Ingnore;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Component
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class IgnoreUrlsProvider implements InitializingBean {
 
     @Autowired
@@ -36,14 +38,15 @@ public class IgnoreUrlsProvider implements InitializingBean {
                 }
             }
         }
-        
+
         ignoredUrls.add("/swagger-ui/**");
         ignoredUrls.add("/swagger-ui.html");
         ignoredUrls.add("/v3/api-docs/**");
+        ignoredUrls.add("/api-docs/**");
         ignoredUrls.add("/swagger-resources/**");
         ignoredUrls.add("/webjars/**");
         ignoredUrls.add("/error");
-        
+
     }
 
     public String[] getIgnoredUrls() {

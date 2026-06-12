@@ -1,10 +1,8 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
-import com.example.BackendArchitectureLab.Feign.AlertCheckLimitFeignClient;
 import com.example.BackendArchitectureLab.Service.IFunctionService;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
@@ -35,9 +33,6 @@ class InitAndCheckServiceTest {
 
     @Mock
     private IUserService userService;
-
-    @Mock
-    private AlertCheckLimitFeignClient alertCheckLimitFeignClient;
 
     @Mock
     private IFunctionService functionService;
@@ -85,14 +80,12 @@ class InitAndCheckServiceTest {
     // ==================== initAndCheck ====================
 
     @Test
-    @DisplayName("Should call all three check methods")
+    @DisplayName("Should call all check methods")
     void testInitAndCheck() {
         when(roleService.getRole()).thenReturn(List.of(adminRole, userRole));
         when(roleService.getRoleByName("admin")).thenReturn(adminRole);
         when(roleService.getRoleByName("user")).thenReturn(userRole);
         when(userService.getUserByEmail("admin")).thenReturn(List.of(adminUser));
-        when(alertCheckLimitFeignClient.getLimit()).thenReturn(List.of(new AlertCheckLimitVo()));
-        doNothing().when(alertCheckLimitFeignClient).insertLimit(anyString(), anyString(), anyInt());
         when(functionService.getFunctionByName(anyString())).thenReturn(null);
         when(functionService.getFunctionByNameAndParent(anyString(), anyString())).thenReturn(null);
         when(functionService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
@@ -106,7 +99,6 @@ class InitAndCheckServiceTest {
         initAndCheckService.initAndCheck();
 
         verify(roleService, times(1)).getRole();
-        verify(alertCheckLimitFeignClient, times(1)).getLimit();
         verify(functionService, atLeastOnce()).getFunction();
     }
 
@@ -194,54 +186,6 @@ class InitAndCheckServiceTest {
         initAndCheckService.checkRole();
 
         verify(roleService, never()).roleBindUser(anyString(), anyList());
-    }
-
-    // ==================== checkLimit ====================
-
-    @Test
-    @DisplayName("Should insert all default limits when limit list is empty")
-    void testCheckLimit_EmptyList() {
-        when(alertCheckLimitFeignClient.getLimit()).thenReturn(new ArrayList<>());
-
-        initAndCheckService.checkLimit();
-
-        verify(alertCheckLimitFeignClient, times(12)).insertLimit(anyString(), anyString(), anyInt());
-        verify(alertCheckLimitFeignClient).insertLimit("aquark_data", "rain_d", 10);
-        verify(alertCheckLimitFeignClient).insertLimit("aquark_data", "moisture", 10);
-        verify(alertCheckLimitFeignClient).insertLimit("aquark_data", "temperature", 10);
-        verify(alertCheckLimitFeignClient).insertLimit("aquark_data", "echo", 10);
-        verify(alertCheckLimitFeignClient).insertLimit("aquark_data", "water_speed_aquark", 10);
-    }
-
-    @Test
-    @DisplayName("Should check each column when limits already exist")
-    void testCheckLimit_ExistingLimits() {
-        AlertCheckLimitVo existingLimit = new AlertCheckLimitVo();
-        existingLimit.setTableName("aquark_data");
-        existingLimit.setColumnName("rain_d");
-        when(alertCheckLimitFeignClient.getLimit()).thenReturn(List.of(existingLimit));
-        when(alertCheckLimitFeignClient.getLimitByTableAndColumn(anyString(), anyString()))
-                .thenReturn(new AlertCheckLimitVo());
-
-        initAndCheckService.checkLimit();
-
-        verify(alertCheckLimitFeignClient, times(12)).getLimitByTableAndColumn(eq("aquark_data"), anyString());
-        verify(alertCheckLimitFeignClient, never()).insertLimit(anyString(), anyString(), anyInt());
-    }
-
-    @Test
-    @DisplayName("Should insert missing column when not found individually")
-    void testCheckLimit_MissingColumn() {
-        when(alertCheckLimitFeignClient.getLimit()).thenReturn(List.of(new AlertCheckLimitVo()));
-        when(alertCheckLimitFeignClient.getLimitByTableAndColumn(eq("aquark_data"), anyString()))
-                .thenReturn(new AlertCheckLimitVo());
-        when(alertCheckLimitFeignClient.getLimitByTableAndColumn(eq("aquark_data"), eq("rain_d")))
-                .thenReturn(null);
-
-        initAndCheckService.checkLimit();
-
-        verify(alertCheckLimitFeignClient).insertLimit("aquark_data", "rain_d", 10);
-        verify(alertCheckLimitFeignClient, times(12)).getLimitByTableAndColumn(eq("aquark_data"), anyString());
     }
 
     // ==================== checkIsExist ====================

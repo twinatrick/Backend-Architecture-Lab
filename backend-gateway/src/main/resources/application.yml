@@ -1,8 +1,13 @@
 server:
-  port: 8080
+  port: 8000
 spring:
   application:
     name: gateway
+  task:
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
   cloud:
     nacos:
       discovery:
@@ -51,5 +56,44 @@ spring:
           filters:
             - StripPrefix=1
 
+        - id: iam-api-docs
+          uri: lb://iam-service
+          predicates:
+            - Path=/service-docs/iam/**
+          filters:
+            - StripPrefix=2
+
+        - id: project-skill-api-docs
+          uri: lb://project-skill-service
+          predicates:
+            - Path=/service-docs/project-skill/**
+          filters:
+            - StripPrefix=2
+
+        - id: job-api-docs
+          uri: lb://job-service
+          predicates:
+            - Path=/service-docs/job/**
+          filters:
+            - StripPrefix=2
+
+        - id: ai-api-docs
+          uri: lb://ai-service
+          predicates:
+            - Path=/service-docs/ai/**
+          filters:
+            - StripPrefix=2
+
+        - id: alert-api-docs
+          uri: lb://alert-service
+          predicates:
+            - Path=/service-docs/alert/**
+          filters:
+            - StripPrefix=2
+
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin
+
+springdoc:
+  swagger-ui:
+    url: /v3/api-docs-merged

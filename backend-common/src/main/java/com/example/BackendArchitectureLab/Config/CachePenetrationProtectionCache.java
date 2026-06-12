@@ -13,12 +13,21 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 public class CachePenetrationProtectionCache implements Cache {
 
     private static final Logger log = LoggerFactory.getLogger(CachePenetrationProtectionCache.class);
 
     private static final long LOCK_WAIT_MILLIS = 200;
+
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    );
+
+    private static boolean isUuidKey(String key) {
+        return key != null && UUID_PATTERN.matcher(key).matches();
+    }
 
     private final String name;
 
@@ -103,10 +112,6 @@ public class CachePenetrationProtectionCache implements Cache {
             return null;
         }
 
-        if (!bloomFilterMightContain(cacheKey)) {
-            return null;
-        }
-
         ValueWrapper cached = delegate.get(key);
         if (cached != null) {
             Object value = cached.get();
@@ -137,7 +142,7 @@ public class CachePenetrationProtectionCache implements Cache {
                     try {
                         lock.unlock();
                     } catch (Exception e) {
-                        log.warn("鎖釋放異常 [{}] key [{}]: {}", name, key, e.toString());
+                        log.warn("解鎖異常 [{}] key [{}]: {}", name, key, e.toString());
                     }
                 }
             }
@@ -221,34 +226,15 @@ public class CachePenetrationProtectionCache implements Cache {
     }
 
     private boolean bloomFilterMightContain(String cacheKey) {
-        if (!isEntityId(cacheKey)) {
+        if (!isUuidKey(cacheKey)) {
             return true;
         }
-
         try {
             return bloomFilterService.mightContain(name, cacheKey);
         } catch (Exception e) {
             log.warn("BloomFilter 檢查異常 [{}] key [{}]: {}", name, cacheKey, e.toString());
             return true;
         }
-    }
-
-    private static boolean isEntityId(String key) {
-        if (key == null || key.length() != 36) {
-            return false;
-        }
-        for (int i = 0; i < key.length(); i++) {
-            char c = key.charAt(i);
-            switch (i) {
-                case 8: case 13: case 18: case 23:
-                    if (c != '-') return false;
-                    break;
-                default:
-                    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
-                        return false;
-            }
-        }
-        return true;
     }
 
     private void setNullMarker(String cacheKey) {
@@ -268,6 +254,9 @@ public class CachePenetrationProtectionCache implements Cache {
     }
 
     private void addToBloomFilter(String cacheKey) {
+        if (!isUuidKey(cacheKey)) {
+            return;
+        }
         try {
             bloomFilterService.add(name, cacheKey);
         } catch (Exception e) {

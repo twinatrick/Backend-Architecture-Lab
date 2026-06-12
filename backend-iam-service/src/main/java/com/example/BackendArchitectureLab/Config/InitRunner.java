@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
-import com.example.BackendArchitectureLab.Feign.AlertCheckLimitFeignClient;
+import com.example.BackendArchitectureLab.Service.IInitAndCheckService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
 public class InitRunner {
 
     @Autowired
-    private AlertCheckLimitFeignClient alertCheckLimitFeignClient;
+    private IInitAndCheckService initAndCheckService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        alertCheckLimitFeignClient.initAndCheck();
+        initAndCheckService.initAndCheck();
     }
 }

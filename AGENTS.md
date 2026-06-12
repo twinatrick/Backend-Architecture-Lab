@@ -31,6 +31,7 @@
   - **Mockito Warning**: 測試已在 Maven Surefire 中設定 `-XX:+EnableDynamicAgentLoading` 來消除 Java 21 下的警告。
 
 ## Architecture & Code Conventions
+- **Master Branch 為最終依據**: 在判斷程式碼行為是否合理時，**必須優先參考 `master` 分支的實作**，因為 master 是經過 Review 後的結論。若當前分支與 master 有歧異，以 master 為準。
 - **Base Package**: `com.example.BackendArchitectureLab` (注意大小寫)
 - **Generators**: 專案大量使用 MapStruct 與 Lombok，Maven 已設定對應的 Annotation Processors。
 - **Package Quirks**: 請遵守現有的 Package 命名與大小寫慣例：

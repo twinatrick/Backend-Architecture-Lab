@@ -33,6 +33,7 @@ build/
 
 ### VS Code ###
 .vscode/
+.run/
 
 # Temp JAR downloads
 bopomofo4j-temp/

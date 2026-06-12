@@ -1,4 +1,4 @@
-package com.example.BackendArchitectureLab.Filter;
+package com.example.BackendArchitectureLab.Security;
 
 import org.jose4j.jws.JsonWebSignature;
 import org.jose4j.jwt.JwtClaims;
@@ -9,38 +9,29 @@ import org.jose4j.keys.HmacKey;
 import org.jose4j.lang.JoseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
-@Component
 public class JwtAuthenticationToken {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationToken.class);
 
-    @Value("${jwt.secret.use}")
-    private String jwtSecret;
+    private final String jwtSecret;
+    private final String jwtIssuer;
+    private final String jwtAudience;
+    private final long expirationMinutes;
+    private final HmacKey secretKey;
 
-    @Value("${jwt.issuer}")
-    private String jwtIssuer;
-
-    @Value("${jwt.audience}")
-    private String jwtAudience;
-
-    @Value("${jwt.expiration-minutes:60}")
-    private long expirationMinutes;
-
-    private HmacKey secretKey;
-
-    @PostConstruct
-    public void init() {
+    public JwtAuthenticationToken(String jwtSecret, String jwtIssuer, String jwtAudience, long expirationMinutes) {
+        this.jwtSecret = jwtSecret;
+        this.jwtIssuer = jwtIssuer;
+        this.jwtAudience = jwtAudience;
+        this.expirationMinutes = expirationMinutes;
         if (jwtSecret == null || jwtSecret.isBlank()) {
             throw new IllegalStateException("jwt.secret.use must be configured");
         }
-        secretKey = new HmacKey(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        this.secretKey = new HmacKey(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateJWT(String user) throws JoseException {

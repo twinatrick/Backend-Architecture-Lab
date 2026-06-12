@@ -1,0 +1,16 @@
+.env
+.git/
+.gitignore
+logs/
+node_modules/
+target/
+*.md
+AGENTS.md
+todo.md
+*.bat
+*.ps1
+docker-compose*.yaml
+Dockerfile
+.idea/
+.github/
+.vscode/

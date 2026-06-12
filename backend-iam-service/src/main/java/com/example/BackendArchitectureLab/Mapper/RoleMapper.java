@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.RoleFunction;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 import java.util.List;
@@ -13,8 +14,11 @@ import java.util.UUID;
 
 @Mapper(componentModel = "spring", uses = {FunctionMapper.class})
 public interface RoleMapper {
+    @Mapping(target = "functionIds", ignore = true)
     RoleOutVo toVo(Role role);
 
+    @Mapping(target = "userRoles", ignore = true)
+    @Mapping(target = "roleFunctions", ignore = true)
     Role toEntity(RoleOutVo roleOutVo);
 
     @AfterMapping

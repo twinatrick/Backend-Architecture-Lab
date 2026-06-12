@@ -1,15 +1,21 @@
 package com.example.BackendArchitectureLab.Config;
 
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
+import com.example.BackendArchitectureLab.Service.impl.BloomFilterService;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.cache.Cache;
 import org.springframework.cache.annotation.CachingConfigurer;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -33,6 +39,8 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Configuration
+@EnableCaching
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class RedisConfig implements CachingConfigurer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RedisConfig.class);
@@ -59,13 +67,13 @@ public class RedisConfig implements CachingConfigurer {
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         String host = resolveRedisHost();
-        
+
         LOGGER.info("初始化 Redis 連線 - Host: {}, Port: {}", host, port);
-        
+
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
         config.setHostName(host);
         config.setPort(port);
-        
+
         return new LettuceConnectionFactory(config);
     }
 
@@ -147,6 +155,17 @@ public class RedisConfig implements CachingConfigurer {
         );
     }
 
+    @Bean
+    public IBloomFilterService bloomFilterService(RedissonClient redissonClient, BloomFilterProperties bloomFilterProperties) {
+        return new BloomFilterService(redissonClient, bloomFilterProperties);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.init.enabled", havingValue = "true", matchIfMissing = true)
+    public ApplicationRunner bloomFilterInitializer(IBloomFilterService bloomFilterService, ApplicationContext applicationContext) {
+        return new BloomFilterInitializer(bloomFilterService, applicationContext);
+    }
+
     Duration withJitter(Duration base) {
         double jitter = ThreadLocalRandom.current().nextDouble(0, jitterMaxOffset);
         return base.plus(Duration.ofMillis((long) (base.toMillis() * jitter)));
@@ -187,7 +206,7 @@ public class RedisConfig implements CachingConfigurer {
             LOGGER.info("Redis host 來自配置: {}", configuredHost);
             return configuredHost;
         }
-        
+
         String resolved = inDocker ? "redis" : "localhost";
         LOGGER.info("Redis host 根據 APP_IN_DOCKER({}) 解析為: {}", inDocker, resolved);
         return resolved;

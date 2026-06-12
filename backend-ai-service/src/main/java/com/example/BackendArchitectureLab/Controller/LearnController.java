@@ -3,9 +3,9 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Dto.Vo.AudioRecognizeVo;
 import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ILearnService;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -13,7 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/stt/v1")
-@Tag(name = "Speech To Text", description = "音訊辨識與拼音轉換")
+@ApiControllerTag(name = "Speech To Text", description = "音訊辨識與拼音轉換")
 public class LearnController {
 
     @Autowired

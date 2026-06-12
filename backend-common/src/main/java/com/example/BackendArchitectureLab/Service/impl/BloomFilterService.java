@@ -6,25 +6,26 @@ import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RedissonClient;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Service
 @Slf4j
 public class BloomFilterService implements IBloomFilterService {
 
-    @Autowired
-    private RedissonClient redissonClient;
+    private final RedissonClient redissonClient;
 
-    @Autowired
-    private BloomFilterProperties bloomFilterProperties;
+    private final BloomFilterProperties bloomFilterProperties;
 
     private final Map<String, RBloomFilter<String>> filters = new ConcurrentHashMap<>();
 
+    public BloomFilterService(RedissonClient redissonClient, BloomFilterProperties bloomFilterProperties) {
+        this.redissonClient = redissonClient;
+        this.bloomFilterProperties = bloomFilterProperties;
+    }
+
+    @Override
     public boolean mightContain(String cacheName, String key) {
         RBloomFilter<String> filter = filters.get(cacheName);
         if (filter == null) {
@@ -33,11 +34,13 @@ public class BloomFilterService implements IBloomFilterService {
         return filter.contains(key);
     }
 
+    @Override
     public void add(String cacheName, String key) {
         RBloomFilter<String> filter = getOrCreate(cacheName);
         filter.add(key);
     }
 
+    @Override
     public void addAll(String cacheName, Collection<String> keys) {
         RBloomFilter<String> filter = getOrCreate(cacheName);
         for (String key : keys) {
@@ -45,11 +48,13 @@ public class BloomFilterService implements IBloomFilterService {
         }
     }
 
+    @Override
     public long count(String cacheName) {
         RBloomFilter<String> filter = getOrCreate(cacheName);
         return filter.count();
     }
 
+    @Override
     public void clear(String cacheName) {
         RBloomFilter<String> filter = filters.remove(cacheName);
         if (filter != null) {

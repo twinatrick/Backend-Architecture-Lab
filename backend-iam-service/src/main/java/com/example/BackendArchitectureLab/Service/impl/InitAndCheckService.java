@@ -1,16 +1,13 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
-import com.example.BackendArchitectureLab.Feign.AlertCheckLimitFeignClient;
 import com.example.BackendArchitectureLab.Service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -22,16 +19,12 @@ public class InitAndCheckService implements IInitAndCheckService {
     private IUserService userService;
 
     @Autowired
-    private AlertCheckLimitFeignClient alertCheckLimitFeignClient;
-
-    @Autowired
     private IFunctionService functionService;
 
     @Override
     public void initAndCheck() {
         checkRole();
 
-        checkLimit();
         checkFunctionBindDefaultRole();
     }
 
@@ -71,32 +64,6 @@ public class InitAndCheckService implements IInitAndCheckService {
 
     }
 
-    @Override
-    public void checkLimit() {
-        List<AlertCheckLimitVo> alertCheckLimitList = alertCheckLimitFeignClient.getLimit();
-        if (alertCheckLimitList.isEmpty()) {
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "rain_d", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "moisture", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "temperature", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "echo", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "water_speed_aquark", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "v1", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "v2", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "v3", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "v4", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "v5", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "v6", 10);
-            alertCheckLimitFeignClient.insertLimit("aquark_data", "v7", 10);
-        }else {
-            String[] aquark_data_column = {"rain_d", "moisture", "temperature", "echo", "water_speed_aquark", "v1", "v2", "v3", "v4", "v5", "v6", "v7"};
-            Arrays.stream(aquark_data_column).forEach(s -> {
-                AlertCheckLimitVo alertCheckLimit = alertCheckLimitFeignClient.getLimitByTableAndColumn("aquark_data", s);
-                if (alertCheckLimit == null) {
-                    alertCheckLimitFeignClient.insertLimit("aquark_data", s, 10);
-                }
-            });
-        }
-    }
     @Override
     public boolean checkIsExist(String oneLayer, String twoLayer, String threeLayer) {
         FunctionVo one= functionService.getFunctionByName(oneLayer);

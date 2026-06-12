@@ -7,8 +7,6 @@ public interface IInitAndCheckService {
 
     void checkRole();
 
-    void checkLimit();
-
     boolean checkIsExist(String oneLayer, String twoLayer, String threeLayer);
 
     void checkFunctionBindDefaultRole();

@@ -1,5 +1,5 @@
 server:
-  port: 8001
+  port: 8002
 
 spring:
   application:
@@ -17,6 +17,11 @@ spring:
     redis:
       host: localhost
       port: 6379
+  task:
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
   cloud:
     nacos:
       discovery:
@@ -24,10 +29,10 @@ spring:
 
 jwt:
   secret:
-    use: qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=
-  issuer: BackendArchitectureLab
-  audience: BackendArchitectureLab
-  expiration-minutes: 1440
+    use: ${JWT_SECRET_USE:qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+  issuer: ${JWT_ISSUER:BackendArchitectureLab}
+  audience: ${JWT_AUDIENCE:BackendArchitectureLab}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440}
 
 superuser:
   key: ${SUPERUSER_KEY:super_secret_key_change_in_production}
