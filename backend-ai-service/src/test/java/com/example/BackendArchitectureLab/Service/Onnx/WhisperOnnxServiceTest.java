@@ -19,7 +19,7 @@ class WhisperOnnxServiceTest {
     }
 
     @Test
-    @DisplayName("模型未就緒時應回傳模擬中文文字")
+    @DisplayName("模型未就緒時應回傳模擬繁體中文文字")
     void shouldReturnMockChineseWhenModelNotReady() {
         String result = service.transcribe(new float[]{0.1f, 0.2f}, "zh");
         assertEquals("這是一段模擬的語音辨識結果。", result);
@@ -33,7 +33,7 @@ class WhisperOnnxServiceTest {
     }
 
     @Test
-    @DisplayName("預設語言應回傳模擬中文")
+    @DisplayName("預設語言應回傳模擬繁體中文")
     void shouldDefaultToChinese() {
         String result = service.transcribe(new float[]{0.1f, 0.2f}, "en");
         assertEquals("這是一段模擬的語音辨識結果。", result);

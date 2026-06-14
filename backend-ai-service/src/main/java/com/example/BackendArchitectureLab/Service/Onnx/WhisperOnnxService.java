@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Onnx;
 
+import com.github.houbb.opencc4j.util.ZhConverterUtil;
 import io.github.givimad.whisperjni.WhisperJNI;
 import io.github.givimad.whisperjni.WhisperContext;
 import io.github.givimad.whisperjni.WhisperFullParams;
@@ -58,6 +59,10 @@ public class WhisperOnnxService {
                 params.language = "zh";
             }
             params.nThreads = 4;
+            params.suppressNonSpeechTokens = true;
+            params.logprobThold = 0.0f;
+            params.noSpeechThold = 0.1f;
+            params.temperatureInc = 0.0f;
 
             int result = whisper.full(context, params, audioData, audioData.length);
             if (result != 0) {
@@ -69,7 +74,11 @@ public class WhisperOnnxService {
             for (int i = 0; i < segments; i++) {
                 sb.append(whisper.fullGetSegmentText(context, i));
             }
-            return sb.toString().trim();
+            String rawText = sb.toString().trim();
+            if ("zh".equalsIgnoreCase(lang)) {
+                return ZhConverterUtil.toTraditional(rawText);
+            }
+            return rawText;
         } catch (Exception e) {
             e.printStackTrace();
             return "語音辨識發生錯誤: " + e.getMessage();

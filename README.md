@@ -579,7 +579,7 @@ DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換
 ### API 介面：`POST /stt/v1/{lan}/{mode}`
 
 *   **參數說明**:
-    *   `lan`: 語言。`zh` (中文), `ja` (日文)
+    *   `lan`: 語言。`zh` (繁體中文), `ja` (日文)
     *   `mode`: 輸出模式。`pinyin` (拼音), `zhuyin` (注音), `romaji` (日文羅馬音), `none` (不輸出拼音)
     *   `file`: 音訊檔案 (MultipartFile，支援 MP3/WAV/M4A，後端會使用 FFmpeg 自動轉 16kHz PCM)
 

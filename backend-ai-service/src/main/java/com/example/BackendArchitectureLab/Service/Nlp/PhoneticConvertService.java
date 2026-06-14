@@ -78,6 +78,7 @@ public class PhoneticConvertService {
     }
 
     private String toRomaji(String text) {
+        text = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC);
         List<Token> tokens = kuromojiTokenizer.tokenize(text);
         StringBuilder sb = new StringBuilder();
         
