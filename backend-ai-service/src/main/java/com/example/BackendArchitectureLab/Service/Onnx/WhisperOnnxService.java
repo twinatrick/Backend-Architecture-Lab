@@ -18,6 +18,18 @@ public class WhisperOnnxService {
     @Value("${ai.whisper.model-path:models/ggml-large-v3-turbo.bin}")
     private String modelPath;
 
+    @Value("${ai.whisper.suppress-non-speech-tokens:true}")
+    private boolean suppressNonSpeechTokens;
+
+    @Value("${ai.whisper.logprob-thold:0.0}")
+    private float logprobThold;
+
+    @Value("${ai.whisper.no-speech-thold:0.1}")
+    private float noSpeechThold;
+
+    @Value("${ai.whisper.temperature-inc:0.0}")
+    private float temperatureInc;
+
     private WhisperJNI whisper;
     private WhisperContext context;
     private boolean isReady = false;
@@ -59,10 +71,10 @@ public class WhisperOnnxService {
                 params.language = "zh";
             }
             params.nThreads = 4;
-            params.suppressNonSpeechTokens = true;
-            params.logprobThold = 0.0f;
-            params.noSpeechThold = 0.1f;
-            params.temperatureInc = 0.0f;
+            params.suppressNonSpeechTokens = this.suppressNonSpeechTokens;
+            params.logprobThold = this.logprobThold;
+            params.noSpeechThold = this.noSpeechThold;
+            params.temperatureInc = this.temperatureInc;
 
             int result = whisper.full(context, params, audioData, audioData.length);
             if (result != 0) {

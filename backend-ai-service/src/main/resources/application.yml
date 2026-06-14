@@ -45,6 +45,10 @@ github:
 ai:
   whisper:
     model-path: ${WHISPER_MODEL_PATH:models/ggml-large-v3-turbo.bin}
+    suppress-non-speech-tokens: ${WHISPER_SUPPRESS_NON_SPEECH_TOKENS:true}
+    logprob-thold: ${WHISPER_LOGPROB_THOLD:0.0}
+    no-speech-thold: ${WHISPER_NO_SPEECH_THOLD:0.1}
+    temperature-inc: ${WHISPER_TEMPERATURE_INC:0.0}
 jwt:
   secret:
     use: ${JWT_SECRET_USE:qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
