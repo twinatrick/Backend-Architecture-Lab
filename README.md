@@ -22,8 +22,8 @@
 - GitHub Actions CI Pipeline
 - AI-assisted Code Review
 - Unit Test + JaCoCo Coverage Validation
-- Micrometer + Prometheus Monitoring
-- Grafana Dashboard
+- Micrometer + Prometheus (alert-service)
+- Grafana (基礎配置，無預設儀表板)
 
 ---
 
@@ -176,12 +176,12 @@ graph LR
         ETCD[(etcd<br/>port: 2379)]
         MINIO[(MinIO<br/>port: 9000/9001)]
         MILVUS[(Milvus<br/>port: 19530)]
-        ATTU[(Attu UI<br/>port: 8002)]
+        ATTU[(Attu UI<br/>port: 8001)]
     end
 
     subgraph "微服務 (port)"
         GW[Gateway<br/>8000]
-        IAM[IAM Service<br/>8001]
+        IAM[IAM Service<br/>8002]
         PSS[Project-Skill Service<br/>8004]
         JOB[Job Service<br/>8006]
         AI[AI Service<br/>8007]
@@ -415,7 +415,11 @@ erDiagram
 | **jave-all-deps**     | 音訊轉檔工具      | 基於 FFmpeg，用於將各類音訊檔轉換為 Whisper 需要的 16kHz PCM    |
 | **Kuromoji**          | 日文 NLP 工具    | 日文形態素分析與片假名拼音萃取                                 |
 | **Pinyin4j/Bopomofo** | 中文拼音/注音轉換   | 中文字轉漢語拼音及注音符號轉換引擎                               |
+| **opencc4j**          | 簡繁中文轉換      | STT 辨識結果由簡體轉換為繁體中文輸出                             |
 | **Gemini API**        | AI 智能分析      | Google Gemini REST API，用於從爬取內容中結構化萃取職缺資訊        |
+| **Groq API**          | AI 模型推論（備援）  | 低延遲推論晶片 LPU，作為 Gemini 備援方案                        |
+| **DeepSeek API**      | AI 模型推論（備援）  | 開源大語言模型 API，作為 Gemini 備援方案                        |
+| **GitHub Models API** | AI 模型推論（備援）  | 透過 Azure AI 存取多種模型，作為 Gemini 備援方案                 |
 | **Gson**              | JSON 序列化     | Google 官方 JSON 庫，用於 Gemini API 請求/回應處理          |
 | **Docker Compose**    | 本地開發環境       | 一鍵啟動所有依賴服務、環境一致性高                               |
 | **JUnit 5 + Mockito** | 測試框架         | 業界標準、支援參數化測試、Mock 功能完善                          |
@@ -540,8 +544,8 @@ DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換
 
 ### Infrastructure
 
-- [x] Prometheus Metrics
-- [x] Grafana Dashboard
+- [x] Prometheus Metrics (僅 alert-service)
+- [x] Grafana (基礎配置，無預設儀表板)
 - [ ] Centralized Logging
 - [ ] ELK Stack
 
@@ -652,19 +656,6 @@ docker compose -f compose.yaml up -d
 
 ### Phase 2：啟動微服務
 
-**選項 A：一鍵啟動所有服務（推薦）**
-
-```powershell
-# 1. 編譯 + 啟動全部 6 個微服務 + Gateway
-.\scripts\start-all.ps1
-
-# 2. 驗證服務註冊狀態
-.\scripts\e2e-verify.ps1
-
-# 3. 執行 HTTP 健康檢查
-.\scripts\e2e-health.ps1
-```
-
 **選項 B：個別啟動（開發除錯）**
 
 依序在獨立終端機中執行：
@@ -684,7 +675,7 @@ docker compose -f compose.yaml up -d
 | 服務 | Port | 說明 |
 |------|------|------|
 | Gateway | `8000` | API 入口閘道 |
-| IAM Service | `8001` | 身分識別與授權 |
+| IAM Service | `8002` | 身分識別與授權 |
 | Project-Skill Service | `8004` | 專案與技能管理 |
 | Job Service | `8006` | 職缺管理 |
 | AI Service | `8007` | AI 語音辨識 |
@@ -894,7 +885,7 @@ curl http://localhost:9091/healthz
 # 預期回應：OK
 
 # 3. 透過 Attu UI 驗證連線
-# 瀏覽器開啟：http://localhost:8001
+# 瀏覽器開啟：http://localhost:8001（若設定了 ATTU_PORT=8002，請使用對應埠號）
 # 使用帳密：root / Milvus
 ```
 

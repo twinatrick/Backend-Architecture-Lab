@@ -189,4 +189,89 @@ class UserProjectDataAccessImplTest {
         // Assert
         assertTrue(result.isEmpty());
     }
+
+    @Test
+    @DisplayName("應該檢查是否存在使用指定 Project 的 UserProject")
+    void testExistsByProjectId() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPassword("password");
+        user.setDisabled(false);
+        entityManager.persist(user);
+        entityManager.flush();
+
+        Project project = new Project();
+        project.setName("測試專案");
+        projectRepository.save(project);
+
+        UserProject userProject = new UserProject();
+        userProject.setUser(user);
+        userProject.setProject(project);
+        userProjectRepository.save(userProject);
+
+        assertTrue(userProjectDataAccess.existsByProjectId(project.getId()));
+        assertFalse(userProjectDataAccess.existsByProjectId(UUID.randomUUID()));
+    }
+
+    @Test
+    @DisplayName("應該根據 userId 和 projectId 刪除 UserProject")
+    void testDeleteByUserIdAndProjectId() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPassword("password");
+        user.setDisabled(false);
+        entityManager.persist(user);
+        entityManager.flush();
+
+        Project project = new Project();
+        project.setName("測試專案");
+        projectRepository.save(project);
+
+        UserProject userProject = new UserProject();
+        userProject.setUser(user);
+        userProject.setProject(project);
+        userProjectRepository.save(userProject);
+
+        assertEquals(1, userProjectRepository.count());
+
+        userProjectDataAccess.deleteByUserIdAndProjectId(user.getId(), project.getId());
+
+        assertEquals(0, userProjectRepository.count());
+    }
+
+    @Test
+    @DisplayName("應該根據 projectId 查詢所有 UserProject")
+    void testFindByProjectId() {
+        User user1 = new User();
+        user1.setEmail("user1@example.com");
+        user1.setPassword("password");
+        user1.setDisabled(false);
+        entityManager.persist(user1);
+        entityManager.flush();
+
+        User user2 = new User();
+        user2.setEmail("user2@example.com");
+        user2.setPassword("password");
+        user2.setDisabled(false);
+        entityManager.persist(user2);
+        entityManager.flush();
+
+        Project project = new Project();
+        project.setName("測試專案");
+        projectRepository.save(project);
+
+        UserProject up1 = new UserProject();
+        up1.setUser(user1);
+        up1.setProject(project);
+        userProjectRepository.save(up1);
+
+        UserProject up2 = new UserProject();
+        up2.setUser(user2);
+        up2.setProject(project);
+        userProjectRepository.save(up2);
+
+        List<UserProject> result = userProjectDataAccess.findByProjectId(project.getId());
+
+        assertEquals(2, result.size());
+    }
 }

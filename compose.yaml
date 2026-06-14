@@ -186,7 +186,7 @@ services:
       MILVUS_USER: ${MILVUS_ROOT_USER:-root}
       MILVUS_PASSWORD: ${MILVUS_ROOT_PASSWORD:-Milvus}
     ports:
-      - "${ATTU_PORT:-8002}:3000"
+      - "${ATTU_PORT:-8001}:3000"
     networks:
       - my_network
 volumes:

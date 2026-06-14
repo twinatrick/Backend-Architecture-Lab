@@ -235,4 +235,134 @@ class ProjectSkillDataAccessImplTest {
         // Assert
         assertEquals(0, projectSkillRepository.count());
     }
+
+    @Test
+    @DisplayName("應該檢查是否存在使用指定 Skill 的 ProjectSkill")
+    void testExistsBySkillId() {
+        Project project = new Project();
+        project.setName("測試專案");
+        projectRepository.save(project);
+
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel skillLevel = new SkillLevel();
+        skillLevel.setSkill(skill);
+        skillLevel.setTitle("Default");
+        skillLevel.setLevelValue(1);
+        skillLevelRepository.save(skillLevel);
+
+        ProjectSkill projectSkill = new ProjectSkill();
+        projectSkill.setProject(project);
+        projectSkill.setSkill(skill);
+        projectSkill.setSkillLevel(skillLevel);
+        projectSkillRepository.save(projectSkill);
+
+        assertTrue(projectSkillDataAccess.existsBySkillId(skill.getId()));
+        assertFalse(projectSkillDataAccess.existsBySkillId(UUID.randomUUID()));
+    }
+
+    @Test
+    @DisplayName("應該根據 projectId 和 skillId 查詢 ProjectSkill")
+    void testFindByProjectIdAndSkillId() {
+        Project project = new Project();
+        project.setName("測試專案");
+        projectRepository.save(project);
+
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel skillLevel = new SkillLevel();
+        skillLevel.setSkill(skill);
+        skillLevel.setTitle("Default");
+        skillLevel.setLevelValue(1);
+        skillLevelRepository.save(skillLevel);
+
+        ProjectSkill projectSkill = new ProjectSkill();
+        projectSkill.setProject(project);
+        projectSkill.setSkill(skill);
+        projectSkill.setSkillLevel(skillLevel);
+        projectSkillRepository.save(projectSkill);
+
+        var result = projectSkillDataAccess.findByProjectIdAndSkillId(project.getId(), skill.getId());
+
+        assertTrue(result.isPresent());
+        assertEquals(project.getId(), result.get().getProject().getId());
+    }
+
+    @Test
+    @DisplayName("應該根據 projectId 查詢所有 ProjectSkill")
+    void testFindByProjectId() {
+        Project project = new Project();
+        project.setName("測試專案");
+        projectRepository.save(project);
+
+        Skill skill1 = new Skill();
+        skill1.setName("Java");
+        skillRepository.save(skill1);
+
+        Skill skill2 = new Skill();
+        skill2.setName("Python");
+        skillRepository.save(skill2);
+
+        SkillLevel skillLevel1 = new SkillLevel();
+        skillLevel1.setSkill(skill1);
+        skillLevel1.setTitle("Default");
+        skillLevel1.setLevelValue(1);
+        skillLevelRepository.save(skillLevel1);
+
+        SkillLevel skillLevel2 = new SkillLevel();
+        skillLevel2.setSkill(skill2);
+        skillLevel2.setTitle("Default");
+        skillLevel2.setLevelValue(1);
+        skillLevelRepository.save(skillLevel2);
+
+        ProjectSkill ps1 = new ProjectSkill();
+        ps1.setProject(project);
+        ps1.setSkill(skill1);
+        ps1.setSkillLevel(skillLevel1);
+        projectSkillRepository.save(ps1);
+
+        ProjectSkill ps2 = new ProjectSkill();
+        ps2.setProject(project);
+        ps2.setSkill(skill2);
+        ps2.setSkillLevel(skillLevel2);
+        projectSkillRepository.save(ps2);
+
+        var result = projectSkillDataAccess.findByProjectId(project.getId());
+
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    @DisplayName("應該根據 projectId 和 skillId 刪除 ProjectSkill")
+    void testDeleteByProjectIdAndSkillId() {
+        Project project = new Project();
+        project.setName("測試專案");
+        projectRepository.save(project);
+
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel skillLevel = new SkillLevel();
+        skillLevel.setSkill(skill);
+        skillLevel.setTitle("Default");
+        skillLevel.setLevelValue(1);
+        skillLevelRepository.save(skillLevel);
+
+        ProjectSkill projectSkill = new ProjectSkill();
+        projectSkill.setProject(project);
+        projectSkill.setSkill(skill);
+        projectSkill.setSkillLevel(skillLevel);
+        projectSkillRepository.save(projectSkill);
+
+        assertEquals(1, projectSkillRepository.count());
+
+        projectSkillDataAccess.deleteByProjectIdAndSkillId(project.getId(), skill.getId());
+
+        assertEquals(0, projectSkillRepository.count());
+    }
 }

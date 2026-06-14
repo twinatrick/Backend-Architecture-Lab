@@ -263,4 +263,143 @@ class UserSkillDataAccessImplTest {
         // Assert
         assertTrue(result.isEmpty());
     }
+
+    @Test
+    @DisplayName("應該檢查是否存在使用指定 Skill 的 UserSkill")
+    void testExistsBySkillId() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPassword("password");
+        user.setDisabled(false);
+        entityManager.persist(user);
+        entityManager.flush();
+
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel skillLevel = new SkillLevel();
+        skillLevel.setSkill(skill);
+        skillLevel.setTitle("Default");
+        skillLevel.setLevelValue(1);
+        skillLevelRepository.save(skillLevel);
+
+        UserSkill userSkill = new UserSkill();
+        userSkill.setUser(user);
+        userSkill.setSkill(skill);
+        userSkill.setSkillLevel(skillLevel);
+        userSkillRepository.save(userSkill);
+
+        assertTrue(userSkillDataAccess.existsBySkillId(skill.getId()));
+        assertFalse(userSkillDataAccess.existsBySkillId(UUID.randomUUID()));
+    }
+
+    @Test
+    @DisplayName("應該根據 userId 和 skillId 刪除 UserSkill")
+    void testDeleteByUserIdAndSkillId() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPassword("password");
+        user.setDisabled(false);
+        entityManager.persist(user);
+        entityManager.flush();
+
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel skillLevel = new SkillLevel();
+        skillLevel.setSkill(skill);
+        skillLevel.setTitle("Default");
+        skillLevel.setLevelValue(1);
+        skillLevelRepository.save(skillLevel);
+
+        UserSkill userSkill = new UserSkill();
+        userSkill.setUser(user);
+        userSkill.setSkill(skill);
+        userSkill.setSkillLevel(skillLevel);
+        userSkillRepository.save(userSkill);
+
+        assertEquals(1, userSkillRepository.count());
+
+        userSkillDataAccess.deleteByUserIdAndSkillId(user.getId(), skill.getId());
+
+        assertEquals(0, userSkillRepository.count());
+    }
+
+    @Test
+    @DisplayName("應該根據 skillId 查詢所有 UserSkill")
+    void testFindBySkillId() {
+        User user1 = new User();
+        user1.setEmail("user1@example.com");
+        user1.setPassword("password");
+        user1.setDisabled(false);
+        entityManager.persist(user1);
+        entityManager.flush();
+
+        User user2 = new User();
+        user2.setEmail("user2@example.com");
+        user2.setPassword("password");
+        user2.setDisabled(false);
+        entityManager.persist(user2);
+        entityManager.flush();
+
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel skillLevel = new SkillLevel();
+        skillLevel.setSkill(skill);
+        skillLevel.setTitle("Default");
+        skillLevel.setLevelValue(1);
+        skillLevelRepository.save(skillLevel);
+
+        UserSkill userSkill1 = new UserSkill();
+        userSkill1.setUser(user1);
+        userSkill1.setSkill(skill);
+        userSkill1.setSkillLevel(skillLevel);
+        userSkillRepository.save(userSkill1);
+
+        UserSkill userSkill2 = new UserSkill();
+        userSkill2.setUser(user2);
+        userSkill2.setSkill(skill);
+        userSkill2.setSkillLevel(skillLevel);
+        userSkillRepository.save(userSkill2);
+
+        List<UserSkill> result = userSkillDataAccess.findBySkillId(skill.getId());
+
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    @DisplayName("應該根據 userId 和 skillId 查詢 UserSkill")
+    void testFindByUserIdAndSkillId() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPassword("password");
+        user.setDisabled(false);
+        entityManager.persist(user);
+        entityManager.flush();
+
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel skillLevel = new SkillLevel();
+        skillLevel.setSkill(skill);
+        skillLevel.setTitle("Default");
+        skillLevel.setLevelValue(1);
+        skillLevelRepository.save(skillLevel);
+
+        UserSkill userSkill = new UserSkill();
+        userSkill.setUser(user);
+        userSkill.setSkill(skill);
+        userSkill.setSkillLevel(skillLevel);
+        userSkillRepository.save(userSkill);
+
+        List<UserSkill> result = userSkillDataAccess.findByUserIdAndSkillId(user.getId(), skill.getId());
+
+        assertEquals(1, result.size());
+        assertEquals(user.getId(), result.get(0).getUser().getId());
+    }
 }
