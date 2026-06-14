@@ -6,6 +6,8 @@ import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
 import com.example.BackendArchitectureLab.Service.IFunctionService;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,6 +17,8 @@ import java.util.Objects;
 @RestController
 @RequestMapping("/role/inner")
 public class PermissionInternalController {
+    private static final Logger log = LoggerFactory.getLogger(PermissionInternalController.class);
+
     @Autowired
     private IRoleService roleService;
     @Autowired
@@ -42,21 +46,44 @@ public class PermissionInternalController {
                                       @RequestParam String one,
                                       @RequestParam String two,
                                       @RequestParam String three) {
+        log.debug("Validating permission: email={}, path={}/{}/{}", email, one, two, three);
+
         FunctionVo func1 = functionService.getFunctionByName(one);
-        if (func1 == null) return false;
+        if (func1 == null) {
+            log.warn("Permission validation failed: function level1 '{}' not found for user={}", one, email);
+            return false;
+        }
         FunctionVo func2 = functionService.getFunctionByNameAndParent(two, func1.getId());
-        if (func2 == null) return false;
+        if (func2 == null) {
+            log.warn("Permission validation failed: function level2 '{}' not found for user={}", two, email);
+            return false;
+        }
         FunctionVo func3 = functionService.getFunctionByNameAndParent(three, func2.getId());
-        if (func3 == null) return false;
+        if (func3 == null) {
+            log.warn("Permission validation failed: function level3 '{}' not found for user={}", three, email);
+            return false;
+        }
 
         String requiredFunctionId = func3.getId();
 
         UserVo user = userService.getOnlyUserByEmail(email);
-        if (user == null) return false;
+        if (user == null) {
+            log.warn("Permission validation failed: user not found for email={}", email);
+            return false;
+        }
 
-        return user.getPermissions() != null && user.getPermissions().stream()
+        boolean hasPermission = user.getPermissions() != null && user.getPermissions().stream()
                 .map(FunctionVo::getId)
                 .filter(Objects::nonNull)
                 .anyMatch(id -> id.equals(requiredFunctionId));
+
+        if (!hasPermission) {
+            log.warn("Permission denied: user={}, path={}/{}/{}, requiredFunctionId={}",
+                    email, one, two, three, requiredFunctionId);
+        } else {
+            log.debug("Permission granted: user={}, path={}/{}/{}", email, one, two, three);
+        }
+
+        return hasPermission;
     }
 }
