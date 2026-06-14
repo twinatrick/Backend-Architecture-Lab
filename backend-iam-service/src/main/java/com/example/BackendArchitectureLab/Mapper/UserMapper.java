@@ -25,7 +25,7 @@ public interface UserMapper {
     User toEntity(UserVo userVo);
 
     @AfterMapping
-    default void fillPermissions(User user, @MappingTarget UserVo vo, @org.mapstruct.Context FunctionMapper functionMapper) {
+    default void fillPermissions(User user, @MappingTarget UserVo vo) {
         if (user == null) {
             return;
         }
@@ -37,8 +37,10 @@ public interface UserMapper {
 
         List<FunctionVo> permissions = new ArrayList<>();
         user.getRoles().forEach(userRole -> userRole.getRole().getRoleFunctions().forEach(
-                roleFunction -> permissions.add(functionMapper.toVo(roleFunction.getFunction()))
+                roleFunction -> permissions.add(mapFunction(roleFunction.getFunction()))
         ));
         vo.setPermissions(permissions);
     }
+
+    FunctionVo mapFunction(Function function);
 }

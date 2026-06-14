@@ -10,6 +10,7 @@ import io.swagger.v3.oas.models.tags.Tag;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,7 +59,7 @@ public class SpringdocConfig {
     }
 
     @Bean
-    public OpenApiCustomizer apiControllerTagDefinitionCustomizer(RequestMappingHandlerMapping mapping) {
+    public OpenApiCustomizer apiControllerTagDefinitionCustomizer(@Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping mapping) {
         return openApi -> {
             var tagMap = new LinkedHashMap<String, Tag>();
             for (var entry : mapping.getHandlerMethods().entrySet()) {

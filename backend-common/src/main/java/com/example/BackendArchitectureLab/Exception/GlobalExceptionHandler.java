@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -38,6 +39,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ResponseType<?>> handleNotFound(EntityNotFoundException ex) {
         ResponseType<?> response = ResponseType.Fail("NOT_FOUND", "Not found", HttpStatus.NOT_FOUND.value());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ResponseType<?>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        ResponseType<?> response = ResponseType.Fail("FILE_TOO_LARGE", "上傳檔案超過大小限制 (最大 50MB)", HttpStatus.PAYLOAD_TOO_LARGE.value());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(response);
     }
 
     @ExceptionHandler(Exception.class)
