@@ -60,7 +60,7 @@ public class OpenApiAggregatorController {
             String path = entry.getValue();
             var instances = discoveryClient.getInstances(serviceName);
             if (!instances.isEmpty()) {
-                var instance = instances.get(0);
+                var instance = instances.getFirst();
                 String url = "http://" + instance.getHost() + ":" + instance.getPort() + path;
                 log.info("Fetching OpenAPI spec from {}: {}", serviceName, url);
                 fetches.add(webClient.get()
