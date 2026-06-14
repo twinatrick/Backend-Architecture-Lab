@@ -88,13 +88,16 @@ class FeignClientContractTest {
     }
 
     @Test
-    @DisplayName("All FeignClients should have unique names")
+    @DisplayName("All FeignClients should have unique name+contextId combinations")
     void allFeignClientNamesAreUnique() {
-        List<String> names = FEIGN_CLIENTS.stream()
-                .map(c -> c.getAnnotation(FeignClient.class).name())
+        List<String> identifiers = FEIGN_CLIENTS.stream()
+                .map(c -> {
+                    FeignClient ann = c.getAnnotation(FeignClient.class);
+                    return ann.name() + ":" + ann.contextId();
+                })
                 .toList();
-        assertEquals(names.size(), names.stream().distinct().count(),
-                "FeignClient names must be unique: " + names);
+        assertEquals(identifiers.size(), identifiers.stream().distinct().count(),
+                "FeignClient name:contextId must be unique: " + identifiers);
     }
 
 

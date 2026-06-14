@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.Map;
 import java.util.UUID;
 
-@FeignClient(name = "skill-service")
+@FeignClient(name = "project-skill-service", contextId = "skillServiceClient")
 public interface SkillServiceFeignClient {
 
     @GetMapping("/skill/inner/{id}")

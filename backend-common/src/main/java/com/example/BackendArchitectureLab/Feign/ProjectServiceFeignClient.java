@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@FeignClient(name = "project-service")
+@FeignClient(name = "project-skill-service", contextId = "projectServiceClient")
 public interface ProjectServiceFeignClient {
 
     @GetMapping("/project/inner/{id}")

@@ -33,6 +33,14 @@ public class OpenApiAggregatorController {
         "alert-service", "/v3/api-docs/BackendArchitectureLab"
     );
 
+    private static final Map<String, String> SERVICE_PREFIXES = Map.of(
+        "iam-service", "/api",
+        "project-skill-service", "/api",
+        "job-service", "/api",
+        "ai-service", "/api",
+        "alert-service", "/api"
+    );
+
     private static final Logger log = LoggerFactory.getLogger(OpenApiAggregatorController.class);
     private static final ObjectMapper swaggerMapper = Json.mapper();
 
@@ -60,7 +68,17 @@ public class OpenApiAggregatorController {
                     .retrieve()
                     .bodyToMono(String.class)
                     .map(json -> {
-                        try { return swaggerMapper.readValue(json, OpenAPI.class); }
+                        try {
+                            OpenAPI spec = swaggerMapper.readValue(json, OpenAPI.class);
+                            String prefix = SERVICE_PREFIXES.getOrDefault(serviceName, "");
+                            if (!prefix.isEmpty() && spec.getPaths() != null) {
+                                Paths prefixedPaths = new Paths();
+                                spec.getPaths().forEach((pathKey, item) ->
+                                    prefixedPaths.addPathItem(prefix + pathKey, item));
+                                spec.setPaths(prefixedPaths);
+                            }
+                            return spec;
+                        }
                         catch (Exception e) { throw new RuntimeException(e); }
                     })
                     .timeout(Duration.ofSeconds(10))
