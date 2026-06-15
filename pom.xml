@@ -135,6 +135,7 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-spring-boot-docker-compose</artifactId>
+            <version>${spring-ai.version}</version>
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
@@ -206,7 +207,7 @@
             <artifactId>webdrivermanager</artifactId>
             <version>6.1.0</version>
         </dependency>
-
+    </dependencies>
     <dependencyManagement>
         <dependencies>
             <dependency>
