@@ -1,0 +1,92 @@
+server:
+  port: 8000
+spring:
+  application:
+    name: gateway
+  task:
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+    gateway:
+      routes:
+        - id: iam-service
+          uri: lb://iam-service
+          predicates:
+            - Path=/api/auth/**,/api/users/**,/api/role/**,/api/functions/**
+          filters:
+            - StripPrefix=1
+
+        - id: job-service
+          uri: lb://job-service
+          predicates:
+            - Path=/api/job-posting/**,/api/company/**,/api/user-job-link/**,/api/user/bindings/job/**
+          filters:
+            - StripPrefix=1
+
+        - id: project-skill-service
+          uri: lb://project-skill-service
+          predicates:
+            - Path=/api/skill/**,/api/project/**,/api/user/bindings/**
+          filters:
+            - StripPrefix=1
+
+        - id: ai-service
+          uri: lb://ai-service
+          predicates:
+            - Path=/api/stt/**,/api/ai/**
+          filters:
+            - StripPrefix=1
+
+        - id: alert-service
+          uri: lb://alert-service
+          predicates:
+            - Path=/api/alertCheckLimit/**,/api/aquarkData/**
+          filters:
+            - StripPrefix=1
+
+        - id: iam-api-docs
+          uri: lb://iam-service
+          predicates:
+            - Path=/service-docs/iam/**
+          filters:
+            - StripPrefix=2
+
+        - id: project-skill-api-docs
+          uri: lb://project-skill-service
+          predicates:
+            - Path=/service-docs/project-skill/**
+          filters:
+            - StripPrefix=2
+
+        - id: job-api-docs
+          uri: lb://job-service
+          predicates:
+            - Path=/service-docs/job/**
+          filters:
+            - StripPrefix=2
+
+        - id: ai-api-docs
+          uri: lb://ai-service
+          predicates:
+            - Path=/service-docs/ai/**
+          filters:
+            - StripPrefix=2
+
+        - id: alert-api-docs
+          uri: lb://alert-service
+          predicates:
+            - Path=/service-docs/alert/**
+          filters:
+            - StripPrefix=2
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin
+
+springdoc:
+  swagger-ui:
+    url: /v3/api-docs-merged

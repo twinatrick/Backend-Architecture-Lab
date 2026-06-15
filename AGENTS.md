@@ -31,10 +31,12 @@
   - **Mockito Warning**: 測試已在 Maven Surefire 中設定 `-XX:+EnableDynamicAgentLoading` 來消除 Java 21 下的警告。
 
 ## Architecture & Code Conventions
+- **Master Branch 為最終依據**: 在判斷程式碼行為是否合理時，**必須優先參考 `master` 分支的實作**，因為 master 是經過 Review 後的結論。若當前分支與 master 有歧異，以 master 為準。
 - **Base Package**: `com.example.BackendArchitectureLab` (注意大小寫)
 - **Generators**: 專案大量使用 MapStruct 與 Lombok，Maven 已設定對應的 Annotation Processors。
 - **Package Quirks**: 請遵守現有的 Package 命名與大小寫慣例：
   - 首字母大寫: `Aop`, `Dto`, `Entity`, `Repository`, `Service`, `Timer`, `Util`, `WebSocket`,`Annotation`, `Config`, `Controller`, `Dataaccess`, `Exception`, `Filter`, `Mapper`
+- **微服務分類使用規則**: **絕對必須遵守** `微服務分類使用規則.md` 中的所有架構規範，特別是模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager 等規則。
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。

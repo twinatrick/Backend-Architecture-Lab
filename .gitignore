@@ -33,6 +33,7 @@ build/
 
 ### VS Code ###
 .vscode/
+.run/
 
 # Temp JAR downloads
 bopomofo4j-temp/
@@ -42,5 +43,4 @@ bopomofo4j-temp/
 /src/main/resources/models/*.onnx
 /src/main/resources/models/*.json
 /src/main/resources/models/*.txt
-/models/ggml-large-v3-turbo.bin
-/models/ggml-tiny.bin
+/models/**
