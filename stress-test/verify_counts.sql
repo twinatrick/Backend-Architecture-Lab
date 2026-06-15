@@ -1,0 +1,16 @@
+SELECT 'role' AS tbl, COUNT(*) AS cnt FROM role;
+SELECT 'function' AS tbl, COUNT(*) AS cnt FROM function;
+SELECT 'skill' AS tbl, COUNT(*) AS cnt FROM skill;
+SELECT 'skill_level' AS tbl, COUNT(*) AS cnt FROM skill_level;
+SELECT 'users' AS tbl, COUNT(*) AS cnt FROM "user";
+SELECT 'user_role' AS tbl, COUNT(*) AS cnt FROM user_role;
+SELECT 'project' AS tbl, COUNT(*) AS cnt FROM project;
+SELECT 'project_skill' AS tbl, COUNT(*) AS cnt FROM project_skill;
+SELECT 'user_project' AS tbl, COUNT(*) AS cnt FROM user_project;
+SELECT 'user_skill' AS tbl, COUNT(*) AS cnt FROM user_skill;
+SELECT 'user_project_skill' AS tbl, COUNT(*) AS cnt FROM user_project_skill;
+SELECT 'company' AS tbl, COUNT(*) AS cnt FROM company;
+SELECT 'company_website' AS tbl, COUNT(*) AS cnt FROM company_website;
+SELECT 'job_posting' AS tbl, COUNT(*) AS cnt FROM job_posting;
+SELECT 'user_job_link' AS tbl, COUNT(*) AS cnt FROM user_job_link;
+SELECT 'aquark_data' AS tbl, COUNT(*) AS cnt FROM aquark_data;

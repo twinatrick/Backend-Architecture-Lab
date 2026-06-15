@@ -27,11 +27,7 @@ spring:
     nacos:
       discovery:
         server-addr: localhost:8848
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus
+
 kafka:
   consumer:
     group-id: myGroup
