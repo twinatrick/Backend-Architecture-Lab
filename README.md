@@ -22,8 +22,8 @@
 - GitHub Actions CI Pipeline
 - AI-assisted Code Review
 - Unit Test + JaCoCo Coverage Validation
-- Micrometer + Prometheus Monitoring
-- Grafana Dashboard
+- Micrometer + Prometheus (alert-service)
+- Grafana (基礎配置，無預設儀表板)
 
 ---
 
@@ -179,9 +179,25 @@ graph LR
         ATTU[(Attu UI<br/>port: 8001)]
     end
 
-    Backend[Spring Boot<br/>port: 8000] --> PG
-    Backend --> RD
-    Backend --> KF
+    subgraph "微服務 (port)"
+        GW[Gateway<br/>8000]
+        IAM[IAM Service<br/>8002]
+        PSS[Project-Skill Service<br/>8004]
+        JOB[Job Service<br/>8006]
+        AI[AI Service<br/>8007]
+        ALT[Alert Service<br/>8008]
+    end
+
+    subgraph "Nacos 服務發現"
+        NC((Nacos<br/>8848))
+    end
+
+    NC -.-> GW & IAM & PSS & JOB & AI & ALT
+
+    GW --> IAM & PSS & JOB & AI & ALT
+    IAM & PSS & JOB & ALT --> PG
+    IAM & ALT --> RD
+    JOB & ALT --> KF
     KF --> ZK
     MILVUS --> ETCD
     MILVUS --> MINIO
@@ -399,7 +415,11 @@ erDiagram
 | **jave-all-deps**     | 音訊轉檔工具      | 基於 FFmpeg，用於將各類音訊檔轉換為 Whisper 需要的 16kHz PCM    |
 | **Kuromoji**          | 日文 NLP 工具    | 日文形態素分析與片假名拼音萃取                                 |
 | **Pinyin4j/Bopomofo** | 中文拼音/注音轉換   | 中文字轉漢語拼音及注音符號轉換引擎                               |
+| **opencc4j**          | 簡繁中文轉換      | STT 辨識結果由簡體轉換為繁體中文輸出                             |
 | **Gemini API**        | AI 智能分析      | Google Gemini REST API，用於從爬取內容中結構化萃取職缺資訊        |
+| **Groq API**          | AI 模型推論（備援）  | 低延遲推論晶片 LPU，作為 Gemini 備援方案                        |
+| **DeepSeek API**      | AI 模型推論（備援）  | 開源大語言模型 API，作為 Gemini 備援方案                        |
+| **GitHub Models API** | AI 模型推論（備援）  | 透過 Azure AI 存取多種模型，作為 Gemini 備援方案                 |
 | **Gson**              | JSON 序列化     | Google 官方 JSON 庫，用於 Gemini API 請求/回應處理          |
 | **Docker Compose**    | 本地開發環境       | 一鍵啟動所有依賴服務、環境一致性高                               |
 | **JUnit 5 + Mockito** | 測試框架         | 業界標準、支援參數化測試、Mock 功能完善                          |
@@ -424,15 +444,14 @@ erDiagram
 
 ## 工程實踐
 
-### 分層架構
+### 層級架構設計
+- Controller → Service → DataAccess Interface → DataAccessImpl → Repository → JPA/Hibernate
+- DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換實作。
 
-採用標準三層架構，並額外抽象 DataAccess 層：
-
-```
-Controller → Service → DataAccess Interface → DataAccessImpl → Repository → JPA/Hibernate
-```
-
-DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換實作。
+### 模組依賴隔離 (Dependency Isolation)
+為了解決微服務架構中常見的全域依賴過重問題（Jar Hell）與啟動效能問題，專案實作了嚴格的依賴隔離策略：
+- Parent POM (`pom.xml`) 僅負責版本管理 (`<dependencyManagement>`) 與極少數的全域基礎依賴（如 Lombok, MapStruct 等）。
+- 各微服務子模組依照其領域職責（例如：`backend-job-service` 需要爬蟲工具、`backend-ai-service` 需要語音辨識與 NLP 套件），各自明確宣告所需的 `<dependencies>`，徹底避免無用類別庫的強迫載入，顯著降低不需要該依賴之服務（如 API Gateway）的啟動時間與編譯體積。
 
 ### 快取策略
 
@@ -524,8 +543,8 @@ DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換
 
 ### Infrastructure
 
-- [x] Prometheus Metrics
-- [x] Grafana Dashboard
+- [x] Prometheus Metrics (僅 alert-service)
+- [x] Grafana (基礎配置，無預設儀表板)
 - [ ] Centralized Logging
 - [ ] ELK Stack
 
@@ -563,7 +582,7 @@ DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換
 ### API 介面：`POST /stt/v1/{lan}/{mode}`
 
 *   **參數說明**:
-    *   `lan`: 語言。`zh` (中文), `ja` (日文)
+    *   `lan`: 語言。`zh` (繁體中文), `ja` (日文)
     *   `mode`: 輸出模式。`pinyin` (拼音), `zhuyin` (注音), `romaji` (日文羅馬音), `none` (不輸出拼音)
     *   `file`: 音訊檔案 (MultipartFile，支援 MP3/WAV/M4A，後端會使用 FFmpeg 自動轉 16kHz PCM)
 
@@ -616,42 +635,75 @@ set WHISPER_MODEL_PATH=models/ggml-tiny.bin
 
 ## 啟動方式
 
-### Docker Compose
+本專案採用微服務架構，啟動流程分為「基礎設施」→「微服務」兩階段。
 
-1. 啟動基礎服務（PostgreSQL、Redis、Kafka、Zookeeper）
+### Phase 0：前置準備
+
+```bash
+# 1. 複製環境變數模板
+cp .env.example .env
+# 編輯 .env 填入必要的 API Key（GEMINI_API_KEY, GROQ_API_KEY 等）
+```
+
+### Phase 1：啟動基礎設施
+
+使用 Docker Compose 啟動 PostgreSQL、Redis、Kafka、Milvus、Nacos 等依賴服務：
 
 ```bash
 docker compose -f compose.yaml up -d
 ```
 
-2. 可選：先複製環境變數模板再調整
+### Phase 2：啟動微服務
+
+**選項 B：個別啟動（開發除錯）**
+
+依序在獨立終端機中執行：
 
 ```bash
-cp .env.example .env
+# 啟動順序：iam-service → 其他服務 → gateway（最後）
+./mvnw spring-boot:run -pl backend-iam-service
+./mvnw spring-boot:run -pl backend-project-skill-service
+./mvnw spring-boot:run -pl backend-job-service
+./mvnw spring-boot:run -pl backend-ai-service
+./mvnw spring-boot:run -pl backend-alert-service
+./mvnw spring-boot:run -pl backend-gateway
 ```
 
-3. 本機啟動後端（見下方）
+### 服務埠一覽
 
-### 本機啟動
+| 服務 | Port | 說明 |
+|------|------|------|
+| Gateway | `8000` | API 入口閘道 |
+| IAM Service | `8002` | 身分識別與授權 |
+| Project-Skill Service | `8004` | 專案與技能管理 |
+| Job Service | `8006` | 職缺管理 |
+| AI Service | `8007` | AI 語音辨識 |
+| Alert Service | `8008` | 告警通知 |
+| Nacos | `8848` | 服務發現主控台 |
+
+### Docker 內啟動 Gateway
+
+若需將 Gateway 部署至 Docker：
 
 ```bash
-./mvnw spring-boot:run
+# 使用 dockerBuild.bat（建置映像 + 啟動基礎設施）
+.\dockerBuild.bat
+
+# 或手動建置與執行
+docker build -t backend-gateway:latest .
+docker run -p 8000:8000 --network my_network backend-gateway:latest
 ```
 
-### Docker 內啟動後端
+### Kafka 連線設定
 
-若後端服務跑在 Docker 內，請設定 `APP_IN_DOCKER=true`。
-當 `APP_IN_DOCKER=true` 且未手動指定 `KAFKA_BOOTSTRAP_SERVERS` 時，後端會自動使用 `kafka:9092`。
-否則（預設）會使用 `localhost:9092`。
-
-Kafka 對外廣播主機可用 `KAFKA_ADVERTISED_HOST` 控制：
-
-- Docker 內互連：`KAFKA_ADVERTISED_HOST=kafka`
-- 本機連線：`KAFKA_ADVERTISED_HOST=localhost`
+| 執行環境 | 設定值 |
+|---------|--------|
+| 本機開發 | `KAFKA_ADVERTISED_HOST=localhost`（預設） |
+| Docker 內執行 | `APP_IN_DOCKER=true`（自動切換為 `kafka:9092`） |
 
 ## 重要設定
 
-- 服務埠：`8000`
+- Gateway 埠：`8000`
 - JWT Secret：`jwt.secret.use`
 - PostgreSQL：`localhost:5432`
 - Redis：`localhost:6379`
@@ -832,7 +884,7 @@ curl http://localhost:9091/healthz
 # 預期回應：OK
 
 # 3. 透過 Attu UI 驗證連線
-# 瀏覽器開啟：http://localhost:8001
+# 瀏覽器開啟：http://localhost:8001（若設定了 ATTU_PORT=8002，請使用對應埠號）
 # 使用帳密：root / Milvus
 ```
 

@@ -1,0 +1,44 @@
+server:
+  port: 8002
+
+spring:
+  application:
+    name: iam-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: verYs3cret
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  task:
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+jwt:
+  secret:
+    use: ${JWT_SECRET_USE:qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+  issuer: ${JWT_ISSUER:BackendArchitectureLab}
+  audience: ${JWT_AUDIENCE:BackendArchitectureLab}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440}
+
+superuser:
+  key: ${SUPERUSER_KEY:super_secret_key_change_in_production}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

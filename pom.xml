@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -10,118 +8,53 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.4.2</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <relativePath/>
     </parent>
     <groupId>com.example</groupId>
     <artifactId>BackendArchitectureLab</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
     <name>BackendArchitectureLab</name>
-    <description>BackendArchitectureLab</description>
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
+    <description>BackendArchitectureLab - API Gateway + Microservices</description>
+
+    <modules>
+        <module>backend-common</module>
+        <module>backend-gateway</module>
+        <module>backend-iam-service</module>
+        <module>backend-project-skill-service</module>
+        <module>backend-job-service</module>
+        <module>backend-ai-service</module>
+        <module>backend-alert-service</module>
+    </modules>
+
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>1.0.0-M5</spring-ai.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <spring-cloud.version>2024.0.0</spring-cloud.version>
+        <spring-cloud-alibaba.version>2023.0.3.2</spring-cloud-alibaba.version>
+        <postgresql.version>42.7.11</postgresql.version>
+        <redisson.version>3.40.2</redisson.version>
+        <jsoup.version>1.18.3</jsoup.version>
+        <selenium.version>4.29.0</selenium.version>
+        <webdrivermanager.version>5.9.3</webdrivermanager.version>
+        <jose4j.version>0.7.12</jose4j.version>
+        <whisper-jni.version>1.6.1</whisper-jni.version>
+        <jave.version>3.5.0</jave.version>
+        <kuromoji.version>0.9.0</kuromoji.version>
+        <pinyin4j.version>2.5.1</pinyin4j.version>
+        <bopomofo4j.version>1.0.1</bopomofo4j.version>
+        <opencc4j.version>1.6.2</opencc4j.version>
+        <springdoc.version>2.8.4</springdoc.version>
+        <mybatis-spring-boot.version>3.0.4</mybatis-spring-boot.version>
+        <spring-dotenv.version>4.0.0</spring-dotenv.version>
+        <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
     </properties>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-rest</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>3.40.2</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.mybatis.spring.boot</groupId>
-            <artifactId>mybatis-spring-boot-starter</artifactId>
-            <version>3.0.4</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-jpa</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-devtools</artifactId>
-            <scope>runtime</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-docker-compose</artifactId>
-            <scope>runtime</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>me.paulschwarz</groupId>
-            <artifactId>spring-dotenv</artifactId>
-            <version>4.0.0</version>
-        </dependency>
-        <!-- PostgreSQL -->
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>42.7.11</version>
-        </dependency>
-
-        <dependency>
-            <groupId>jakarta.servlet</groupId>
-            <artifactId>jakarta.servlet-api</artifactId>
-            <version>6.0.0</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.8.4</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-spring-boot-docker-compose</artifactId>
-            <scope>runtime</scope>
-            <optional>true</optional>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -145,121 +78,38 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
         </dependency>
-        <dependency>
-            <groupId>org.mybatis.spring.boot</groupId>
-            <artifactId>mybatis-spring-boot-starter-test</artifactId>
-            <version>3.0.4</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.bitbucket.b_c</groupId>
-            <artifactId>jose4j</artifactId>
-            <version>0.7.12</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-        <!-- H2 Database for testing -->
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- Web Scraping - Jsoup for static pages -->
-        <dependency>
-            <groupId>org.jsoup</groupId>
-            <artifactId>jsoup</artifactId>
-            <version>1.18.3</version>
-        </dependency>
-
-        <!-- Web Scraping - Selenium for dynamic pages -->
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-java</artifactId>
-            <version>4.29.0</version>
-        </dependency>
-
-        <!-- WebDriver Manager - manage browser drivers automatically -->
-        <dependency>
-            <groupId>io.github.bonigarcia</groupId>
-            <artifactId>webdrivermanager</artifactId>
-            <version>5.9.3</version>
-        </dependency>
-
-        <!-- JSON processing -->
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-        </dependency>
-
-        <!-- Whisper JNI (whisper.cpp) for STT -->
-        <dependency>
-            <groupId>io.github.givimad</groupId>
-            <artifactId>whisper-jni</artifactId>
-            <version>1.7.1</version>
-        </dependency>
-
-        <!-- Audio Processing (FFmpeg wrapper) -->
-        <dependency>
-            <groupId>ws.schild</groupId>
-            <artifactId>jave-all-deps</artifactId>
-            <version>3.5.0</version>
-        </dependency>
-
-        <!-- Japanese NLP -->
-        <dependency>
-            <groupId>com.atilika.kuromoji</groupId>
-            <artifactId>kuromoji-ipadic</artifactId>
-            <version>0.9.0</version>
-        </dependency>
-
-        <!-- Chinese Pinyin -->
-        <dependency>
-            <groupId>com.belerweb</groupId>
-            <artifactId>pinyin4j</artifactId>
-            <version>2.5.1</version>
-        </dependency>
-
-        <!-- Chinese Zhuyin -->
-        <dependency>
-            <groupId>com.rnkrsoft.bopomofo4j</groupId>
-            <artifactId>bopomofo4j</artifactId>
-            <version>1.0.1</version>
-        </dependency>
-
-        <!-- Actuator - 健康檢查與 Metrics 端點 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
         </dependency>
-
-        <!-- Micrometer Prometheus - 快取監控指標 -->
         <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-registry-prometheus</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-docker-compose</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
         </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>org.springframework.security</groupId>
-                <artifactId>spring-security-test</artifactId>
-                <version>${security.version}</version>
-            </dependency>
-            <!-- 同步升級 SLF4J -->
-
-            <dependency>
-                <groupId>org.springframework.data</groupId>
-                <artifactId>spring-data-bom</artifactId>
-                <version>2024.1.2</version>
-                <scope>import</scope>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
                 <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.springframework.ai</groupId>
@@ -268,262 +118,231 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.springframework.data</groupId>
+                <artifactId>spring-data-bom</artifactId>
+                <version>2024.1.2</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.example</groupId>
+                <artifactId>backend-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jsoup</groupId>
+                <artifactId>jsoup</artifactId>
+                <version>${jsoup.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.seleniumhq.selenium</groupId>
+                <artifactId>selenium-java</artifactId>
+                <version>${selenium.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.bonigarcia</groupId>
+                <artifactId>webdrivermanager</artifactId>
+                <version>${webdrivermanager.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bitbucket.b_c</groupId>
+                <artifactId>jose4j</artifactId>
+                <version>${jose4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.givimad</groupId>
+                <artifactId>whisper-jni</artifactId>
+                <version>${whisper-jni.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ws.schild</groupId>
+                <artifactId>jave-all-deps</artifactId>
+                <version>${jave.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.atilika.kuromoji</groupId>
+                <artifactId>kuromoji-ipadic</artifactId>
+                <version>${kuromoji.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.belerweb</groupId>
+                <artifactId>pinyin4j</artifactId>
+                <version>${pinyin4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.rnkrsoft.bopomofo4j</groupId>
+                <artifactId>bopomofo4j</artifactId>
+                <version>${bopomofo4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mybatis.spring.boot</groupId>
+                <artifactId>mybatis-spring-boot-starter</artifactId>
+                <version>${mybatis-spring-boot.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>me.paulschwarz</groupId>
+                <artifactId>spring-dotenv</artifactId>
+                <version>${spring-dotenv.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.houbb</groupId>
+                <artifactId>opencc4j</artifactId>
+                <version>${opencc4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok-mapstruct-binding</artifactId>
+                <version>${lombok-mapstruct-binding.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.mapstruct</groupId>
+                                <artifactId>mapstruct-processor</artifactId>
+                                <version>${mapstruct.version}</version>
+                            </path>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>1.18.36</version>
+                            </path>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok-mapstruct-binding</artifactId>
+                                <version>${lombok-mapstruct-binding.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <excludes>
+                            <exclude>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                            </exclude>
+                        </excludes>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.5</version>
+                    <configuration>
+                        <argLine>@{argLine} -XX:+EnableDynamicAgentLoading</argLine>
+                    </configuration>
+                </plugin>
+
+                <!-- JaCoCo plugin for multi-module coverage check -->
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>0.8.11</version>
+                    <configuration>
+                        <excludes>
+                            <exclude>com/example/BackendArchitectureLab/Controller/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Entity/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Dto/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Mapper/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/DataAccess/specification/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Config/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Aop/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Filter/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/WebSocket/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Timer/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Exception/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Repository/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/DataAccess/I*.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/I*.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Onnx/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Crawler/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Security/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Annotation/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Util/*Mapper.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/impl/BaseOpenAiService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/impl/GeminiService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/impl/ProjectService.class</exclude>
+                            <exclude>**/*Application.class</exclude>
+                        </excludes>
+                        <rules>
+                            <rule>
+                                <element>BUNDLE</element>
+                                <limits>
+                                    <limit>
+                                        <counter>LINE</counter>
+                                        <value>COVEREDRATIO</value>
+                                        <minimum>0.80</minimum>
+                                    </limit>
+                                </limits>
+                            </rule>
+                        </rules>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>prepare-agent</id>
+                            <goals><goal>prepare-agent</goal></goals>
+                        </execution>
+                        <execution>
+                            <id>report</id>
+                            <phase>test</phase>
+                            <goals><goal>report</goal></goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
-            <!-- Temporarily disabled to use JAVA_HOME instead
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-toolchains-plugin</artifactId>
-                <version>3.2.0</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>toolchain</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <toolchains>
-                        <jdk>
-                            <version>21</version>
-                        </jdk>
-                    </toolchains>
-                </configuration>
-            </plugin>
-            -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.mapstruct</groupId>
-                            <artifactId>mapstruct-processor</artifactId>
-                            <version>${mapstruct.version}</version>
-                        </path>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>1.18.36</version>
-                        </path>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok-mapstruct-binding</artifactId>
-                            <version>0.2.0</version>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.asciidoctor</groupId>
-                <artifactId>asciidoctor-maven-plugin</artifactId>
-                <version>2.2.1</version>
-                <executions>
-                    <execution>
-                        <id>generate-docs</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>process-asciidoc</goal>
-                        </goals>
-                        <configuration>
-                            <backend>html</backend>
-                            <doctype>book</doctype>
-                        </configuration>
-                    </execution>
-                </executions>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.springframework.restdocs</groupId>
-                        <artifactId>spring-restdocs-asciidoctor</artifactId>
-                        <version>${spring-restdocs.version}</version>
-                    </dependency>
-                </dependencies>
-            </plugin>
-            <!-- Maven Surefire Plugin - 消除 Mockito 警告 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.5</version>
-                <configuration>
-                    <argLine>@{argLine} -XX:+EnableDynamicAgentLoading</argLine>
-                </configuration>
-            </plugin>
-            <!-- JaCoCo Maven Plugin - 測試覆蓋率報告 -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
-                <configuration>
-                    <excludes>
-                        <exclude>com/example/BackendArchitectureLab/Controller/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Entity/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Dto/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Mapper/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/DataAccess/specification/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Config/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Aop/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Filter/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/WebSocket/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Timer/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Exception/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Repository/**</exclude>
-                        <exclude>com/example/BackendArchitectureLab/DataAccess/I*.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/I*.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/BackedApiApplication.class</exclude>
-                        <!-- Security - 需完整 Servlet 容器模擬 -->
-                        <exclude>com/example/BackendArchitectureLab/Security/**</exclude>
-                        <!-- 外部 AI API 調用 - 脫離實際端點無法驗證 -->
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/BaseOpenAiService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/GeminiService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/DeepSeekService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/GroqService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/GitHubModelsService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/CompositeAiService.class</exclude>
-                        <!-- Kafka/Alarm - 需 Kafka Broker -->
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/KafkaConsumerService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/AlarmService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/AlarmKafkaPublisher.class</exclude>
-                        <!-- 外部輪詢工具 -->
-                        <exclude>com/example/BackendArchitectureLab/Service/impl/CheckApiService.class</exclude>
-                        <exclude>com/example/BackendArchitectureLab/Util/CallApi.class</exclude>
-                        <!-- STT - 需 GPU + 模型檔 -->
-                        <exclude>com/example/BackendArchitectureLab/Service/Onnx/**</exclude>
-                        <!-- 網頁爬蟲 - 需實際連線 -->
-                        <exclude>com/example/BackendArchitectureLab/Crawler/**</exclude>
-                    </excludes>
-                    <rules>
-                        <rule>
-                            <element>BUNDLE</element>
-                            <limits>
-                                <limit>
-                                    <counter>LINE</counter>
-                                    <value>COVEREDRATIO</value>
-                                    <minimum>0.80</minimum>
-                                </limit>
-                            </limits>
-                        </rule>
-                    </rules>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                        <configuration>
-                            <excludes>
-                                <!-- 排除 Controller 層 -->
-                                <exclude>com/example/BackendArchitectureLab/Controller/**</exclude>
-                                <!-- 排除 Entity 類 -->
-                                <exclude>com/example/BackendArchitectureLab/Entity/**</exclude>
-                                <!-- 排除 DTO 和 VO -->
-                                <exclude>com/example/BackendArchitectureLab/Dto/**</exclude>
-                                <!-- 排除 Mapper -->
-                                <exclude>com/example/BackendArchitectureLab/Mapper/**</exclude>
-                                <!-- 排除 Specification -->
-                                <exclude>com/example/BackendArchitectureLab/DataAccess/specification/**</exclude>
-                                <!-- 排除 Config -->
-                                <exclude>com/example/BackendArchitectureLab/Config/**</exclude>
-                                <!-- 排除 AOP -->
-                                <exclude>com/example/BackendArchitectureLab/Aop/**</exclude>
-                                <!-- 排除 Filter -->
-                                <exclude>com/example/BackendArchitectureLab/Filter/**</exclude>
-                                <!-- 排除 WebSocket -->
-                                <exclude>com/example/BackendArchitectureLab/WebSocket/**</exclude>
-                                <!-- 排除 Timer -->
-                                <exclude>com/example/BackendArchitectureLab/Timer/**</exclude>
-                                <!-- 排除 Exception -->
-                                <exclude>com/example/BackendArchitectureLab/Exception/**</exclude>
-                                <!-- 排除 Repository 介面 -->
-                                <exclude>com/example/BackendArchitectureLab/Repository/**</exclude>
-                                <!-- 排除 DataAccess 介面 -->
-                                <exclude>com/example/BackendArchitectureLab/DataAccess/I*.class</exclude>
-                                <!-- 排除 Service 介面 -->
-                                <exclude>com/example/BackendArchitectureLab/Service/I*.class</exclude>
-                                <!-- 排除主類 -->
-                                <exclude>com/example/BackendArchitectureLab/BackedApiApplication.class</exclude>
-                            </excludes>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>check</id>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                        <configuration>
-                            <excludes>
-                                <!-- 排除 Controller 層 -->
-                                <exclude>com/example/BackendArchitectureLab/Controller/**</exclude>
-                                <!-- 排除 Entity 類 -->
-                                <exclude>com/example/BackendArchitectureLab/Entity/**</exclude>
-                                <!-- 排除 DTO 和 VO -->
-                                <exclude>com/example/BackendArchitectureLab/Dto/**</exclude>
-                                <!-- 排除 Mapper -->
-                                <exclude>com/example/BackendArchitectureLab/Mapper/**</exclude>
-                                <!-- 排除 Specification -->
-                                <exclude>com/example/BackendArchitectureLab/DataAccess/specification/**</exclude>
-                                <!-- 排除 Config -->
-                                <exclude>com/example/BackendArchitectureLab/Config/**</exclude>
-                                <!-- 排除 AOP -->
-                                <exclude>com/example/BackendArchitectureLab/Aop/**</exclude>
-                                <!-- 排除 Filter -->
-                                <exclude>com/example/BackendArchitectureLab/Filter/**</exclude>
-                                <!-- 排除 WebSocket -->
-                                <exclude>com/example/BackendArchitectureLab/WebSocket/**</exclude>
-                                <!-- 排除 Timer -->
-                                <exclude>com/example/BackendArchitectureLab/Timer/**</exclude>
-                                <!-- 排除 Exception -->
-                                <exclude>com/example/BackendArchitectureLab/Exception/**</exclude>
-                                <!-- 排除 Repository 介面 -->
-                                <exclude>com/example/BackendArchitectureLab/Repository/**</exclude>
-                                <!-- 排除 DataAccess 介面 -->
-                                <exclude>com/example/BackendArchitectureLab/DataAccess/I*.class</exclude>
-                                <!-- 排除 Service 介面 -->
-                                <exclude>com/example/BackendArchitectureLab/Service/I*.class</exclude>
-                                <!-- 排除主類 -->
-                                <exclude>com/example/BackendArchitectureLab/BackedApiApplication.class</exclude>
-                            </excludes>
-                            <rules>
-                                <rule>
-                                    <element>BUNDLE</element>
-                                    <limits>
-                                        <limit>
-                                            <counter>LINE</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.80</minimum>
-                                        </limit>
-                                    </limits>
-                                </rule>
-                            </rules>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- Maven Docker Compose Plugin -->
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
             </plugin>
         </plugins>
     </build>
+
     <repositories>
         <repository>
             <id>spring-milestones</id>
@@ -534,5 +353,4 @@
             </snapshots>
         </repository>
     </repositories>
-
 </project>

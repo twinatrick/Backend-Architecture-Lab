@@ -159,6 +159,19 @@ services:
       - my_network
     command: [ "milvus", "run", "standalone" ]
 
+  nacos:
+    image: nacos/nacos-server:v2.5.1
+    container_name: nacos-server
+    restart: ${RESTART_POLICY:-always}
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    networks:
+      - my_network
+
   attu:
     image: ${ATTU_IMAGE:-zilliz/attu:latest}
     container_name: ${ATTU_CONTAINER_NAME:-gary-backend-attu}
