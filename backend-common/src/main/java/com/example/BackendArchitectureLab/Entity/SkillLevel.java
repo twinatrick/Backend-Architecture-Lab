@@ -40,10 +40,10 @@ public class SkillLevel extends BaseEntity {
     private String description;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "skillLevel", fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "skillLevel", fetch = FetchType.LAZY)
     private List<UserSkill> userSkills = new ArrayList<>();
 
     @JsonIgnore
-    @OneToMany(mappedBy = "skillLevel", fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "skillLevel", fetch = FetchType.LAZY)
     private List<ProjectSkill> projectSkills = new ArrayList<>();
 }

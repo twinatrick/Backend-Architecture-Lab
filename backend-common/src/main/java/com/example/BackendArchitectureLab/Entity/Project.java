@@ -28,11 +28,11 @@ public class Project extends BaseEntity {
     private String description;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "project",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "project",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<ProjectSkill> projectSkills =new ArrayList<>();
 
     @JsonIgnore
-    @OneToMany(mappedBy = "project",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "project",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserProject> userProjects =new ArrayList<>();
 
 }

@@ -5,8 +5,10 @@ import com.example.BackendArchitectureLab.Service.impl.BloomFilterService;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import jakarta.persistence.EntityManagerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,7 +17,6 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -162,8 +163,12 @@ public class RedisConfig implements CachingConfigurer {
 
     @Bean
     @ConditionalOnProperty(name = "app.init.enabled", havingValue = "true", matchIfMissing = true)
-    public ApplicationRunner bloomFilterInitializer(IBloomFilterService bloomFilterService, ApplicationContext applicationContext) {
-        return new BloomFilterInitializer(bloomFilterService, applicationContext);
+    public ApplicationRunner bloomFilterInitializer(IBloomFilterService bloomFilterService, ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider) {
+        EntityManagerFactory emf = entityManagerFactoryProvider.getIfAvailable();
+        if (emf == null) {
+            return args -> LOGGER.info("EntityManagerFactory 不可用，跳過布隆過濾器初始化");
+        }
+        return new BloomFilterInitializer(bloomFilterService, emf);
     }
 
     Duration withJitter(Duration base) {

@@ -30,6 +30,6 @@ public class Function extends BaseEntity {
     @Column(name = "type")
     private Integer type;
     @JsonIgnore
-    @OneToMany(mappedBy = "function", fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "function", fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<RoleFunction> roleFunctions =new ArrayList<>();
 }
