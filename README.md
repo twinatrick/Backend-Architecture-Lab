@@ -444,15 +444,14 @@ erDiagram
 
 ## 工程實踐
 
-### 分層架構
+### 層級架構設計
+- Controller → Service → DataAccess Interface → DataAccessImpl → Repository → JPA/Hibernate
+- DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換實作。
 
-採用標準三層架構，並額外抽象 DataAccess 層：
-
-```
-Controller → Service → DataAccess Interface → DataAccessImpl → Repository → JPA/Hibernate
-```
-
-DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換實作。
+### 模組依賴隔離 (Dependency Isolation)
+為了解決微服務架構中常見的全域依賴過重問題（Jar Hell）與啟動效能問題，專案實作了嚴格的依賴隔離策略：
+- Parent POM (`pom.xml`) 僅負責版本管理 (`<dependencyManagement>`) 與極少數的全域基礎依賴（如 Lombok, MapStruct 等）。
+- 各微服務子模組依照其領域職責（例如：`backend-job-service` 需要爬蟲工具、`backend-ai-service` 需要語音辨識與 NLP 套件），各自明確宣告所需的 `<dependencies>`，徹底避免無用類別庫的強迫載入，顯著降低不需要該依賴之服務（如 API Gateway）的啟動時間與編譯體積。
 
 ### 快取策略
 
