@@ -163,12 +163,14 @@ public class RedisConfig implements CachingConfigurer {
 
     @Bean
     @ConditionalOnProperty(name = "app.init.enabled", havingValue = "true", matchIfMissing = true)
-    public ApplicationRunner bloomFilterInitializer(IBloomFilterService bloomFilterService, ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider) {
+    public ApplicationRunner bloomFilterInitializer(IBloomFilterService bloomFilterService,
+                                                    ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider,
+                                                    BloomFilterProperties bloomFilterProperties) {
         EntityManagerFactory emf = entityManagerFactoryProvider.getIfAvailable();
         if (emf == null) {
             return args -> LOGGER.info("EntityManagerFactory 不可用，跳過布隆過濾器初始化");
         }
-        return new BloomFilterInitializer(bloomFilterService, emf);
+        return new BloomFilterInitializer(bloomFilterService, emf, bloomFilterProperties);
     }
 
     Duration withJitter(Duration base) {

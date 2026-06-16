@@ -42,6 +42,13 @@ jwt:
 superuser:
   key: ${SUPERUSER_KEY:super_secret_key_change_in_production}
 
+cache:
+  bloom-filter:
+    entities:
+      - "User:users"
+      - "Role:roles"
+      - "Function:functions"
+
 springdoc:
   api-docs:
     path: /api-docs

@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.startsWith;
@@ -34,6 +35,9 @@ class BloomFilterInitializerTest {
     @Mock
     private Query mockQuery;
 
+    @Mock
+    private BloomFilterProperties bloomFilterProperties;
+
     private BloomFilterInitializer initializer;
 
     private final List<String> sampleIds = List.of(
@@ -46,7 +50,15 @@ class BloomFilterInitializerTest {
     void setUp() {
         lenient().when(entityManagerFactory.createEntityManager()).thenReturn(entityManager);
         lenient().when(entityManager.createQuery(anyString())).thenReturn(mockQuery);
-        initializer = new BloomFilterInitializer(bloomFilterService, entityManagerFactory);
+        lenient().when(bloomFilterProperties.getEntityCacheMap()).thenReturn(Map.of(
+            "User", "users",
+            "Company", "companies",
+            "Skill", "skills",
+            "Role", "roles",
+            "Function", "functions",
+            "JobPosting", "jobPostings"
+        ));
+        initializer = new BloomFilterInitializer(bloomFilterService, entityManagerFactory, bloomFilterProperties);
     }
 
     @Test
@@ -90,6 +102,16 @@ class BloomFilterInitializerTest {
 
         initializer.run(null);
 
+        verify(bloomFilterService, never()).addAll(anyString(), anyList());
+    }
+
+    @Test
+    void run_NoEntitiesConfigured_SkipsInitialization() {
+        when(bloomFilterProperties.getEntityCacheMap()).thenReturn(Map.of());
+
+        initializer.run(null);
+
+        verify(entityManagerFactory, never()).createEntityManager();
         verify(bloomFilterService, never()).addAll(anyString(), anyList());
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
-    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Backend API 壓力測試 - 有/無快取對比" enabled="true">
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Backend API 壓力測試 - 有/無快取對比">
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="使用者定義變數">
         <collectionProp name="Arguments.arguments">
           <elementProp name="SERVER" elementType="Argument">
@@ -38,26 +38,17 @@
       </elementProp>
     </TestPlan>
     <hashTree>
-
-      <!-- ============================================================ -->
-      <!-- HTTP 請求預設值                                                -->
-      <!-- ============================================================ -->
       <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
-        <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
-          <collectionProp name="Arguments.arguments"/>
-        </elementProp>
         <stringProp name="HTTPSampler.domain">${SERVER}</stringProp>
         <stringProp name="HTTPSampler.port">${PORT}</stringProp>
         <stringProp name="HTTPSampler.protocol">${PROTOCOL}</stringProp>
         <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
-        <stringProp name="HTTPSampler.path"></stringProp>
-        <stringProp name="HTTPSampler.method">GET</stringProp>
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+          <collectionProp name="Arguments.arguments"/>
+        </elementProp>
+        <stringProp name="HTTPSampler.implementation"></stringProp>
       </ConfigTestElement>
       <hashTree/>
-
-      <!-- ============================================================ -->
-      <!-- HTTP 標頭管理器                                                -->
-      <!-- ============================================================ -->
       <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
         <collectionProp name="HeaderManager.headers">
           <elementProp name="Content-Type" elementType="Header">
@@ -71,143 +62,169 @@
         </collectionProp>
       </HeaderManager>
       <hashTree/>
-
-      <!-- ============================================================ -->
-      <!-- SETUP Thread Group: 登入取得 JWT Token                         -->
-      <!-- ============================================================ -->
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Setup - 取得 JWT Token" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Setup - 取得 JWT Token">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <intProp name="LoopController.loops">1</intProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
-        <boolProp name="ThreadGroup.scheduler">false</boolProp>
-        <stringProp name="ThreadGroup.duration"></stringProp>
-        <stringProp name="ThreadGroup.delay"></stringProp>
-        <boolProp name="ThreadGroup.isSameUserOnNextCycle">true</boolProp>
       </ThreadGroup>
       <hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST Login" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST Login">
           <stringProp name="HTTPSampler.path">/api/auth/login</stringProp>
-          <stringProp name="HTTPSampler.method">POST</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
-                <stringProp name="Argument.value">{"email":"${ADMIN_EMAIL}","password":"${ADMIN_PASSWORD}"}</stringProp>
+                <stringProp name="Argument.value">{&quot;email&quot;:&quot;${ADMIN_EMAIL}&quot;,&quot;password&quot;:&quot;${ADMIN_PASSWORD}&quot;}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
               </elementProp>
             </collectionProp>
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <RegexExtractor guiclass="RegexExtractorGui" testclass="RegexExtractor" testname="擷取 JWT Token" enabled="true">
-            <stringProp name="RegexExtractor.regex">"token"\s*:\s*"([^"]+)"</stringProp>
+            <stringProp name="RegexExtractor.regex">&quot;token&quot;\s*:\s*&quot;([^&quot;]+)&quot;</stringProp>
             <stringProp name="RegexExtractor.template">$1$</stringProp>
             <stringProp name="RegexExtractor.match_number">1</stringProp>
             <stringProp name="RegexExtractor.default">TOKEN_NOT_FOUND</stringProp>
             <stringProp name="RegexExtractor.refname">jwtToken</stringProp>
+            <stringProp name="RegexExtractor.useHeaders">false</stringProp>
+            <boolProp name="RegexExtractor.default_empty_value">false</boolProp>
           </RegexExtractor>
+          <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="JSR223 PostProcessor">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">log.info(&quot;jwtToken=&quot; + vars.get(&quot;jwtToken&quot;))
+
+props.put(&quot;jwtToken&quot;, vars.get(&quot;jwtToken&quot;))
+
+log.info(&quot;jwtToken property=&quot; + props.get(&quot;jwtToken&quot;))</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+          </JSR223PostProcessor>
           <hashTree/>
         </hashTree>
       </hashTree>
-
-      <!-- ============================================================ -->
-      <!-- Token 傳遞用 Header Manager（所有後續請求共用）                  -->
-      <!-- ============================================================ -->
       <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager - Authorization" enabled="true">
         <collectionProp name="HeaderManager.headers">
           <elementProp name="Authorization" elementType="Header">
             <stringProp name="Header.name">Authorization</stringProp>
-            <stringProp name="Header.value">Bearer ${jwtToken}</stringProp>
+            <stringProp name="Header.value">Bearer ${__property(jwtToken)}</stringProp>
           </elementProp>
         </collectionProp>
       </HeaderManager>
       <hashTree/>
-
-      <!-- ============================================================ -->
-      <!-- 暖身 Thread Group（僅有快取模式時啟用）                          -->
-      <!-- ============================================================ -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Warm-up - 填充快取（僅有快取模式）" enabled="true">
+        <intProp name="ThreadGroup.num_threads">10</intProp>
+        <intProp name="ThreadGroup.ramp_time">2</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <intProp name="LoopController.loops">1</intProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">10</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">2</stringProp>
-        <boolProp name="ThreadGroup.scheduler">false</boolProp>
       </ThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="true">
           <stringProp name="HTTPSampler.path">/api/skill/get</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/role/get" enabled="true">
           <stringProp name="HTTPSampler.path">/api/role/get</stringProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/function/get" enabled="true">
           <stringProp name="HTTPSampler.path">/api/function/get</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/company/get" enabled="true">
           <stringProp name="HTTPSampler.path">/api/company/get</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/job-posting/get" enabled="true">
           <stringProp name="HTTPSampler.path">/api/job-posting/get</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree/>
       </hashTree>
-
-      <!-- ============================================================ -->
-      <!-- Thread Group 1: 讀取密集型（50→500 併發，5 分鐘）                -->
-      <!-- ============================================================ -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="讀取密集型 - Read Intensive (50→500 users)" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">true</boolProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">500</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">30</stringProp>
+        <intProp name="ThreadGroup.num_threads">500</intProp>
+        <intProp name="ThreadGroup.ramp_time">30</intProp>
+        <longProp name="ThreadGroup.duration">300</longProp>
+        <longProp name="ThreadGroup.delay">5</longProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">300</stringProp>
-        <stringProp name="ThreadGroup.delay">5</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
-        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="隨機控制器 - 讀取請求" enabled="true"/>
+        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="隨機控制器 - 讀取請求" enabled="true">
+          <intProp name="InterleaveControl.style">0</intProp>
+        </RandomController>
         <hashTree>
-          <!-- 查詢技能列表 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="true">
             <stringProp name="HTTPSampler.path">/api/skill/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 搜尋專案 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/project/search" enabled="true">
             <stringProp name="HTTPSampler.path">/api/project/search</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"先進製程"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;page&quot;:0,&quot;size&quot;:20,&quot;keyword&quot;:&quot;先進製程&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -218,19 +235,21 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 搜尋職缺 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/job-posting/search" enabled="true">
             <stringProp name="HTTPSampler.path">/api/job-posting/search</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"工程師"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;page&quot;:0,&quot;size&quot;:20,&quot;keyword&quot;:&quot;工程師&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -241,19 +260,21 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 搜尋使用者 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/users/search" enabled="true">
             <stringProp name="HTTPSampler.path">/api/users/search</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"Employee"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;page&quot;:0,&quot;size&quot;:20,&quot;keyword&quot;:&quot;Employee&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -264,83 +285,101 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 取得公司列表 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/company/get" enabled="true">
             <stringProp name="HTTPSampler.path">/api/company/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 取得角色列表 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/role/get" enabled="true">
             <stringProp name="HTTPSampler.path">/api/role/get</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 取得感測器資料 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/aquarkData/getColumnNameList" enabled="true">
             <stringProp name="HTTPSampler.path">/api/aquarkData/getColumnNameList</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
         </hashTree>
       </hashTree>
-
-      <!-- ============================================================ -->
-      <!-- Thread Group 2: 寫入密集型（100 併發，5 分鐘）                   -->
-      <!-- ============================================================ -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="寫入密集型 - Write Intensive (100 users)" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">true</boolProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">100</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">10</stringProp>
+        <intProp name="ThreadGroup.num_threads">100</intProp>
+        <intProp name="ThreadGroup.ramp_time">10</intProp>
+        <longProp name="ThreadGroup.duration">300</longProp>
+        <longProp name="ThreadGroup.delay">310</longProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">300</stringProp>
-        <stringProp name="ThreadGroup.delay">310</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
-        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="隨機控制器 - 寫入請求" enabled="true"/>
+        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="隨機控制器 - 寫入請求" enabled="true">
+          <intProp name="InterleaveControl.style">0</intProp>
+        </RandomController>
         <hashTree>
-          <!-- 新增個人技能 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/skill/personal/add" enabled="true">
             <stringProp name="HTTPSampler.path">/api/skill/personal/add</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"name":"StressTest_Skill_${__time(MMddHHmmss)}","description":"Stress test skill"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;name&quot;:&quot;StressTest_Skill_${__time(MMddHHmmss)}&quot;,&quot;description&quot;:&quot;Stress test skill&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -351,19 +390,21 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 新增個人專案 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/project/personal/add" enabled="true">
             <stringProp name="HTTPSampler.path">/api/project/personal/add</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"name":"StressTest_Project_${__time(MMddHHmmss)}","description":"Stress test project"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;name&quot;:&quot;StressTest_Project_${__time(MMddHHmmss)}&quot;,&quot;description&quot;:&quot;Stress test project&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -374,19 +415,21 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 新增公司 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/company/add" enabled="true">
             <stringProp name="HTTPSampler.path">/api/company/add</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"name":"StressTest_Company_${__time(MMddHHmmss)}","description":"Stress test company"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;name&quot;:&quot;StressTest_Company_${__time(MMddHHmmss)}&quot;,&quot;description&quot;:&quot;Stress test company&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -397,53 +440,61 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
         </hashTree>
       </hashTree>
-
-      <!-- ============================================================ -->
-      <!-- Thread Group 3: 混合工作負載（200 併發，5 分鐘）                 -->
-      <!-- ============================================================ -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="混合工作負載 - Mixed Workload (200 users)" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">true</boolProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">200</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">15</stringProp>
+        <intProp name="ThreadGroup.num_threads">200</intProp>
+        <intProp name="ThreadGroup.ramp_time">15</intProp>
+        <longProp name="ThreadGroup.duration">300</longProp>
+        <longProp name="ThreadGroup.delay">620</longProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">300</stringProp>
-        <stringProp name="ThreadGroup.delay">620</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
-        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="隨機控制器 (80% Read / 20% Write)" enabled="true"/>
+        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="隨機控制器 (80% Read / 20% Write)" enabled="true">
+          <intProp name="InterleaveControl.style">0</intProp>
+        </RandomController>
         <hashTree>
-          <!-- 讀取請求 1/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="true">
             <stringProp name="HTTPSampler.path">/api/skill/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 讀取請求 2/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/project/search" enabled="true">
             <stringProp name="HTTPSampler.path">/api/project/search</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"先進製程"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;page&quot;:0,&quot;size&quot;:20,&quot;keyword&quot;:&quot;先進製程&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -454,19 +505,21 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 讀取請求 3/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/job-posting/search" enabled="true">
             <stringProp name="HTTPSampler.path">/api/job-posting/search</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"工程師"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;page&quot;:0,&quot;size&quot;:20,&quot;keyword&quot;:&quot;工程師&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -477,34 +530,41 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 讀取請求 4/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/company/get" enabled="true">
             <stringProp name="HTTPSampler.path">/api/company/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+              <collectionProp name="Arguments.arguments"/>
+            </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
-
-          <!-- 寫入請求 1/1 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/skill/personal/add" enabled="true">
             <stringProp name="HTTPSampler.path">/api/skill/personal/add</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"name":"Mix_Skill_${__time(MMddHHmmss)}","description":"Mixed workload skill"}</stringProp>
+                  <stringProp name="Argument.value">{&quot;name&quot;:&quot;Mix_Skill_${__time(MMddHHmmss)}&quot;,&quot;description&quot;:&quot;Mixed workload skill&quot;}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -515,35 +575,37 @@
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
-              <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
+              <stringProp name="Assertion.test_field">Assertion.sample_label</stringProp>
+              <stringProp name="Assertion.custom_message"></stringProp>
+              <boolProp name="Assertion.assume_success">false</boolProp>
+              <intProp name="Assertion.test_type">2</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
         </hashTree>
       </hashTree>
-
-      <!-- ============================================================ -->
-      <!-- Thread Group 4: 尖峰測試（0→1000 併發，3 分鐘）                  -->
-      <!-- ============================================================ -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="尖峰測試 - Spike Test (0→1000 users)" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">true</boolProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1000</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">10</stringProp>
+        <intProp name="ThreadGroup.num_threads">1000</intProp>
+        <intProp name="ThreadGroup.ramp_time">10</intProp>
+        <longProp name="ThreadGroup.duration">180</longProp>
+        <longProp name="ThreadGroup.delay">930</longProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">180</stringProp>
-        <stringProp name="ThreadGroup.delay">930</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/job-posting/search" enabled="true">
           <stringProp name="HTTPSampler.path">/api/job-posting/search</stringProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
-                <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"工程師"}</stringProp>
+                <stringProp name="Argument.value">{&quot;page&quot;:0,&quot;size&quot;:20,&quot;keyword&quot;:&quot;工程師&quot;}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
@@ -556,57 +618,6 @@
           <hashTree/>
         </hashTree>
       </hashTree>
-
-      <!-- ============================================================ -->
-      <!-- Listener: 彙總報告                                              -->
-      <!-- ============================================================ -->
-      <ResultCollector guiclass="SummaryReportGui" testclass="ResultCollector" testname="彙總報告 - Summary Report" enabled="true">
-        <collectionProp name="ResultCollector.error_logging">
-          <stringProp name="0">true</stringProp>
-        </collectionProp>
-      </ResultCollector>
-      <hashTree/>
-
-      <!-- ============================================================ -->
-      <!-- Listener: 聚合報告                                              -->
-      <!-- ============================================================ -->
-      <ResultCollector guiclass="AggregateReportGui" testclass="ResultCollector" testname="聚合報告 - Aggregate Report" enabled="true">
-        <collectionProp name="ResultCollector.error_logging">
-          <stringProp name="0">true</stringProp>
-        </collectionProp>
-      </ResultCollector>
-      <hashTree/>
-
-      <!-- ============================================================ -->
-      <!-- Listener: 結果表格                                              -->
-      <!-- ============================================================ -->
-      <ResultCollector guiclass="TableVisualiser" testclass="ResultCollector" testname="結果表格 - View Results in Table" enabled="false">
-        <collectionProp name="ResultCollector.error_logging">
-          <stringProp name="0">true</stringProp>
-        </collectionProp>
-      </ResultCollector>
-      <hashTree/>
-
-      <!-- ============================================================ -->
-      <!-- Listener: 圖形結果                                              -->
-      <!-- ============================================================ -->
-      <ResultCollector guiclass="GraphVisualiser" testclass="ResultCollector" testname="圖形結果 - Graph Results" enabled="false">
-        <collectionProp name="ResultCollector.error_logging">
-          <stringProp name="0">true</stringProp>
-        </collectionProp>
-      </ResultCollector>
-      <hashTree/>
-
-      <!-- ============================================================ -->
-      <!-- Listener: 用圖形結果                                            -->
-      <!-- ============================================================ -->
-      <ResultCollector guiclass="StatGraphVisualizer" testclass="ResultCollector" testname="統計圖表 - Statistics Graph" enabled="false">
-        <collectionProp name="ResultCollector.error_logging">
-          <stringProp name="0">true</stringProp>
-        </collectionProp>
-      </ResultCollector>
-      <hashTree/>
-
     </hashTree>
   </hashTree>
 </jmeterTestPlan>

@@ -48,7 +48,7 @@ public class IgnoreUrlsProvider implements InitializingBean {
         ignoredUrls.add("/error");
         ignoredUrls.add("/actuator/**");
 
-        ignoredUrls.add("/**/inner/**");
+        ignoredUrls.add("/*/inner/**");
     }
 
     public String[] getIgnoredUrls() {

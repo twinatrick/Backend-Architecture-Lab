@@ -14,28 +14,29 @@ import java.util.stream.Collectors;
 @Slf4j
 public class BloomFilterInitializer implements ApplicationRunner {
 
-    private static final Map<String, String> ENTITY_CACHE_MAP = Map.of(
-        "User", "users",
-        "Company", "companies",
-        "Skill", "skills",
-        "Role", "roles",
-        "Function", "functions",
-        "JobPosting", "jobPostings"
-    );
-
     private final IBloomFilterService bloomFilterService;
     private final EntityManagerFactory entityManagerFactory;
+    private final BloomFilterProperties bloomFilterProperties;
 
-    public BloomFilterInitializer(IBloomFilterService bloomFilterService, EntityManagerFactory entityManagerFactory) {
+    public BloomFilterInitializer(IBloomFilterService bloomFilterService,
+                                  EntityManagerFactory entityManagerFactory,
+                                  BloomFilterProperties bloomFilterProperties) {
         this.bloomFilterService = bloomFilterService;
         this.entityManagerFactory = entityManagerFactory;
+        this.bloomFilterProperties = bloomFilterProperties;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        log.info("開始初始化布隆過濾器...");
+        Map<String, String> entityCacheMap = bloomFilterProperties.getEntityCacheMap();
+        if (entityCacheMap.isEmpty()) {
+            log.info("未配置布隆過濾器初始化項目，跳過初始化");
+            return;
+        }
 
-        ENTITY_CACHE_MAP.forEach((entityName, cacheName) -> {
+        log.info("開始初始化布隆過濾器，共 {} 項...", entityCacheMap.size());
+
+        entityCacheMap.forEach((entityName, cacheName) -> {
             EntityManager em = entityManagerFactory.createEntityManager();
             try {
                 String ql = "SELECT e.id FROM " + entityName + " e";

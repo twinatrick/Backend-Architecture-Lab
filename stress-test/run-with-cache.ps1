@@ -1,10 +1,10 @@
-param(
+﻿param(
     [string]$JmeterBin = "C:\Users\gary\jmeter\apache-jmeter-5.6.3\bin\jmeter.bat",
     [string]$Server = "localhost",
     [int]$Port = 8000,
     [int]$Threads = 500,
     [int]$AlertThreads = 200,
-    [int]$Duration = 300,
+    [int]$Duration = 60,
     [string]$ResultCsv = "stress-test-result-with-cache.csv"
 )
 
@@ -26,12 +26,22 @@ Write-Host "==========================================" -ForegroundColor Cyan
 foreach ($s in $scripts) {
     $rawFile = "$RawDir\raw-$($s.Name).csv"
     Write-Host "[$($s.Name)] 開始測試..." -ForegroundColor Yellow
-    & $JmeterBin -n -t $($s.File) -l $rawFile `
-        -JTHREADS=$($s.Threads) -JDURATION=$Duration -JRAMP_UP=30 `
-        -JSERVER=$Server -JPORT=$Port `
-        -JADMIN_EMAIL=admin@tsmc.com -JADMIN_PASSWORD=password `
-        -Jjmeter.save.saveservice.output_format=csv `
-        -Jjmeter.save.saveservice.response_data=false -j "$RawDir\jmeter-$($s.Name).log"
+    $jmeterArgs = @(
+        "-n",
+        "-t", $s.File,
+        "-l", $rawFile,
+        "-JTHREADS=$($s.Threads)",
+        "-JDURATION=$Duration",
+        "-JRAMP_UP=30",
+        "-JSERVER=$Server",
+        "-JPORT=$Port",
+        "-JADMIN_EMAIL=admin@tsmc.com",
+        "-JADMIN_PASSWORD=password",
+        "-Jjmeter.save.saveservice.output_format=csv",
+        "-Jjmeter.save.saveservice.response_data=false",
+        "-j", "$RawDir\jmeter-$($s.Name).log"
+    )
+    & $JmeterBin $jmeterArgs
     Write-Host "[$($s.Name)] 完成，原始結果: $rawFile" -ForegroundColor Green
 }
 
