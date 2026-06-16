@@ -56,6 +56,13 @@ public class UserController {
         return ResponseType.Success("User project bound successfully");
     }
 
+    @GetMapping("/{id}")
+    @RequirePermission({"System", "User", "View"})
+    @ApiOperationOk(summary = "Get user by ID", description = "根據 ID 取得使用者資訊。")
+    public ResponseType<UserVo> getUserById(@PathVariable String id) {
+        return ResponseType.Success(userService.getUserById(id), "使用者查詢成功");
+    }
+
     @GetMapping("/getAllUser")
     @RequirePermission({"System", "User", "View"})
     @ApiOperationOk(summary = "Get all users", description = "Returns all users with their roles and permissions.")

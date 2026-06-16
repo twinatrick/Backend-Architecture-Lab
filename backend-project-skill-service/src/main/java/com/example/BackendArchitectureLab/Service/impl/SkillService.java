@@ -520,6 +520,7 @@ public class SkillService implements ISkillService {
     }
     
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "currentUserSkills", sync = true)
     public List<CurrentUserSkillVo> getCurrentUserSkills() {
         List<CurrentUserSkillVo> result = new ArrayList<>();
@@ -533,19 +534,28 @@ public class SkillService implements ISkillService {
             seenSkillIds.add(skill.getId());
         }
         
-        // 2. 取得 PROJECT 專案的技能
+        // 2. 取得 PROJECT 專案的技能（批次載入避免 N+1）
         List<UserProject> userProjects = userProjectDataAccess.findByUserId(requireCurrentUserId());
-        for (UserProject up : userProjects) {
-            Project project = up.getProject();
-            for (ProjectSkill ps : project.getProjectSkills()) {
-                Skill skill = ps.getSkill();
-                if (!seenSkillIds.contains(skill.getId())) {
-                    result.add(CurrentUserSkillVo.fromSkillVoWithProject(
-                        skillMapper.toVo(skill),
-                        project.getId(),
-                        project.getName()
-                    ));
-                    seenSkillIds.add(skill.getId());
+        if (!userProjects.isEmpty()) {
+            List<UUID> projectIds = userProjects.stream()
+                .map(up -> up.getProject().getId())
+                .toList();
+            List<ProjectSkill> allProjectSkills = projectSkillDataAccess.findByProjectIdIn(projectIds);
+            Map<UUID, List<ProjectSkill>> skillsByProject = allProjectSkills.stream()
+                .collect(Collectors.groupingBy(ps -> ps.getProject().getId()));
+
+            for (UserProject up : userProjects) {
+                Project project = up.getProject();
+                for (ProjectSkill ps : skillsByProject.getOrDefault(project.getId(), List.of())) {
+                    Skill skill = ps.getSkill();
+                    if (!seenSkillIds.contains(skill.getId())) {
+                        result.add(CurrentUserSkillVo.fromSkillVoWithProject(
+                            skillMapper.toVo(skill),
+                            project.getId(),
+                            project.getName()
+                        ));
+                        seenSkillIds.add(skill.getId());
+                    }
                 }
             }
         }
@@ -554,6 +564,7 @@ public class SkillService implements ISkillService {
     }
     
     @Override
+    @Transactional(readOnly = true)
     public PageResult<CurrentUserSkillVo> searchCurrentUserSkills(SkillSearchQuery query) {
         // 驗證排序欄位
         Set<String> validSortFields = Set.of("id", "name", "description", "createdBy", "updatedBy", "createdTime", "updatedTime");

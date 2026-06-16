@@ -19,6 +19,8 @@ public interface IProjectSkillDataAccess {
 
     List<ProjectSkill> findByProjectId(UUID projectId);
 
+    List<ProjectSkill> findByProjectIdIn(List<UUID> projectIds);
+
     void deleteByProjectId(UUID projectId);
 
     void deleteByProjectIdAndSkillId(UUID projectId, UUID skillId);

@@ -54,6 +54,7 @@ public class RoleService implements IRoleService {
     private UserMapper userMapper;
 
     @Override
+    @Transactional
     @Caching(put = {
         @CachePut(value = "roles", key = "#result.id"),
         @CachePut(value = "roles", key = "'byname:' + #result.name")
@@ -83,12 +84,14 @@ public class RoleService implements IRoleService {
         return getRoleById(savedRole.getId().toString());
     }
 
+    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "'all'", sync = true)
     public List<RoleOutVo> getRole() {
         return roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "#roleId", sync = true)
     public RoleOutVo getRoleById(String roleId) {
@@ -437,13 +440,14 @@ public class RoleService implements IRoleService {
 
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
     public List<FunctionVo> getFunctionByRole(String roleId) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
-        Role role = roleDataAccess.findById(roleUuid).orElseThrow(
+        Role role = roleDataAccess.findByIdWithRoleFunctions(roleUuid).orElseThrow(
                 () -> new IllegalArgumentException("Role not found")
         );
         return role.getRoleFunctions().stream()
@@ -452,13 +456,14 @@ public class RoleService implements IRoleService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRoleByFunction(String functionId) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
-        Function function = functionDataAccess.findById(functionUuid).orElseThrow(
+        Function function = functionDataAccess.findByIdWithRoleFunctions(functionUuid).orElseThrow(
                 () -> new IllegalArgumentException("Function not found")
         );
         return function.getRoleFunctions().stream()
@@ -467,13 +472,14 @@ public class RoleService implements IRoleService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<UserVo> getUserByRole(String roleId) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
-        Role role = roleDataAccess.findById(roleUuid).orElseThrow(
+        Role role = roleDataAccess.findByIdWithUserRoles(roleUuid).orElseThrow(
                 () -> new IllegalArgumentException("Role not found")
         );
         return role.getUserRoles().stream()
@@ -482,6 +488,7 @@ public class RoleService implements IRoleService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
     public List<RoleOutVo> getRoleByUser(String userId) {
@@ -489,7 +496,7 @@ public class RoleService implements IRoleService {
         if (userUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
-        User user = userDataAccess.findById(userUuid).orElseThrow(
+        User user = userDataAccess.findByIdWithRoles(userUuid).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
         );
         return user.getRoles().stream()
@@ -497,6 +504,7 @@ public class RoleService implements IRoleService {
                 .map(roleMapper::toVo)
                 .toList();
     }
+    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "'byname:' + #name", sync = true)
     public RoleOutVo getRoleByName(String name){
@@ -505,6 +513,7 @@ public class RoleService implements IRoleService {
     }
     
     @Override
+    @Transactional(readOnly = true)
     public PageResult<RoleOutVo> searchRoles(RoleSearchQuery query) {
         // 定義允許的排序欄位
         String[] allowedSortFields = {

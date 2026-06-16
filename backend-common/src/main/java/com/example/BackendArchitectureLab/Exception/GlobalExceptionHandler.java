@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
@@ -45,6 +46,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ResponseType<?>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
         ResponseType<?> response = ResponseType.Fail("FILE_TOO_LARGE", "上傳檔案超過大小限制 (最大 50MB)", HttpStatus.PAYLOAD_TOO_LARGE.value());
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(response);
+    }
+
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException ex) {
+        if (log.isDebugEnabled()) {
+            log.debug("Client disconnected: {}", ex.getMessage());
+        }
     }
 
     @ExceptionHandler(Exception.class)

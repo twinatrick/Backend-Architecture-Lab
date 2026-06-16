@@ -1,5 +1,6 @@
 server:
   port: 8006
+  max-http-request-header-size: 64KB
 spring:
   application:
     name: job-service
@@ -12,6 +13,10 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 16
   kafka:
     bootstrap-servers: localhost:9092
   task:

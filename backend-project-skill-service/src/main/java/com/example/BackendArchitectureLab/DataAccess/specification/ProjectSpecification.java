@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.specification;
 
 import com.example.BackendArchitectureLab.Dto.Vo.Search.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Project;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -55,10 +56,11 @@ public class ProjectSpecification {
         return (root, criteriaQuery, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             
-            // 加入使用者專案關聯條件
+            // 加入使用者專案關聯條件（使用 JOIN FETCH 避免後續 LAZY 載入）
             if (currentUserId != null) {
+                criteriaQuery.distinct(true);
                 predicates.add(criteriaBuilder.equal(
-                    root.join("userProjects").get("user").get("id"), 
+                    root.join("userProjects", JoinType.LEFT).get("user").get("id"), 
                     currentUserId
                 ));
             }

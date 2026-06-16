@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Service.impl;
 import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
@@ -85,10 +86,10 @@ public class JobPostingService implements IJobPostingService {
     public JobPostingVo getJobPostingById(String id) {
         UUID uuid = mapUuid(id);
         if (uuid == null) {
-            throw new IllegalArgumentException("ID must not be null");
+            throw new AppException("NOT_FOUND", "職缺不存在", 404);
         }
         JobPosting jobPosting = jobPostingDataAccess.findById(uuid)
-                .orElseThrow(() -> new IllegalArgumentException("Job posting not found"));
+                .orElseThrow(() -> new AppException("NOT_FOUND", "職缺不存在", 404));
         return jobPostingMapper.toVo(jobPosting);
     }
 

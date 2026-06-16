@@ -42,8 +42,18 @@ public class UserDataAccessImpl implements IUserDataAccess {
     }
 
     @Override
+    public Optional<User> findByEmailWithRoles(String email) {
+        return userRepository.findByEmailWithRoles(email);
+    }
+
+    @Override
     public Optional<User> findById(UUID key) {
         return userRepository.findById(key);
+    }
+
+    @Override
+    public Optional<User> findByIdWithRoles(UUID key) {
+        return userRepository.findByIdWithRoles(key);
     }
 
     @Override

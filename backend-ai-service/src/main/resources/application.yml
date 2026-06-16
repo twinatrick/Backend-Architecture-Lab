@@ -1,5 +1,6 @@
 server:
   port: 8007
+  max-http-request-header-size: 64KB
 spring:
   servlet:
     multipart:

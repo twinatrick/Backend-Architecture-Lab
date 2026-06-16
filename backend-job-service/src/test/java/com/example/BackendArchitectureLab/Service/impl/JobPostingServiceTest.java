@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Service.impl;
 import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
@@ -174,13 +175,13 @@ class JobPostingServiceTest {
     @Test
     @DisplayName("Should throw exception when id is null in getJobPostingById")
     void testGetJobPostingById_NullId() {
-        assertThrows(IllegalArgumentException.class, () -> jobPostingService.getJobPostingById(null));
+        assertThrows(AppException.class, () -> jobPostingService.getJobPostingById(null));
     }
 
     @Test
     @DisplayName("Should throw exception when id is blank in getJobPostingById")
     void testGetJobPostingById_BlankId() {
-        assertThrows(IllegalArgumentException.class, () -> jobPostingService.getJobPostingById("  "));
+        assertThrows(AppException.class, () -> jobPostingService.getJobPostingById("  "));
     }
 
     @Test
@@ -188,7 +189,7 @@ class JobPostingServiceTest {
     void testGetJobPostingById_NotFound() {
         when(jobPostingDataAccess.findById(any(UUID.class))).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(AppException.class,
                 () -> jobPostingService.getJobPostingById(jobPostingId.toString()));
     }
 

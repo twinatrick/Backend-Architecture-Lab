@@ -48,9 +48,7 @@ public class JobPostingDataAccessImpl implements IJobPostingDataAccess {
 
     @Override
     public List<JobPosting> findByCompanyId(UUID companyId) {
-        return jobPostingRepository.findAll().stream()
-                .filter(jp -> jp.getCompany().getId().equals(companyId))
-                .toList();
+        return jobPostingRepository.findByCompanyId(companyId);
     }
 
     @Override

@@ -43,8 +43,6 @@ public class CompanyWebsiteDataAccessImpl implements ICompanyWebsiteDataAccess {
 
     @Override
     public List<CompanyWebsite> findByCompanyId(UUID companyId) {
-        return companyWebsiteRepository.findAll().stream()
-                .filter(cw -> cw.getCompany().getId().equals(companyId))
-                .toList();
+        return companyWebsiteRepository.findByCompanyId(companyId);
     }
 }

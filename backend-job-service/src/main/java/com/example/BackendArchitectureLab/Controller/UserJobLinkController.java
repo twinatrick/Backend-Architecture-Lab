@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +32,13 @@ public class UserJobLinkController {
     @ApiOperationBadRequest(summary = "新增使用者職缺連結", description = "建立使用者與職缺的關聯。")
     public ResponseType<UserJobLinkVo> addUserJobLink(@RequestBody UserJobLinkVo userJobLinkVo) {
         return ResponseType.Success(userJobLinkService.createUserJobLink(userJobLinkVo), "使用者職缺連結新增成功");
+    }
+
+    @PutMapping("/update")
+    @RequirePermission({"System", "UserJobLink", "Edit"})
+    @ApiOperationBadRequest(summary = "更新使用者職缺連結", description = "更新使用者職缺連結的使用者備註與 Gemini 回饋。")
+    public ResponseType<UserJobLinkVo> updateUserJobLink(@RequestBody UserJobLinkVo userJobLinkVo) {
+        return ResponseType.Success(userJobLinkService.updateUserJobLink(userJobLinkVo), "使用者職缺連結更新成功");
     }
 
     @GetMapping("/get")

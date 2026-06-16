@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Dto.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
@@ -134,6 +135,32 @@ public class UserJobLinkService implements IUserJobLinkService {
         return userJobLinkDataAccess.findByJobPostingId(uuid).stream()
                 .map(userJobLinkMapper::toVo)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    @Caching(put = {
+        @CachePut(value = "userJobLinks", key = "#result.id")
+    }, evict = {
+        @CacheEvict(value = "userJobLinks", key = "'byuser:' + #userJobLinkVo.userId"),
+        @CacheEvict(value = "userJobLinks", key = "'byjob:' + #userJobLinkVo.jobPostingId"),
+        @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #userJobLinkVo.userId")
+    })
+    public UserJobLinkVo updateUserJobLink(UserJobLinkVo userJobLinkVo) {
+        if (userJobLinkVo.getId() == null || userJobLinkVo.getId().isBlank()) {
+            throw new IllegalArgumentException("ID must not be null");
+        }
+        UUID uuid = UUID.fromString(userJobLinkVo.getId());
+        UserJobLink link = userJobLinkDataAccess.findById(uuid)
+                .orElseThrow(() -> new AppException("NOT_FOUND", "使用者職缺連結不存在", 404));
+        if (userJobLinkVo.getUserNotes() != null) {
+            link.setUserNotes(userJobLinkVo.getUserNotes());
+        }
+        if (userJobLinkVo.getGeminiFeedback() != null) {
+            link.setGeminiFeedback(userJobLinkVo.getGeminiFeedback());
+        }
+        link = userJobLinkDataAccess.save(link);
+        return userJobLinkMapper.toVo(link);
     }
 
     @Override

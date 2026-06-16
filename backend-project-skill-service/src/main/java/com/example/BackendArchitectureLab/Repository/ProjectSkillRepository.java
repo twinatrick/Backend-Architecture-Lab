@@ -21,6 +21,9 @@ public interface ProjectSkillRepository extends JpaRepository<ProjectSkill, UUID
 
     List<ProjectSkill> findByProjectId(UUID projectId);
 
+    @Query("SELECT ps FROM ProjectSkill ps JOIN FETCH ps.skill JOIN FETCH ps.skillLevel WHERE ps.project.id IN :projectIds")
+    List<ProjectSkill> findByProjectIdIn(@Param("projectIds") List<UUID> projectIds);
+
     @Modifying
     @Query("delete from ProjectSkill ps where ps.project.id = :projectId")
     void deleteByProjectId(@Param("projectId") UUID projectId);

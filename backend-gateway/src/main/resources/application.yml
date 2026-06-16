@@ -1,6 +1,9 @@
 server:
   port: 8000
+  max-http-request-header-size: 64KB
 spring:
+  main:
+    web-application-type: reactive
   application:
     name: gateway
   task:
@@ -17,7 +20,7 @@ spring:
         - id: iam-service
           uri: lb://iam-service
           predicates:
-            - Path=/api/auth/**,/api/users/**,/api/role/**,/api/functions/**
+            - Path=/api/auth/**,/api/users/**,/api/role/**,/api/function/**
           filters:
             - StripPrefix=1
 

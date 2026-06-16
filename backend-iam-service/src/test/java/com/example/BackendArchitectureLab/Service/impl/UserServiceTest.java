@@ -453,18 +453,18 @@ class UserServiceTest {
     @DisplayName("Should throw Exception when user ID is null")
     void testGetUserById_NullId() {
         // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+        AppException exception = assertThrows(AppException.class,
                 () -> userService.getUserById(null));
-        assertEquals("Key must not be null", exception.getMessage());
+        assertEquals("使用者不存在", exception.getMessage());
     }
 
     @Test
     @DisplayName("Should throw Exception when user ID is blank")
     void testGetUserById_BlankId() {
         // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+        AppException exception = assertThrows(AppException.class,
                 () -> userService.getUserById("   "));
-        assertEquals("Key must not be null", exception.getMessage());
+        assertEquals("使用者不存在", exception.getMessage());
     }
 
     @Test
@@ -475,9 +475,9 @@ class UserServiceTest {
         when(userDataAccess.findById(userId)).thenReturn(java.util.Optional.empty());
 
         // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+        AppException exception = assertThrows(AppException.class,
                 () -> userService.getUserById(userId.toString()));
-        assertEquals("User not found", exception.getMessage());
+        assertEquals("使用者不存在", exception.getMessage());
     }
 
     @Test
