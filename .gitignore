@@ -5,6 +5,8 @@ target/
 !**/src/test/**/target/
 .env
 *.bat
+jmeter.log
+/simulate.sql
 
 ### STS ###
 .apt_generated

@@ -66,6 +66,16 @@ public class RoleDataAccessImpl implements IRoleDataAccess {
     public Role findRoleByName(String name) {
         return roleRepository.findRoleByName(name);
     }
+
+    @Override
+    public Optional<Role> findByIdWithRoleFunctions(UUID key) {
+        return roleRepository.findByIdWithRoleFunctions(key);
+    }
+
+    @Override
+    public Optional<Role> findByIdWithUserRoles(UUID key) {
+        return roleRepository.findByIdWithUserRoles(key);
+    }
     
     @Override
     public Page<Role> searchRoles(RoleSearchQuery query) {

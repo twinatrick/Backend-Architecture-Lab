@@ -1,72 +1,62 @@
 package com.example.BackendArchitectureLab.Config;
 
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.ApplicationContext;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
 public class BloomFilterInitializer implements ApplicationRunner {
 
-    private static final Map<String, String> REPO_CACHE_MAP = Map.of(
-        "userRepository", "users",
-        "companyRepository", "companies",
-        "skillRepository", "skills",
-        "roleRepository", "roles",
-        "functionRepository", "functions",
-        "jobPostingRepository", "jobPostings"
-    );
-
     private final IBloomFilterService bloomFilterService;
-    private final ApplicationContext applicationContext;
+    private final EntityManagerFactory entityManagerFactory;
+    private final BloomFilterProperties bloomFilterProperties;
 
-    public BloomFilterInitializer(IBloomFilterService bloomFilterService, ApplicationContext applicationContext) {
+    public BloomFilterInitializer(IBloomFilterService bloomFilterService,
+                                  EntityManagerFactory entityManagerFactory,
+                                  BloomFilterProperties bloomFilterProperties) {
         this.bloomFilterService = bloomFilterService;
-        this.applicationContext = applicationContext;
+        this.entityManagerFactory = entityManagerFactory;
+        this.bloomFilterProperties = bloomFilterProperties;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        log.info("開始初始化布隆過濾器...");
+        Map<String, String> entityCacheMap = bloomFilterProperties.getEntityCacheMap();
+        if (entityCacheMap.isEmpty()) {
+            log.info("未配置布隆過濾器初始化項目，跳過初始化");
+            return;
+        }
 
-        REPO_CACHE_MAP.forEach((beanName, cacheName) -> {
-            if (applicationContext.containsBean(beanName)) {
-                JpaRepository<?, ?> repo = (JpaRepository<?, ?>) applicationContext.getBean(beanName);
-                populateFromRepository(cacheName, repo);
-            } else {
-                log.info("Repository [{}] 不存在於此服務，跳過 BloomFilter [{}]", beanName, cacheName);
+        log.info("開始初始化布隆過濾器，共 {} 項...", entityCacheMap.size());
+
+        entityCacheMap.forEach((entityName, cacheName) -> {
+            EntityManager em = entityManagerFactory.createEntityManager();
+            try {
+                String ql = "SELECT e.id FROM " + entityName + " e";
+                List<?> ids = em.createQuery(ql).getResultList();
+                if (ids == null || ids.isEmpty()) {
+                    log.warn("布隆過濾器 [bloom:{}] 無資料可填充", cacheName);
+                    return;
+                }
+                List<String> idStrings = ids.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.toList());
+                bloomFilterService.addAll(cacheName, idStrings);
+                log.info("布隆過濾器 [bloom:{}] 已填充 {} 筆資料", cacheName, idStrings.size());
+            } catch (IllegalArgumentException e) {
+                log.info("Entity [{}] 不存在於此服務，跳過 BloomFilter [{}]", entityName, cacheName);
+            } finally {
+                em.close();
             }
         });
 
         log.info("布隆過濾器初始化完成");
-    }
-
-    @SuppressWarnings("unchecked")
-    private void populateFromRepository(String cacheName, JpaRepository<?, ?> repo) {
-        List<?> allEntities = repo.findAll();
-        if (allEntities == null || allEntities.isEmpty()) {
-            log.warn("布隆過濾器 [bloom:{}] 無資料可填充", cacheName);
-            return;
-        }
-        List<String> idStrings = allEntities.stream()
-            .map(e -> {
-                try {
-                    Object id = e.getClass().getMethod("getId").invoke(e);
-                    return id != null ? id.toString() : null;
-                } catch (Exception ex) {
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-        bloomFilterService.addAll(cacheName, idStrings);
-        log.info("布隆過濾器 [bloom:{}] 已填充 {} 筆資料", cacheName, idStrings.size());
     }
 }

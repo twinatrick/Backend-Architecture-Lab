@@ -166,7 +166,7 @@ class ProjectSpecificationTest {
 
         spec.toPredicate(root, query, cb);
 
-        verify(root).join("userProjects");
+        verify(root).join("userProjects", JoinType.LEFT);
         verify(cb).equal(any(Path.class), eq(userId));
         verify(cb).and(any(Predicate[].class));
     }
@@ -205,7 +205,7 @@ class ProjectSpecificationTest {
 
         spec.toPredicate(root, query, cb);
 
-        verify(root).join("userProjects");
+        verify(root).join("userProjects", JoinType.LEFT);
         verify(root).get("name");
         verify(root).get("description");
         verify(root).get("createdBy");

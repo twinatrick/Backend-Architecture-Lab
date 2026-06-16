@@ -1,5 +1,6 @@
 server:
   port: 8002
+  max-http-request-header-size: 64KB
 
 spring:
   application:
@@ -13,6 +14,10 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 16
   data:
     redis:
       host: localhost
@@ -36,6 +41,13 @@ jwt:
 
 superuser:
   key: ${SUPERUSER_KEY:super_secret_key_change_in_production}
+
+cache:
+  bloom-filter:
+    entities:
+      - "User:users"
+      - "Role:roles"
+      - "Function:functions"
 
 springdoc:
   api-docs:

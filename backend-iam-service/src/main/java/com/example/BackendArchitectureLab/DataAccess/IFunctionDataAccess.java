@@ -111,6 +111,14 @@ public interface IFunctionDataAccess {
     List<Function> findFunctionByNameAndParent(String name, String parent);
     
     /**
+     * Find a function by its ID with role functions eagerly loaded.
+     *
+     * @param id the function UUID
+     * @return optional containing the function with roles if found
+     */
+    Optional<Function> findByIdWithRoleFunctions(UUID id);
+
+    /**
      * 分頁查詢功能
      *
      * @param query 查詢參數

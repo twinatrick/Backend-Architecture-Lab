@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
@@ -349,5 +350,43 @@ class UserJobLinkServiceTest {
 
         assertEquals(1, result.size());
         verify(userJobLinkDataAccess).findByUserId(userId);
+    }
+
+    @Test
+    @DisplayName("Should update user job link successfully")
+    void testUpdateUserJobLink() {
+        UserJobLinkVo updateVo = new UserJobLinkVo();
+        updateVo.setId(linkId.toString());
+        updateVo.setUserNotes("Updated notes");
+        updateVo.setGeminiFeedback("Good candidate");
+
+        when(userJobLinkDataAccess.findById(linkId)).thenReturn(Optional.of(testLink));
+        when(userJobLinkDataAccess.save(any(UserJobLink.class))).thenReturn(testLink);
+
+        UserJobLinkVo result = userJobLinkService.updateUserJobLink(updateVo);
+
+        assertNotNull(result);
+        verify(userJobLinkDataAccess).findById(linkId);
+        verify(userJobLinkDataAccess).save(any(UserJobLink.class));
+    }
+
+    @Test
+    @DisplayName("Should throw exception when update id is null")
+    void testUpdateUserJobLink_NullId() {
+        UserJobLinkVo updateVo = new UserJobLinkVo();
+        updateVo.setUserNotes("Updated");
+        assertThrows(IllegalArgumentException.class, () -> userJobLinkService.updateUserJobLink(updateVo));
+    }
+
+    @Test
+    @DisplayName("Should throw exception when update link not found")
+    void testUpdateUserJobLink_NotFound() {
+        UserJobLinkVo updateVo = new UserJobLinkVo();
+        updateVo.setId(UUID.randomUUID().toString());
+        updateVo.setUserNotes("Updated");
+
+        when(userJobLinkDataAccess.findById(any(UUID.class))).thenReturn(Optional.empty());
+
+        assertThrows(AppException.class, () -> userJobLinkService.updateUserJobLink(updateVo));
     }
 }

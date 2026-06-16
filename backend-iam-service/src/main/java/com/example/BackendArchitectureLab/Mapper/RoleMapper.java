@@ -21,6 +21,11 @@ public interface RoleMapper {
     @Mapping(target = "roleFunctions", ignore = true)
     Role toEntity(RoleOutVo roleOutVo);
 
+    /**
+     * CAUTION: This method accesses LAZY-loaded collections (role.getRoleFunctions()).
+     * It MUST be called within an active @Transactional context.
+     * If called on a detached entity outside a transaction, LazyInitializationException will be thrown.
+     */
     @AfterMapping
     default void fillFunctionIds(Role role, @MappingTarget RoleOutVo vo) {
         if (role == null) {

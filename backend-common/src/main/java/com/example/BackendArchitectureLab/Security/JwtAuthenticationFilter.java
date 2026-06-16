@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Security;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -22,6 +24,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtAuthenticationToken jwtAuthenticationToken;
     private final ObjectMapper objectMapper;
@@ -81,6 +85,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             handleErrorResponse(response, HttpStatus.UNAUTHORIZED, "AUTH_ERROR", "Unauthorized");
             return;
         } catch (Exception e) {
+            log.error("JWT authentication filter error", e);
             handleErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error");
             return;
         }

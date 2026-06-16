@@ -36,6 +36,8 @@ public interface IUserDataAccess {
      */
     Optional<User> findByEmail(String email);
 
+    Optional<User> findByEmailWithRoles(String email);
+
     /**
      * Find a user by their key.
      *
@@ -60,6 +62,14 @@ public interface IUserDataAccess {
      */
     List<User> findAllById(List<UUID> keys);
     
+    /**
+     * Find a user by its key with roles eagerly loaded.
+     *
+     * @param key the user UUID
+     * @return optional containing the user with roles if found
+     */
+    Optional<User> findByIdWithRoles(UUID key);
+
     /**
      * 分頁查詢使用者
      *

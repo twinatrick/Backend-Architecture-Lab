@@ -29,15 +29,15 @@ public class User extends BaseEntity {
     @Column(name = "disabled")
     private boolean disabled =false;
     @JsonIgnore
-    @OneToMany(mappedBy = "user",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserRole> roles =new ArrayList<>();
 
     @JsonIgnore
-    @OneToMany(mappedBy = "user",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserSkill> userSkills =new ArrayList<>();
 
     @JsonIgnore
-    @OneToMany(mappedBy = "user",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserProject> userProjects =new ArrayList<>();
     @Transient
     private List<String> roleArr;

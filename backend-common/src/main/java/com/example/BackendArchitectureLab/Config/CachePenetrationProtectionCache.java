@@ -11,6 +11,7 @@ import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -212,8 +213,15 @@ public class CachePenetrationProtectionCache implements Cache {
 
     @Override
     public void clear() {
-        log.warn("CachePenetrationProtectionCache.clear() called for [{}] - null markers may not be fully cleared", name);
         delegate.clear();
+        try {
+            Set<String> nullKeys = stringRedisTemplate.keys("null:" + name + ":*");
+            if (nullKeys != null && !nullKeys.isEmpty()) {
+                stringRedisTemplate.delete(nullKeys);
+            }
+        } catch (Exception e) {
+            log.warn("清除 null marker 異常 [{}]: {}", name, e.toString());
+        }
     }
 
     private boolean hasNullMarker(String cacheKey) {

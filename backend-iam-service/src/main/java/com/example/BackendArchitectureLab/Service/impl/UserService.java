@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.Dto.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
@@ -23,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -52,6 +54,7 @@ public class UserService implements IUserService {
     private FunctionMapper functionMapper;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Transactional
     @Caching(put = {
         @CachePut(value = "users", key = "#result.id"),
         @CachePut(value = "users", key = "#result.email")
@@ -67,15 +70,18 @@ public class UserService implements IUserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<UserVo> getUser() {
         return userDataAccess.findAll().stream().map(userMapper::toVo).toList();
     }
     @Override
+    @Transactional(readOnly = true)
     public List<UserVo> getUserByEmail(String email) {
         return userDataAccess.findByEmail(email).map(userMapper::toVo).map(List::of).orElseGet(List::of);
     }
     @Cacheable(value = "users", key = "#email", sync = true)
     @Override
+    @Transactional(readOnly = true)
     public UserVo getOnlyUserByEmail(String email) {
         User user = userDataAccess.findByEmail(email).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
@@ -84,13 +90,14 @@ public class UserService implements IUserService {
     }
     @Cacheable(value = "users", key = "#id", sync = true)
     @Override
+    @Transactional(readOnly = true)
     public UserVo getUserById(String id) {
         UUID userId = mapUuid(id);
         if (userId == null) {
-            throw new IllegalArgumentException("Key must not be null");
+            throw new AppException("NOT_FOUND", "使用者不存在", 404);
         }
         User user = userDataAccess.findById(userId).orElseThrow(
-                () -> new IllegalArgumentException("User not found")
+                () -> new AppException("NOT_FOUND", "使用者不存在", 404)
         );
         return userMapper.toVo(user);
     }
@@ -138,16 +145,17 @@ public class UserService implements IUserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FunctionVo> getAllParent(List<String> child){
         List<UUID> childUUID = child.stream().map(UUID::fromString).toList();
         List<Function> functions = functionDataAccess.findAllById(childUUID);
-        List<UUID> parentUUID = functions.stream().map(Function::getParent).filter(parent -> !parent.isEmpty()).map(UUID::fromString).toList();
+        List<UUID> parentUUID = functions.stream().map(Function::getParent).filter(parent -> parent != null && !parent.isEmpty()).map(UUID::fromString).toList();
         List<Function> parentFunctions = functionDataAccess.findAllById(parentUUID);
 
 
         List<String> result = new ArrayList<>(parentFunctions.stream().map(Function::getId).map(UUID::toString).toList());
         parentFunctions.stream().map(Function::getParent).forEach(result::add);
-        List<Function> parentParentFunctions = functionDataAccess.findAllById(result.stream().filter((x)->!x.isEmpty()).map(UUID::fromString).toList());
+        List<Function> parentParentFunctions = functionDataAccess.findAllById(result.stream().filter(x -> x != null && !x.isEmpty()).map(UUID::fromString).toList());
 
 
         return parentParentFunctions.stream().map(functionMapper::toVo).toList();
@@ -162,6 +170,7 @@ public class UserService implements IUserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserVo getCurrentUserInfo() {
         String email = getCurrentUserEmail();
         User user = userDataAccess.findByEmail(email).orElseThrow(
@@ -174,6 +183,7 @@ public class UserService implements IUserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<UserVo> getAllUsersVo() {
         return getUser();
     }
@@ -250,6 +260,8 @@ public class UserService implements IUserService {
     }
     
     @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "users", key = "'search:' + #query.toString()", sync = true)
     public PageResult<UserVo> searchUsers(UserSearchQuery query) {
         String[] allowedSortFields = {
             "id", "name", "email", "phone", "disabled", 

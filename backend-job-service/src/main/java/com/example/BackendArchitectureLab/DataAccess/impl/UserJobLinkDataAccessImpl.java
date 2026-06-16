@@ -43,24 +43,17 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
 
     @Override
     public List<UserJobLink> findByUserId(UUID userId) {
-        return userJobLinkRepository.findAll().stream()
-                .filter(link -> link.getUser().getId().equals(userId))
-                .toList();
+        return userJobLinkRepository.findByUserId(userId);
     }
 
     @Override
     public List<UserJobLink> findByJobPostingId(UUID jobPostingId) {
-        return userJobLinkRepository.findAll().stream()
-                .filter(link -> link.getJobPosting().getId().equals(jobPostingId))
-                .toList();
+        return userJobLinkRepository.findByJobPostingId(jobPostingId);
     }
 
     @Override
     public Optional<UserJobLink> findByUserIdAndJobPostingId(UUID userId, UUID jobPostingId) {
-        return userJobLinkRepository.findAll().stream()
-                .filter(link -> link.getUser().getId().equals(userId)
-                        && link.getJobPosting().getId().equals(jobPostingId))
-                .findFirst();
+        return userJobLinkRepository.findByUserIdAndJobPostingId(userId, jobPostingId);
     }
 
     @Override
@@ -71,8 +64,6 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
 
     @Override
     public boolean existsByUserIdAndJobPostingId(UUID userId, UUID jobPostingId) {
-        return userJobLinkRepository.findAll().stream()
-                .anyMatch(link -> link.getUser().getId().equals(userId)
-                        && link.getJobPosting().getId().equals(jobPostingId));
+        return userJobLinkRepository.existsByUserIdAndJobPostingId(userId, jobPostingId);
     }
 }

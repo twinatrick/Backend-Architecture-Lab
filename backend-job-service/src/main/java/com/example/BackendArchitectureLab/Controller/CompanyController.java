@@ -5,8 +5,10 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Dto.Vo.CompanyVo;
+import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateCompanyRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Dto.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +58,13 @@ public class CompanyController {
     @ApiOperationBadRequest(summary = "更新公司", description = "更新公司資訊。")
     public ResponseType<CompanyVo> updateCompany(@RequestBody UpdateCompanyRequest request) {
         return ResponseType.Success(companyService.updateCompany(request), "公司更新成功");
+    }
+
+    @PostMapping("/search")
+    @RequirePermission({"System", "Company", "View"})
+    @ApiOperationBadRequest(summary = "分頁搜尋公司", description = "根據條件分頁搜尋公司。")
+    public ResponseType<PageResult<CompanyVo>> searchCompanies(@RequestBody CompanySearchQuery query) {
+        return ResponseType.Success(companyService.searchCompanies(query), "公司搜尋成功");
     }
 
     @DeleteMapping("/delete/{id}")

@@ -2,14 +2,18 @@ package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.Dto.Vo.CompanyVo;
+import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateCompanyRequest;
+import com.example.BackendArchitectureLab.Dto.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Mapper.CompanyMapper;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
+import com.example.BackendArchitectureLab.Util.SortFieldValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +43,7 @@ public class CompanyService implements ICompanyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "companies", sync = true)
     public List<CompanyVo> getAllCompanies() {
         return companyDataAccess.findAll().stream()
@@ -47,6 +52,7 @@ public class CompanyService implements ICompanyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "companies", key = "#id", sync = true)
     public CompanyVo getCompanyById(String id) {
         UUID uuid = mapUuid(id);
@@ -95,6 +101,27 @@ public class CompanyService implements ICompanyService {
             throw new IllegalArgumentException("Company not found");
         }
         companyDataAccess.deleteById(uuid);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "companies", key = "'search:' + #query.toString()", sync = true)
+    public PageResult<CompanyVo> searchCompanies(CompanySearchQuery query) {
+        String[] allowedSortFields = {
+            "id", "name", "description", "lastScrapedAt",
+            "createdBy", "updatedBy", "createdTime", "updatedTime"
+        };
+
+        SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
+        SortFieldValidator.validateSortDirection(query.getSortDir());
+
+        Page<Company> companyPage = companyDataAccess.searchCompanies(query);
+
+        List<CompanyVo> companyVos = companyPage.getContent().stream()
+                .map(companyMapper::toVo)
+                .toList();
+
+        return PageResult.of(companyPage, companyVos);
     }
 
     private UUID mapUuid(String id) {

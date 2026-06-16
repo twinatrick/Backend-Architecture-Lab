@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -35,7 +36,7 @@ public class UserInternalController {
         try {
             userService.getUserById(id.toString());
             return true;
-        } catch (IllegalArgumentException e) {
+        } catch (AppException e) {
             return false;
         }
     }

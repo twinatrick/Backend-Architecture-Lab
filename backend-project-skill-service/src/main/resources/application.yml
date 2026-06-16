@@ -1,5 +1,6 @@
 server:
   port: 8004
+  max-http-request-header-size: 64KB
 spring:
   application:
     name: project-skill-service
@@ -12,6 +13,10 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 16
   task:
     execution:
       shutdown:
@@ -27,3 +32,8 @@ jwt:
   issuer: ${JWT_ISSUER:BackendArchitectureLab}
   audience: ${JWT_AUDIENCE:BackendArchitectureLab}
   expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440}
+
+cache:
+  bloom-filter:
+    entities:
+      - "Skill:skills"

@@ -38,11 +38,13 @@ public class FunctionService implements IFunctionService {
     private FunctionMapper functionMapper;
 
     @Override
+    @Transactional
     @Caching(put = {
         @CachePut(value = "functions", key = "#result.id"),
         @CachePut(value = "functions", key = "'byname:' + #result.name")
     }, evict = {
-        @CacheEvict(value = "functions", key = "'bynameparent:' + #result.name + ':' + (#result.parent != null ? #result.parent : '')")
+        @CacheEvict(value = "functions", key = "'bynameparent:' + #result.name + ':' + (#result.parent != null ? #result.parent : '')"),
+        @CacheEvict(value = "functions", key = "'all'")
     })
     public FunctionVo addFunction(FunctionVo functionVo) {
         Function function = functionMapper.toEntity(functionVo);
@@ -72,7 +74,8 @@ public class FunctionService implements IFunctionService {
     @Caching(evict = {
         @CacheEvict(value = "functions", key = "#functionVo.id"),
         @CacheEvict(value = "functions", key = "'byname:' + #functionVo.name"),
-        @CacheEvict(value = "functions", key = "'bynameparent:' + #functionVo.name + ':' + (#functionVo.parent != null ? #functionVo.parent : '')")
+        @CacheEvict(value = "functions", key = "'bynameparent:' + #functionVo.name + ':' + (#functionVo.parent != null ? #functionVo.parent : '')"),
+        @CacheEvict(value = "functions", key = "'all'")
     })
     public void updateFunction(FunctionVo functionVo) {
         Function function = functionMapper.toEntity(functionVo);
@@ -90,7 +93,10 @@ public class FunctionService implements IFunctionService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "functions", key = "#functionVo.id")
+    @Caching(evict = {
+        @CacheEvict(value = "functions", key = "#functionVo.id"),
+        @CacheEvict(value = "functions", key = "'all'")
+    })
     public void deleteFunction(FunctionVo functionVo) {
         Function function = functionMapper.toEntity(functionVo);
         if (function.getId() == null) {

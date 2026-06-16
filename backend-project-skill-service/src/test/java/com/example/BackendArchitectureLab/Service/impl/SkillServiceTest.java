@@ -305,6 +305,7 @@ class SkillServiceTest {
 
         when(userSkillDataAccess.findByUserId(testUserId)).thenReturn(Collections.emptyList());
         when(userProjectDataAccess.findByUserId(testUserId)).thenReturn(List.of(userProject));
+        when(projectSkillDataAccess.findByProjectIdIn(anyList())).thenReturn(List.of(projSkill));
         when(skillMapper.toVo(projectSkill)).thenReturn(pythonVo);
 
         // Act

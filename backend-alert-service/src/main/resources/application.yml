@@ -1,5 +1,6 @@
 server:
   port: 8008
+  max-http-request-header-size: 64KB
 spring:
   application:
     name: alert-service
@@ -12,6 +13,10 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 16
   data:
     redis:
       host: localhost
@@ -27,11 +32,7 @@ spring:
     nacos:
       discovery:
         server-addr: localhost:8848
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus
+
 kafka:
   consumer:
     group-id: myGroup

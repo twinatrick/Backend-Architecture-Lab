@@ -78,6 +78,22 @@ public interface IRoleDataAccess {
     Role findRoleByName(String name);
     
     /**
+     * Find a role by its key with role functions eagerly loaded.
+     *
+     * @param key the role UUID
+     * @return optional containing the role with functions if found
+     */
+    Optional<Role> findByIdWithRoleFunctions(UUID key);
+
+    /**
+     * Find a role by its key with user roles eagerly loaded.
+     *
+     * @param key the role UUID
+     * @return optional containing the role with user roles if found
+     */
+    Optional<Role> findByIdWithUserRoles(UUID key);
+
+    /**
      * 分頁查詢角色
      *
      * @param query 查詢參數

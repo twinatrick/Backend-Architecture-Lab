@@ -24,6 +24,11 @@ public interface UserMapper {
     @Mapping(target = "userProjects", ignore = true)
     User toEntity(UserVo userVo);
 
+    /**
+     * CAUTION: This method accesses LAZY-loaded collections (user.getRoles(), role.getRoleFunctions()).
+     * It MUST be called within an active @Transactional context.
+     * If called on a detached entity outside a transaction, LazyInitializationException will be thrown.
+     */
     @AfterMapping
     default void fillPermissions(User user, @MappingTarget UserVo vo) {
         if (user == null) {

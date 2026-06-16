@@ -27,10 +27,10 @@ public class Role extends BaseEntity {
     private String description;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "role", fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserRole> userRoles =new ArrayList<>();
     @JsonIgnore
-    @OneToMany(mappedBy = "role", fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<RoleFunction> roleFunctions =new ArrayList<>();
 
 }

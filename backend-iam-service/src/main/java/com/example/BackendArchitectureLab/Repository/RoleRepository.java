@@ -16,4 +16,10 @@ public interface RoleRepository extends JpaRepository<Role, UUID>, JpaSpecificat
 
     @Query("SELECT r.id FROM Role r")
     List<UUID> findAllIds();
+
+    @Query("SELECT r FROM Role r LEFT JOIN FETCH r.roleFunctions rf LEFT JOIN FETCH rf.function WHERE r.id = :id")
+    java.util.Optional<Role> findByIdWithRoleFunctions(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    @Query("SELECT r FROM Role r LEFT JOIN FETCH r.userRoles ur LEFT JOIN FETCH ur.user WHERE r.id = :id")
+    java.util.Optional<Role> findByIdWithUserRoles(@org.springframework.data.repository.query.Param("id") UUID id);
 }

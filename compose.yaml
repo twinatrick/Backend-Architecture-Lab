@@ -23,6 +23,7 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
 #    command: redis-server --requirepass redisPd
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redisPd}
     networks:
@@ -32,10 +33,12 @@ services:
     image: ${ZOOKEEPER_IMAGE:-confluentinc/cp-zookeeper:7.2.1}
     container_name: ${ZOOKEEPER_CONTAINER_NAME:-zookeeper}
     restart: ${RESTART_POLICY:-always}
+    mem_limit: 256m
     environment:
       ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
       ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME:-2000}
       ZOOKEEPER_SYNC_LIMIT: ${ZOOKEEPER_SYNC_LIMIT:-2}
+      JVMFLAGS: "-Xms128m -Xmx256m"
     ports:
       - "${ZOOKEEPER_PORT:-2181}:2181"
     networks:
@@ -45,6 +48,7 @@ services:
     image: ${KAFKA_IMAGE:-confluentinc/cp-kafka:7.2.1}
     container_name: ${KAFKA_CONTAINER_NAME:-kafka}
     restart: ${RESTART_POLICY:-always}
+    mem_limit: 600m
     depends_on:
       - zookeeper
     ports:
@@ -54,6 +58,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: ${KAFKA_ZOOKEEPER_CONNECT:-zookeeper:2181}
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-kafka}:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
 #      KAFKA_BROKER_ID: 1
 #      KAFKA_ZOOKEEPER_CONNECT: localhost:2181
 #      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
@@ -119,45 +124,46 @@ services:
     networks:
       - my_network
 
-  milvus:
-    image: milvusdb/milvus:${MILVUS_VERSION:-v2.4.5}
-    container_name: ${MILVUS_CONTAINER_NAME:-gary-backend-milvus}
-    restart: ${RESTART_POLICY:-always}
-    depends_on:
-      - postgres
-      - etcd
-      - minio
-    environment:
-      MILVUS_DEPLOY_MODE: standalone
-      ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9000
-      COMMON_META_BACKEND: postgresql
-      POSTGRES_HOST: ${MILVUS_POSTGRES_HOST:-postgres}
-      POSTGRES_PORT: ${MILVUS_POSTGRES_PORT:-5432}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
-      POSTGRES_DB_NAME: ${POSTGRES_DB:-postgres}
-
-      # ========= Milvus 身份驗證設定 =========
-      # 啟用帳號密碼登入
-      # MILVUS_ENABLE_AUTH: "true"
-      # 管理員帳號與密碼
-      # MILVUS_ROOT_USER: ${MILVUS_ROOT_USER}
-      # MILVUS_ROOT_PASSWORD: ${MILVUS_ROOT_PASSWORD}
-      # 啟用 Token 驗證（選擇性）
-      MILVUS_AUTH_TOKEN: ${MILVUS_TOKEN:-milvus-default-token}
-      MILVUS_AUTH_TOKEN_ENABLED: "true"
-      MILVUS_AUTH_TOKEN_EXPIRATION: "3600" # Token 1 小時有效
-      # =====================================
-
-    ports:
-      - "${MILVUS_PORT:-19530}:19530"
-      - "${MILVUS_HEALTH_PORT:-9091}:9091"
-    volumes:
-      - milvus_data:/var/lib/milvus
-    networks:
-      - my_network
-    command: [ "milvus", "run", "standalone" ]
+#  milvus:
+#    image: milvusdb/milvus:${MILVUS_VERSION:-v2.4.5}
+#    container_name: ${MILVUS_CONTAINER_NAME:-gary-backend-milvus}
+#    restart: ${RESTART_POLICY:-always}
+#    mem_limit: 1500m
+#    depends_on:
+#      - postgres
+#      - etcd
+#      - minio
+#    environment:
+#      MILVUS_DEPLOY_MODE: standalone
+#      ETCD_ENDPOINTS: etcd:2379
+#      MINIO_ADDRESS: minio:9000
+#      COMMON_META_BACKEND: postgresql
+#      POSTGRES_HOST: ${MILVUS_POSTGRES_HOST:-postgres}
+#      POSTGRES_PORT: ${MILVUS_POSTGRES_PORT:-5432}
+#      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+#      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
+#      POSTGRES_DB_NAME: ${POSTGRES_DB:-postgres}
+#
+#      # ========= Milvus 身份驗證設定 =========
+#      # 啟用帳號密碼登入
+#      # MILVUS_ENABLE_AUTH: "true"
+#      # 管理員帳號與密碼
+#      # MILVUS_ROOT_USER: ${MILVUS_ROOT_USER}
+#      # MILVUS_ROOT_PASSWORD: ${MILVUS_ROOT_PASSWORD}
+#      # 啟用 Token 驗證（選擇性）
+#      MILVUS_AUTH_TOKEN: ${MILVUS_TOKEN:-milvus-default-token}
+#      MILVUS_AUTH_TOKEN_ENABLED: "true"
+#      MILVUS_AUTH_TOKEN_EXPIRATION: "3600" # Token 1 小時有效
+#      # =====================================
+#
+#    ports:
+#      - "${MILVUS_PORT:-19530}:19530"
+#      - "${MILVUS_HEALTH_PORT:-9091}:9091"
+#    volumes:
+#      - milvus_data:/var/lib/milvus
+#    networks:
+#      - my_network
+#    command: [ "milvus", "run", "standalone" ]
 
   nacos:
     image: nacos/nacos-server:v2.5.1
@@ -166,32 +172,35 @@ services:
     environment:
       MODE: standalone
       PREFER_HOST_MODE: hostname
+      JVM_XMS: "256m"
+      JVM_XMX: "512m"
+    mem_limit: 768m
     ports:
       - "8848:8848"
       - "9848:9848"
     networks:
       - my_network
 
-  attu:
-    image: ${ATTU_IMAGE:-zilliz/attu:latest}
-    container_name: ${ATTU_CONTAINER_NAME:-gary-backend-attu}
-    restart: ${RESTART_POLICY:-always}
-    depends_on:
-      - milvus
-    environment:
-      # 設定要連接的 Milvus 伺服器
-      MILVUS_URL: milvus:19530
-
-      # 如果 Milvus 啟用了帳號密碼，Attu 也要設定登入資訊
-      MILVUS_USER: ${MILVUS_ROOT_USER:-root}
-      MILVUS_PASSWORD: ${MILVUS_ROOT_PASSWORD:-Milvus}
-    ports:
-      - "${ATTU_PORT:-8001}:3000"
-    networks:
-      - my_network
+#  attu:
+#    image: ${ATTU_IMAGE:-zilliz/attu:latest}
+#    container_name: ${ATTU_CONTAINER_NAME:-gary-backend-attu}
+#    restart: ${RESTART_POLICY:-always}
+#    depends_on:
+#      - milvus
+#    environment:
+#      # 設定要連接的 Milvus 伺服器
+#      MILVUS_URL: milvus:19530
+#
+#      # 如果 Milvus 啟用了帳號密碼，Attu 也要設定登入資訊
+#      MILVUS_USER: ${MILVUS_ROOT_USER:-root}
+#      MILVUS_PASSWORD: ${MILVUS_ROOT_PASSWORD:-Milvus}
+#    ports:
+#      - "${ATTU_PORT:-8001}:3000"
+#    networks:
+#      - my_network
 volumes:
   postgres_data:
-  milvus_data:
+#  milvus_data:
   etcd_data:
   minio_data:
 

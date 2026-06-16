@@ -14,4 +14,7 @@ public interface JobPostingRepository extends JpaRepository<JobPosting, UUID>, J
 
     @Query("SELECT j.id FROM JobPosting j")
     List<UUID> findAllIds();
+
+    @Query("SELECT jp FROM JobPosting jp WHERE jp.company.id = :companyId")
+    List<JobPosting> findByCompanyId(@org.springframework.data.repository.query.Param("companyId") UUID companyId);
 }

@@ -24,4 +24,7 @@ public interface FunctionRepository extends JpaRepository<Function, UUID>, JpaSp
 
     @Query("SELECT f.id FROM Function f")
     List<UUID> findAllIds();
+
+    @Query("SELECT f FROM Function f LEFT JOIN FETCH f.roleFunctions rf LEFT JOIN FETCH rf.role WHERE f.id = :id")
+    java.util.Optional<Function> findByIdWithRoleFunctions(@org.springframework.data.repository.query.Param("id") UUID id);
 }

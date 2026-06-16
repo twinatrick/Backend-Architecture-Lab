@@ -1,1 +1,9 @@
 # backend-common is a library module, no specific config needed
+management:
+  endpoints:
+    web:
+      exposure:
+        include: 'health,info,metrics,prometheus' # 👈 確保這四個都開
+  metrics:
+    tags:
+      application: ${spring.application.name} # 👈 這行極度重要！它會自動抓該服務在 Nacos 的名稱

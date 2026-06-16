@@ -43,23 +43,23 @@ class CustomUserDetailsServiceTest {
     @Test
     @DisplayName("Should load user by username successfully")
     void testLoadUserByUsername() {
-        when(userDataAccess.findByEmail(email)).thenReturn(Optional.of(testUser));
+        when(userDataAccess.findByEmailWithRoles(email)).thenReturn(Optional.of(testUser));
 
         UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
 
         assertNotNull(userDetails);
         assertEquals(email, userDetails.getUsername());
         assertEquals("encodedPassword", userDetails.getPassword());
-        verify(userDataAccess).findByEmail(email);
+        verify(userDataAccess).findByEmailWithRoles(email);
     }
 
     @Test
     @DisplayName("Should throw UsernameNotFoundException when user not found")
     void testLoadUserByUsername_NotFound() {
-        when(userDataAccess.findByEmail(email)).thenReturn(Optional.empty());
+        when(userDataAccess.findByEmailWithRoles(email)).thenReturn(Optional.empty());
 
         assertThrows(UsernameNotFoundException.class,
                 () -> customUserDetailsService.loadUserByUsername(email));
-        verify(userDataAccess).findByEmail(email);
+        verify(userDataAccess).findByEmailWithRoles(email);
     }
 }

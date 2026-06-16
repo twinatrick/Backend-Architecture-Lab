@@ -24,15 +24,15 @@ public class Skill extends BaseEntity {
     private String description;
 
     @JsonIgnore
-    @OneToMany(mappedBy = "skill",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "skill",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<SkillLevel> skillLevels =new ArrayList<>();
 
     @JsonIgnore
-    @OneToMany(mappedBy = "skill",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "skill",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserSkill> userSkills =new ArrayList<>();
 
     @JsonIgnore
-    @OneToMany(mappedBy = "skill",fetch = FetchType.EAGER,cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "skill",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<ProjectSkill> projectSkills =new ArrayList<>();
 
 }

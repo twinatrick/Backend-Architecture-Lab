@@ -576,10 +576,13 @@ public class ProjectService implements IProjectService {
                 .collect(Collectors.toSet());
 
         List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserId);
-        for (UserProject userProject : userProjects) {
-            for (ProjectSkill projectSkill : userProject.getProject().getProjectSkills()) {
-                visibleSkillIds.add(projectSkill.getSkill().getId());
-            }
+        if (!userProjects.isEmpty()) {
+            List<UUID> projectIds = userProjects.stream()
+                .map(up -> up.getProject().getId())
+                .toList();
+            projectSkillDataAccess.findByProjectIdIn(projectIds).stream()
+                .map(ps -> ps.getSkill().getId())
+                .forEach(visibleSkillIds::add);
         }
 
         if (!visibleSkillIds.contains(skillId)) {

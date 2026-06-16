@@ -1,6 +1,9 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
+import com.example.BackendArchitectureLab.Dto.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
+import org.springframework.data.domain.Page;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,4 +50,12 @@ public interface ICompanyDataAccess {
      * @param id the company UUID
      */
     void deleteById(UUID id);
+
+    /**
+     * 分頁查詢公司
+     *
+     * @param query 查詢參數
+     * @return 分頁結果
+     */
+    Page<Company> searchCompanies(CompanySearchQuery query);
 }

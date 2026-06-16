@@ -47,6 +47,11 @@ public class ProjectSkillDataAccessImpl implements IProjectSkillDataAccess {
     }
 
     @Override
+    public List<ProjectSkill> findByProjectIdIn(List<UUID> projectIds) {
+        return projectSkillRepository.findByProjectIdIn(projectIds);
+    }
+
+    @Override
     public void deleteByProjectId(UUID projectId) {
         projectSkillRepository.deleteByProjectId(projectId);
     }

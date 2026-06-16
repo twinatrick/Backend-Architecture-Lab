@@ -575,7 +575,7 @@ class RoleServiceTest {
         List<RoleFunction> roleFunctions = Arrays.asList(roleFunction);
         testRole.setRoleFunctions(roleFunctions);
         
-        when(roleDataAccess.findById(testRoleKey)).thenReturn(Optional.of(testRole));
+        when(roleDataAccess.findByIdWithRoleFunctions(testRoleKey)).thenReturn(Optional.of(testRole));
 
         // Act
         List<FunctionVo> result = roleService.getFunctionByRole(testRoleKey.toString());
@@ -584,7 +584,7 @@ class RoleServiceTest {
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals(testFunction.getName(), result.get(0).getName());
-        verify(roleDataAccess, times(1)).findById(testRoleKey);
+        verify(roleDataAccess, times(1)).findByIdWithRoleFunctions(testRoleKey);
     }
 
     @Test
@@ -598,7 +598,7 @@ class RoleServiceTest {
         List<RoleFunction> roleFunctions = Arrays.asList(roleFunction);
         testFunction.setRoleFunctions(roleFunctions);
         
-        when(functionDataAccess.findById(testFunctionId)).thenReturn(Optional.of(testFunction));
+        when(functionDataAccess.findByIdWithRoleFunctions(testFunctionId)).thenReturn(Optional.of(testFunction));
 
         // Act
         List<RoleOutVo> result = roleService.getRoleByFunction(testFunctionId.toString());
@@ -607,7 +607,7 @@ class RoleServiceTest {
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals(testRole.getName(), result.get(0).getName());
-        verify(functionDataAccess, times(1)).findById(testFunctionId);
+        verify(functionDataAccess, times(1)).findByIdWithRoleFunctions(testFunctionId);
     }
 
     @Test
@@ -621,7 +621,7 @@ class RoleServiceTest {
         List<UserRole> userRoles = Arrays.asList(userRole);
         testRole.setUserRoles(userRoles);
         
-        when(roleDataAccess.findById(testRoleKey)).thenReturn(Optional.of(testRole));
+        when(roleDataAccess.findByIdWithUserRoles(testRoleKey)).thenReturn(Optional.of(testRole));
 
         // Act
         List<UserVo> result = roleService.getUserByRole(testRoleKey.toString());
@@ -630,7 +630,7 @@ class RoleServiceTest {
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals(testUser.getEmail(), result.get(0).getEmail());
-        verify(roleDataAccess, times(1)).findById(testRoleKey);
+        verify(roleDataAccess, times(1)).findByIdWithUserRoles(testRoleKey);
     }
 
     @Test
@@ -644,7 +644,7 @@ class RoleServiceTest {
         List<UserRole> roles = Arrays.asList(userRole);
         testUser.setRoles(roles);
         
-        when(userDataAccess.findById(testUserKey)).thenReturn(Optional.of(testUser));
+        when(userDataAccess.findByIdWithRoles(testUserKey)).thenReturn(Optional.of(testUser));
 
         // Act
         List<RoleOutVo> result = roleService.getRoleByUser(testUserKey.toString());
@@ -653,7 +653,7 @@ class RoleServiceTest {
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals(testRole.getName(), result.get(0).getName());
-        verify(userDataAccess, times(1)).findById(testUserKey);
+        verify(userDataAccess, times(1)).findByIdWithRoles(testUserKey);
     }
 
     @Test

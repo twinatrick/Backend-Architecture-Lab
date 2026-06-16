@@ -86,6 +86,11 @@ public class FunctionDataAccessImpl implements IFunctionDataAccess {
     public List<Function> findFunctionByNameAndParent(String name, String parent) {
         return functionRepository.findFunctionByNameAndParent(name, parent);
     }
+
+    @Override
+    public Optional<Function> findByIdWithRoleFunctions(UUID id) {
+        return functionRepository.findByIdWithRoleFunctions(id);
+    }
     
     @Override
     public Page<Function> searchFunctions(FunctionSearchQuery query) {
