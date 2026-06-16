@@ -1,7 +1,8 @@
 -- ============================================================================
 -- 壓力測試使用者資料 (50,000 筆)
--- 密碼 BCrypt hash ($2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy)
+-- 密碼 BCrypt hash ({bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy)
 -- 對應明文: password
+-- 注意: Spring Security 5+ DelegatingPasswordEncoder 需要 {bcrypt} 前綴
 -- ============================================================================
 
 BEGIN;
@@ -11,9 +12,9 @@ BEGIN;
 -- ============================================================================
 INSERT INTO "user" (id, name, email, password, phone, disabled, created_by, updated_by, created_time, updated_time)
 VALUES
-('00000000-0000-0000-0000-000000000001', 'Admin', 'admin@tsmc.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '0910000000', false, 'stress-test', 'stress-test', NOW(), NOW()),
-('00000000-0000-0000-0000-000000000002', 'HR_Manager', 'hr@tsmc.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '0910000001', false, 'stress-test', 'stress-test', NOW(), NOW()),
-('00000000-0000-0000-0000-000000000003', 'Engineer_Lead', 'engineer@tsmc.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '0910000002', false, 'stress-test', 'stress-test', NOW(), NOW())
+('00000000-0000-0000-0000-000000000001', 'Admin', 'admin@tsmc.com', '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '0910000000', false, 'stress-test', 'stress-test', NOW(), NOW()),
+('00000000-0000-0000-0000-000000000002', 'HR_Manager', 'hr@tsmc.com', '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '0910000001', false, 'stress-test', 'stress-test', NOW(), NOW()),
+('00000000-0000-0000-0000-000000000003', 'Engineer_Lead', 'engineer@tsmc.com', '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '0910000002', false, 'stress-test', 'stress-test', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -24,7 +25,7 @@ SELECT
   gen_random_uuid(),
   'Employee_' || LPAD(n::text, 6, '0'),
   'employee' || LPAD(n::text, 6, '0') || '@tsmc.com',
-  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+  '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
   '09' || LPAD((10000000 + n)::text, 8, '0'),
   CASE WHEN n % 100 = 0 THEN true ELSE false END,
   'stress-test', 'stress-test', NOW(), NOW()
