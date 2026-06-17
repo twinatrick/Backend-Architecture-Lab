@@ -44,6 +44,13 @@ public class CachePenetrationProtectionCache implements Cache {
 
     private final Duration nullValueTtl;
 
+    private final Object[] stripes = new Object[256];
+    {
+        for (int i = 0; i < stripes.length; i++) {
+            stripes[i] = new Object();
+        }
+    }
+
     public CachePenetrationProtectionCache(String name, RedisCache delegate,
                                             StringRedisTemplate stringRedisTemplate,
                                             IBloomFilterService bloomFilterService,
@@ -125,58 +132,72 @@ public class CachePenetrationProtectionCache implements Cache {
         }
 
         String lockKey = "lock:cache:" + name + ":" + cacheKey;
-        RLock lock = redissonClient.getLock(lockKey);
-        try {
-            if (lock.tryLock(LOCK_TRY_WAIT_MILLIS, TimeUnit.MILLISECONDS)) {
-                try {
-                    ValueWrapper doubleCheck = delegate.get(key);
-                    if (doubleCheck != null) {
-                        Object value = doubleCheck.get();
-                        if (value instanceof NullValue) {
-                            return null;
-                        }
-                        return (T) value;
-                    }
+        int index = (lockKey.hashCode() & Integer.MAX_VALUE) % stripes.length;
+        Object stripeLock = stripes[index];
 
-                    T value = valueLoader.call();
-                    put(key, value);
-                    return value;
-                } finally {
-                    try {
-                        lock.unlock();
-                    } catch (Exception e) {
-                        log.warn("解鎖異常 [{}] key [{}]: {}", name, key, e.toString());
-                    }
-                }
-            }
-
-            // 獲取鎖失敗，進入無鎖輪詢機制 (Lock-free Polling)
-            long startTime = System.currentTimeMillis();
-            while (System.currentTimeMillis() - startTime < POLL_TIMEOUT_MILLIS) {
-                TimeUnit.MILLISECONDS.sleep(POLL_INTERVAL_MILLIS);
-
-                if (hasNullMarker(cacheKey)) {
+        synchronized (stripeLock) {
+            ValueWrapper doubleCheck = delegate.get(key);
+            if (doubleCheck != null) {
+                Object value = doubleCheck.get();
+                if (value instanceof NullValue) {
                     return null;
                 }
-
-                ValueWrapper fallbackCheck = delegate.get(key);
-                if (fallbackCheck != null) {
-                    Object v = fallbackCheck.get();
-                    if (v instanceof NullValue) {
-                        return null;
-                    }
-                    return (T) v;
-                }
+                return (T) value;
             }
 
-            log.warn("快取 [{}] key [{}] 輪詢超時 ({}ms)，降級直接載入資料庫", name, key, POLL_TIMEOUT_MILLIS);
-            return valueLoader.call();
-        } catch (Exception e) {
-            log.warn("快取 [{}] key [{}] 鎖/輪詢異常，降級直接載入: {}", name, key, e.toString());
+            RLock lock = redissonClient.getLock(lockKey);
             try {
+                if (lock.tryLock(LOCK_TRY_WAIT_MILLIS, TimeUnit.MILLISECONDS)) {
+                    try {
+                        ValueWrapper doubleCheckDist = delegate.get(key);
+                        if (doubleCheckDist != null) {
+                            Object value = doubleCheckDist.get();
+                            if (value instanceof NullValue) {
+                                return null;
+                            }
+                            return (T) value;
+                        }
+
+                        T value = valueLoader.call();
+                        put(key, value);
+                        return value;
+                    } finally {
+                        try {
+                            lock.unlock();
+                        } catch (Exception e) {
+                            log.warn("解鎖異常 [{}] key [{}]: {}", name, key, e.toString());
+                        }
+                    }
+                }
+
+                // 獲取鎖失敗，進入無鎖輪詢機制 (Lock-free Polling)
+                long startTime = System.currentTimeMillis();
+                while (System.currentTimeMillis() - startTime < POLL_TIMEOUT_MILLIS) {
+                    TimeUnit.MILLISECONDS.sleep(POLL_INTERVAL_MILLIS);
+
+                    if (hasNullMarker(cacheKey)) {
+                        return null;
+                    }
+
+                    ValueWrapper fallbackCheck = delegate.get(key);
+                    if (fallbackCheck != null) {
+                        Object v = fallbackCheck.get();
+                        if (v instanceof NullValue) {
+                            return null;
+                        }
+                        return (T) v;
+                    }
+                }
+
+                log.warn("快取 [{}] key [{}] 輪詢超時 ({}ms)，降級直接載入資料庫", name, key, POLL_TIMEOUT_MILLIS);
                 return valueLoader.call();
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
+            } catch (Exception e) {
+                log.warn("快取 [{}] key [{}] 鎖/輪詢異常，降級直接載入: {}", name, key, e.toString());
+                try {
+                    return valueLoader.call();
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
             }
         }
     }
