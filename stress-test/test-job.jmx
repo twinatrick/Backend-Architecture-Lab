@@ -2,6 +2,47 @@
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Job Stress Test - With/Without Cache" enabled="true">
+      <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="SERVER" elementType="Argument">
+            <stringProp name="Argument.name">SERVER</stringProp>
+            <stringProp name="Argument.value">${__P(SERVER,localhost)}</stringProp>
+          </elementProp>
+          <elementProp name="PORT" elementType="Argument">
+            <stringProp name="Argument.name">PORT</stringProp>
+            <stringProp name="Argument.value">${__P(PORT,8000)}</stringProp>
+          </elementProp>
+          <elementProp name="PROTOCOL" elementType="Argument">
+            <stringProp name="Argument.name">PROTOCOL</stringProp>
+            <stringProp name="Argument.value">${__P(PROTOCOL,http)}</stringProp>
+          </elementProp>
+          <elementProp name="ADMIN_EMAIL" elementType="Argument">
+            <stringProp name="Argument.name">ADMIN_EMAIL</stringProp>
+            <stringProp name="Argument.value">admin@tsmc.com</stringProp>
+          </elementProp>
+          <elementProp name="ADMIN_PASSWORD" elementType="Argument">
+            <stringProp name="Argument.name">ADMIN_PASSWORD</stringProp>
+            <stringProp name="Argument.value">password</stringProp>
+          </elementProp>
+          <elementProp name="THREADS" elementType="Argument">
+            <stringProp name="Argument.name">THREADS</stringProp>
+            <stringProp name="Argument.value">${__P(THREADS,500)}</stringProp>
+          </elementProp>
+          <elementProp name="DURATION" elementType="Argument">
+            <stringProp name="Argument.name">DURATION</stringProp>
+            <stringProp name="Argument.value">${__P(DURATION,300)}</stringProp>
+          </elementProp>
+          <elementProp name="RAMP_UP" elementType="Argument">
+            <stringProp name="Argument.name">RAMP_UP</stringProp>
+            <stringProp name="Argument.value">${__P(RAMP_UP,30)}</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
         <elementProp name="HTTPsampler.Arguments" elementType="Arguments"/>
         <stringProp name="HTTPSampler.domain">${SERVER}</stringProp>
         <stringProp name="HTTPSampler.port">${PORT}</stringProp>

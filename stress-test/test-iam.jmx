@@ -2,6 +2,7 @@
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="IAM 服務壓力測試 - 有/無快取對比" enabled="true">
+      <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">
         <collectionProp name="Arguments.arguments">
           <elementProp name="SERVER" elementType="Argument">
@@ -256,3 +257,4 @@
     </hashTree>
   </hashTree>
 </jmeterTestPlan>
+
