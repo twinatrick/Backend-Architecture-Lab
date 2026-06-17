@@ -14,7 +14,11 @@ import com.example.BackendArchitectureLab.Service.ICompanyService;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +33,8 @@ public class CompanyService implements ICompanyService {
     private ICompanyDataAccess companyDataAccess;
     @Autowired
     private CompanyMapper companyMapper;
+    @Autowired
+    private CacheManager cacheManager;
 
     @Lazy
     @Autowired
@@ -36,7 +42,7 @@ public class CompanyService implements ICompanyService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "companies", allEntries = true)
+    @CacheEvict(value = "companies", key = "'all'")
     public CompanyVo createCompany(CreateCompanyRequest request) {
         Company company = new Company();
         company.setName(request.getName());
@@ -81,7 +87,11 @@ public class CompanyService implements ICompanyService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "companies", allEntries = true)
+    @Caching(put = {
+        @CachePut(value = "companies", key = "#request.id")
+    }, evict = {
+        @CacheEvict(value = "companies", key = "'all'")
+    })
     public CompanyVo updateCompany(UpdateCompanyRequest request) {
         if (request.getId() == null) {
             throw new IllegalArgumentException("ID must not be null");
@@ -106,7 +116,10 @@ public class CompanyService implements ICompanyService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "companies", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "companies", key = "#id"),
+        @CacheEvict(value = "companies", key = "'all'")
+    })
     public void deleteCompany(String id) {
         UUID uuid = mapUuid(id);
         if (uuid == null) {

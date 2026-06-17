@@ -19,6 +19,8 @@ import com.example.BackendArchitectureLab.Entity.RoleFunction;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -54,6 +56,9 @@ public class RoleService implements IRoleService {
     private FunctionMapper functionMapper;
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private CacheManager cacheManager;
 
     @Lazy
     @Autowired
@@ -198,10 +203,6 @@ public class RoleService implements IRoleService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "roleFunctions", allEntries = true)
-    })
     public void functionBindRole(String functionId, List<String> roleIds) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
@@ -223,15 +224,15 @@ public class RoleService implements IRoleService {
             return roleFunction;
         }).toList();
         roleFunctionDataAccess.saveAll(roleFunctions);
+
+        evictCache("roles", "byfunction:" + functionId);
+        for (String roleId : roleIds) {
+            evictCache("roleFunctions", roleId);
+        }
     }
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // 無法精確反推各 user 的 key，保留全量清除
     public void roleBindUser(String roleId, List<String> userIds) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
@@ -276,15 +277,16 @@ public class RoleService implements IRoleService {
         }
 
         userRoleDataAccess.saveAll(userRoles);
+
+        for (String userId : userIds) {
+            evictCache("roles", "byuser:" + userId);
+        }
+        evictCache("userRoles", "byrole:" + roleId);
     }
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", key = "'byuser:' + #userId"),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // userRoles 綁定可能增刪多個 role，無法精確反推各 key
+    @CacheEvict(value = "roles", key = "'byuser:' + #userId")
     public void userBindRole(String userId, List<String> roleIds) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
@@ -346,14 +348,13 @@ public class RoleService implements IRoleService {
             return userRole;
         }).toList();
         userRoleDataAccess.saveAll(userRoles);
+
+        for (String roleId : roleIds) {
+            evictCache("userRoles", "byrole:" + roleId);
+        }
     }
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // 多個 userIds 無法精確反推，保留全量清除
     public void roleUnbindUser(String roleId, List<String> userIds) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
@@ -368,14 +369,14 @@ public class RoleService implements IRoleService {
         List<User> users = userDataAccess.findAllById(userUuids);
         userRoleDataAccess.deleteAllByUserInAndRoleIn(users, List.of(role));
 
+        for (String userId : userIds) {
+            evictCache("roles", "byuser:" + userId);
+        }
+        evictCache("userRoles", "byrole:" + roleId);
     }
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", key = "'byuser:' + #userId"),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // 多個 roleIds 無法精確反推
+    @CacheEvict(value = "roles", key = "'byuser:' + #userId")
     public void userUnbindRole(String userId, List<String> roleIds) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
@@ -390,14 +391,13 @@ public class RoleService implements IRoleService {
         List<Role> roles = roleDataAccess.findAllById(roleUuids);
         userRoleDataAccess.deleteAllByUserInAndRoleIn(List.of(user), roles);
 
+        for (String roleId : roleIds) {
+            evictCache("userRoles", "byrole:" + roleId);
+        }
     }
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", key = "'byuser:' + #userId"),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // userRoles 全部 role 被清除，無法精確反推
+    @CacheEvict(value = "roles", key = "'byuser:' + #userId")
     public void userUnbindAllRole(String userId) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
@@ -406,9 +406,19 @@ public class RoleService implements IRoleService {
         User user = userDataAccess.findById(userUuid).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
         );
+
+        List<UserRole> existingUserRoles = userRoleDataAccess.findByUserId(userUuid);
+        List<UUID> affectedRoleIds = existingUserRoles.stream()
+                .map(ur -> ur.getRole().getId())
+                .distinct()
+                .toList();
+
         List<Role> roles = roleDataAccess.findAll();
         userRoleDataAccess.deleteAllByUserInAndRoleIn(List.of(user), roles);
 
+        for (UUID roleId : affectedRoleIds) {
+            evictCache("userRoles", "byrole:" + roleId);
+        }
     }
     @Transactional
     @Override
@@ -431,10 +441,6 @@ public class RoleService implements IRoleService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "roleFunctions", allEntries = true)
-    })
     public void functionUnbindRole(String functionId, List<String> roleIds) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
@@ -449,6 +455,10 @@ public class RoleService implements IRoleService {
         List<Role> roles = roleDataAccess.findAllById(roleUuids);
         roleFunctionDataAccess.deleteByFunctionAndRole(List.of(function), roles);
 
+        evictCache("roles", "byfunction:" + functionId);
+        for (String roleId : roleIds) {
+            evictCache("roleFunctions", roleId);
+        }
     }
 
 
@@ -585,6 +595,16 @@ public class RoleService implements IRoleService {
 
     private UUID mapUuid(String id) {
         return id == null || id.isBlank() ? null : UUID.fromString(id);
+    }
+
+    private void evictCache(String cacheName, String key) {
+        if (cacheManager == null) {
+            return;
+        }
+        Cache cache = cacheManager.getCache(cacheName);
+        if (cache != null) {
+            cache.evict(key);
+        }
     }
 
     private void syncRoleFunctions(UUID roleId, List<String> functionIds) {

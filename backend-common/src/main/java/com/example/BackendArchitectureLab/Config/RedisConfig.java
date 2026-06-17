@@ -139,7 +139,7 @@ public class RedisConfig implements CachingConfigurer {
         cacheConfigs.put("jobPostings", defaultConfig.entryTtl(withJitter(Duration.ofHours(1))));
         cacheConfigs.put("projectSkills", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(30))));
         cacheConfigs.put("projectMemberSkills", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(30))));
-        cacheConfigs.put("userProjects", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
+        cacheConfigs.put("projects", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
         cacheConfigs.put("currentUserSkills", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
         cacheConfigs.put("userJobLinks", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
         cacheConfigs.put("userRoles", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));

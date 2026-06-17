@@ -7,13 +7,13 @@ import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.SkillLevelVo;
 import com.example.BackendArchitectureLab.Dto.Vo.SkillVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
 import com.example.BackendArchitectureLab.Entity.*;
 import com.example.BackendArchitectureLab.Service.impl.SkillService;
 import com.example.BackendArchitectureLab.DataAccess.*;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
+import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import org.springframework.cache.CacheManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +24,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -56,6 +55,8 @@ class SkillServiceTest {
     private SkillMapper skillMapper;
     @Mock
     private UserServiceFeignClient userServiceFeignClient;
+    @Mock
+    private SecurityUtil securityUtil;
     @Mock
     private CacheManager cacheManager;
 
@@ -114,13 +115,7 @@ class SkillServiceTest {
     }
 
     private void setupSecurityContext(UUID userId, String email) {
-        Authentication auth = mock(Authentication.class);
-        lenient().when(auth.getName()).thenReturn(email);
-        lenient().when(auth.getPrincipal()).thenReturn(auth);
-        SecurityContextHolder.getContext().setAuthentication(auth);
-        UserVo userVo = new UserVo();
-        userVo.setId(userId.toString());
-        lenient().when(userServiceFeignClient.getUserByEmail(email)).thenReturn(userVo);
+        lenient().when(securityUtil.requireCurrentUserId()).thenReturn(userId);
     }
 
     private User createUserRef(UUID id) {

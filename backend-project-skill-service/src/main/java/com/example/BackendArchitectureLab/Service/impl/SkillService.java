@@ -9,7 +9,6 @@ import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.SkillLevelVo;
 import com.example.BackendArchitectureLab.Dto.Vo.SkillVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.ProjectSkill;
 import com.example.BackendArchitectureLab.Entity.Skill;
@@ -18,6 +17,7 @@ import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserSkill;
 import com.example.BackendArchitectureLab.Service.ISkillService;
+import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IProjectSkillDataAccess;
@@ -28,8 +28,6 @@ import com.example.BackendArchitectureLab.DataAccess.IUserSkillDataAccess;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -75,6 +73,8 @@ public class SkillService implements ISkillService {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
     @Autowired
+    private SecurityUtil securityUtil;
+    @Autowired
     private UserServiceFeignClient userServiceFeignClient;
 
     @Lazy
@@ -86,7 +86,7 @@ public class SkillService implements ISkillService {
     @Caching(put = {
         @CachePut(value = "skills", key = "#result.id")
     }, evict = {
-        @CacheEvict(value = "skills", allEntries = true)
+        @CacheEvict(value = "skills", key = "'all'")
     })
     public SkillVo addSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
@@ -112,7 +112,11 @@ public class SkillService implements ISkillService {
 
     @Transactional
     @Override
-    @CacheEvict(value = "skills", allEntries = true)
+    @Caching(put = {
+        @CachePut(value = "skills", key = "#skillVo.id")
+    }, evict = {
+        @CacheEvict(value = "skills", key = "'all'")
+    })
     public void updateSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
         if (skill.getId() == null) {
@@ -207,10 +211,7 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId"),
-        @CacheEvict(value = "skills", allEntries = true)
-    })
+    @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
     public SkillLevelVo addSkillLevel(SkillLevelVo skillLevelVo) {
         if (skillLevelVo.getId() != null && !skillLevelVo.getId().isBlank()) {
             throw new IllegalArgumentException("Key must be null");
@@ -234,14 +235,13 @@ public class SkillService implements ISkillService {
         skillLevel.setTitle(skillLevelVo.getTitle());
         skillLevel.setDescription(skillLevelVo.getDescription());
         skillLevel.setUserSkills(new ArrayList<>());
-        return mapSkillLevelVo(skillLevelDataAccess.save(skillLevel));
+        SkillLevelVo result = mapSkillLevelVo(skillLevelDataAccess.save(skillLevel));
+        evictSkillsLevelSearchCache();
+        return result;
     }
 
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId"),
-        @CacheEvict(value = "skills", allEntries = true)
-    })
+    @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
     public void updateSkillLevel(SkillLevelVo skillLevelVo) {
         UUID skillLevelId = mapUuid(skillLevelVo.getId());
         if (skillLevelId == null) {
@@ -264,6 +264,7 @@ public class SkillService implements ISkillService {
         skillLevel.setTitle(skillLevelVo.getTitle());
         skillLevel.setDescription(skillLevelVo.getDescription());
         skillLevelDataAccess.save(skillLevel);
+        evictSkillsLevelSearchCache();
     }
 
     @Override
@@ -308,6 +309,7 @@ public class SkillService implements ISkillService {
         if (skillsCache != null) {
             skillsCache.evict("all");
         }
+        evictSkillsLevelSearchCache();
     }
 
     @Override
@@ -346,7 +348,6 @@ public class SkillService implements ISkillService {
 
     @Transactional
     @Override
-    @CacheEvict(value = "currentUserSkills", allEntries = true)
     public void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping) {
         if (userId == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -399,6 +400,7 @@ public class SkillService implements ISkillService {
                 userSkillDataAccess.save(existingBinding);
             }
         }
+        evictCurrentUserSkills(userId);
     }
 
     @Override
@@ -488,7 +490,11 @@ public class SkillService implements ISkillService {
 
     @Transactional
     @Override
-    @CacheEvict(value = "skills", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "skills", key = "#skillVo.id"),
+        @CacheEvict(value = "skills", key = "'all'"),
+        @CacheEvict(value = "skillLevels", key = "#skillVo.id")
+    })
     public void deleteSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
         if (skill.getId() == null) {
@@ -501,6 +507,7 @@ public class SkillService implements ISkillService {
         userSkillDataAccess.deleteBySkillId(skillId);
         skillLevelDataAccess.deleteBySkillId(skillId);
         skillDataAccess.deleteById(skillId);
+        evictSkillsLevelSearchCache();
     }
 
     @Override
@@ -539,7 +546,7 @@ public class SkillService implements ISkillService {
     @Override
     @Transactional(readOnly = true)
     public List<CurrentUserSkillVo> getCurrentUserSkills() {
-        return self.getCurrentUserSkillsCache(requireCurrentUserId().toString()).getData();
+        return self.getCurrentUserSkillsCache(securityUtil.requireCurrentUserId().toString()).getData();
     }
 
     @Override
@@ -589,7 +596,7 @@ public class SkillService implements ISkillService {
     
     @Override
     public PageResult<CurrentUserSkillVo> searchCurrentUserSkills(SkillSearchQuery query) {
-        return self.searchCurrentUserSkillsCache(requireCurrentUserId().toString(), query);
+        return self.searchCurrentUserSkillsCache(securityUtil.requireCurrentUserId().toString(), query);
     }
 
     @Override
@@ -775,7 +782,7 @@ public class SkillService implements ISkillService {
     
     @Transactional
     @Override
-    @CacheEvict(value = "skills", allEntries = true)
+    @CacheEvict(value = "skills", key = "'all'")
     public SkillVo addPersonalSkill(PersonalSkillRequest request) {
         // 驗證輸入
         if (request.getName() == null || request.getName().trim().isEmpty()) {
@@ -799,7 +806,7 @@ public class SkillService implements ISkillService {
         // 自動綁定當前使用者
         UserSkill userSkill = new UserSkill();
         User userRef = new User();
-        userRef.setId(requireCurrentUserId());
+        userRef.setId(securityUtil.requireCurrentUserId());
         userSkill.setUser(userRef);
         userSkill.setSkill(savedSkill);
 
@@ -827,14 +834,14 @@ public class SkillService implements ISkillService {
         
         userSkillDataAccess.save(userSkill);
         
-        evictCurrentUserSkills(requireCurrentUserId());
+        evictCurrentUserSkills(securityUtil.requireCurrentUserId());
         
         return skillMapper.toVo(savedSkill);
     }
     
     @Transactional
     @Override
-    @CacheEvict(value = "skills", allEntries = true)
+    @CacheEvict(value = "skills", key = "'all'")
     public void updatePersonalSkill(UUID skillId, PersonalSkillRequest request) {
         // 驗證輸入
         if (skillId == null) {
@@ -849,11 +856,11 @@ public class SkillService implements ISkillService {
                 .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
         
         // 驗證是否為擁有者（檢查是否有綁定關係）
-        if (!userSkillDataAccess.existsByUserIdAndSkillId(requireCurrentUserId(), skillId)) {
+        if (!userSkillDataAccess.existsByUserIdAndSkillId(securityUtil.requireCurrentUserId(), skillId)) {
             throw new IllegalArgumentException("You are not the owner of this skill");
         }
 
-        if (!canEditContent(skill.getCreatedBy(), requireCurrentUserId())) {
+        if (!canEditContent(skill.getCreatedBy(), securityUtil.requireCurrentUserId())) {
             throw new IllegalArgumentException("Skill assigned by admin is read-only");
         }
         
@@ -874,7 +881,7 @@ public class SkillService implements ISkillService {
             }
             
             // 更新 UserSkill 的等級
-            List<UserSkill> userSkills = userSkillDataAccess.findByUserIdAndSkillId(requireCurrentUserId(), skillId);
+            List<UserSkill> userSkills = userSkillDataAccess.findByUserIdAndSkillId(securityUtil.requireCurrentUserId(), skillId);
             if (!userSkills.isEmpty()) {
                 UserSkill userSkill = userSkills.get(0);
                 userSkill.setSkillLevel(skillLevel);
@@ -882,12 +889,11 @@ public class SkillService implements ISkillService {
             }
         }
         
-        evictCurrentUserSkills(requireCurrentUserId());
+        evictCurrentUserSkills(securityUtil.requireCurrentUserId());
     }
 
     @Transactional
     @Override
-    @CacheEvict(value = "skills", allEntries = true)
     public void updatePersonalSkillLevel(UUID skillId, UUID skillLevelId) {
         if (skillId == null || skillLevelId == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -895,7 +901,7 @@ public class SkillService implements ISkillService {
 
         Skill skill = skillDataAccess.findById(skillId)
                 .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
-        if (!userSkillDataAccess.existsByUserIdAndSkillId(requireCurrentUserId(), skillId)) {
+        if (!userSkillDataAccess.existsByUserIdAndSkillId(securityUtil.requireCurrentUserId(), skillId)) {
             throw new IllegalArgumentException("Skill is not bind to current user");
         }
 
@@ -903,7 +909,7 @@ public class SkillService implements ISkillService {
                 .orElseThrow(() -> new IllegalArgumentException("Skill level not found"));
         validateSkillLevelBelongsToSkill(skillLevel, skill);
 
-        List<UserSkill> userSkills = userSkillDataAccess.findByUserIdAndSkillId(requireCurrentUserId(), skillId);
+        List<UserSkill> userSkills = userSkillDataAccess.findByUserIdAndSkillId(securityUtil.requireCurrentUserId(), skillId);
         if (userSkills.isEmpty()) {
             throw new IllegalArgumentException("Skill is not bind to current user");
         }
@@ -912,12 +918,11 @@ public class SkillService implements ISkillService {
         userSkill.setSkillLevel(skillLevel);
         userSkillDataAccess.save(userSkill);
         
-        evictCurrentUserSkills(requireCurrentUserId());
+        evictCurrentUserSkills(securityUtil.requireCurrentUserId());
     }
     
     @Transactional
     @Override
-    @CacheEvict(value = "skills", allEntries = true)
     public void deletePersonalSkill(UUID skillId) {
         // 驗證輸入
         if (skillId == null) {
@@ -929,14 +934,14 @@ public class SkillService implements ISkillService {
                 .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
         
         // 驗證是否為擁有者
-        if (!userSkillDataAccess.existsByUserIdAndSkillId(requireCurrentUserId(), skillId)) {
+        if (!userSkillDataAccess.existsByUserIdAndSkillId(securityUtil.requireCurrentUserId(), skillId)) {
             throw new IllegalArgumentException("You are not the owner of this skill");
         }
 
         // 刪除當前使用者與技能的綁定
-        userSkillDataAccess.deleteByUserIdAndSkillId(requireCurrentUserId(), skillId);
+        userSkillDataAccess.deleteByUserIdAndSkillId(securityUtil.requireCurrentUserId(), skillId);
         
-        evictCurrentUserSkills(requireCurrentUserId());
+        evictCurrentUserSkills(securityUtil.requireCurrentUserId());
     }
 
     private void evictCurrentUserSkills(UUID userId) {
@@ -958,27 +963,22 @@ public class SkillService implements ISkillService {
         }
     }
 
+    private void evictSkillsLevelSearchCache() {
+        try {
+            Set<String> keys = stringRedisTemplate.keys("skills::*levelsearch:*");
+            if (keys != null && !keys.isEmpty()) {
+                stringRedisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            // Redis 快取清除降級
+        }
+    }
+
     private boolean canEditContent(String createdBy, UUID currentUserId) {
         if (createdBy == null || createdBy.isBlank()) {
             return true;
         }
         return createdBy.equals(currentUserId.toString());
-    }
-
-    private UUID requireCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) {
-            throw new IllegalStateException("Current user not found - no authentication");
-        }
-        String email = auth.getName();
-        if (email == null || email.isBlank()) {
-            throw new IllegalStateException("Current user not found - no email in authentication");
-        }
-        UserVo userVo = userServiceFeignClient.getUserByEmail(email);
-        if (userVo == null || userVo.getId() == null) {
-            throw new IllegalStateException("Current user not found - user lookup failed");
-        }
-        return UUID.fromString(userVo.getId());
     }
 
     private boolean hasManualSkillLevelInput(PersonalSkillRequest request) {
