@@ -20,7 +20,7 @@ public class CachePenetrationProtectionCache implements Cache {
 
     private static final Logger log = LoggerFactory.getLogger(CachePenetrationProtectionCache.class);
 
-    private static final long LOCK_WAIT_MILLIS = 200;
+    private static final long LOCK_WAIT_MILLIS = 10000;
 
     private static final Pattern UUID_PATTERN = Pattern.compile(
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
