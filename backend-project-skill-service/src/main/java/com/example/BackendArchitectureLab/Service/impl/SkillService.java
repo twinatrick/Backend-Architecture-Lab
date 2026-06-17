@@ -36,6 +36,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -72,6 +73,8 @@ public class SkillService implements ISkillService {
     @Autowired
     private CacheManager cacheManager;
     @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+    @Autowired
     private UserServiceFeignClient userServiceFeignClient;
 
     @Lazy
@@ -83,7 +86,7 @@ public class SkillService implements ISkillService {
     @Caching(put = {
         @CachePut(value = "skills", key = "#result.id")
     }, evict = {
-        @CacheEvict(value = "skills", key = "'all'")
+        @CacheEvict(value = "skills", allEntries = true)
     })
     public SkillVo addSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
@@ -109,10 +112,7 @@ public class SkillService implements ISkillService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skills", key = "#skillVo.id"),
-        @CacheEvict(value = "skills", key = "'all'")
-    })
+    @CacheEvict(value = "skills", allEntries = true)
     public void updateSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
         if (skill.getId() == null) {
@@ -209,7 +209,7 @@ public class SkillService implements ISkillService {
     @Override
     @Caching(evict = {
         @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId"),
-        @CacheEvict(value = "skills", key = "'all'")
+        @CacheEvict(value = "skills", allEntries = true)
     })
     public SkillLevelVo addSkillLevel(SkillLevelVo skillLevelVo) {
         if (skillLevelVo.getId() != null && !skillLevelVo.getId().isBlank()) {
@@ -240,7 +240,7 @@ public class SkillService implements ISkillService {
     @Override
     @Caching(evict = {
         @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId"),
-        @CacheEvict(value = "skills", key = "'all'")
+        @CacheEvict(value = "skills", allEntries = true)
     })
     public void updateSkillLevel(SkillLevelVo skillLevelVo) {
         UUID skillLevelId = mapUuid(skillLevelVo.getId());
@@ -488,10 +488,7 @@ public class SkillService implements ISkillService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skills", key = "#skillVo.id"),
-        @CacheEvict(value = "skills", key = "'all'")
-    })
+    @CacheEvict(value = "skills", allEntries = true)
     public void deleteSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
         if (skill.getId() == null) {
@@ -521,6 +518,8 @@ public class SkillService implements ISkillService {
     }
     
     @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "skills", key = "'search:' + #query.toString()", sync = true)
     public PageResult<SkillVo> searchSkills(SkillSearchQuery query) {
         // 驗證排序欄位
         Set<String> validSortFields = Set.of("id", "name", "description", "createdBy", "updatedBy", "createdTime", "updatedTime");
@@ -589,8 +588,14 @@ public class SkillService implements ISkillService {
     }
     
     @Override
-    @Transactional(readOnly = true)
     public PageResult<CurrentUserSkillVo> searchCurrentUserSkills(SkillSearchQuery query) {
+        return self.searchCurrentUserSkillsCache(requireCurrentUserId().toString(), query);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "currentUserSkills", key = "'currentsearch:' + #currentUserId + ':' + #query.toString()", sync = true)
+    public PageResult<CurrentUserSkillVo> searchCurrentUserSkillsCache(String currentUserId, SkillSearchQuery query) {
         // 驗證排序欄位
         Set<String> validSortFields = Set.of("id", "name", "description", "createdBy", "updatedBy", "createdTime", "updatedTime");
         SortFieldValidator.validate(query.getSortBy(), query.getSortDir(), validSortFields);
@@ -685,6 +690,8 @@ public class SkillService implements ISkillService {
     }
     
     @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "skills", key = "'levelsearch:' + #query.toString()", sync = true)
     public PageResult<SkillLevelVo> searchSkillLevels(SkillLevelSearchQuery query) {
         // 驗證排序欄位
         Set<String> validSortFields = Set.of("id", "levelValue", "title", "description", "createdBy", "updatedBy", "createdTime", "updatedTime");
@@ -768,10 +775,7 @@ public class SkillService implements ISkillService {
     
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skills", key = "'all'"),
-        @CacheEvict(value = "currentUserSkills", allEntries = true)
-    })
+    @CacheEvict(value = "skills", allEntries = true)
     public SkillVo addPersonalSkill(PersonalSkillRequest request) {
         // 驗證輸入
         if (request.getName() == null || request.getName().trim().isEmpty()) {
@@ -823,16 +827,14 @@ public class SkillService implements ISkillService {
         
         userSkillDataAccess.save(userSkill);
         
+        evictCurrentUserSkills(requireCurrentUserId());
+        
         return skillMapper.toVo(savedSkill);
     }
     
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skills", key = "#skillId"),
-        @CacheEvict(value = "skills", key = "'all'"),
-        @CacheEvict(value = "currentUserSkills", allEntries = true)
-    })
+    @CacheEvict(value = "skills", allEntries = true)
     public void updatePersonalSkill(UUID skillId, PersonalSkillRequest request) {
         // 驗證輸入
         if (skillId == null) {
@@ -879,15 +881,13 @@ public class SkillService implements ISkillService {
                 userSkillDataAccess.save(userSkill);
             }
         }
+        
+        evictCurrentUserSkills(requireCurrentUserId());
     }
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skills", key = "#skillId"),
-        @CacheEvict(value = "skills", key = "'all'"),
-        @CacheEvict(value = "currentUserSkills", allEntries = true)
-    })
+    @CacheEvict(value = "skills", allEntries = true)
     public void updatePersonalSkillLevel(UUID skillId, UUID skillLevelId) {
         if (skillId == null || skillLevelId == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -911,15 +911,13 @@ public class SkillService implements ISkillService {
         UserSkill userSkill = userSkills.get(0);
         userSkill.setSkillLevel(skillLevel);
         userSkillDataAccess.save(userSkill);
+        
+        evictCurrentUserSkills(requireCurrentUserId());
     }
     
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "skills", key = "#skillId"),
-        @CacheEvict(value = "skills", key = "'all'"),
-        @CacheEvict(value = "currentUserSkills", allEntries = true)
-    })
+    @CacheEvict(value = "skills", allEntries = true)
     public void deletePersonalSkill(UUID skillId) {
         // 驗證輸入
         if (skillId == null) {
@@ -937,6 +935,27 @@ public class SkillService implements ISkillService {
 
         // 刪除當前使用者與技能的綁定
         userSkillDataAccess.deleteByUserIdAndSkillId(requireCurrentUserId(), skillId);
+        
+        evictCurrentUserSkills(requireCurrentUserId());
+    }
+
+    private void evictCurrentUserSkills(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        String userStr = userId.toString();
+        Cache userSkillsCache = cacheManager.getCache("currentUserSkills");
+        if (userSkillsCache != null) {
+            userSkillsCache.evict("byuser:" + userStr);
+        }
+        try {
+            Set<String> keys = stringRedisTemplate.keys("currentUserSkills::*currentsearch:" + userStr + "*");
+            if (keys != null && !keys.isEmpty()) {
+                stringRedisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            // Redis 快取清除降級，避免影響主要交易
+        }
     }
 
     private boolean canEditContent(String createdBy, UUID currentUserId) {

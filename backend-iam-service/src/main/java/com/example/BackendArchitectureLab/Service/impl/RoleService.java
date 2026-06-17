@@ -479,6 +479,13 @@ public class RoleService implements IRoleService {
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRoleByFunction(String functionId) {
+        return self.getRoleByFunctionCache(functionId).getData();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @Cacheable(value = "roles", key = "'byfunction:' + #functionId", sync = true)
+    public CacheListWrapper<RoleOutVo> getRoleByFunctionCache(String functionId) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -486,15 +493,23 @@ public class RoleService implements IRoleService {
         Function function = functionDataAccess.findByIdWithRoleFunctions(functionUuid).orElseThrow(
                 () -> new IllegalArgumentException("Function not found")
         );
-        return function.getRoleFunctions().stream()
+        List<RoleOutVo> list = function.getRoleFunctions().stream()
                 .map(RoleFunction::getRole)
                 .map(roleMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<UserVo> getUserByRole(String roleId) {
+        return self.getUserByRoleCache(roleId).getData();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @Cacheable(value = "userRoles", key = "'byrole:' + #roleId", sync = true)
+    public CacheListWrapper<UserVo> getUserByRoleCache(String roleId) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -502,10 +517,11 @@ public class RoleService implements IRoleService {
         Role role = roleDataAccess.findByIdWithUserRoles(roleUuid).orElseThrow(
                 () -> new IllegalArgumentException("Role not found")
         );
-        return role.getUserRoles().stream()
+        List<UserVo> list = role.getUserRoles().stream()
                 .map(UserRole::getUser)
                 .map(userMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Transactional(readOnly = true)
@@ -541,6 +557,7 @@ public class RoleService implements IRoleService {
     
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "roles", key = "'search:' + #query.toString()", sync = true)
     public PageResult<RoleOutVo> searchRoles(RoleSearchQuery query) {
         // 定義允許的排序欄位
         String[] allowedSortFields = {

@@ -61,6 +61,7 @@ public interface ISkillService {
      * @return 分頁結果
      */
     PageResult<CurrentUserSkillVo> searchCurrentUserSkills(SkillSearchQuery query);
+    PageResult<CurrentUserSkillVo> searchCurrentUserSkillsCache(String currentUserId, SkillSearchQuery query);
     
     /**
      * 搜尋技能等級（支援分頁與條件查詢）

@@ -208,6 +208,8 @@ public class ProjectService implements IProjectService {
     }
     
     @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "userProjects", key = "'search:' + #query.toString()", sync = true)
     public PageResult<ProjectVo> searchProjects(ProjectSearchQuery query) {
         // 定義允許的排序欄位
         String[] allowedSortFields = {
@@ -253,7 +255,14 @@ public class ProjectService implements IProjectService {
     
     @Override
     public PageResult<ProjectVo> searchCurrentUserProjects(ProjectSearchQuery query) {
-        UUID currentUserId = requireCurrentUserId();
+        return self.searchCurrentUserProjectsCache(requireCurrentUserId().toString(), query);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "userProjects", key = "'currentsearch:' + #currentUserId + ':' + #query.toString()", sync = true)
+    public PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query) {
+        UUID currentUserIdUuid = UUID.fromString(currentUserId);
         
         // 定義允許的排序欄位
         String[] allowedSortFields = {
@@ -269,7 +278,7 @@ public class ProjectService implements IProjectService {
         
         // 執行分頁查詢（只查詢當前使用者的專案）
         Page<Project> projectPage = projectDataAccess.searchCurrentUserProjects(
-            currentUserId.toString(), 
+            currentUserIdUuid.toString(), 
             query
         );
         

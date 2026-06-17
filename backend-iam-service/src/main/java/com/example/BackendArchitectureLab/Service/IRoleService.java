@@ -47,8 +47,10 @@ public interface IRoleService {
     CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId);
 
     List<RoleOutVo> getRoleByFunction(String functionId);
+    CacheListWrapper<RoleOutVo> getRoleByFunctionCache(String functionId);
 
     List<UserVo> getUserByRole(String roleId);
+    CacheListWrapper<UserVo> getUserByRoleCache(String roleId);
 
     List<RoleOutVo> getRoleByUser(String userId);
     CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId);

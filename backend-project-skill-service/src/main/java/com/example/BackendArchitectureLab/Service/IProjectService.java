@@ -45,6 +45,7 @@ public interface IProjectService {
      * @return 分頁結果
      */
     PageResult<ProjectVo> searchCurrentUserProjects(ProjectSearchQuery query);
+    PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query);
 
     /**
      * 獲取專案綁定的所有技能資訊
