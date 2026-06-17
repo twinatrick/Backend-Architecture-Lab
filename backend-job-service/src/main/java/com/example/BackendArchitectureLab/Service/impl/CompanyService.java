@@ -41,8 +41,10 @@ public class CompanyService implements ICompanyService {
         Company company = new Company();
         company.setName(request.getName());
         company.setDescription(request.getDescription());
-        for (String url : request.getWebsites()) {
-            company.addWebsite(url);
+        if (request.getWebsites() != null) {
+            for (String url : request.getWebsites()) {
+                company.addWebsite(url);
+            }
         }
         company = companyDataAccess.save(company);
         return companyMapper.toVo(company);

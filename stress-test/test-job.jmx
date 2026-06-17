@@ -278,7 +278,7 @@
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"name":"StressTest_Company_${__time(MMddHHmmss)}_${__threadNum}","description":"Stress test company"}</stringProp>
+                  <stringProp name="Argument.value">{"name":"StressTest_Company_${__time(MMddHHmmss)}_${__threadNum}","description":"Stress test company","websites":["https://stress-test.com"]}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>

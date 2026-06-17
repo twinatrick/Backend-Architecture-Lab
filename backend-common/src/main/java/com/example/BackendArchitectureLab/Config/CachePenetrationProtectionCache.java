@@ -13,6 +13,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -50,6 +52,8 @@ public class CachePenetrationProtectionCache implements Cache {
             stripes[i] = new Object();
         }
     }
+
+    private final ConcurrentHashMap<String, CompletableFuture<ValueWrapper>> activeRedisFetches = new ConcurrentHashMap<>();
 
     public CachePenetrationProtectionCache(String name, RedisCache delegate,
                                             StringRedisTemplate stringRedisTemplate,
@@ -122,41 +126,90 @@ public class CachePenetrationProtectionCache implements Cache {
             return null;
         }
 
-        String lockKey = "lock:cache:" + name + ":" + cacheKey;
-        int index = (lockKey.hashCode() & Integer.MAX_VALUE) % stripes.length;
-        Object stripeLock = stripes[index];
+        // 1. 使用 Request Collapsing (請求合併) 查詢 Redis，確保 500 個併發只有 1 個會向 Redis 發送 GET 請求
+        CompletableFuture<ValueWrapper> future;
+        boolean isLeader = false;
+        CompletableFuture<ValueWrapper> newFuture = new CompletableFuture<>();
 
-        boolean acquired = false;
-        RLock lock = redissonClient.getLock(lockKey);
+        CompletableFuture<ValueWrapper> existing = activeRedisFetches.putIfAbsent(cacheKey, newFuture);
+        if (existing == null) {
+            future = newFuture;
+            isLeader = true;
+        } else {
+            future = existing;
+        }
 
-        // 1. 在 JVM 分段鎖保護下讀起 Redis 快取，確保 500 個併發只有 1 個會向 Redis 發送 GET 請求
-        synchronized (stripeLock) {
-            ValueWrapper cached = delegate.get(key);
-            if (cached != null) {
-                Object value = cached.get();
-                if (value instanceof NullValue) {
-                    return null;
-                }
-                return (T) value;
-            }
-
-            // 2. 本機快取無資料，嘗試非阻塞地取得 Redisson 分散式鎖 (0ms 等待)
+        if (isLeader) {
             try {
-                acquired = lock.tryLock(0, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.warn("快取 [{}] key [{}] 獲取鎖中斷", name, key);
+                ValueWrapper val = delegate.get(key);
+                future.complete(val);
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            } finally {
+                activeRedisFetches.remove(cacheKey);
             }
         }
 
-        // 3. 如果成功取得分散式鎖，則由該執行緒負責載入資料庫並寫入快取 (在 synchronized 區塊外執行，不阻塞其他執行緒)
+        ValueWrapper cached;
+        try {
+            cached = future.get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("獲取合併快取異常: {}", e.toString());
+            cached = null;
+        }
+
+        if (cached != null) {
+            Object value = cached.get();
+            if (value instanceof NullValue) {
+                return null;
+            }
+            return (T) value;
+        }
+
+        // 2. 本地查無快取，嘗試非阻塞獲取 Redisson 分散式鎖 (0ms 等待，拿不到直接進入輪詢)
+        String lockKey = "lock:cache:" + name + ":" + cacheKey;
+        RLock lock = redissonClient.getLock(lockKey);
+        boolean acquired = false;
+        try {
+            acquired = lock.tryLock(0, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // 3. 拿到分散式鎖的 Leader 執行緒去讀資料庫
         if (acquired) {
             try {
-                // 拿到分散式鎖後，再次確認 Redis (預防別的 JVM 實例在我們排隊拿鎖時已經寫入快取)
-                ValueWrapper doubleCheckDist;
-                synchronized (stripeLock) {
-                    doubleCheckDist = delegate.get(key);
+                // 雙重檢查 Redis (使用請求合併方式)
+                CompletableFuture<ValueWrapper> checkFuture;
+                boolean isCheckLeader = false;
+                CompletableFuture<ValueWrapper> newCheckFuture = new CompletableFuture<>();
+
+                CompletableFuture<ValueWrapper> existingCheck = activeRedisFetches.putIfAbsent(cacheKey, newCheckFuture);
+                if (existingCheck == null) {
+                    checkFuture = newCheckFuture;
+                    isCheckLeader = true;
+                } else {
+                    checkFuture = existingCheck;
                 }
+
+                if (isCheckLeader) {
+                    try {
+                        ValueWrapper val = delegate.get(key);
+                        checkFuture.complete(val);
+                    } catch (Exception e) {
+                        checkFuture.completeExceptionally(e);
+                    } finally {
+                        activeRedisFetches.remove(cacheKey);
+                    }
+                }
+
+                ValueWrapper doubleCheckDist;
+                try {
+                    doubleCheckDist = checkFuture.get(5, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    doubleCheckDist = null;
+                }
+
                 if (doubleCheckDist != null) {
                     Object value = doubleCheckDist.get();
                     if (value instanceof NullValue) {
@@ -169,7 +222,7 @@ public class CachePenetrationProtectionCache implements Cache {
                 put(key, value);
                 return value;
             } catch (Exception e) {
-                log.warn("快取 [{}] key [{}] 載入資料庫異常，準備直接載入: {}", name, key, e.toString());
+                log.warn("快取 [{}] key [{}] 載入資料庫異常: {}", name, key, e.toString());
                 try {
                     return valueLoader.call();
                 } catch (Exception ex) {
@@ -184,7 +237,7 @@ public class CachePenetrationProtectionCache implements Cache {
             }
         }
 
-        // 4. 未取得鎖的其餘 499 個執行緒，進入無鎖輪詢機制，每次輪詢在分段鎖保護下進行，避免輪詢併發暴風
+        // 4. 未取得鎖的其餘執行緒，在輪詢時也透過 Request Collapsing 來集體查詢 Redis，拒絕併發風暴
         try {
             long startTime = System.currentTimeMillis();
             while (System.currentTimeMillis() - startTime < POLL_TIMEOUT_MILLIS) {
@@ -194,9 +247,34 @@ public class CachePenetrationProtectionCache implements Cache {
                     return null;
                 }
 
+                CompletableFuture<ValueWrapper> pollFuture;
+                boolean isPollLeader = false;
+                CompletableFuture<ValueWrapper> newPollFuture = new CompletableFuture<>();
+
+                CompletableFuture<ValueWrapper> existingPoll = activeRedisFetches.putIfAbsent(cacheKey, newPollFuture);
+                if (existingPoll == null) {
+                    pollFuture = newPollFuture;
+                    isPollLeader = true;
+                } else {
+                    pollFuture = existingPoll;
+                }
+
+                if (isPollLeader) {
+                    try {
+                        ValueWrapper val = delegate.get(key);
+                        pollFuture.complete(val);
+                    } catch (Exception e) {
+                        pollFuture.completeExceptionally(e);
+                    } finally {
+                        activeRedisFetches.remove(cacheKey);
+                    }
+                }
+
                 ValueWrapper fallbackCheck;
-                synchronized (stripeLock) {
-                    fallbackCheck = delegate.get(key);
+                try {
+                    fallbackCheck = pollFuture.get(5, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    fallbackCheck = null;
                 }
 
                 if (fallbackCheck != null) {
