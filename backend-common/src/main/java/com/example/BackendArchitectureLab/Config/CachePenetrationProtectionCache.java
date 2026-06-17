@@ -20,7 +20,9 @@ public class CachePenetrationProtectionCache implements Cache {
 
     private static final Logger log = LoggerFactory.getLogger(CachePenetrationProtectionCache.class);
 
-    private static final long LOCK_WAIT_MILLIS = 10000;
+    private static final long LOCK_TRY_WAIT_MILLIS = 200;
+    private static final long POLL_TIMEOUT_MILLIS = 10000;
+    private static final long POLL_INTERVAL_MILLIS = 200;
 
     private static final Pattern UUID_PATTERN = Pattern.compile(
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -125,7 +127,7 @@ public class CachePenetrationProtectionCache implements Cache {
         String lockKey = "lock:cache:" + name + ":" + cacheKey;
         RLock lock = redissonClient.getLock(lockKey);
         try {
-            if (lock.tryLock(LOCK_WAIT_MILLIS, TimeUnit.MILLISECONDS)) {
+            if (lock.tryLock(LOCK_TRY_WAIT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     ValueWrapper doubleCheck = delegate.get(key);
                     if (doubleCheck != null) {
@@ -148,8 +150,10 @@ public class CachePenetrationProtectionCache implements Cache {
                 }
             }
 
-            for (int i = 0; i < 4; i++) {
-                TimeUnit.MILLISECONDS.sleep(25 * (i + 1));
+            // 獲取鎖失敗，進入無鎖輪詢機制 (Lock-free Polling)
+            long startTime = System.currentTimeMillis();
+            while (System.currentTimeMillis() - startTime < POLL_TIMEOUT_MILLIS) {
+                TimeUnit.MILLISECONDS.sleep(POLL_INTERVAL_MILLIS);
 
                 if (hasNullMarker(cacheKey)) {
                     return null;
@@ -165,9 +169,10 @@ public class CachePenetrationProtectionCache implements Cache {
                 }
             }
 
+            log.warn("快取 [{}] key [{}] 輪詢超時 ({}ms)，降級直接載入資料庫", name, key, POLL_TIMEOUT_MILLIS);
             return valueLoader.call();
         } catch (Exception e) {
-            log.warn("快取 [{}] key [{}] 鎖/重試異常，降級直接載入: {}", name, key, e.toString());
+            log.warn("快取 [{}] key [{}] 鎖/輪詢異常，降級直接載入: {}", name, key, e.toString());
             try {
                 return valueLoader.call();
             } catch (Exception ex) {
