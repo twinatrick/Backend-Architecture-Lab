@@ -202,7 +202,7 @@
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"撌伐蕭?嚙?}</stringProp>
+                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":""}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>

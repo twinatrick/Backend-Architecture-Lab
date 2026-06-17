@@ -122,82 +122,100 @@ public class CachePenetrationProtectionCache implements Cache {
             return null;
         }
 
-        ValueWrapper cached = delegate.get(key);
-        if (cached != null) {
-            Object value = cached.get();
-            if (value instanceof NullValue) {
-                return null;
-            }
-            return (T) value;
-        }
-
         String lockKey = "lock:cache:" + name + ":" + cacheKey;
         int index = (lockKey.hashCode() & Integer.MAX_VALUE) % stripes.length;
         Object stripeLock = stripes[index];
 
+        boolean acquired = false;
+        RLock lock = redissonClient.getLock(lockKey);
+
+        // 1. 在 JVM 分段鎖保護下讀起 Redis 快取，確保 500 個併發只有 1 個會向 Redis 發送 GET 請求
         synchronized (stripeLock) {
-            ValueWrapper doubleCheck = delegate.get(key);
-            if (doubleCheck != null) {
-                Object value = doubleCheck.get();
+            ValueWrapper cached = delegate.get(key);
+            if (cached != null) {
+                Object value = cached.get();
                 if (value instanceof NullValue) {
                     return null;
                 }
                 return (T) value;
             }
 
-            RLock lock = redissonClient.getLock(lockKey);
+            // 2. 本機快取無資料，嘗試非阻塞地取得 Redisson 分散式鎖 (0ms 等待)
             try {
-                if (lock.tryLock(LOCK_TRY_WAIT_MILLIS, TimeUnit.MILLISECONDS)) {
-                    try {
-                        ValueWrapper doubleCheckDist = delegate.get(key);
-                        if (doubleCheckDist != null) {
-                            Object value = doubleCheckDist.get();
-                            if (value instanceof NullValue) {
-                                return null;
-                            }
-                            return (T) value;
-                        }
+                acquired = lock.tryLock(0, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("快取 [{}] key [{}] 獲取鎖中斷", name, key);
+            }
+        }
 
-                        T value = valueLoader.call();
-                        put(key, value);
-                        return value;
-                    } finally {
-                        try {
-                            lock.unlock();
-                        } catch (Exception e) {
-                            log.warn("解鎖異常 [{}] key [{}]: {}", name, key, e.toString());
-                        }
-                    }
+        // 3. 如果成功取得分散式鎖，則由該執行緒負責載入資料庫並寫入快取 (在 synchronized 區塊外執行，不阻塞其他執行緒)
+        if (acquired) {
+            try {
+                // 拿到分散式鎖後，再次確認 Redis (預防別的 JVM 實例在我們排隊拿鎖時已經寫入快取)
+                ValueWrapper doubleCheckDist;
+                synchronized (stripeLock) {
+                    doubleCheckDist = delegate.get(key);
                 }
-
-                // 獲取鎖失敗，進入無鎖輪詢機制 (Lock-free Polling)
-                long startTime = System.currentTimeMillis();
-                while (System.currentTimeMillis() - startTime < POLL_TIMEOUT_MILLIS) {
-                    TimeUnit.MILLISECONDS.sleep(POLL_INTERVAL_MILLIS);
-
-                    if (hasNullMarker(cacheKey)) {
+                if (doubleCheckDist != null) {
+                    Object value = doubleCheckDist.get();
+                    if (value instanceof NullValue) {
                         return null;
                     }
-
-                    ValueWrapper fallbackCheck = delegate.get(key);
-                    if (fallbackCheck != null) {
-                        Object v = fallbackCheck.get();
-                        if (v instanceof NullValue) {
-                            return null;
-                        }
-                        return (T) v;
-                    }
+                    return (T) value;
                 }
 
-                log.warn("快取 [{}] key [{}] 輪詢超時 ({}ms)，降級直接載入資料庫", name, key, POLL_TIMEOUT_MILLIS);
-                return valueLoader.call();
+                T value = valueLoader.call();
+                put(key, value);
+                return value;
             } catch (Exception e) {
-                log.warn("快取 [{}] key [{}] 鎖/輪詢異常，降級直接載入: {}", name, key, e.toString());
+                log.warn("快取 [{}] key [{}] 載入資料庫異常，準備直接載入: {}", name, key, e.toString());
                 try {
                     return valueLoader.call();
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
+            } finally {
+                try {
+                    lock.unlock();
+                } catch (Exception e) {
+                    log.warn("解鎖異常 [{}] key [{}]: {}", name, key, e.toString());
+                }
+            }
+        }
+
+        // 4. 未取得鎖的其餘 499 個執行緒，進入無鎖輪詢機制，每次輪詢在分段鎖保護下進行，避免輪詢併發暴風
+        try {
+            long startTime = System.currentTimeMillis();
+            while (System.currentTimeMillis() - startTime < POLL_TIMEOUT_MILLIS) {
+                TimeUnit.MILLISECONDS.sleep(POLL_INTERVAL_MILLIS);
+
+                if (hasNullMarker(cacheKey)) {
+                    return null;
+                }
+
+                ValueWrapper fallbackCheck;
+                synchronized (stripeLock) {
+                    fallbackCheck = delegate.get(key);
+                }
+
+                if (fallbackCheck != null) {
+                    Object v = fallbackCheck.get();
+                    if (v instanceof NullValue) {
+                        return null;
+                    }
+                    return (T) v;
+                }
+            }
+
+            log.warn("快取 [{}] key [{}] 輪詢超時 ({}ms)，降級直接載入資料庫", name, key, POLL_TIMEOUT_MILLIS);
+            return valueLoader.call();
+        } catch (Exception e) {
+            log.warn("快取 [{}] key [{}] 輪詢/降級載入異常: {}", name, key, e.toString());
+            try {
+                return valueLoader.call();
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
             }
         }
     }

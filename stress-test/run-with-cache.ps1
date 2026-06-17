@@ -29,6 +29,9 @@ if ([string]::IsNullOrWhiteSpace($JmeterBin)) {
 
 $RawDir = "target\jmeter-raw-cache"
 $ReportDir = "target\jmeter-report-cache"
+if (Test-Path $RawDir) {
+    Remove-Item -Path "$RawDir\*" -Force -Recurse -ErrorAction SilentlyContinue
+}
 New-Item -ItemType Directory -Path $RawDir -Force | Out-Null
 
 $scripts = @(

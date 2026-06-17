@@ -167,7 +167,6 @@ class CacheAvalancheTest {
 
         when(delegate.get(testKey))
                 .thenReturn(null)
-                .thenReturn(null)
                 .thenReturn(() -> cachedValue);
 
         AtomicInteger loadCount = new AtomicInteger(0);
