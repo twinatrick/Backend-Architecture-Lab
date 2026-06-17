@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import org.springframework.test.util.ReflectionTestUtils;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,7 @@ class CompanyServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(companyService, "self", companyService);
         testId = UUID.randomUUID();
         testCompany = new Company();
         testCompany.setId(testId);

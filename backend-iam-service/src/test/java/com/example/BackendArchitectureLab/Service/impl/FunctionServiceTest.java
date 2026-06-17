@@ -51,23 +51,30 @@ class FunctionServiceTest {
     @InjectMocks
     private FunctionService functionService;
 
-    private Function testFunction;
     private UUID testId;
+    private Function testFunction;
 
     @BeforeEach
     void setUp() {
         testId = UUID.randomUUID();
+        
         testFunction = new Function();
         testFunction.setId(testId);
         testFunction.setName("Test Function");
-        testFunction.setParent("parent-id");
-        testFunction.setSort("1");
-        testFunction.setType(1);
-
+        
+        // Self injection for tests
+        try {
+            java.lang.reflect.Field selfField = FunctionService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(functionService, functionService);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not inject self into FunctionService", e);
+        }
+        
         when(functionMapper.toEntity(any(FunctionVo.class))).thenAnswer(invocation -> {
             FunctionVo vo = invocation.getArgument(0);
             Function function = new Function();
-            if (vo.getId() != null && !vo.getId().isBlank()) {
+            if (vo.getId() != null && !vo.getId().isEmpty()) {
                 function.setId(UUID.fromString(vo.getId()));
             }
             function.setName(vo.getName());

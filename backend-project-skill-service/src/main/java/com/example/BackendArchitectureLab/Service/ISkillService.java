@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Dto.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Dto.Vo.PersonalSkillRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillLevelSearchQuery;
@@ -18,12 +19,14 @@ public interface ISkillService {
     void updateSkill(SkillVo skillVo);
 
     List<SkillVo> getSkill();
+    CacheListWrapper<SkillVo> getSkillListCache();
 
     SkillLevelVo addSkillLevel(SkillLevelVo skillLevelVo);
 
     void updateSkillLevel(SkillLevelVo skillLevelVo);
 
     List<SkillLevelVo> getSkillLevels(String skillId);
+    CacheListWrapper<SkillLevelVo> getSkillLevelsCache(String skillId);
 
     void deleteSkillLevel(String skillLevelId);
 
@@ -49,6 +52,7 @@ public interface ISkillService {
      * @return 技能列表（含來源標記）
      */
     List<CurrentUserSkillVo> getCurrentUserSkills();
+    CacheListWrapper<CurrentUserSkillVo> getCurrentUserSkillsCache(String currentUserId);
     
     /**
      * 搜尋當前使用者技能（支援分頁與條件查詢）

@@ -97,6 +97,15 @@ class SkillServiceTest {
         testSkillLevelVo.setTitle("Beginner");
 
         when(skillMapper.toVo(any(Skill.class))).thenReturn(testSkillVo);
+        
+        // Inject self reference
+        try {
+            java.lang.reflect.Field selfField = SkillService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(skillService, skillService);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not inject self into SkillService", e);
+        }
     }
 
     @AfterEach

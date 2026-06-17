@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.DataAccess.*;
 import com.example.BackendArchitectureLab.Dto.Vo.MemberSkillLevelVo;
 import com.example.BackendArchitectureLab.Dto.Vo.PersonalProjectRequest;
@@ -62,6 +64,11 @@ public class ProjectService implements IProjectService {
     private IUserProjectSkillDataAccess userProjectSkillDataAccess;
     @Autowired
     private ProjectMapper projectMapper;
+
+    @Lazy
+    @Autowired
+    private IProjectService self;
+
     /**
      * 新增專案
      * @param project 要新增的專案實體
@@ -165,9 +172,15 @@ public class ProjectService implements IProjectService {
      * @return 所有專案列表
      */
     @Override
-    @Cacheable(value = "userProjects", sync = true)
     public List<ProjectVo> getProject() {
-        return projectDataAccess.findAll().stream().map(projectMapper::toVo).toList();
+        return self.getProjectListCache().getData();
+    }
+
+    @Override
+    @Cacheable(value = "userProjects", key = "'all'", sync = true)
+    public CacheListWrapper<ProjectVo> getProjectListCache() {
+        List<ProjectVo> list = projectDataAccess.findAll().stream().map(projectMapper::toVo).toList();
+        return new CacheListWrapper<>(list);
     }
     /**
      * 刪除專案及其關聯的技能映射
@@ -221,16 +234,21 @@ public class ProjectService implements IProjectService {
     }
     
     @Override
-    @Cacheable(value = "userProjects", key = "'current:' + T(java.util.UUID).randomUUID()", sync = true)
     public List<ProjectVo> getCurrentUserProjects() {
-        UUID currentUserId = requireCurrentUserId();
-        
+        return self.getCurrentUserProjectsCache(requireCurrentUserId().toString()).getData();
+    }
+
+    @Override
+    @Cacheable(value = "userProjects", key = "'byuser:' + #currentUserId", sync = true)
+    public CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId) {
+        UUID currentUserIdUuid = UUID.fromString(currentUserId);
         // 透過 UserProject 關聯取得當前使用者的專案
-        List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserId);
-        return userProjects.stream()
+        List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserIdUuid);
+        List<ProjectVo> list = userProjects.stream()
                 .map(UserProject::getProject)
                 .map(projectMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
     
     @Override
@@ -265,8 +283,13 @@ public class ProjectService implements IProjectService {
     }
     
     @Override
-    @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
+        return self.getProjectSkillsCache(projectId).getData();
+    }
+
+    @Override
+    @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
+    public CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId) {
         if (projectId == null) {
             throw new IllegalArgumentException("Project ID must not be null");
         }
@@ -277,7 +300,7 @@ public class ProjectService implements IProjectService {
 
         List<ProjectSkill> projectSkills = projectSkillDataAccess.findByProjectId(projectId);
         
-        return projectSkills.stream().map(ps -> {
+        List<ProjectSkillVo> list = projectSkills.stream().map(ps -> {
             ProjectSkillVo vo = new ProjectSkillVo();
             vo.setProjectId(ps.getProject().getId());
             vo.setSkillId(ps.getSkill().getId());
@@ -293,6 +316,7 @@ public class ProjectService implements IProjectService {
             }
             return vo;
         }).collect(Collectors.toList());
+        return new CacheListWrapper<>(list);
     }
 
     @Override

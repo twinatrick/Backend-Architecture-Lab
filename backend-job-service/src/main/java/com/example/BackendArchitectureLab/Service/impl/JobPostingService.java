@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
@@ -49,6 +51,10 @@ public class JobPostingService implements IJobPostingService {
     @Autowired
     private CacheManager cacheManager;
 
+    @Lazy
+    @Autowired
+    private IJobPostingService self;
+
     @Override
     @Transactional
     @Caching(put = {
@@ -74,11 +80,17 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
-    @Cacheable(value = "jobPostings", sync = true)
     public List<JobPostingVo> getAllJobPostings() {
-        return jobPostingDataAccess.findAll().stream()
+        return self.getAllJobPostingsCache().getData();
+    }
+
+    @Override
+    @Cacheable(value = "jobPostings", key = "'all'", sync = true)
+    public CacheListWrapper<JobPostingVo> getAllJobPostingsCache() {
+        List<JobPostingVo> list = jobPostingDataAccess.findAll().stream()
                 .map(jobPostingMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override
@@ -160,15 +172,21 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
-    @Cacheable(value = "jobPostings", key = "'bycompany:' + #companyId", sync = true)
     public List<JobPostingVo> getJobPostingsByCompanyId(String companyId) {
+        return self.getJobPostingsByCompanyIdCache(companyId).getData();
+    }
+
+    @Override
+    @Cacheable(value = "jobPostings", key = "'bycompany:' + #companyId", sync = true)
+    public CacheListWrapper<JobPostingVo> getJobPostingsByCompanyIdCache(String companyId) {
         UUID uuid = mapUuid(companyId);
         if (uuid == null) {
             throw new IllegalArgumentException("Company ID must not be null");
         }
-        return jobPostingDataAccess.findByCompanyId(uuid).stream()
+        List<JobPostingVo> list = jobPostingDataAccess.findByCompanyId(uuid).stream()
                 .map(jobPostingMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override

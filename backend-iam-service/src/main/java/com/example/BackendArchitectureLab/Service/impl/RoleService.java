@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
@@ -53,6 +55,10 @@ public class RoleService implements IRoleService {
     @Autowired
     private UserMapper userMapper;
 
+    @Lazy
+    @Autowired
+    private IRoleService self;
+
     @Override
     @Transactional
     @Caching(put = {
@@ -86,9 +92,16 @@ public class RoleService implements IRoleService {
 
     @Transactional(readOnly = true)
     @Override
-    @Cacheable(value = "roles", key = "'all'", sync = true)
     public List<RoleOutVo> getRole() {
-        return roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
+        return self.getRoleListCache().getData();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @Cacheable(value = "roles", key = "'all'", sync = true)
+    public CacheListWrapper<RoleOutVo> getRoleListCache() {
+        List<RoleOutVo> list = roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Transactional(readOnly = true)
@@ -441,8 +454,14 @@ public class RoleService implements IRoleService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
     public List<FunctionVo> getFunctionByRole(String roleId) {
+        return self.getFunctionByRoleCache(roleId).getData();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
+    public CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -450,10 +469,11 @@ public class RoleService implements IRoleService {
         Role role = roleDataAccess.findByIdWithRoleFunctions(roleUuid).orElseThrow(
                 () -> new IllegalArgumentException("Role not found")
         );
-        return role.getRoleFunctions().stream()
+        List<FunctionVo> list = role.getRoleFunctions().stream()
                 .map(RoleFunction::getFunction)
                 .map(functionMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Transactional(readOnly = true)
@@ -490,8 +510,14 @@ public class RoleService implements IRoleService {
 
     @Transactional(readOnly = true)
     @Override
-    @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
     public List<RoleOutVo> getRoleByUser(String userId) {
+        return self.getRoleByUserListCache(userId).getData();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
+    public CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -499,10 +525,11 @@ public class RoleService implements IRoleService {
         User user = userDataAccess.findByIdWithRoles(userUuid).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
         );
-        return user.getRoles().stream()
+        List<RoleOutVo> list = user.getRoles().stream()
                 .map(UserRole::getRole)
                 .map(roleMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
     @Transactional(readOnly = true)
     @Override

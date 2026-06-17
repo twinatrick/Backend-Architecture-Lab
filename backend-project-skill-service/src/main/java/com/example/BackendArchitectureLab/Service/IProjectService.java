@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Dto.Vo.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.ProjectMemberSkillVo;
 import com.example.BackendArchitectureLab.Dto.Vo.ProjectSkillVo;
@@ -17,6 +18,7 @@ public interface IProjectService {
     void updateProject(ProjectVo projectVo);
 
     List<ProjectVo> getProject();
+    CacheListWrapper<ProjectVo> getProjectListCache();
 
     void deleteProject(ProjectVo projectVo);
     
@@ -34,6 +36,7 @@ public interface IProjectService {
      * @return 當前使用者的專案列表
      */
     List<ProjectVo> getCurrentUserProjects();
+    CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId);
     
     /**
      * 分頁搜尋當前使用者的專案
@@ -50,6 +53,7 @@ public interface IProjectService {
      * @return 技能資訊列表
      */
     List<ProjectSkillVo> getProjectSkills(UUID projectId);
+    CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId);
 
     /**
      * 獲取個人專案綁定的所有技能資訊

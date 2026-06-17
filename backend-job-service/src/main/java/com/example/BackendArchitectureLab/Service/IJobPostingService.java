@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
@@ -12,6 +13,7 @@ public interface IJobPostingService {
     JobPostingVo createJobPosting(CreateJobPostingRequest request);
 
     List<JobPostingVo> getAllJobPostings();
+    CacheListWrapper<JobPostingVo> getAllJobPostingsCache();
 
     JobPostingVo getJobPostingById(String id);
 
@@ -20,6 +22,7 @@ public interface IJobPostingService {
     void deleteJobPosting(String id);
 
     List<JobPostingVo> getJobPostingsByCompanyId(String companyId);
+    CacheListWrapper<JobPostingVo> getJobPostingsByCompanyIdCache(String companyId);
 
     List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId);
 

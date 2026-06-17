@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.FunctionSearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IFunctionService;
@@ -37,6 +39,10 @@ public class FunctionService implements IFunctionService {
     @Autowired
     private FunctionMapper functionMapper;
 
+    @Lazy
+    @Autowired
+    private IFunctionService self;
+
     @Override
     @Transactional
     @Caching(put = {
@@ -65,9 +71,15 @@ public class FunctionService implements IFunctionService {
     }
 
     @Override
-    @Cacheable(value = "functions", key = "'all'", sync = true)
     public List<FunctionVo> getFunction() {
-        return functionDataAccess.findAll().stream().map(functionMapper::toVo).toList();
+        return self.getFunctionListCache().getData();
+    }
+
+    @Override
+    @Cacheable(value = "functions", key = "'all'", sync = true)
+    public CacheListWrapper<FunctionVo> getFunctionListCache() {
+        List<FunctionVo> list = functionDataAccess.findAll().stream().map(functionMapper::toVo).toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override

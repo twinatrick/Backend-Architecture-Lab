@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.Dto.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
@@ -28,6 +30,10 @@ public class CompanyService implements ICompanyService {
     @Autowired
     private CompanyMapper companyMapper;
 
+    @Lazy
+    @Autowired
+    private ICompanyService self;
+
     @Override
     @Transactional
     @CacheEvict(value = "companies", allEntries = true)
@@ -44,11 +50,18 @@ public class CompanyService implements ICompanyService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "companies", sync = true)
     public List<CompanyVo> getAllCompanies() {
-        return companyDataAccess.findAll().stream()
+        return self.getAllCompaniesCache().getData();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "companies", key = "'all'", sync = true)
+    public CacheListWrapper<CompanyVo> getAllCompaniesCache() {
+        List<CompanyVo> list = companyDataAccess.findAll().stream()
                 .map(companyMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override

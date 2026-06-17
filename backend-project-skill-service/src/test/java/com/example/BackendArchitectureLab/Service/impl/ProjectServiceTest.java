@@ -90,6 +90,15 @@ class ProjectServiceTest {
         testProjectVo.setId(testId);
         testProjectVo.setName("Test Project");
         testProjectVo.setDescription("Test Description");
+        
+        // Inject self reference
+        try {
+            java.lang.reflect.Field selfField = ProjectService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(projectService, projectService);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not inject self into ProjectService", e);
+        }
     }
 
     @AfterEach

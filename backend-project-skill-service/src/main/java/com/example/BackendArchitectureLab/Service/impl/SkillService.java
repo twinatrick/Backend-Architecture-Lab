@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Dto.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Dto.Vo.PersonalSkillRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillLevelSearchQuery;
@@ -71,6 +73,10 @@ public class SkillService implements ISkillService {
     private CacheManager cacheManager;
     @Autowired
     private UserServiceFeignClient userServiceFeignClient;
+
+    @Lazy
+    @Autowired
+    private ISkillService self;
 
     @Transactional
     @Override
@@ -189,9 +195,15 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    @Cacheable(value = "skills", key = "'all'", sync = true)
     public List<SkillVo> getSkill() {
-        return skillDataAccess.findAll().stream().map(skillMapper::toVo).toList();
+        return self.getSkillListCache().getData();
+    }
+
+    @Override
+    @Cacheable(value = "skills", key = "'all'", sync = true)
+    public CacheListWrapper<SkillVo> getSkillListCache() {
+        List<SkillVo> list = skillDataAccess.findAll().stream().map(skillMapper::toVo).toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override
@@ -255,17 +267,23 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    @Cacheable(value = "skillLevels", key = "#skillId", sync = true)
     public List<SkillLevelVo> getSkillLevels(String skillId) {
+        return self.getSkillLevelsCache(skillId).getData();
+    }
+
+    @Override
+    @Cacheable(value = "skillLevels", key = "#skillId", sync = true)
+    public CacheListWrapper<SkillLevelVo> getSkillLevelsCache(String skillId) {
         UUID skillUuid = mapUuid(skillId);
         if (skillUuid == null) {
             throw new IllegalArgumentException("Skill key must not be null");
         }
         skillDataAccess.findById(skillUuid).orElseThrow(() -> new IllegalArgumentException("Skill not found"));
-        return skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(skillUuid)
+        List<SkillLevelVo> list = skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(skillUuid)
                 .stream()
                 .map(this::mapSkillLevelVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override
@@ -521,13 +539,20 @@ public class SkillService implements ISkillService {
     
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "currentUserSkills", sync = true)
     public List<CurrentUserSkillVo> getCurrentUserSkills() {
+        return self.getCurrentUserSkillsCache(requireCurrentUserId().toString()).getData();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "currentUserSkills", key = "'byuser:' + #currentUserId", sync = true)
+    public CacheListWrapper<CurrentUserSkillVo> getCurrentUserSkillsCache(String currentUserId) {
         List<CurrentUserSkillVo> result = new ArrayList<>();
         Set<UUID> seenSkillIds = new HashSet<>();
+        UUID userId = UUID.fromString(currentUserId);
         
         // 1. 取得 USER 直接綁定的技能
-        List<UserSkill> userSkills = userSkillDataAccess.findByUserId(requireCurrentUserId());
+        List<UserSkill> userSkills = userSkillDataAccess.findByUserId(userId);
         for (UserSkill us : userSkills) {
             Skill skill = us.getSkill();
             result.add(CurrentUserSkillVo.fromSkillVo(skillMapper.toVo(skill)));
@@ -535,7 +560,7 @@ public class SkillService implements ISkillService {
         }
         
         // 2. 取得 PROJECT 專案的技能（批次載入避免 N+1）
-        List<UserProject> userProjects = userProjectDataAccess.findByUserId(requireCurrentUserId());
+        List<UserProject> userProjects = userProjectDataAccess.findByUserId(userId);
         if (!userProjects.isEmpty()) {
             List<UUID> projectIds = userProjects.stream()
                 .map(up -> up.getProject().getId())
@@ -560,7 +585,7 @@ public class SkillService implements ISkillService {
             }
         }
         
-        return result;
+        return new CacheListWrapper<>(result);
     }
     
     @Override
