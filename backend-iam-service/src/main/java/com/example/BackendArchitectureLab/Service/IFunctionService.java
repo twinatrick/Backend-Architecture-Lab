@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.FunctionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 
 import java.util.List;
@@ -10,6 +11,7 @@ public interface IFunctionService {
     FunctionVo addFunction(FunctionVo functionVo);
 
     List<FunctionVo> getFunction();
+    CacheListWrapper<FunctionVo> getFunctionListCache();
 
     void updateFunction(FunctionVo functionVo);
 

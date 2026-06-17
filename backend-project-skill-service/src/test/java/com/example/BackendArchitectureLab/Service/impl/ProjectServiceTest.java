@@ -24,7 +24,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserSkillDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -73,6 +72,8 @@ class ProjectServiceTest {
 
     @Mock
     private UserServiceFeignClient userServiceFeignClient;
+    @Mock
+    private SecurityUtil securityUtil;
 
     private Project testProject;
     private ProjectVo testProjectVo;
@@ -90,6 +91,15 @@ class ProjectServiceTest {
         testProjectVo.setId(testId);
         testProjectVo.setName("Test Project");
         testProjectVo.setDescription("Test Description");
+        
+        // Inject self reference
+        try {
+            java.lang.reflect.Field selfField = ProjectService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(projectService, projectService);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not inject self into ProjectService", e);
+        }
     }
 
     @AfterEach
@@ -98,13 +108,7 @@ class ProjectServiceTest {
     }
 
     private void setupSecurityContext(UUID userId, String email) {
-        Authentication auth = mock(Authentication.class);
-        lenient().when(auth.getName()).thenReturn(email);
-        lenient().when(auth.getPrincipal()).thenReturn(auth);
-        SecurityContextHolder.getContext().setAuthentication(auth);
-        UserVo userVo = new UserVo();
-        userVo.setId(userId.toString());
-        lenient().when(userServiceFeignClient.getUserByEmail(email)).thenReturn(userVo);
+        lenient().when(securityUtil.requireCurrentUserId()).thenReturn(userId);
     }
 
     @Test

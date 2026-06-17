@@ -1,12 +1,13 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.DataAccess.*;
 import com.example.BackendArchitectureLab.Dto.Vo.MemberSkillLevelVo;
 import com.example.BackendArchitectureLab.Dto.Vo.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.ProjectMemberSkillVo;
 import com.example.BackendArchitectureLab.Dto.Vo.ProjectSkillVo;
 import com.example.BackendArchitectureLab.Dto.Vo.ProjectVo;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Entity.*;
@@ -14,15 +15,16 @@ import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
 import com.example.BackendArchitectureLab.Service.IProjectService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
+import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +53,8 @@ public class ProjectService implements IProjectService {
     @Autowired
     private IUserProjectDataAccess userProjectDataAccess;
     @Autowired
+    private SecurityUtil securityUtil;
+    @Autowired
     private UserServiceFeignClient userServiceFeignClient;
     @Autowired
     private IUserSkillDataAccess userSkillDataAccess;
@@ -62,6 +66,13 @@ public class ProjectService implements IProjectService {
     private IUserProjectSkillDataAccess userProjectSkillDataAccess;
     @Autowired
     private ProjectMapper projectMapper;
+    @Autowired
+    private CacheManager cacheManager;
+
+    @Lazy
+    @Autowired
+    private IProjectService self;
+
     /**
      * 新增專案
      * @param project 要新增的專案實體
@@ -71,8 +82,7 @@ public class ProjectService implements IProjectService {
     @Transactional
     @Override
     @Caching(evict = {
-        @CacheEvict(value = "userProjects", allEntries = true),
-        @CacheEvict(value = "projectSkills", allEntries = true)
+        @CacheEvict(value = "projects", key = "'all'")
     })
     public ProjectVo addProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
@@ -89,6 +99,9 @@ public class ProjectService implements IProjectService {
         // 處理使用者綁定（如果提供了 userIds）
         if (projectVo.getUserIds() != null && !projectVo.getUserIds().isEmpty()) {
             bindUsersToProject(savedProject.getId(), projectVo.getUserIds());
+            for (String uid : projectVo.getUserIds()) {
+                evictUserProjectsCache(UUID.fromString(uid));
+            }
         }
         
         return projectMapper.toVo(savedProject);
@@ -101,8 +114,7 @@ public class ProjectService implements IProjectService {
     @Transactional
     @Override
     @Caching(evict = {
-        @CacheEvict(value = "userProjects", allEntries = true),
-        @CacheEvict(value = "projectSkills", allEntries = true)
+        @CacheEvict(value = "projects", key = "'all'")
     })
     public void updateProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
@@ -121,6 +133,9 @@ public class ProjectService implements IProjectService {
             // 重新綁定（如果 userIds 不為空）
             if (!projectVo.getUserIds().isEmpty()) {
                 bindUsersToProject(project.getId(), projectVo.getUserIds());
+            }
+            for (String uid : projectVo.getUserIds()) {
+                evictUserProjectsCache(UUID.fromString(uid));
             }
         }
     }
@@ -165,9 +180,15 @@ public class ProjectService implements IProjectService {
      * @return 所有專案列表
      */
     @Override
-    @Cacheable(value = "userProjects", sync = true)
     public List<ProjectVo> getProject() {
-        return projectDataAccess.findAll().stream().map(projectMapper::toVo).toList();
+        return self.getProjectListCache().getData();
+    }
+
+    @Override
+    @Cacheable(value = "projects", key = "'all'", sync = true)
+    public CacheListWrapper<ProjectVo> getProjectListCache() {
+        List<ProjectVo> list = projectDataAccess.findAll().stream().map(projectMapper::toVo).toList();
+        return new CacheListWrapper<>(list);
     }
     /**
      * 刪除專案及其關聯的技能映射
@@ -177,8 +198,8 @@ public class ProjectService implements IProjectService {
     @Transactional
     @Override
     @Caching(evict = {
-        @CacheEvict(value = "userProjects", allEntries = true),
-        @CacheEvict(value = "projectSkills", allEntries = true)
+        @CacheEvict(value = "projects", key = "'all'"),
+        @CacheEvict(value = "projectSkills", key = "#projectVo.id")
     })
     public void deleteProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
@@ -195,6 +216,8 @@ public class ProjectService implements IProjectService {
     }
     
     @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "projects", key = "'search:' + #query.toString()", sync = true)
     public PageResult<ProjectVo> searchProjects(ProjectSearchQuery query) {
         // 定義允許的排序欄位
         String[] allowedSortFields = {
@@ -221,21 +244,33 @@ public class ProjectService implements IProjectService {
     }
     
     @Override
-    @Cacheable(value = "userProjects", key = "'current:' + T(java.util.UUID).randomUUID()", sync = true)
     public List<ProjectVo> getCurrentUserProjects() {
-        UUID currentUserId = requireCurrentUserId();
-        
+        return self.getCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString()).getData();
+    }
+
+    @Override
+    @Cacheable(value = "projects", key = "'byuser:' + #currentUserId", sync = true)
+    public CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId) {
+        UUID currentUserIdUuid = UUID.fromString(currentUserId);
         // 透過 UserProject 關聯取得當前使用者的專案
-        List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserId);
-        return userProjects.stream()
+        List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserIdUuid);
+        List<ProjectVo> list = userProjects.stream()
                 .map(UserProject::getProject)
                 .map(projectMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
     
     @Override
     public PageResult<ProjectVo> searchCurrentUserProjects(ProjectSearchQuery query) {
-        UUID currentUserId = requireCurrentUserId();
+        return self.searchCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString(), query);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "projects", key = "'currentsearch:' + #currentUserId + ':' + #query.toString()", sync = true)
+    public PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query) {
+        UUID currentUserIdUuid = UUID.fromString(currentUserId);
         
         // 定義允許的排序欄位
         String[] allowedSortFields = {
@@ -251,7 +286,7 @@ public class ProjectService implements IProjectService {
         
         // 執行分頁查詢（只查詢當前使用者的專案）
         Page<Project> projectPage = projectDataAccess.searchCurrentUserProjects(
-            currentUserId.toString(), 
+            currentUserIdUuid.toString(), 
             query
         );
         
@@ -265,8 +300,13 @@ public class ProjectService implements IProjectService {
     }
     
     @Override
-    @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
+        return self.getProjectSkillsCache(projectId).getData();
+    }
+
+    @Override
+    @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
+    public CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId) {
         if (projectId == null) {
             throw new IllegalArgumentException("Project ID must not be null");
         }
@@ -277,7 +317,7 @@ public class ProjectService implements IProjectService {
 
         List<ProjectSkill> projectSkills = projectSkillDataAccess.findByProjectId(projectId);
         
-        return projectSkills.stream().map(ps -> {
+        List<ProjectSkillVo> list = projectSkills.stream().map(ps -> {
             ProjectSkillVo vo = new ProjectSkillVo();
             vo.setProjectId(ps.getProject().getId());
             vo.setSkillId(ps.getSkill().getId());
@@ -293,6 +333,7 @@ public class ProjectService implements IProjectService {
             }
             return vo;
         }).collect(Collectors.toList());
+        return new CacheListWrapper<>(list);
     }
 
     @Override
@@ -301,7 +342,7 @@ public class ProjectService implements IProjectService {
             throw new IllegalArgumentException("Project ID must not be null");
         }
         
-        UUID currentUserId = requireCurrentUserId();
+        UUID currentUserId = securityUtil.requireCurrentUserId();
         
         // 驗證是否為可見專案
         if (!userProjectDataAccess.existsByUserIdAndProjectId(currentUserId, projectId)) {
@@ -314,8 +355,7 @@ public class ProjectService implements IProjectService {
     @Transactional
     @Override
     @Caching(evict = {
-        @CacheEvict(value = "userProjects", allEntries = true),
-        @CacheEvict(value = "projectSkills", allEntries = true)
+        @CacheEvict(value = "projects", key = "'all'")
     })
     public ProjectVo addPersonalProject(PersonalProjectRequest request) {
         // 驗證輸入
@@ -335,12 +375,15 @@ public class ProjectService implements IProjectService {
         Project savedProject = projectDataAccess.save(project);
         
         // 自動綁定當前使用者
+        UUID currentUserId = securityUtil.requireCurrentUserId();
         UserProject userProject = new UserProject();
         User userRef = new User();
-        userRef.setId(requireCurrentUserId());
+        userRef.setId(currentUserId);
         userProject.setUser(userRef);
         userProject.setProject(savedProject);
         userProjectDataAccess.save(userProject);
+        
+        evictUserProjectsCache(currentUserId);
         
         return projectMapper.toVo(savedProject);
     }
@@ -348,7 +391,7 @@ public class ProjectService implements IProjectService {
     @Transactional
     @Override
     @Caching(evict = {
-        @CacheEvict(value = "userProjects", allEntries = true),
+        @CacheEvict(value = "projects", key = "'all'"),
         @CacheEvict(value = "projectSkills", key = "#projectId")
     })
     public void updatePersonalProject(UUID projectId, PersonalProjectRequest request) {
@@ -365,11 +408,12 @@ public class ProjectService implements IProjectService {
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
         
         // 驗證是否為擁有者
-        if (!userProjectDataAccess.existsByUserIdAndProjectId(requireCurrentUserId(), projectId)) {
+        if (!userProjectDataAccess.existsByUserIdAndProjectId(securityUtil.requireCurrentUserId(), projectId)) {
             throw new IllegalArgumentException("You are not the owner of this project");
         }
 
-        if (!canEditContent(project.getCreatedBy(), requireCurrentUserId())) {
+        UUID currentUserId = securityUtil.requireCurrentUserId();
+        if (!canEditContent(project.getCreatedBy(), currentUserId)) {
             throw new IllegalArgumentException("Project assigned by admin is read-only");
         }
         
@@ -377,12 +421,14 @@ public class ProjectService implements IProjectService {
         project.setName(request.getName());
         project.setDescription(request.getDescription());
         projectDataAccess.save(project);
+        
+        evictUserProjectsCache(currentUserId);
     }
     
     @Transactional
     @Override
     @Caching(evict = {
-        @CacheEvict(value = "userProjects", allEntries = true),
+        @CacheEvict(value = "projects", key = "'all'"),
         @CacheEvict(value = "projectSkills", key = "#projectId")
     })
     public void deletePersonalProject(UUID projectId) {
@@ -396,16 +442,19 @@ public class ProjectService implements IProjectService {
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
         
         // 驗證是否為擁有者
-        if (!userProjectDataAccess.existsByUserIdAndProjectId(requireCurrentUserId(), projectId)) {
+        if (!userProjectDataAccess.existsByUserIdAndProjectId(securityUtil.requireCurrentUserId(), projectId)) {
             throw new IllegalArgumentException("You are not the owner of this project");
         }
 
-        if (!canEditContent(project.getCreatedBy(), requireCurrentUserId())) {
+        if (!canEditContent(project.getCreatedBy(), securityUtil.requireCurrentUserId())) {
             throw new IllegalArgumentException("Project assigned by admin is read-only");
         }
         
         // 刪除當前使用者與專案的綁定
-        userProjectDataAccess.deleteByUserIdAndProjectId(requireCurrentUserId(), projectId);
+        UUID currentUserId = securityUtil.requireCurrentUserId();
+        userProjectDataAccess.deleteByUserIdAndProjectId(currentUserId, projectId);
+        
+        evictUserProjectsCache(currentUserId);
         
         // 檢查是否還有其他使用者綁定此專案
         boolean hasOtherBindings = userProjectDataAccess.existsByProjectId(projectId);
@@ -421,7 +470,7 @@ public class ProjectService implements IProjectService {
     @Override
     @CacheEvict(value = "projectSkills", key = "#projectId")
     public void bindPersonalProjectSkill(UUID projectId, UUID skillId, UUID skillLevelId) {
-        UUID currentUserId = requireCurrentUserId();
+        UUID currentUserId = securityUtil.requireCurrentUserId();
         validateBindingInput(projectId, skillId, skillLevelId);
         ensureCanManageProjectBinding(projectId, currentUserId);
         ensureSkillVisibleToCurrentUser(skillId, currentUserId);
@@ -445,7 +494,7 @@ public class ProjectService implements IProjectService {
     @Override
     @CacheEvict(value = "projectSkills", key = "#projectId")
     public void updatePersonalProjectSkillLevel(UUID projectId, UUID skillId, UUID skillLevelId) {
-        UUID currentUserId = requireCurrentUserId();
+        UUID currentUserId = securityUtil.requireCurrentUserId();
         validateBindingInput(projectId, skillId, skillLevelId);
         ensureCanManageProjectBinding(projectId, currentUserId);
         ensureSkillVisibleToCurrentUser(skillId, currentUserId);
@@ -462,7 +511,7 @@ public class ProjectService implements IProjectService {
     @Override
     @CacheEvict(value = "projectSkills", key = "#projectId")
     public void unbindPersonalProjectSkill(UUID projectId, UUID skillId) {
-        UUID currentUserId = requireCurrentUserId();
+        UUID currentUserId = securityUtil.requireCurrentUserId();
         if (projectId == null || skillId == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
@@ -527,7 +576,7 @@ public class ProjectService implements IProjectService {
     @Override
     @CacheEvict(value = "projectSkills", key = "#projectId")
     public void rebindPersonalProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping) {
-        UUID currentUserId = requireCurrentUserId();
+        UUID currentUserId = securityUtil.requireCurrentUserId();
         if (projectId == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
@@ -542,20 +591,14 @@ public class ProjectService implements IProjectService {
         rebindProjectSkills(projectId, targetMap);
     }
 
-    private UUID requireCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) {
-            throw new IllegalStateException("Current user not found - no authentication");
+    private void evictUserProjectsCache(UUID userId) {
+        if (userId == null || cacheManager == null) {
+            return;
         }
-        String email = auth.getName();
-        if (email == null || email.isBlank()) {
-            throw new IllegalStateException("Current user not found - no email in authentication");
+        Cache cache = cacheManager.getCache("projects");
+        if (cache != null) {
+            cache.evict("byuser:" + userId);
         }
-        UserVo userVo = userServiceFeignClient.getUserByEmail(email);
-        if (userVo == null || userVo.getId() == null) {
-            throw new IllegalStateException("Current user not found - user lookup failed");
-        }
-        return UUID.fromString(userVo.getId());
     }
 
     private void validateBindingInput(UUID projectId, UUID skillId, UUID skillLevelId) {
@@ -681,10 +724,7 @@ public class ProjectService implements IProjectService {
 
     @Override
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "projectSkills", key = "#projectId"),
-        @CacheEvict(value = "userProjects", allEntries = true)
-    })
+    @CacheEvict(value = "projectSkills", key = "#projectId")
     public void rebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap) {
         if (projectId == null) {
             throw new IllegalArgumentException("Project ID must not be null");

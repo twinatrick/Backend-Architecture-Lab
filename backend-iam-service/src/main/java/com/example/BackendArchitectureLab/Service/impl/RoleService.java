@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
@@ -17,6 +19,8 @@ import com.example.BackendArchitectureLab.Entity.RoleFunction;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -53,6 +57,13 @@ public class RoleService implements IRoleService {
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private CacheManager cacheManager;
+
+    @Lazy
+    @Autowired
+    private IRoleService self;
+
     @Override
     @Transactional
     @Caching(put = {
@@ -86,9 +97,16 @@ public class RoleService implements IRoleService {
 
     @Transactional(readOnly = true)
     @Override
-    @Cacheable(value = "roles", key = "'all'", sync = true)
     public List<RoleOutVo> getRole() {
-        return roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
+        return self.getRoleListCache().getData();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @Cacheable(value = "roles", key = "'all'", sync = true)
+    public CacheListWrapper<RoleOutVo> getRoleListCache() {
+        List<RoleOutVo> list = roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Transactional(readOnly = true)
@@ -185,10 +203,6 @@ public class RoleService implements IRoleService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "roleFunctions", allEntries = true)
-    })
     public void functionBindRole(String functionId, List<String> roleIds) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
@@ -210,15 +224,15 @@ public class RoleService implements IRoleService {
             return roleFunction;
         }).toList();
         roleFunctionDataAccess.saveAll(roleFunctions);
+
+        evictCache("roles", "byfunction:" + functionId);
+        for (String roleId : roleIds) {
+            evictCache("roleFunctions", roleId);
+        }
     }
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // 無法精確反推各 user 的 key，保留全量清除
     public void roleBindUser(String roleId, List<String> userIds) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
@@ -263,15 +277,16 @@ public class RoleService implements IRoleService {
         }
 
         userRoleDataAccess.saveAll(userRoles);
+
+        for (String userId : userIds) {
+            evictCache("roles", "byuser:" + userId);
+        }
+        evictCache("userRoles", "byrole:" + roleId);
     }
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", key = "'byuser:' + #userId"),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // userRoles 綁定可能增刪多個 role，無法精確反推各 key
+    @CacheEvict(value = "roles", key = "'byuser:' + #userId")
     public void userBindRole(String userId, List<String> roleIds) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
@@ -333,14 +348,13 @@ public class RoleService implements IRoleService {
             return userRole;
         }).toList();
         userRoleDataAccess.saveAll(userRoles);
+
+        for (String roleId : roleIds) {
+            evictCache("userRoles", "byrole:" + roleId);
+        }
     }
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // 多個 userIds 無法精確反推，保留全量清除
     public void roleUnbindUser(String roleId, List<String> userIds) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
@@ -355,14 +369,14 @@ public class RoleService implements IRoleService {
         List<User> users = userDataAccess.findAllById(userUuids);
         userRoleDataAccess.deleteAllByUserInAndRoleIn(users, List.of(role));
 
+        for (String userId : userIds) {
+            evictCache("roles", "byuser:" + userId);
+        }
+        evictCache("userRoles", "byrole:" + roleId);
     }
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", key = "'byuser:' + #userId"),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // 多個 roleIds 無法精確反推
+    @CacheEvict(value = "roles", key = "'byuser:' + #userId")
     public void userUnbindRole(String userId, List<String> roleIds) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
@@ -377,14 +391,13 @@ public class RoleService implements IRoleService {
         List<Role> roles = roleDataAccess.findAllById(roleUuids);
         userRoleDataAccess.deleteAllByUserInAndRoleIn(List.of(user), roles);
 
+        for (String roleId : roleIds) {
+            evictCache("userRoles", "byrole:" + roleId);
+        }
     }
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", key = "'byuser:' + #userId"),
-        @CacheEvict(value = "userRoles", allEntries = true)
-    })
-    // userRoles 全部 role 被清除，無法精確反推
+    @CacheEvict(value = "roles", key = "'byuser:' + #userId")
     public void userUnbindAllRole(String userId) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
@@ -393,9 +406,19 @@ public class RoleService implements IRoleService {
         User user = userDataAccess.findById(userUuid).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
         );
+
+        List<UserRole> existingUserRoles = userRoleDataAccess.findByUserId(userUuid);
+        List<UUID> affectedRoleIds = existingUserRoles.stream()
+                .map(ur -> ur.getRole().getId())
+                .distinct()
+                .toList();
+
         List<Role> roles = roleDataAccess.findAll();
         userRoleDataAccess.deleteAllByUserInAndRoleIn(List.of(user), roles);
 
+        for (UUID roleId : affectedRoleIds) {
+            evictCache("userRoles", "byrole:" + roleId);
+        }
     }
     @Transactional
     @Override
@@ -418,10 +441,6 @@ public class RoleService implements IRoleService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "roles", allEntries = true),
-        @CacheEvict(value = "roleFunctions", allEntries = true)
-    })
     public void functionUnbindRole(String functionId, List<String> roleIds) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
@@ -436,13 +455,23 @@ public class RoleService implements IRoleService {
         List<Role> roles = roleDataAccess.findAllById(roleUuids);
         roleFunctionDataAccess.deleteByFunctionAndRole(List.of(function), roles);
 
+        evictCache("roles", "byfunction:" + functionId);
+        for (String roleId : roleIds) {
+            evictCache("roleFunctions", roleId);
+        }
     }
 
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
     public List<FunctionVo> getFunctionByRole(String roleId) {
+        return self.getFunctionByRoleCache(roleId).getData();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
+    public CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -450,15 +479,23 @@ public class RoleService implements IRoleService {
         Role role = roleDataAccess.findByIdWithRoleFunctions(roleUuid).orElseThrow(
                 () -> new IllegalArgumentException("Role not found")
         );
-        return role.getRoleFunctions().stream()
+        List<FunctionVo> list = role.getRoleFunctions().stream()
                 .map(RoleFunction::getFunction)
                 .map(functionMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRoleByFunction(String functionId) {
+        return self.getRoleByFunctionCache(functionId).getData();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @Cacheable(value = "roles", key = "'byfunction:' + #functionId", sync = true)
+    public CacheListWrapper<RoleOutVo> getRoleByFunctionCache(String functionId) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -466,15 +503,23 @@ public class RoleService implements IRoleService {
         Function function = functionDataAccess.findByIdWithRoleFunctions(functionUuid).orElseThrow(
                 () -> new IllegalArgumentException("Function not found")
         );
-        return function.getRoleFunctions().stream()
+        List<RoleOutVo> list = function.getRoleFunctions().stream()
                 .map(RoleFunction::getRole)
                 .map(roleMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<UserVo> getUserByRole(String roleId) {
+        return self.getUserByRoleCache(roleId).getData();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @Cacheable(value = "userRoles", key = "'byrole:' + #roleId", sync = true)
+    public CacheListWrapper<UserVo> getUserByRoleCache(String roleId) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -482,16 +527,23 @@ public class RoleService implements IRoleService {
         Role role = roleDataAccess.findByIdWithUserRoles(roleUuid).orElseThrow(
                 () -> new IllegalArgumentException("Role not found")
         );
-        return role.getUserRoles().stream()
+        List<UserVo> list = role.getUserRoles().stream()
                 .map(UserRole::getUser)
                 .map(userMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<RoleOutVo> getRoleByUser(String userId) {
+        return self.getRoleByUserListCache(userId).getData();
     }
 
     @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
-    public List<RoleOutVo> getRoleByUser(String userId) {
+    public CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -499,10 +551,11 @@ public class RoleService implements IRoleService {
         User user = userDataAccess.findByIdWithRoles(userUuid).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
         );
-        return user.getRoles().stream()
+        List<RoleOutVo> list = user.getRoles().stream()
                 .map(UserRole::getRole)
                 .map(roleMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
     @Transactional(readOnly = true)
     @Override
@@ -514,6 +567,7 @@ public class RoleService implements IRoleService {
     
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "roles", key = "'search:' + #query.toString()", sync = true)
     public PageResult<RoleOutVo> searchRoles(RoleSearchQuery query) {
         // 定義允許的排序欄位
         String[] allowedSortFields = {
@@ -541,6 +595,16 @@ public class RoleService implements IRoleService {
 
     private UUID mapUuid(String id) {
         return id == null || id.isBlank() ? null : UUID.fromString(id);
+    }
+
+    private void evictCache(String cacheName, String key) {
+        if (cacheManager == null) {
+            return;
+        }
+        Cache cache = cacheManager.getCache(cacheName);
+        if (cache != null) {
+            cache.evict(key);
+        }
     }
 
     private void syncRoleFunctions(UUID roleId, List<String> functionIds) {

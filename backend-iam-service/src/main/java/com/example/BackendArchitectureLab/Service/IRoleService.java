@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.RoleSearchQuery;
@@ -14,6 +15,7 @@ public interface IRoleService {
     RoleOutVo addRoleWithFunctions(RoleOutVo role);
 
     List<RoleOutVo> getRole();
+    CacheListWrapper<RoleOutVo> getRoleListCache();
 
     RoleOutVo getRoleById(String roleId);
 
@@ -42,12 +44,16 @@ public interface IRoleService {
     void functionUnbindRole(String functionId, List<String> roleIds);
 
     List<FunctionVo> getFunctionByRole(String roleId);
+    CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId);
 
     List<RoleOutVo> getRoleByFunction(String functionId);
+    CacheListWrapper<RoleOutVo> getRoleByFunctionCache(String functionId);
 
     List<UserVo> getUserByRole(String roleId);
+    CacheListWrapper<UserVo> getUserByRoleCache(String roleId);
 
     List<RoleOutVo> getRoleByUser(String userId);
+    CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId);
 
     RoleOutVo getRoleByName(String name);
     

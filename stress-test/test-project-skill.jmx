@@ -1,20 +1,21 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
-    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Project-Skill 服務壓力測試 - 有/無快取對比" enabled="true">
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Project-Skill Stress Test" enabled="true">
+      <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">
         <collectionProp name="Arguments.arguments">
           <elementProp name="SERVER" elementType="Argument">
             <stringProp name="Argument.name">SERVER</stringProp>
-            <stringProp name="Argument.value">localhost</stringProp>
+            <stringProp name="Argument.value">${__P(SERVER,localhost)}</stringProp>
           </elementProp>
           <elementProp name="PORT" elementType="Argument">
             <stringProp name="Argument.name">PORT</stringProp>
-            <stringProp name="Argument.value">8000</stringProp>
+            <stringProp name="Argument.value">${__P(PORT,8000)}</stringProp>
           </elementProp>
           <elementProp name="PROTOCOL" elementType="Argument">
             <stringProp name="Argument.name">PROTOCOL</stringProp>
-            <stringProp name="Argument.value">http</stringProp>
+            <stringProp name="Argument.value">${__P(PROTOCOL,http)}</stringProp>
           </elementProp>
           <elementProp name="ADMIN_EMAIL" elementType="Argument">
             <stringProp name="Argument.name">ADMIN_EMAIL</stringProp>
@@ -26,15 +27,15 @@
           </elementProp>
           <elementProp name="THREADS" elementType="Argument">
             <stringProp name="Argument.name">THREADS</stringProp>
-            <stringProp name="Argument.value">500</stringProp>
+            <stringProp name="Argument.value">${__P(THREADS,500)}</stringProp>
           </elementProp>
           <elementProp name="DURATION" elementType="Argument">
             <stringProp name="Argument.name">DURATION</stringProp>
-            <stringProp name="Argument.value">300</stringProp>
+            <stringProp name="Argument.value">${__P(DURATION,300)}</stringProp>
           </elementProp>
           <elementProp name="RAMP_UP" elementType="Argument">
             <stringProp name="Argument.name">RAMP_UP</stringProp>
-            <stringProp name="Argument.value">30</stringProp>
+            <stringProp name="Argument.value">${__P(RAMP_UP,30)}</stringProp>
           </elementProp>
         </collectionProp>
       </elementProp>
@@ -47,6 +48,8 @@
         <stringProp name="HTTPSampler.port">${PORT}</stringProp>
         <stringProp name="HTTPSampler.protocol">${PROTOCOL}</stringProp>
         <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">60000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">60000</stringProp>
       </ConfigTestElement>
       <hashTree/>
 
@@ -60,11 +63,15 @@
             <stringProp name="Header.name">Accept</stringProp>
             <stringProp name="Header.value">application/json</stringProp>
           </elementProp>
+          <elementProp name="Connection" elementType="Header">
+            <stringProp name="Header.name">Connection</stringProp>
+            <stringProp name="Header.value">keep-alive</stringProp>
+          </elementProp>
         </collectionProp>
       </HeaderManager>
       <hashTree/>
 
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Setup - 取得 JWT Token" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Setup - ?��? JWT Token" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -76,6 +83,7 @@
       </ThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/auth/login" enabled="true">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <stringProp name="HTTPSampler.path">/api/auth/login</stringProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
@@ -88,38 +96,42 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <RegexExtractor guiclass="RegexExtractorGui" testclass="RegexExtractor" testname="擷取 JWT Token" enabled="true">
-            <stringProp name="RegexExtractor.regex">"token"\s*:\s*"([^"]+)"</stringProp>
+          <RegexExtractor guiclass="RegexExtractorGui" testclass="RegexExtractor" testname="?��? JWT Token" enabled="true">
+            <stringProp name="RegexExtractor.regex">"accessToken"\s*:\s*"([^"]+)"</stringProp>
             <stringProp name="RegexExtractor.template">$1$</stringProp>
             <stringProp name="RegexExtractor.match_number">1</stringProp>
             <stringProp name="RegexExtractor.default">TOKEN_NOT_FOUND</stringProp>
             <stringProp name="RegexExtractor.refname">jwtToken</stringProp>
           </RegexExtractor>
           <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="JSR223 PostProcessor">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script">System.setProperty(&quot;jwtToken&quot;, vars.get(&quot;jwtToken&quot;))</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+          </JSR223PostProcessor>
         </hashTree>
       </hashTree>
 
-      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager - Authorization" enabled="true">
-        <collectionProp name="HeaderManager.headers">
-          <elementProp name="Authorization" elementType="Header">
-            <stringProp name="Header.name">Authorization</stringProp>
-            <stringProp name="Header.value">Bearer ${jwtToken}</stringProp>
-          </elementProp>
-        </collectionProp>
-      </HeaderManager>
-      <hashTree/>
-
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Warm-up - 填充快取（有快取模式啟用）" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Warm-up - Fill Cache" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <intProp name="LoopController.loops">1</intProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">10</stringProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
         <stringProp name="ThreadGroup.ramp_time">2</stringProp>
         <boolProp name="ThreadGroup.scheduler">false</boolProp>
       </ThreadGroup>
       <hashTree>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager - Authorization" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Authorization" elementType="Header">
+              <stringProp name="Header.name">Authorization</stringProp>
+              <stringProp name="Header.value">Bearer ${__groovy(System.getProperty(&quot;jwtToken&quot;) ?: &quot;&quot;)}</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="true">
           <stringProp name="HTTPSampler.path">/api/skill/get</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
@@ -127,27 +139,37 @@
         <hashTree/>
       </hashTree>
 
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="主要測試 - Project-Skill API (${THREADS} users, ${DURATION}s)" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="主�?測試 - Project-Skill API (${THREADS} users, ${DURATION}s)" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
-          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
         <stringProp name="ThreadGroup.ramp_time">${RAMP_UP}</stringProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">${DURATION}</stringProp>
+        <stringProp name="ThreadGroup.duration">60</stringProp>
       </ThreadGroup>
       <hashTree>
-        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="隨機控制器 (80% Read / 20% Write)" enabled="true"/>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager - Authorization" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Authorization" elementType="Header">
+              <stringProp name="Header.name">Authorization</stringProp>
+              <stringProp name="Header.value">Bearer ${__groovy(System.getProperty(&quot;jwtToken&quot;) ?: &quot;&quot;)}</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="?��??�制??(80% Read / 20% Write)" enabled="true"/>
         <hashTree>
-          <!-- 讀取請求 1/4 -->
+          <!-- 讀?��?�?1/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="true">
             <stringProp name="HTTPSampler.path">/api/skill/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
           <hashTree>
-            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
-              <collectionProp name="Asserion.test_strings">
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查?�??200" enabled="true">
+              <collectionProp name="Assertion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
               <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
@@ -155,22 +177,22 @@
             <hashTree/>
           </hashTree>
 
-          <!-- 讀取請求 2/4 -->
+          <!-- 讀?��?�?2/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/project/search" enabled="true">
             <stringProp name="HTTPSampler.path">/api/project/search</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"先進製程"}</stringProp>
+                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":""}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
             </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
-            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
-              <collectionProp name="Asserion.test_strings">
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查?�??200" enabled="true">
+              <collectionProp name="Assertion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
               <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
@@ -178,14 +200,14 @@
             <hashTree/>
           </hashTree>
 
-          <!-- 讀取請求 3/4 -->
+          <!-- 讀?��?�?3/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/project/get" enabled="true">
             <stringProp name="HTTPSampler.path">/api/project/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
           <hashTree>
-            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
-              <collectionProp name="Asserion.test_strings">
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查?�??200" enabled="true">
+              <collectionProp name="Assertion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
               <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
@@ -193,22 +215,22 @@
             <hashTree/>
           </hashTree>
 
-          <!-- 讀取請求 4/4 -->
+          <!-- 讀?��?�?4/4 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/skill/search" enabled="true">
             <stringProp name="HTTPSampler.path">/api/skill/search</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":"半導體"}</stringProp>
+                  <stringProp name="Argument.value">{"page":0,"size":20,"keyword":""}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
             </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
-            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
-              <collectionProp name="Asserion.test_strings">
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查?�??200" enabled="true">
+              <collectionProp name="Assertion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
               <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
@@ -216,22 +238,22 @@
             <hashTree/>
           </hashTree>
 
-          <!-- 寫入請求 1/1 -->
+          <!-- 寫入請�? 1/1 -->
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/skill/personal/add" enabled="true">
             <stringProp name="HTTPSampler.path">/api/skill/personal/add</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
-                  <stringProp name="Argument.value">{"name":"StressTest_Skill_${__time(MMddHHmmss)}_${__threadNum}","description":"Stress test skill"}</stringProp>
+                  <stringProp name="Argument.value">{"name":"StressTest_Skill_${__time(MMddHHmmss)}_${__threadNum}","description":"Stress test skill","skillLevelValue":1,"skillLevelTitle":"Junior","skillLevelDescription":"Junior Level Skill"}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
             </elementProp>
           </HTTPSamplerProxy>
           <hashTree>
-            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查狀態 200" enabled="true">
-              <collectionProp name="Asserion.test_strings">
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="檢查?�??200" enabled="true">
+              <collectionProp name="Assertion.test_strings">
                 <stringProp name="49586">200</stringProp>
               </collectionProp>
               <stringProp name="Assertion.test_field">ASSERTION_RESPONSE_CODE</stringProp>
@@ -241,21 +263,21 @@
         </hashTree>
       </hashTree>
 
-      <ResultCollector guiclass="SummaryReportGui" testclass="ResultCollector" testname="彙總報告 - Summary Report" enabled="true">
+      <ResultCollector guiclass="SummaryReportGui" testclass="ResultCollector" testname="彙總?��? - Summary Report" enabled="true">
         <collectionProp name="ResultCollector.error_logging">
           <stringProp name="0">true</stringProp>
         </collectionProp>
       </ResultCollector>
       <hashTree/>
 
-      <ResultCollector guiclass="AggregateReportGui" testclass="ResultCollector" testname="聚合報告 - Aggregate Report" enabled="true">
+      <ResultCollector guiclass="AggregateReportGui" testclass="ResultCollector" testname="?��??��? - Aggregate Report" enabled="true">
         <collectionProp name="ResultCollector.error_logging">
           <stringProp name="0">true</stringProp>
         </collectionProp>
       </ResultCollector>
       <hashTree/>
 
-      <ResultCollector guiclass="TableVisualiser" testclass="ResultCollector" testname="結果表格 - View Results in Table" enabled="false">
+      <ResultCollector guiclass="TableVisualiser" testclass="ResultCollector" testname="結�?表格 - View Results in Table" enabled="false">
         <collectionProp name="ResultCollector.error_logging">
           <stringProp name="0">true</stringProp>
         </collectionProp>
@@ -265,3 +287,4 @@
     </hashTree>
   </hashTree>
 </jmeterTestPlan>
+

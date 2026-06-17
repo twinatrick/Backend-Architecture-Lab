@@ -13,6 +13,7 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,29 @@ public class PermissionCheck {
     private static final Logger log = LoggerFactory.getLogger(PermissionCheck.class);
 
     private final PermissionCheckFeignClient permissionCheckFeignClient;
+    private final ApplicationContext applicationContext;
+
+    private Object localController = null;
+    private Method localValidateMethod = null;
+    private boolean localChecked = false;
+
+    private synchronized void checkLocal() {
+        if (localChecked) {
+            return;
+        }
+        try {
+            if (applicationContext.containsBean("permissionInternalController")) {
+                localController = applicationContext.getBean("permissionInternalController");
+                localValidateMethod = localController.getClass().getMethod("validatePermission",
+                        String.class, String.class, String.class, String.class);
+                log.info("Successfully detected local permissionInternalController. Bypassing Feign for IAM service.");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to set up local permission validation", e);
+        } finally {
+            localChecked = true;
+        }
+    }
 
     @Around("execution(* com.example.BackendArchitectureLab.Controller..*.*(..))")
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
@@ -75,17 +99,35 @@ public class PermissionCheck {
 
         boolean matched;
         try {
-            matched = permissionCheckFeignClient.validatePermission(
-                    email,
-                    permissionPath.get(0),
-                    permissionPath.get(1),
-                    permissionPath.get(2));
-        } catch (FeignException e) {
-            log.error("Permission check Feign call failed for user={}, path={}: status={}, message={}",
-                    email, permissionPath, e.status(), e.getMessage());
-            setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
-            return ResponseType.Fail("FEIGN_ERROR",
-                    "Permission service unavailable: " + e.getMessage(), 503);
+            checkLocal();
+            if (localController != null && localValidateMethod != null) {
+                matched = (boolean) localValidateMethod.invoke(localController,
+                        email,
+                        permissionPath.get(0),
+                        permissionPath.get(1),
+                        permissionPath.get(2));
+            } else {
+                matched = permissionCheckFeignClient.validatePermission(
+                        email,
+                        permissionPath.get(0),
+                        permissionPath.get(1),
+                        permissionPath.get(2));
+            }
+        } catch (Exception e) {
+            Throwable cause = e instanceof java.lang.reflect.InvocationTargetException ? e.getCause() : e;
+            if (cause instanceof FeignException fe) {
+                log.error("Permission check Feign call failed for user={}, path={}: status={}, message={}",
+                        email, permissionPath, fe.status(), fe.getMessage());
+                setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+                return ResponseType.Fail("FEIGN_ERROR",
+                        "Permission service unavailable: " + fe.getMessage(), 503);
+            } else {
+                log.error("Permission check local call failed for user={}, path={}: message={}",
+                        email, permissionPath, cause.getMessage());
+                setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+                return ResponseType.Fail("PERMISSION_ERROR",
+                        "Permission service unavailable: " + cause.getMessage(), 503);
+            }
         }
 
         if (matched) {

@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
@@ -22,6 +24,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +33,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -48,13 +52,20 @@ public class JobPostingService implements IJobPostingService {
     private AiServiceFeignClient aiServiceFeignClient;
     @Autowired
     private CacheManager cacheManager;
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Lazy
+    @Autowired
+    private IJobPostingService self;
 
     @Override
     @Transactional
     @Caching(put = {
         @CachePut(value = "jobPostings", key = "#result.id")
     }, evict = {
-        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #request.companyId")
+        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #request.companyId"),
+        @CacheEvict(value = "jobPostings", key = "'all'")
     })
     public JobPostingVo createJobPosting(CreateJobPostingRequest request) {
         Company company = companyDataAccess.findById(UUID.fromString(request.getCompanyId()))
@@ -70,15 +81,22 @@ public class JobPostingService implements IJobPostingService {
         jobPosting.setSalaryRange(request.getSalaryRange());
         jobPosting.setPostedDate(request.getPostedDate());
         jobPosting = jobPostingDataAccess.save(jobPosting);
+        evictJobPostingsSearchCache();
         return jobPostingMapper.toVo(jobPosting);
     }
 
     @Override
-    @Cacheable(value = "jobPostings", sync = true)
     public List<JobPostingVo> getAllJobPostings() {
-        return jobPostingDataAccess.findAll().stream()
+        return self.getAllJobPostingsCache().getData();
+    }
+
+    @Override
+    @Cacheable(value = "jobPostings", key = "'all'", sync = true)
+    public CacheListWrapper<JobPostingVo> getAllJobPostingsCache() {
+        List<JobPostingVo> list = jobPostingDataAccess.findAll().stream()
                 .map(jobPostingMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override
@@ -98,7 +116,8 @@ public class JobPostingService implements IJobPostingService {
     @Caching(put = {
         @CachePut(value = "jobPostings", key = "#jobPostingVo.id")
     }, evict = {
-        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #jobPostingVo.companyId")
+        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #jobPostingVo.companyId"),
+        @CacheEvict(value = "jobPostings", key = "'all'")
     })
     public JobPostingVo updateJobPosting(JobPostingVo jobPostingVo) {
         if (jobPostingVo.getId() == null || jobPostingVo.getId().isBlank()) {
@@ -138,6 +157,7 @@ public class JobPostingService implements IJobPostingService {
         }
 
         jobPosting = jobPostingDataAccess.save(jobPosting);
+        evictJobPostingsSearchCache();
         return jobPostingMapper.toVo(jobPosting);
     }
 
@@ -152,30 +172,41 @@ public class JobPostingService implements IJobPostingService {
                 .orElseThrow(() -> new IllegalArgumentException("Job posting not found"));
         String companyId = jobPosting.getCompany().getId().toString();
         jobPostingDataAccess.deleteById(uuid);
-        Cache cache = cacheManager.getCache("jobPostings");
-        if (cache != null) {
-            cache.evict(id);
-            cache.evict("bycompany:" + companyId);
+        if (cacheManager != null) {
+            Cache cache = cacheManager.getCache("jobPostings");
+            if (cache != null) {
+                cache.evict(id);
+                cache.evict("bycompany:" + companyId);
+                cache.evict("all");
+            }
         }
+        evictJobPostingsSearchCache();
+    }
+
+    @Override
+    public List<JobPostingVo> getJobPostingsByCompanyId(String companyId) {
+        return self.getJobPostingsByCompanyIdCache(companyId).getData();
     }
 
     @Override
     @Cacheable(value = "jobPostings", key = "'bycompany:' + #companyId", sync = true)
-    public List<JobPostingVo> getJobPostingsByCompanyId(String companyId) {
+    public CacheListWrapper<JobPostingVo> getJobPostingsByCompanyIdCache(String companyId) {
         UUID uuid = mapUuid(companyId);
         if (uuid == null) {
             throw new IllegalArgumentException("Company ID must not be null");
         }
-        return jobPostingDataAccess.findByCompanyId(uuid).stream()
+        List<JobPostingVo> list = jobPostingDataAccess.findByCompanyId(uuid).stream()
                 .map(jobPostingMapper::toVo)
                 .toList();
+        return new CacheListWrapper<>(list);
     }
 
     @Override
     @Transactional
     @Caching(evict = {
         @CacheEvict(value = "jobPostings", key = "'bycompany:' + #companyId"),
-        @CacheEvict(value = "companies", allEntries = true)
+        @CacheEvict(value = "jobPostings", key = "'all'"),
+        @CacheEvict(value = "companies", key = "'all'")
     })
     public List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId) {
         UUID uuid = mapUuid(companyId);
@@ -248,7 +279,14 @@ public class JobPostingService implements IJobPostingService {
 
         company.setLastScrapedAt(LocalDate.now());
         companyDataAccess.save(company);
+        if (cacheManager != null) {
+            Cache companiesCache = cacheManager.getCache("companies");
+            if (companiesCache != null) {
+                companiesCache.evict(company.getId().toString());
+            }
+        }
 
+        evictJobPostingsSearchCache();
         log.info("Completed scraping for company: {}, total saved/updated: {}", company.getName(), allSavedJobs.size());
         return allSavedJobs;
     }
@@ -329,6 +367,20 @@ public class JobPostingService implements IJobPostingService {
             changed = true;
         }
         return changed;
+    }
+
+    private void evictJobPostingsSearchCache() {
+        if (stringRedisTemplate == null) {
+            return;
+        }
+        try {
+            Set<String> keys = stringRedisTemplate.keys("jobPostings::*search:*");
+            if (keys != null && !keys.isEmpty()) {
+                stringRedisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to evict jobPostings search cache", e);
+        }
     }
 
     private UUID mapUuid(String id) {

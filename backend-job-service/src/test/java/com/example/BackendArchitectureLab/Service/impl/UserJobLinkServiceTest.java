@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import org.springframework.cache.CacheManager;
+import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,6 +63,7 @@ class UserJobLinkServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(userJobLinkService, "self", userJobLinkService);
         userId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();
         linkId = UUID.randomUUID();

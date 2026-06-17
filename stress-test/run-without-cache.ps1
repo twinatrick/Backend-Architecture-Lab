@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$JmeterBin = "C:\Users\gary\jmeter\apache-jmeter-5.6.3\bin\jmeter.bat",
+    [string]$JmeterBin = "",
     [string]$Server = "localhost",
     [int]$Port = 8000,
     [int]$Threads = 500,
@@ -8,7 +8,29 @@
     [string]$ResultCsv = "stress-test-result-without-cache.csv"
 )
 
+# 嘗試由 .env 讀取 JMETER_BIN
+if ([string]::IsNullOrWhiteSpace($JmeterBin)) {
+    $envPath = Join-Path $PSScriptRoot "..\.env"
+    if (Test-Path $envPath) {
+        $envLines = Get-Content $envPath
+        foreach ($line in $envLines) {
+            if ($line -match '^\s*JMETER_BIN\s*=\s*(.*)$') {
+                $JmeterBin = $Matches[1].Trim(" '`"")
+                break
+            }
+        }
+    }
+}
+
+# 若還是為空，預設使用環境變數內的 jmeter
+if ([string]::IsNullOrWhiteSpace($JmeterBin)) {
+    $JmeterBin = "jmeter"
+}
+
 $RawDir = "target\jmeter-raw-no-cache"
+if (Test-Path $RawDir) {
+    Remove-Item -Path "$RawDir\*" -Force -Recurse -ErrorAction SilentlyContinue
+}
 New-Item -ItemType Directory -Path $RawDir -Force | Out-Null
 
 $scripts = @(

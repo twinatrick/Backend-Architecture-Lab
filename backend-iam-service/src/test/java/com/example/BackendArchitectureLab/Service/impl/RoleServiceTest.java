@@ -24,6 +24,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.*;
@@ -78,6 +79,7 @@ class RoleServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(roleService, "self", roleService);
         // Setup test role
         testRoleKey = UUID.randomUUID();
         testRole = new Role();

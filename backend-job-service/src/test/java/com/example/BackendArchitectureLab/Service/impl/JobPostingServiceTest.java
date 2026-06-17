@@ -28,6 +28,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -70,6 +71,7 @@ class JobPostingServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(jobPostingService, "self", jobPostingService);
         companyId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();
 
