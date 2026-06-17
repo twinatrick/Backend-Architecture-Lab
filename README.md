@@ -462,7 +462,7 @@ erDiagram
 - 全 Service 層已加入快取註解，分為三層級 TTL 策略（詳見 `redis快取策略.md`）：
     - **參考資料**（24h）：skills、skillLevels、functions
     - **業務資料**（1-6h）：roles（6h）、companies（6h）、jobPostings（1h）
-    - **使用者資料**（10-30min）：currentUserSkills、userProjects、userJobLinks、userRoles
+    - **使用者資料**（10-30min）：currentUserSkills、projects、userJobLinks、userRoles
 - **精確 Evict 優化**：以 `@CachePut` + 精確 key evict 取代全量 `allEntries=true`，
   減少寫入操作對快取命中率的衝擊（7 個 Service，約 40+ 處註解已優化）
 - **Namespace 拆分**：`skillLevels` 從 `skills` 拆分、`roleFunctions` 從 `roles` 拆分，
