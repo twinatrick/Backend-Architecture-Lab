@@ -1,8 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
-import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.DataAccess.*;
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Dto.Vo.MemberSkillLevelVo;
 import com.example.BackendArchitectureLab.Dto.Vo.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.ProjectMemberSkillVo;
@@ -17,6 +16,7 @@ import com.example.BackendArchitectureLab.Service.IProjectService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CachePut;
@@ -24,6 +24,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +48,9 @@ import java.util.stream.Collectors;
 public class ProjectService implements IProjectService {
     
     @Autowired
+    private TransactionExecutor transactionExecutor;
+
+    @Autowired
     private IProjectDataAccess projectDataAccess;
     @Autowired
     private IProjectSkillDataAccess projectSkillDataAccess;
@@ -68,10 +72,6 @@ public class ProjectService implements IProjectService {
     private ProjectMapper projectMapper;
     @Autowired
     private CacheManager cacheManager;
-
-    @Lazy
-    @Autowired
-    private IProjectService self;
 
     /**
      * 新增專案
@@ -181,14 +181,16 @@ public class ProjectService implements IProjectService {
      */
     @Override
     public List<ProjectVo> getProject() {
-        return self.getProjectListCache().getData();
+        return getProjectListCache().getData();
     }
 
     @Override
     @Cacheable(value = "projects", key = "'all'", sync = true)
     public CacheListWrapper<ProjectVo> getProjectListCache() {
-        List<ProjectVo> list = projectDataAccess.findAll().stream().map(projectMapper::toVo).toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            List<ProjectVo> list = projectDataAccess.findAll().stream().map(projectMapper::toVo).toList();
+            return new CacheListWrapper<>(list);
+        });
     }
     /**
      * 刪除專案及其關聯的技能映射
@@ -216,124 +218,130 @@ public class ProjectService implements IProjectService {
     }
     
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "projects", key = "'search:' + #query.toString()", sync = true)
     public PageResult<ProjectVo> searchProjects(ProjectSearchQuery query) {
-        // 定義允許的排序欄位
-        String[] allowedSortFields = {
-            "id", "name", "description",
-            "createdBy", "updatedBy", "createdTime", "updatedTime"
-        };
-        
-        // 驗證排序欄位
-        SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-        
-        // 驗證排序方向
-        SortFieldValidator.validateSortDirection(query.getSortDir());
-        
-        // 執行分頁查詢
-        Page<Project> projectPage = projectDataAccess.searchProjects(query);
-        
-        // 轉換為 VO
-        List<ProjectVo> projectVos = projectPage.getContent().stream()
-                .map(projectMapper::toVo)
-                .toList();
-        
-        // 返回分頁結果
-        return PageResult.of(projectPage, projectVos);
+        return transactionExecutor.executeReadOnly(() -> {
+            // 定義允許的排序欄位
+            String[] allowedSortFields = {
+                "id", "name", "description",
+                "createdBy", "updatedBy", "createdTime", "updatedTime"
+            };
+            
+            // 驗證排序欄位
+            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
+            
+            // 驗證排序方向
+            SortFieldValidator.validateSortDirection(query.getSortDir());
+            
+            // 執行分頁查詢
+            Page<Project> projectPage = projectDataAccess.searchProjects(query);
+            
+            // 轉換為 VO
+            List<ProjectVo> projectVos = projectPage.getContent().stream()
+                    .map(projectMapper::toVo)
+                    .toList();
+            
+            // 返回分頁結果
+            return PageResult.of(projectPage, projectVos);
+        });
     }
     
     @Override
     public List<ProjectVo> getCurrentUserProjects() {
-        return self.getCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString()).getData();
+        return getCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString()).getData();
     }
 
     @Override
     @Cacheable(value = "projects", key = "'byuser:' + #currentUserId", sync = true)
     public CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId) {
-        UUID currentUserIdUuid = UUID.fromString(currentUserId);
-        // 透過 UserProject 關聯取得當前使用者的專案
-        List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserIdUuid);
-        List<ProjectVo> list = userProjects.stream()
-                .map(UserProject::getProject)
-                .map(projectMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID currentUserIdUuid = UUID.fromString(currentUserId);
+            // 透過 UserProject 關聯取得當前使用者的專案
+            List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserIdUuid);
+            List<ProjectVo> list = userProjects.stream()
+                    .map(UserProject::getProject)
+                    .map(projectMapper::toVo)
+                    .toList();
+            return new CacheListWrapper<>(list);
+        });
     }
     
     @Override
     public PageResult<ProjectVo> searchCurrentUserProjects(ProjectSearchQuery query) {
-        return self.searchCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString(), query);
+        return searchCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString(), query);
     }
 
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "projects", key = "'currentsearch:' + #currentUserId + ':' + #query.toString()", sync = true)
     public PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query) {
-        UUID currentUserIdUuid = UUID.fromString(currentUserId);
-        
-        // 定義允許的排序欄位
-        String[] allowedSortFields = {
-            "id", "name", "description",
-            "createdBy", "updatedBy", "createdTime", "updatedTime"
-        };
-        
-        // 驗證排序欄位
-        SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-        
-        // 驗證排序方向
-        SortFieldValidator.validateSortDirection(query.getSortDir());
-        
-        // 執行分頁查詢（只查詢當前使用者的專案）
-        Page<Project> projectPage = projectDataAccess.searchCurrentUserProjects(
-            currentUserIdUuid.toString(), 
-            query
-        );
-        
-        // 轉換為 VO
-        List<ProjectVo> projectVos = projectPage.getContent().stream()
-                .map(projectMapper::toVo)
-                .toList();
-        
-        // 返回分頁結果
-        return PageResult.of(projectPage, projectVos);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID currentUserIdUuid = UUID.fromString(currentUserId);
+            
+            // 定義允許的排序欄位
+            String[] allowedSortFields = {
+                "id", "name", "description",
+                "createdBy", "updatedBy", "createdTime", "updatedTime"
+            };
+            
+            // 驗證排序欄位
+            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
+            
+            // 驗證排序方向
+            SortFieldValidator.validateSortDirection(query.getSortDir());
+            
+            // 執行分頁查詢（只查詢當前使用者的專案）
+            Page<Project> projectPage = projectDataAccess.searchCurrentUserProjects(
+                currentUserIdUuid.toString(), 
+                query
+            );
+            
+            // 轉換為 VO
+            List<ProjectVo> projectVos = projectPage.getContent().stream()
+                    .map(projectMapper::toVo)
+                    .toList();
+            
+            // 返回分頁結果
+            return PageResult.of(projectPage, projectVos);
+        });
     }
     
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
-        return self.getProjectSkillsCache(projectId).getData();
+        return getProjectSkillsCache(projectId).getData();
     }
 
     @Override
     @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
     public CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId) {
-        if (projectId == null) {
-            throw new IllegalArgumentException("Project ID must not be null");
-        }
-
-        if (!projectDataAccess.existsById(projectId)) {
-            throw new IllegalArgumentException("Project not found");
-        }
-
-        List<ProjectSkill> projectSkills = projectSkillDataAccess.findByProjectId(projectId);
-        
-        List<ProjectSkillVo> list = projectSkills.stream().map(ps -> {
-            ProjectSkillVo vo = new ProjectSkillVo();
-            vo.setProjectId(ps.getProject().getId());
-            vo.setSkillId(ps.getSkill().getId());
-            vo.setSkillName(ps.getSkill().getName());
-            vo.setSkillDescription(ps.getSkill().getDescription());
-            
-            SkillLevel level = ps.getSkillLevel();
-            if (level != null) {
-                vo.setSkillLevelId(level.getId());
-                vo.setLevelValue(level.getLevelValue());
-                vo.setLevelTitle(level.getTitle());
-                vo.setLevelDescription(level.getDescription());
+        return transactionExecutor.executeReadOnly(() -> {
+            if (projectId == null) {
+                throw new IllegalArgumentException("Project ID must not be null");
             }
-            return vo;
-        }).collect(Collectors.toList());
-        return new CacheListWrapper<>(list);
+
+            if (!projectDataAccess.existsById(projectId)) {
+                throw new IllegalArgumentException("Project not found");
+            }
+
+            List<ProjectSkill> projectSkills = projectSkillDataAccess.findByProjectId(projectId);
+            
+            List<ProjectSkillVo> list = projectSkills.stream().map(ps -> {
+                ProjectSkillVo vo = new ProjectSkillVo();
+                vo.setProjectId(ps.getProject().getId());
+                vo.setSkillId(ps.getSkill().getId());
+                vo.setSkillName(ps.getSkill().getName());
+                vo.setSkillDescription(ps.getSkill().getDescription());
+                
+                SkillLevel level = ps.getSkillLevel();
+                if (level != null) {
+                    vo.setSkillLevelId(level.getId());
+                    vo.setLevelValue(level.getLevelValue());
+                    vo.setLevelTitle(level.getTitle());
+                    vo.setLevelDescription(level.getDescription());
+                }
+                return vo;
+            }).collect(Collectors.toList());
+            return new CacheListWrapper<>(list);
+        });
     }
 
     @Override

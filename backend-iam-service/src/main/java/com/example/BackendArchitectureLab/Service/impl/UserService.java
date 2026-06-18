@@ -36,9 +36,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.context.annotation.Lazy;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
 @Service
 public class UserService implements IUserService {
+
+    @Autowired
+    private TransactionExecutor transactionExecutor;
 
     @Autowired
     private IUserDataAccess userDataAccess;
@@ -81,25 +86,28 @@ public class UserService implements IUserService {
     }
     @Cacheable(value = "users", key = "#email", sync = true)
     @Override
-    @Transactional(readOnly = true)
     public UserVo getOnlyUserByEmail(String email) {
-        User user = userDataAccess.findByEmail(email).orElseThrow(
-                () -> new IllegalArgumentException("User not found")
-        );
-        return userMapper.toVo(user);
+        return transactionExecutor.executeReadOnly(() -> {
+            User user = userDataAccess.findByEmail(email).orElseThrow(
+                    () -> new IllegalArgumentException("User not found")
+            );
+            return userMapper.toVo(user);
+        });
     }
+
     @Cacheable(value = "users", key = "#id", sync = true)
     @Override
-    @Transactional(readOnly = true)
     public UserVo getUserById(String id) {
-        UUID userId = mapUuid(id);
-        if (userId == null) {
-            throw new AppException("NOT_FOUND", "使用者不存在", 404);
-        }
-        User user = userDataAccess.findById(userId).orElseThrow(
-                () -> new AppException("NOT_FOUND", "使用者不存在", 404)
-        );
-        return userMapper.toVo(user);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID userId = mapUuid(id);
+            if (userId == null) {
+                throw new AppException("NOT_FOUND", "使用者不存在", 404);
+            }
+            User user = userDataAccess.findById(userId).orElseThrow(
+                    () -> new AppException("NOT_FOUND", "使用者不存在", 404)
+            );
+            return userMapper.toVo(user);
+        });
     }
 
     @Caching(put = {
@@ -260,24 +268,25 @@ public class UserService implements IUserService {
     }
     
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "users", key = "'search:' + #query.toString()", sync = true)
     public PageResult<UserVo> searchUsers(UserSearchQuery query) {
-        String[] allowedSortFields = {
-            "id", "name", "email", "phone", "disabled", 
-            "createdBy", "updatedBy", "createdTime", "updatedTime"
-        };
-        
-        SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-        
-        SortFieldValidator.validateSortDirection(query.getSortDir());
-        
-        Page<User> userPage = userDataAccess.searchUsers(query);
-        
-        List<UserVo> userVos = userPage.getContent().stream()
-                .map(userMapper::toVo)
-                .toList();
-        
-        return PageResult.of(userPage, userVos);
+        return transactionExecutor.executeReadOnly(() -> {
+            String[] allowedSortFields = {
+                "id", "name", "email", "phone", "disabled", 
+                "createdBy", "updatedBy", "createdTime", "updatedTime"
+            };
+            
+            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
+            
+            SortFieldValidator.validateSortDirection(query.getSortDir());
+            
+            Page<User> userPage = userDataAccess.searchUsers(query);
+            
+            List<UserVo> userVos = userPage.getContent().stream()
+                    .map(userMapper::toVo)
+                    .toList();
+            
+            return PageResult.of(userPage, userVos);
+        });
     }
 }

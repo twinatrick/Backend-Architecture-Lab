@@ -29,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+
 /**
  * Unit tests for AlertCheckLimitService.
  * Uses Mockito to mock DataAccess dependencies.
@@ -36,6 +38,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AlertCheckLimitServiceTest {
+
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @Mock
     private IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
@@ -50,6 +55,15 @@ class AlertCheckLimitServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         existingLimit = new AlertCheckLimit();
         existingLimit.setId(UUID.randomUUID());
         existingLimit.setTableName("aquark_data");

@@ -1,8 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
-import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
+import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Dto.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateCompanyRequest;
@@ -12,6 +11,7 @@ import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Mapper.CompanyMapper;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -19,6 +19,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,15 +31,14 @@ import java.util.UUID;
 public class CompanyService implements ICompanyService {
 
     @Autowired
+    private TransactionExecutor transactionExecutor;
+
+    @Autowired
     private ICompanyDataAccess companyDataAccess;
     @Autowired
     private CompanyMapper companyMapper;
     @Autowired
     private CacheManager cacheManager;
-
-    @Lazy
-    @Autowired
-    private ICompanyService self;
 
     @Override
     @Transactional
@@ -59,30 +59,32 @@ public class CompanyService implements ICompanyService {
     @Override
     @Transactional(readOnly = true)
     public List<CompanyVo> getAllCompanies() {
-        return self.getAllCompaniesCache().getData();
+        return getAllCompaniesCache().getData();
     }
 
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "companies", key = "'all'", sync = true)
     public CacheListWrapper<CompanyVo> getAllCompaniesCache() {
-        List<CompanyVo> list = companyDataAccess.findAll().stream()
-                .map(companyMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            List<CompanyVo> list = companyDataAccess.findAll().stream()
+                    .map(companyMapper::toVo)
+                    .toList();
+            return new CacheListWrapper<>(list);
+        });
     }
 
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "companies", key = "#id", sync = true)
     public CompanyVo getCompanyById(String id) {
-        UUID uuid = mapUuid(id);
-        if (uuid == null) {
-            throw new IllegalArgumentException("ID must not be null");
-        }
-        Company company = companyDataAccess.findById(uuid)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
-        return companyMapper.toVo(company);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID uuid = mapUuid(id);
+            if (uuid == null) {
+                throw new IllegalArgumentException("ID must not be null");
+            }
+            Company company = companyDataAccess.findById(uuid)
+                    .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+            return companyMapper.toVo(company);
+        });
     }
 
     @Override
@@ -132,24 +134,25 @@ public class CompanyService implements ICompanyService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "companies", key = "'search:' + #query.toString()", sync = true)
     public PageResult<CompanyVo> searchCompanies(CompanySearchQuery query) {
-        String[] allowedSortFields = {
-            "id", "name", "description", "lastScrapedAt",
-            "createdBy", "updatedBy", "createdTime", "updatedTime"
-        };
+        return transactionExecutor.executeReadOnly(() -> {
+            String[] allowedSortFields = {
+                "id", "name", "description", "lastScrapedAt",
+                "createdBy", "updatedBy", "createdTime", "updatedTime"
+            };
 
-        SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-        SortFieldValidator.validateSortDirection(query.getSortDir());
+            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
+            SortFieldValidator.validateSortDirection(query.getSortDir());
 
-        Page<Company> companyPage = companyDataAccess.searchCompanies(query);
+            Page<Company> companyPage = companyDataAccess.searchCompanies(query);
 
-        List<CompanyVo> companyVos = companyPage.getContent().stream()
-                .map(companyMapper::toVo)
-                .toList();
+            List<CompanyVo> companyVos = companyPage.getContent().stream()
+                    .map(companyMapper::toVo)
+                    .toList();
 
-        return PageResult.of(companyPage, companyVos);
+            return PageResult.of(companyPage, companyVos);
+        });
     }
 
     private UUID mapUuid(String id) {

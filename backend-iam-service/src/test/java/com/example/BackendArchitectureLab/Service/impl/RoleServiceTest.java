@@ -27,6 +27,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.PageRequest;
 
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,6 +43,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RoleServiceTest {
+
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @Mock
     private IRoleDataAccess roleDataAccess;
@@ -79,7 +83,14 @@ class RoleServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(roleService, "self", roleService);
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
         // Setup test role
         testRoleKey = UUID.randomUUID();
         testRole = new Role();

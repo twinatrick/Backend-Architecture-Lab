@@ -132,7 +132,7 @@
           </collectionProp>
         </HeaderManager>
         <hashTree/>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/company/get" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/company/get" enabled="false">
           <stringProp name="HTTPSampler.path">/api/company/get</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
         </HTTPSamplerProxy>
@@ -180,8 +180,8 @@
         <hashTree/>
         <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="Random Controller (80% Read / 20% Write)" enabled="true"/>
         <hashTree>
-          <!-- 霈?嚙踝蕭?嚙?1/4 -->
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/company/get" enabled="true">
+          <!-- 霈€?嚙踝蕭?嚙?1/4 -->
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/company/get" enabled="false">
             <stringProp name="HTTPSampler.path">/api/company/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
@@ -219,7 +219,7 @@
           </hashTree>
 
           <!-- 霈?嚙踝蕭?嚙?3/4 -->
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/job-posting/get" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/job-posting/get" enabled="false">
             <stringProp name="HTTPSampler.path">/api/job-posting/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
@@ -234,7 +234,7 @@
           </hashTree>
 
           <!-- 霈?嚙踝蕭?嚙?4/4 -->
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/user-job-link/get" enabled="true">
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/user-job-link/get" enabled="false">
             <stringProp name="HTTPSampler.path">/api/user-job-link/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>

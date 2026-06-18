@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Entity;
 import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -29,6 +30,7 @@ public class User extends BaseEntity {
     @Column(name = "disabled")
     private boolean disabled =false;
     @JsonIgnore
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserRole> roles =new ArrayList<>();
 

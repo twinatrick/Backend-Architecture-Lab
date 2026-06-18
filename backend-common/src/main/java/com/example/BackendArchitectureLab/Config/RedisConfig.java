@@ -12,6 +12,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.cache.Cache;
@@ -98,6 +99,7 @@ public class RedisConfig implements CachingConfigurer {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "spring.cache.type", havingValue = "redis", matchIfMissing = true)
     public CachePenetrationProtectionCacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
             StringRedisTemplate stringRedisTemplate,
@@ -162,7 +164,7 @@ public class RedisConfig implements CachingConfigurer {
     }
 
     @Bean
-    @ConditionalOnProperty(name = "app.init.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnExpression("'${spring.cache.type:redis}' == 'redis' && '${app.init.enabled:true}' == 'true'")
     public ApplicationRunner bloomFilterInitializer(IBloomFilterService bloomFilterService,
                                                     ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider,
                                                     BloomFilterProperties bloomFilterProperties) {

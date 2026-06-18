@@ -46,3 +46,6 @@ bopomofo4j-temp/
 /src/main/resources/models/*.json
 /src/main/resources/models/*.txt
 /models/**
+
+# Stress test results
+*.csv
