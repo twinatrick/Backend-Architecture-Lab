@@ -132,7 +132,7 @@
           </collectionProp>
         </HeaderManager>
         <hashTree/>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="false">
           <stringProp name="HTTPSampler.path">/api/skill/get</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
         </HTTPSamplerProxy>
@@ -163,7 +163,7 @@
         <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="?��??�制??(80% Read / 20% Write)" enabled="true"/>
         <hashTree>
           <!-- 讀?��?�?1/4 -->
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/skill/get" enabled="false">
             <stringProp name="HTTPSampler.path">/api/skill/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
@@ -200,8 +200,8 @@
             <hashTree/>
           </hashTree>
 
-          <!-- 讀?��?�?3/4 -->
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/project/get" enabled="true">
+          <!-- 讀???3/4 -->
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/project/get" enabled="false">
             <stringProp name="HTTPSampler.path">/api/project/get</stringProp>
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
