@@ -141,7 +141,7 @@ class CacheAvalancheTest {
     }
 
     @Test
-    void avalanche_LockTimeout_FallsBackToDirectLoad() throws Exception {
+    void avalanche_LockTimeout_ThrowsServiceBusyException() throws Exception {
         when(stringRedisTemplate.hasKey(nullKey)).thenReturn(false);
         when(delegate.get(testKey)).thenReturn(null);
         when(redissonClient.getLock(anyString())).thenReturn(lock);
@@ -153,11 +153,24 @@ class CacheAvalancheTest {
             return cachedValue;
         };
 
-        String result = cache.get(testKey, valueLoader);
-        assertEquals(cachedValue, result);
-        assertEquals(1, loadCount.get());
-        verify(delegate, never()).put(any(), any());
-        verify(lock, never()).unlock();
+        // 縮短輪詢超時，避免測試卡頓，並確保拋出熔斷異常
+        long origTimeout = CachePenetrationProtectionCache.pollTimeoutMillis;
+        long origInterval = CachePenetrationProtectionCache.pollIntervalMillis;
+        try {
+            CachePenetrationProtectionCache.pollTimeoutMillis = 100;
+            CachePenetrationProtectionCache.pollIntervalMillis = 10;
+
+            RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+                cache.get(testKey, valueLoader);
+            });
+            assertTrue(exception.getMessage().contains("系統繁忙"));
+            assertEquals(0, loadCount.get()); // 驗證在超時後熔斷，絕不穿透強攻資料庫
+            verify(delegate, never()).put(any(), any());
+            verify(lock, never()).unlock();
+        } finally {
+            CachePenetrationProtectionCache.pollTimeoutMillis = origTimeout;
+            CachePenetrationProtectionCache.pollIntervalMillis = origInterval;
+        }
     }
 
     @Test
