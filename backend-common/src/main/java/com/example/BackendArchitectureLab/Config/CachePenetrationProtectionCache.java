@@ -223,14 +223,15 @@ public class CachePenetrationProtectionCache implements Cache {
                 return value;
             } catch (Exception e) {
                 log.warn("快取 [{}] key [{}] 載入資料庫異常: {}", name, key, e.toString());
-                try {
-                    return valueLoader.call();
-                } catch (Exception ex) {
-                    throw new RuntimeException(ex);
+                if (e instanceof RuntimeException) {
+                    throw (RuntimeException) e;
                 }
+                throw new RuntimeException(e);
             } finally {
                 try {
-                    lock.unlock();
+                    if (lock.isHeldByCurrentThread()) {
+                        lock.unlock();
+                    }
                 } catch (Exception e) {
                     log.warn("解鎖異常 [{}] key [{}]: {}", name, key, e.toString());
                 }

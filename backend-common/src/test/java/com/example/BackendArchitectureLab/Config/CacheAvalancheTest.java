@@ -60,6 +60,7 @@ class CacheAvalancheTest {
     void setUp() {
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
         when(bloomFilterService.mightContain(anyString(), anyString())).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
         cache = new CachePenetrationProtectionCache(
                 cacheName, delegate, stringRedisTemplate,
                 bloomFilterService, redissonClient, nullTtl);

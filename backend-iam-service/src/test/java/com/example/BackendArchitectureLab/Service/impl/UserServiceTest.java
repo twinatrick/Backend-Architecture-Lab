@@ -43,6 +43,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+
 /**
  * Unit tests for UserService.
  * Tests service layer business logic with mocked data access dependencies.
@@ -50,6 +52,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class UserServiceTest {
+
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @Mock
     private IUserDataAccess userDataAccess;
@@ -85,6 +90,15 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         testUser = new User();
         testUser.setId(UUID.randomUUID());
         testUser.setEmail("test@example.com");

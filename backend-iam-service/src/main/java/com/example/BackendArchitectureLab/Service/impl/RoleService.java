@@ -38,8 +38,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+
 @Service
 public class RoleService implements IRoleService {
+    @Autowired
+    private TransactionExecutor transactionExecutor;
+
     @Autowired
     private IRoleDataAccess roleDataAccess;
     @Autowired
@@ -59,10 +64,6 @@ public class RoleService implements IRoleService {
 
     @Autowired
     private CacheManager cacheManager;
-
-    @Lazy
-    @Autowired
-    private IRoleService self;
 
     @Override
     @Transactional
@@ -98,29 +99,31 @@ public class RoleService implements IRoleService {
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRole() {
-        return self.getRoleListCache().getData();
+        return getRoleListCache().getData();
     }
 
-    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "'all'", sync = true)
     public CacheListWrapper<RoleOutVo> getRoleListCache() {
-        List<RoleOutVo> list = roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            List<RoleOutVo> list = roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
+            return new CacheListWrapper<>(list);
+        });
     }
 
-    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "#roleId", sync = true)
     public RoleOutVo getRoleById(String roleId) {
-        UUID roleUuid = mapUuid(roleId);
-        if (roleUuid == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        }
-        Role role = roleDataAccess.findById(roleUuid).orElseThrow(
-                () -> new IllegalArgumentException("Role not found")
-        );
-        return roleMapper.toVo(role);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID roleUuid = mapUuid(roleId);
+            if (roleUuid == null) {
+                throw new IllegalArgumentException("Key must not be null");
+            }
+            Role role = roleDataAccess.findById(roleUuid).orElseThrow(
+                    () -> new IllegalArgumentException("Role not found")
+            );
+            return roleMapper.toVo(role);
+        });
     }
 
     @Override
@@ -465,132 +468,139 @@ public class RoleService implements IRoleService {
     @Override
     @Transactional(readOnly = true)
     public List<FunctionVo> getFunctionByRole(String roleId) {
-        return self.getFunctionByRoleCache(roleId).getData();
+        return getFunctionByRoleCache(roleId).getData();
     }
 
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
     public CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId) {
-        UUID roleUuid = mapUuid(roleId);
-        if (roleUuid == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        }
-        Role role = roleDataAccess.findByIdWithRoleFunctions(roleUuid).orElseThrow(
-                () -> new IllegalArgumentException("Role not found")
-        );
-        List<FunctionVo> list = role.getRoleFunctions().stream()
-                .map(RoleFunction::getFunction)
-                .map(functionMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID roleUuid = mapUuid(roleId);
+            if (roleUuid == null) {
+                throw new IllegalArgumentException("Key must not be null");
+            }
+            Role role = roleDataAccess.findByIdWithRoleFunctions(roleUuid).orElseThrow(
+                    () -> new IllegalArgumentException("Role not found")
+            );
+            List<FunctionVo> list = role.getRoleFunctions().stream()
+                    .map(RoleFunction::getFunction)
+                    .map(functionMapper::toVo)
+                    .toList();
+            return new CacheListWrapper<>(list);
+        });
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRoleByFunction(String functionId) {
-        return self.getRoleByFunctionCache(functionId).getData();
+        return getRoleByFunctionCache(functionId).getData();
     }
 
-    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "'byfunction:' + #functionId", sync = true)
     public CacheListWrapper<RoleOutVo> getRoleByFunctionCache(String functionId) {
-        UUID functionUuid = mapUuid(functionId);
-        if (functionUuid == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        }
-        Function function = functionDataAccess.findByIdWithRoleFunctions(functionUuid).orElseThrow(
-                () -> new IllegalArgumentException("Function not found")
-        );
-        List<RoleOutVo> list = function.getRoleFunctions().stream()
-                .map(RoleFunction::getRole)
-                .map(roleMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID functionUuid = mapUuid(functionId);
+            if (functionUuid == null) {
+                throw new IllegalArgumentException("Key must not be null");
+            }
+            Function function = functionDataAccess.findByIdWithRoleFunctions(functionUuid).orElseThrow(
+                    () -> new IllegalArgumentException("Function not found")
+            );
+            List<RoleOutVo> list = function.getRoleFunctions().stream()
+                    .map(RoleFunction::getRole)
+                    .map(roleMapper::toVo)
+                    .toList();
+            return new CacheListWrapper<>(list);
+        });
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<UserVo> getUserByRole(String roleId) {
-        return self.getUserByRoleCache(roleId).getData();
+        return getUserByRoleCache(roleId).getData();
     }
 
-    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "userRoles", key = "'byrole:' + #roleId", sync = true)
     public CacheListWrapper<UserVo> getUserByRoleCache(String roleId) {
-        UUID roleUuid = mapUuid(roleId);
-        if (roleUuid == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        }
-        Role role = roleDataAccess.findByIdWithUserRoles(roleUuid).orElseThrow(
-                () -> new IllegalArgumentException("Role not found")
-        );
-        List<UserVo> list = role.getUserRoles().stream()
-                .map(UserRole::getUser)
-                .map(userMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID roleUuid = mapUuid(roleId);
+            if (roleUuid == null) {
+                throw new IllegalArgumentException("Key must not be null");
+            }
+            Role role = roleDataAccess.findByIdWithUserRoles(roleUuid).orElseThrow(
+                    () -> new IllegalArgumentException("Role not found")
+            );
+            List<UserVo> list = role.getUserRoles().stream()
+                    .map(UserRole::getUser)
+                    .map(userMapper::toVo)
+                    .toList();
+            return new CacheListWrapper<>(list);
+        });
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRoleByUser(String userId) {
-        return self.getRoleByUserListCache(userId).getData();
+        return getRoleByUserListCache(userId).getData();
     }
 
-    @Transactional(readOnly = true)
     @Override
     @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
     public CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId) {
-        UUID userUuid = mapUuid(userId);
-        if (userUuid == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        }
-        User user = userDataAccess.findByIdWithRoles(userUuid).orElseThrow(
-                () -> new IllegalArgumentException("User not found")
-        );
-        List<RoleOutVo> list = user.getRoles().stream()
-                .map(UserRole::getRole)
-                .map(roleMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID userUuid = mapUuid(userId);
+            if (userUuid == null) {
+                throw new IllegalArgumentException("Key must not be null");
+            }
+            User user = userDataAccess.findByIdWithRoles(userUuid).orElseThrow(
+                    () -> new IllegalArgumentException("User not found")
+            );
+            List<RoleOutVo> list = user.getRoles().stream()
+                    .map(UserRole::getRole)
+                    .map(roleMapper::toVo)
+                    .toList();
+            return new CacheListWrapper<>(list);
+        });
     }
-    @Transactional(readOnly = true)
+
     @Override
     @Cacheable(value = "roles", key = "'byname:' + #name", sync = true)
     public RoleOutVo getRoleByName(String name){
-        Role role = roleDataAccess.findRoleByName(name);
-        return role == null ? null : roleMapper.toVo(role);
+        return transactionExecutor.executeReadOnly(() -> {
+            Role role = roleDataAccess.findRoleByName(name);
+            return role == null ? null : roleMapper.toVo(role);
+        });
     }
     
     @Override
-    @Transactional(readOnly = true)
     @Cacheable(value = "roles", key = "'search:' + #query.toString()", sync = true)
     public PageResult<RoleOutVo> searchRoles(RoleSearchQuery query) {
-        // 定義允許的排序欄位
-        String[] allowedSortFields = {
-            "id", "name", "description", "permissions",
-            "createdBy", "updatedBy", "createdTime", "updatedTime"
-        };
-        
-        // 驗證排序欄位
-        SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-        
-        // 驗證排序方向
-        SortFieldValidator.validateSortDirection(query.getSortDir());
-        
-        // 執行分頁查詢
-        Page<Role> rolePage = roleDataAccess.searchRoles(query);
-        
-        // 轉換為 VO
-        List<RoleOutVo> roleVos = rolePage.getContent().stream()
-                .map(roleMapper::toVo)
-                .toList();
-        
-        // 返回分頁結果
-        return PageResult.of(rolePage, roleVos);
+        return transactionExecutor.executeReadOnly(() -> {
+            // 定義允許的排序欄位
+            String[] allowedSortFields = {
+                "id", "name", "description", "permissions",
+                "createdBy", "updatedBy", "createdTime", "updatedTime"
+            };
+            
+            // 驗證排序欄位
+            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
+            
+            // 驗證排序方向
+            SortFieldValidator.validateSortDirection(query.getSortDir());
+            
+            // 執行分頁查詢
+            Page<Role> rolePage = roleDataAccess.searchRoles(query);
+            
+            // 轉換為 VO
+            List<RoleOutVo> roleVos = rolePage.getContent().stream()
+                    .map(roleMapper::toVo)
+                    .toList();
+            
+            // 返回分頁結果
+            return PageResult.of(rolePage, roleVos);
+        });
     }
 
     private UUID mapUuid(String id) {

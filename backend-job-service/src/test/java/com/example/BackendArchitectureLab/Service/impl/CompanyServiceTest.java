@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Dto.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateCompanyRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Entity.Company;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,9 @@ import static org.mockito.Mockito.*;
 class CompanyServiceTest {
 
     @Mock
+    private TransactionExecutor transactionExecutor;
+
+    @Mock
     private ICompanyDataAccess companyDataAccess;
 
     @Mock
@@ -45,7 +49,14 @@ class CompanyServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(companyService, "self", companyService);
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
         testId = UUID.randomUUID();
         testCompany = new Company();
         testCompany.setId(testId);
