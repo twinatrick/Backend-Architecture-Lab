@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 4. 不加載完整的 ApplicationContext,速度更快
  */
 @DataJpaTest
+@Import(ProjectDataAccessImpl.class)
 @ActiveProfiles("test")
 @DisplayName("ProjectDataAccessImpl 集成測試")
 class ProjectDataAccessImplTest {
@@ -36,12 +38,11 @@ class ProjectDataAccessImplTest {
     @Autowired
     private ProjectRepository projectRepository;
     
+    @Autowired
     private IProjectDataAccess projectDataAccess;
     
     @BeforeEach
     void setUp() {
-        // 每個測試前創建 DataAccess 實例並清空數據
-        projectDataAccess = new ProjectDataAccessImpl(projectRepository);
         projectRepository.deleteAll();
     }
     

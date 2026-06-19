@@ -7,6 +7,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -42,19 +43,16 @@ public class GeminiService implements IAiService {
             "4. 所有欄位內容請以繁體中文填寫。\n" +
             "5. 範例：[{\"title\":\"軟體工程師\",\"url\":\"https://...\",\"description\":\"開發後端服務\",\"requirements\":\"熟悉Java\",\"responsibilities\":\"API開發\",\"salaryRange\":\"面議\"}]";
 
-    private final RestTemplate restTemplate;
-    private final Gson gson;
+    @Autowired
+    private RestTemplate restTemplate;
+    @Autowired
+    private Gson gson;
 
     @Value("${gemini.api.key}")
     private String apiKey;
 
     @Value("${gemini.api.url}")
     private String apiUrl;
-
-    public GeminiService() {
-        this.restTemplate = new RestTemplate();
-        this.gson = new Gson();
-    }
 
     @Override
     public List<AiJobPostingDto> analyzeJobPostings(String companyName, String htmlContent) {

@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
 import com.example.BackendArchitectureLab.Service.impl.BloomFilterService;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -105,7 +106,8 @@ public class RedisConfig implements CachingConfigurer {
             StringRedisTemplate stringRedisTemplate,
             IBloomFilterService bloomFilterService,
             NullValueTtlProperties nullValueTtlProperties,
-            RedissonClient redissonClient) {
+            RedissonClient redissonClient,
+            ObjectProvider<CacheStatsPublisher> statsPublisherProvider) {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.activateDefaultTyping(
             LaissezFaireSubTypeValidator.instance,
@@ -151,10 +153,11 @@ public class RedisConfig implements CachingConfigurer {
 
         RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(connectionFactory);
 
+        CacheStatsPublisher publisher = statsPublisherProvider.getIfAvailable(() -> (cn, f) -> {});
         return new CachePenetrationProtectionCacheManager(
             cacheWriter, defaultConfig, cacheConfigs,
             stringRedisTemplate, bloomFilterService, nullValueTtlProperties,
-            redissonClient
+            redissonClient, publisher
         );
     }
 

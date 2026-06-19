@@ -647,10 +647,17 @@ void deleteLimitEntity(AlertCheckLimit entity);
 | `Service/IBloomFilterService.java` | 布隆過濾器服務介面 |
 | `Service/impl/BloomFilterService.java` | 布隆過濾器實作（Redisson RBloomFilter） |
 | `Config/BloomFilterInitializer.java` | 啟動時從 DB 填充過濾器 |
-| `Config/CachePenetrationProtectionCache.java` | 自訂 Cache 包裝（BF + Null Value） |
+| `Config/CachePenetrationProtectionCache.java` | 自訂 Cache 包裝（BF + Null Value + 統計發送） |
 | `Config/CachePenetrationProtectionCacheManager.java` | 自訂 CacheManager |
 | `Config/NullValueTtlProperties.java` | 空值 TTL 配置屬性 |
 | `Util/NullValue.java` | 可序列化的空值佔位 POJO |
+| `Service/CacheStatsPublisher.java` | 快取統計發布者介面 |
+| `Service/impl/KafkaCacheStatsPublisher.java` | Kafka 實作，發送 hit/miss/bloom_rejects 事件 |
+| `Dto/CacheStatsEvent.java` | 快取統計事件 DTO（cacheName, field） |
+| `../alert-service/.../Controller/CacheStatsController.java` | `GET /cache-stats` 查詢 API |
+| `../alert-service/.../Service/ICacheStatsService.java` | 統計查詢服務介面 |
+| `../alert-service/.../Service/impl/CacheStatsServiceImpl.java` | 統計查詢實作（讀取 Redis Hash） |
+| `../alert-service/.../Service/impl/CacheStatsConsumer.java` | Kafka Consumer，將事件聚合至 Redis Hash |
 
 ---
 
@@ -667,6 +674,7 @@ void deleteLimitEntity(AlertCheckLimit entity);
 | **Phase 6 - 雪崩防護** | TTL 隨機化 + 分散式鎖 + sync=true | 9 Service + RedisConfig + Cache | ✅ |
 | **Phase 7 - 精確 Evict** | 以 `@CachePut` + 精確 key evict 取代全量清除 | 7 個 Service（全部） | ✅ |
 | **Phase 8 - 監控整合** | Micrometer + Prometheus + Grafana | pom.xml + application.yml + docker-compose | ✅ |
+| **Phase 9 - 快取統計監控** | Kafka-based hit/miss/bloom_rejects 統計收斂至 Redis Hash，提供 REST API 查詢 | CachePenetrationProtectionCache + 新增 7 個檔案 | ✅ |
 
 
 
@@ -714,18 +722,18 @@ void deleteLimitEntity(AlertCheckLimit entity);
 ### 實作細節
 
 ```java
+import lombok.Getter;
+
 // CacheListWrapper 定義（位於 backend-common）
+@Getter
 public class CacheListWrapper<T> {
-    private List<T> data;
+   private List<T> data;
 
-    @JsonCreator
-    public CacheListWrapper(@JsonProperty("data") List<T> data) {
-        this.data = data;
-    }
+   @JsonCreator
+   public CacheListWrapper(@JsonProperty("data") List<T> data) {
+      this.data = data;
+   }
 
-    public List<T> getData() {
-        return data;
-    }
 }
 ```
 
@@ -826,6 +834,92 @@ public CompanyVo getCompanyById(String id) {
    - `ProjectService.searchCurrentUserProjectsCache` (搜尋使用者專案)
    - `ProjectService.getProjectSkillsCache` (專案技能關聯快取)
 4. **Alert Service (`backend-alert-service`)**：
-   - `AlertCheckLimitService.getLimit` (告警門檻值快取)
-   - `AquarkDataService.getAquarkData` (IoT 水文資料快取)
+    - `AlertCheckLimitService.getLimit` (告警門檻值快取)
+    - `AquarkDataService.getAquarkData` (IoT 水文資料快取)
 ```
+
+---
+
+## 十二、快取統計監控（Kafka-based）
+
+### 12.1 動機
+
+在不增加跨服務 Feign 呼叫、不修改各微服務 application.yml 的前提下，實現所有微服務的快取命中率與 Bloom Filter 阻擋次數監控。
+
+### 12.2 架構概覽
+
+```
+[CachePenetrationProtectionCache]
+    │ 每次 get/put 呼叫 incrementStat(field)
+    │
+    ▼
+[CacheStatsPublisher] (介面, backend-common)
+    │
+    ├─ KafkaCacheStatsPublisher (預設)
+    │     發送 CacheStatsEvent → Kafka topic: cache-stats
+    │
+    ▼
+[CacheStatsConsumer] (alert-service)
+    │ 消費 Kafka 事件 → HINCRBY cache:stats:<cacheName> <field> 1
+    │
+    ▼
+[Redis Hash] cache:stats:<cacheName>
+    │ fields: hits, misses, bloom_rejects
+    │
+    ▼
+[CacheStatsServiceImpl] (alert-service)
+    │ SCAN 0 MATCH cache:stats:* → HGETALL 聚合
+    │
+    ▼
+[CacheStatsController]
+    GET /cache-stats → Map<cacheName, Map<field, Long>>
+```
+
+### 12.3 統計欄位
+
+| 欄位 | 觸發點 | 說明 |
+|------|--------|------|
+| `hits` | `get()` / `get(key, valueLoader)` 中快取有值 | 快取命中次數 |
+| `misses` | `get()` / `get(key, valueLoader)` 中快取無值 | 實際穿透次數 |
+| `bloom_rejects` | Bloom Filter 判定 key「一定不存在」 | 成功擋下的穿透請求 |
+
+### 12.4 發送時機
+
+皆在 `CachePenetrationProtectionCache.java` 中完成：
+
+| 方法 | 條件 | increment 欄位 |
+|------|------|---------------|
+| `get(key)` | Bloom Filter 判定不存在 | `bloom_rejects` |
+| `get(key)` | 快取命中 (value != null) | `hits` |
+| `get(key)` | 快取未命中 (value == null) | `misses` |
+| `get(key, valueLoader)` | Bloom Filter 判定不存在 | `bloom_rejects` |
+| `get(key, valueLoader)` | 快取命中 (value != null) | `hits` |
+| `get(key, valueLoader)` | valueLoader 執行前 miss | `misses` |
+
+### 12.5 條件激活
+
+- `KafkaCacheStatsPublisher` 上標註 `@ConditionalOnProperty(value = "kafka.stats.enabled", havingValue = "true", matchIfMissing = false)`
+- 預設**不啟用**，需設定 `kafka.stats.enabled=true` 才會開始發送統計
+- `RedisConfig` 使用 `ObjectProvider<CacheStatsPublisher>` 取得 publisher，若無可用實例則注入 No-op 空實作
+
+### 12.6 查詢 API
+
+```
+GET /api/cache-stats
+
+Response:
+{
+  "users": { "hits": 1523, "misses": 47, "bloom_rejects": 89 },
+  "skills": { "hits": 9801, "misses": 12, "bloom_rejects": 345 },
+  ...
+}
+```
+
+### 12.7 設計特點
+
+- **零侵入**：僅在 `CachePenetrationProtectionCache` 內部插入 `incrementStat()` 呼叫，不影響現有 Service / Controller 程式碼
+- **非同步**：透過 Kafka 非同步發送，對快取路徑零延遲影響
+- **O(1) 聚合**：Consumer 使用 `HINCRBY` 原子自增，Redis 端高效聚合
+- **可開關**：透過 `kafka.stats.enabled` 配置，不需時可完全關閉
+- **無需 Feign 呼叫**：跨服務通訊僅依賴 Kafka，不增加耦合```
+

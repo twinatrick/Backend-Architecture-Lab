@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
@@ -28,6 +29,8 @@ public class CachePenetrationProtectionCacheManager extends RedisCacheManager {
 
     private final RedissonClient redissonClient;
 
+    private final CacheStatsPublisher statsPublisher;
+
     public CachePenetrationProtectionCacheManager(
             RedisCacheWriter cacheWriter,
             RedisCacheConfiguration defaultCacheConfiguration,
@@ -35,12 +38,14 @@ public class CachePenetrationProtectionCacheManager extends RedisCacheManager {
             StringRedisTemplate stringRedisTemplate,
             IBloomFilterService bloomFilterService,
             NullValueTtlProperties nullValueTtlProperties,
-            RedissonClient redissonClient) {
+            RedissonClient redissonClient,
+            CacheStatsPublisher statsPublisher) {
         super(cacheWriter, defaultCacheConfiguration, initialCacheConfigurations);
         this.stringRedisTemplate = stringRedisTemplate;
         this.bloomFilterService = bloomFilterService;
         this.nullValueTtlProperties = nullValueTtlProperties;
         this.redissonClient = redissonClient;
+        this.statsPublisher = statsPublisher;
     }
 
     @Override
@@ -55,7 +60,8 @@ public class CachePenetrationProtectionCacheManager extends RedisCacheManager {
             CachePenetrationProtectionCache wrapped = new CachePenetrationProtectionCache(
                     name, redisCache, stringRedisTemplate,
                     bloomFilterService, redissonClient,
-                    nullValueTtlProperties.getNullTtl(name)
+                    nullValueTtlProperties.getNullTtl(name),
+                    statsPublisher
             );
             wrappedCaches.putIfAbsent(name, wrapped);
             return wrappedCaches.get(name);

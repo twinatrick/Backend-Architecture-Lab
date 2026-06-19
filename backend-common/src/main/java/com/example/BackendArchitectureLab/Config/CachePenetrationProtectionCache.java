@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
 import com.example.BackendArchitectureLab.Util.NullValue;
 import org.redisson.api.RLock;
@@ -58,17 +59,21 @@ public class CachePenetrationProtectionCache implements Cache {
 
     private final Semaphore concurrencySemaphore = new Semaphore(10, true);
 
+    private final CacheStatsPublisher statsPublisher;
+
     public CachePenetrationProtectionCache(String name, RedisCache delegate,
                                             StringRedisTemplate stringRedisTemplate,
                                             IBloomFilterService bloomFilterService,
                                             RedissonClient redissonClient,
-                                            Duration nullValueTtl) {
+                                            Duration nullValueTtl,
+                                            CacheStatsPublisher statsPublisher) {
         this.name = name;
         this.delegate = delegate;
         this.stringRedisTemplate = stringRedisTemplate;
         this.bloomFilterService = bloomFilterService;
         this.redissonClient = redissonClient;
         this.nullValueTtl = nullValueTtl;
+        this.statsPublisher = statsPublisher;
     }
 
     @Override
@@ -90,12 +95,19 @@ public class CachePenetrationProtectionCache implements Cache {
         }
 
         if (!bloomFilterMightContain(cacheKey)) {
+            incrementStat("bloom_rejects");
             return null;
         }
 
         ValueWrapper result = delegate.get(key);
         if (result != null && result.get() instanceof NullValue) {
             return () -> null;
+        }
+
+        if (result != null) {
+            incrementStat("hits");
+        } else {
+            incrementStat("misses");
         }
 
         return result;
@@ -110,12 +122,19 @@ public class CachePenetrationProtectionCache implements Cache {
         }
 
         if (!bloomFilterMightContain(cacheKey)) {
+            incrementStat("bloom_rejects");
             return null;
         }
 
         T result = delegate.get(key, type);
         if (result instanceof NullValue) {
             return null;
+        }
+
+        if (result != null) {
+            incrementStat("hits");
+        } else {
+            incrementStat("misses");
         }
 
         return result;
@@ -175,6 +194,7 @@ public class CachePenetrationProtectionCache implements Cache {
                 if (value instanceof NullValue) {
                     return null;
                 }
+                incrementStat("hits");
                 return (T) value;
             }
 
@@ -227,9 +247,11 @@ public class CachePenetrationProtectionCache implements Cache {
                         if (value instanceof NullValue) {
                             return null;
                         }
+                        incrementStat("hits");
                         return (T) value;
                     }
 
+                    incrementStat("misses");
                     T value = valueLoader.call();
                     put(key, value);
                     return value;
@@ -295,6 +317,7 @@ public class CachePenetrationProtectionCache implements Cache {
                         if (v instanceof NullValue) {
                             return null;
                         }
+                        incrementStat("hits");
                         return (T) v;
                     }
                 }
@@ -424,5 +447,13 @@ public class CachePenetrationProtectionCache implements Cache {
             return "null";
         }
         return key.toString();
+    }
+
+    private void incrementStat(String field) {
+        try {
+            statsPublisher.publish(name, field);
+        } catch (Exception e) {
+            log.warn("快取統計發送異常 [{}] field [{}]: {}", name, field, e.toString());
+        }
     }
 }

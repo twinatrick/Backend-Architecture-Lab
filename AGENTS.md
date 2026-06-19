@@ -36,6 +36,7 @@
 - **Generators**: 專案大量使用 MapStruct 與 Lombok，Maven 已設定對應的 Annotation Processors。
 - **Package Quirks**: 請遵守現有的 Package 命名與大小寫慣例：
   - 首字母大寫: `Aop`, `Dto`, `Entity`, `Repository`, `Service`, `Timer`, `Util`, `WebSocket`,`Annotation`, `Config`, `Controller`, `Dataaccess`, `Exception`, `Filter`, `Mapper`
+- **Dependency Injection**: 專案使用 **Field injection**（`@Autowired` 直接寫在欄位上）作為預設注入方式。
 - **微服務分類使用規則**: **絕對必須遵守** `微服務分類使用規則.md` 中的所有架構規範，特別是模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager 等規則。
 
 ## Git & Version Control (嚴格規定)

@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
 import com.example.BackendArchitectureLab.Util.NullValue;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,9 @@ class CachePenetrationProtectionCacheTest {
     @Mock
     private RedissonClient redissonClient;
 
+    @Mock
+    private CacheStatsPublisher statsPublisher;
+
     private CachePenetrationProtectionCache cache;
 
     private final String cacheName = "test-cache";
@@ -53,7 +57,8 @@ class CachePenetrationProtectionCacheTest {
         when(bloomFilterService.mightContain(cacheName, testKey)).thenReturn(true);
         cache = new CachePenetrationProtectionCache(
                 cacheName, delegate, stringRedisTemplate,
-                bloomFilterService, redissonClient, nullTtl);
+                bloomFilterService, redissonClient, nullTtl,
+                statsPublisher);
     }
 
     @Test
