@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,9 @@ class CacheAvalancheTest {
     @Mock
     private RLock lock;
 
+    @Mock
+    private CacheStatsPublisher statsPublisher;
+
     private CachePenetrationProtectionCache cache;
 
     private final String cacheName = "avalanche-test";
@@ -63,7 +67,8 @@ class CacheAvalancheTest {
         when(lock.isHeldByCurrentThread()).thenReturn(true);
         cache = new CachePenetrationProtectionCache(
                 cacheName, delegate, stringRedisTemplate,
-                bloomFilterService, redissonClient, nullTtl);
+                bloomFilterService, redissonClient, nullTtl,
+                statsPublisher);
     }
 
     @Test

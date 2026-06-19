@@ -52,6 +52,13 @@ spring:
           filters:
             - StripPrefix=1
 
+        - id: cache-stats
+          uri: lb://alert-service
+          predicates:
+            - Path=/api/cache-stats
+          filters:
+            - StripPrefix=1
+
         - id: iam-api-docs
           uri: lb://iam-service
           predicates:
