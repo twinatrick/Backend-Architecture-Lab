@@ -8,6 +8,7 @@ import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.info.Info;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,13 +45,9 @@ public class OpenApiAggregatorController {
     private static final Logger log = LoggerFactory.getLogger(OpenApiAggregatorController.class);
     private static final ObjectMapper swaggerMapper = Json.mapper();
 
-    private final DiscoveryClient discoveryClient;
-    private final WebClient webClient;
-
-    public OpenApiAggregatorController(DiscoveryClient discoveryClient) {
-        this.discoveryClient = discoveryClient;
-        this.webClient = WebClient.create();
-    }
+    @Autowired
+    private DiscoveryClient discoveryClient;
+    private final WebClient webClient = WebClient.create();
 
     @GetMapping(value = "/v3/api-docs-merged", produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<String> getMergedOpenApi() {

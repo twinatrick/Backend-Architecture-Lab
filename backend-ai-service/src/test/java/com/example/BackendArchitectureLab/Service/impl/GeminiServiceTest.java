@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
 import com.example.BackendArchitectureLab.Service.IAiService;
+import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ class GeminiServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new GeminiService();
-        // set final restTemplate not possible on JDK 21; skip mock-based tests
+        setField(service, "gson", new Gson());
         setField(service, "apiKey", "gemini-test-key");
         setField(service, "apiUrl", "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent");
     }

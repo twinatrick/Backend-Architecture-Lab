@@ -23,12 +23,8 @@ import java.util.UUID;
 @Component
 public class ProjectDataAccessImpl implements IProjectDataAccess {
     
-    private final ProjectRepository projectRepository;
-    
     @Autowired
-    public ProjectDataAccessImpl(ProjectRepository projectRepository) {
-        this.projectRepository = projectRepository;
-    }
+    private ProjectRepository projectRepository;
     
     @Override
     public Project save(Project project) {

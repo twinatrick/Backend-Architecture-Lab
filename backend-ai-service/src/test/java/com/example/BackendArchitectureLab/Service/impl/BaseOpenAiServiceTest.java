@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ class BaseOpenAiServiceTest {
     @BeforeEach
     void setUp() {
         service = new TestBaseOpenAiService();
+        service.gson = new Gson();
     }
 
     private static String buildApiResponse(String content) {

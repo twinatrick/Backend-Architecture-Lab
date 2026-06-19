@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,11 +21,8 @@ public class GatewayErrorHandler implements WebExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayErrorHandler.class);
 
-    private final ObjectMapper objectMapper;
-
-    public GatewayErrorHandler(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Override
     public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {

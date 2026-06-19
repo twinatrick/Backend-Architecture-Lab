@@ -5,13 +5,13 @@ import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
 import feign.FeignException;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -32,14 +32,15 @@ import java.util.Objects;
 @Aspect
 @Order(2)
 @Component
-@RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class PermissionCheck {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionCheck.class);
 
-    private final PermissionCheckFeignClient permissionCheckFeignClient;
-    private final ApplicationContext applicationContext;
+    @Autowired
+    private PermissionCheckFeignClient permissionCheckFeignClient;
+    @Autowired
+    private ApplicationContext applicationContext;
 
     private Object localController = null;
     private Method localValidateMethod = null;

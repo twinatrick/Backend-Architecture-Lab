@@ -7,6 +7,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -36,8 +37,10 @@ public abstract class BaseOpenAiService implements IAiService {
             "4. 所有欄位內容請以繁體中文填寫。\n" +
             "5. 範例：[{\"title\":\"軟體工程師\",\"url\":\"https://...\",\"description\":\"開發後端服務\",\"requirements\":\"熟悉Java\",\"responsibilities\":\"API開發\",\"salaryRange\":\"面議\"}]";
 
-    protected final RestTemplate restTemplate = new RestTemplate();
-    protected final Gson gson = new Gson();
+    @Autowired
+    protected RestTemplate restTemplate;
+    @Autowired
+    protected Gson gson;
 
     protected abstract String getApiKey();
     protected abstract String getApiUrl();
