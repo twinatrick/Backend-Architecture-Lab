@@ -19,8 +19,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+
 @Service
 public class AlertCheckLimitService implements IAlertCheckLimitService {
+    @Autowired
+    private TransactionExecutor transactionExecutor;
+
     @Autowired
     private IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
     @Autowired
@@ -29,8 +34,10 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     @Override
     @Cacheable(value = "alertCheckLimit", key = "#tableName + '.' + #column", sync = true)
     public AlertCheckLimitVo getLimit(String tableName, String column) {
-        AlertCheckLimit limit = getLimitEntity(tableName, column);
-        return limit == null ? null : alertCheckLimitMapper.toVo(limit);
+        return transactionExecutor.executeReadOnly(() -> {
+            AlertCheckLimit limit = getLimitEntity(tableName, column);
+            return limit == null ? null : alertCheckLimitMapper.toVo(limit);
+        });
     }
 
     @Override

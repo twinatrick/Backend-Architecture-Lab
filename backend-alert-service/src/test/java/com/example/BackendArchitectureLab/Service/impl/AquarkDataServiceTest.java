@@ -28,6 +28,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+
 /**
  * Unit tests for AquarkDataService.
  * Uses Mockito to mock DataAccess dependencies.
@@ -35,6 +37,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AquarkDataServiceTest {
+
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @Mock
     private IAquarkDataDataAccess aquarkDataDataAccess;
@@ -49,6 +54,15 @@ class AquarkDataServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         Calendar cal = Calendar.getInstance();
         cal.set(2024, Calendar.JANUARY, 10, 8, 0, 0);
         cal.set(Calendar.MILLISECOND, 0);

@@ -25,6 +25,7 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceTest {
+
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @Mock
     private IProjectDataAccess projectDataAccess;
@@ -81,6 +85,15 @@ class ProjectServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         testId = UUID.randomUUID();
         testProject = new Project();
         testProject.setId(testId);
@@ -91,15 +104,6 @@ class ProjectServiceTest {
         testProjectVo.setId(testId);
         testProjectVo.setName("Test Project");
         testProjectVo.setDescription("Test Description");
-        
-        // Inject self reference
-        try {
-            java.lang.reflect.Field selfField = ProjectService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(projectService, projectService);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self into ProjectService", e);
-        }
     }
 
     @AfterEach

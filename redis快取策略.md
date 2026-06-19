@@ -63,12 +63,22 @@
 #### 快取方法
 
 ```java
-// 查詢 - 快取
-@Cacheable(value = "users", key = "#email", unless = "#result == null")
-UserVo getOnlyUserByEmail(String email);
+// 查詢 - 快取（不命中時，以 TransactionExecutor 唯讀事務閉包載入 DB 觸發延遲加載）
+@Cacheable(value = "users", key = "#email", sync = true)
+public UserVo getOnlyUserByEmail(String email) {
+    return transactionExecutor.executeReadOnly(() -> {
+        User user = userDataAccess.findByEmail(email);
+        return user == null ? null : userMapper.toVo(user);
+    });
+}
 
-@Cacheable(value = "users", key = "#id", unless = "#result == null")
-UserVo getUserById(String id);
+@Cacheable(value = "users", key = "#id", sync = true)
+public UserVo getUserById(String id) {
+    return transactionExecutor.executeReadOnly(() -> {
+        User user = userDataAccess.findById(UUID.fromString(id));
+        return user == null ? null : userMapper.toVo(user);
+    });
+}
 
 // 寫入 - 更新快取
 @Caching(put = {
@@ -174,20 +184,21 @@ void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
 ### 4.3 RoleService（快取名稱: `roles`, `roleFunctions`, `userRoles`）
 
 ```java
+// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，預防延遲加載 Exception）
 @Cacheable(value = "roles", key = "'all'", sync = true)
-List<RoleOutVo> getRole();
+CacheListWrapper<RoleOutVo> getRoleListCache();
 
 @Cacheable(value = "roles", key = "#roleId", sync = true)
 RoleOutVo getRoleById(String roleId);
 
 @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
-List<FunctionVo> getFunctionByRole(String roleId);
+CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId);
 
 @Cacheable(value = "roles", key = "'byname:' + #name", sync = true)
 RoleOutVo getRoleByName(String name);
 
 @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
-List<RoleOutVo> getRoleByUser(String userId);
+CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId);
 
 // 寫入操作 - @CachePut + 精確 key evict
 @Caching(put = {
@@ -291,14 +302,15 @@ List<FunctionVo> saveFunctionNewChild(List<FunctionVo> function);
 ### 4.5 ProjectService（快取名稱: `projectSkills`, `projectMemberSkills`, `projects`）
 
 ```java
+// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
 @Cacheable(value = "projects", key = "'all'", sync = true)
-List<ProjectVo> getProject();
+CacheListWrapper<ProjectVo> getProjectListCache();
 
 @Cacheable(value = "projects", key = "'byuser:' + #currentUserId", sync = true)
-List<ProjectVo> getCurrentUserProjects();
+CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId);
 
 @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
-List<ProjectSkillVo> getProjectSkills(UUID projectId);
+CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId);
 
 @Cacheable(value = "projectMemberSkills", key = "#projectId", sync = true)  // 無快取 evict
 List<ProjectMemberSkillVo> getProjectMemberSkills(UUID projectId);
@@ -362,10 +374,11 @@ void rebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> member
 ### 4.6 CompanyService（快取名稱: `companies`）
 
 ```java
-@Cacheable(value = "companies", key = "'all'", unless = "#result.isEmpty()")
-List<CompanyVo> getAllCompanies();
+// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
+@Cacheable(value = "companies", key = "'all'", sync = true)
+CacheListWrapper<CompanyVo> getAllCompaniesCache();
 
-@Cacheable(value = "companies", key = "#id", unless = "#result == null")
+@Cacheable(value = "companies", key = "#id", sync = true)
 CompanyVo getCompanyById(String id);
 
 // 寫入操作 - 精確清除（不再全量清除）
@@ -441,9 +454,9 @@ List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId);  // evict bycompany +
 - `@Cacheable(value = "aquarkData", key = "#result.station_id + '_' + #result.trans_time.toString()")` → 改為 `#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time`
 
 ```java
-// 快取
-@Cacheable(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", unless = "#result == null")
-AquarkDataVo getAquarkData(AquarkDataRaw aquarkDataRaw);
+// 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
+@Cacheable(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", sync = true)
+AquarkDataRaw getAquarkData(AquarkDataRaw aquarkDataRaw);
 
 @Cacheable(value = "aquarkDataAvg", key = "#startTime.toString() + '_' + #endTime.toString()", unless = "#result == null")
 Double getAverageAquark(Date startTime, Date endTime);
@@ -506,20 +519,20 @@ void removeJobFromCurrentUser(String currentUserId, String jobPostingId);  // �
 
 ---
 
-### 4.10 AlertCheckLimitService（快取名稱: `alertCheckLimit`）— 已完善，無需修改
+### 4.10 AlertCheckLimitService（快取名稱: `alertCheckLimit`）
 
 ```java
-// 已實作（完整範例）
-@Cacheable(value = "alertCheckLimit", key = "#apiId + '_' + #dataKey", unless = "#result == null")
-AlertCheckLimitVo getLimit(String apiId, String dataKey);
+// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
+@Cacheable(value = "alertCheckLimit", key = "#tableName + '.' + #column", sync = true)
+AlertCheckLimitVo getLimit(String tableName, String column);
 
-@CachePut(value = "alertCheckLimit", key = "#apiId + '_' + #dataKey")
-AlertCheckLimitVo insertLimit(String apiId, String dataKey, double value);
+@CachePut(value = "alertCheckLimit", key = "#tableName + '.' + #column")
+AlertCheckLimitVo insertLimit(String tableName, String column, double limitValue);
 
-@CachePut(value = "alertCheckLimit", key = "#entity.apiId + '_' + #entity.dataKey")
+@CachePut(value = "alertCheckLimit", key = "#entity.tableName + '.' + #entity.columnName")
 AlertCheckLimit updateEntity(AlertCheckLimit entity);
 
-@CacheEvict(value = "alertCheckLimit", key = "#entity.apiId + '_' + #entity.dataKey")
+@CacheEvict(value = "alertCheckLimit", key = "#entity.tableName + '.' + #entity.columnName")
 void deleteLimitEntity(AlertCheckLimit entity);
 ```
 
@@ -721,3 +734,98 @@ public class CacheListWrapper<T> {
 - 所有清單快取**必須**透過 `CacheListWrapper<T>` 或 `PageResult<T>` 包裝，禁止直接快取原始 `List` 物件
 - `CacheListWrapper` 使用 Jackson `@JsonCreator` / `@JsonProperty` 註解確保序列化/反序列化正確性
 - 後續新增清單快取時應遵循此模式，避免 `ClassCastException`
+
+---
+
+## 十一、快取與事務 (AOP) 衝突與極致優化 🚀
+
+### 11.1 問題根源 (AOP Proxy Collision)
+
+當 Spring 的 `@Cacheable(sync = true)` 與 `@Transactional` 同時在同一個方法上時，Spring AOP 在高併發不命中快取需要加載數據時，會透過內部的反射自呼叫或直接 AOP 回調執行 Target Method，從而**繞過並失效方法上標註的 `@Transactional` 事務切面**。
+這會造成以下連鎖災難：
+1. **LazyInitializationException**：在進行 VO 轉換並觸發 `Company.websites`、`User.roles` 或 `Role.roleFunctions` 等延遲加載 (Lazy-loaded) 屬性時，執行緒根本沒有有效的事務 Session。
+2. **分散式鎖卡死與連鎖雪崩**：第一筆穿透失敗拋出異常，會導致其他輪詢 10 秒超時的執行緒集體打進資料庫，造成 Redis command timed out 與資料庫雪崩。
+
+---
+
+### 11.2 業界最優化方案：通用事務執行器 `TransactionExecutor`
+
+為了達成**對 Service 介面零污染**、100% 複用分散式快取保護機制，並消滅冗餘的 `@Lazy` 代理自呼叫與 `FromDb` 樣板方法，我們在 `backend-common` 抽離出通用的 **`TransactionExecutor`** 結構。
+
+#### 11.2.1 TransactionExecutor 核心實作
+
+```java
+package com.example.BackendArchitectureLab.Util;
+
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.function.Supplier;
+
+@Component
+public class TransactionExecutor {
+
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRED)
+    public <T> T executeReadOnly(Supplier<T> supplier) {
+        return supplier.get();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public <T> T executeWritable(Supplier<T> supplier) {
+        return supplier.get();
+    }
+}
+```
+
+#### 11.2.2 Service 實作最佳實踐規範
+
+所有微服務的快取唯讀查詢，一律改採 Lambda 閉包方式包裹在 `TransactionExecutor.executeReadOnly` 中。這能百分之百確保當快取不命中時，以最安全、最乾淨的形式開啟唯讀事務 Session：
+
+```java
+@Autowired
+private TransactionExecutor transactionExecutor;
+
+@Cacheable(value = "companies", key = "#id", sync = true)
+@Override
+public CompanyVo getCompanyById(String id) {
+    return transactionExecutor.executeReadOnly(() -> {
+        UUID uuid = mapUuid(id);
+        Company company = companyDataAccess.findById(uuid)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        return companyMapper.toVo(company); // 觸發 Lazy-loaded 屬性加載，此時已有唯讀事務 session 保障
+    });
+}
+```
+
+---
+
+### 11.3 重構覆蓋範圍
+
+此「極致優雅」的事務執行器設計，目前已在以下微服務與核心查詢中達成 **100% 覆蓋與架構規範統一**：
+
+1. **IAM Service (`backend-iam-service`)**：
+   - `UserService.getOnlyUserByEmail` (Email 查詢使用者)
+   - `UserService.getUserById` (ID 查詢使用者)
+   - `UserService.searchUsers` (分頁搜尋使用者)
+   - `RoleService.getRoleListCache` (全量角色快取)
+   - `RoleService.getRoleById` (ID 查詢角色)
+   - `RoleService.getFunctionByRoleCache` (角色功能權限查詢)
+   - `RoleService.getRoleByFunctionCache` (功能對應角色查詢)
+   - `RoleService.getUserByRoleCache` (角色下使用者查詢)
+   - `RoleService.getRoleByUserListCache` (使用者擁有的角色查詢)
+   - `RoleService.getRoleByName` (名稱查詢角色)
+   - `RoleService.searchRoles` (分頁搜尋角色)
+2. **Job Service (`backend-job-service`)**：
+   - `CompanyService.getAllCompaniesCache` (全量公司快取)
+   - `CompanyService.getCompanyById` (ID 查詢公司)
+   - `CompanyService.searchCompanies` (分頁搜尋公司)
+3. **Project Skill Service (`backend-project-skill-service`)**：
+   - `ProjectService.getProjectListCache` (全量專案快取)
+   - `ProjectService.searchProjects` (分頁搜尋專案)
+   - `ProjectService.getCurrentUserProjectsCache` (使用者專案快取)
+   - `ProjectService.searchCurrentUserProjectsCache` (搜尋使用者專案)
+   - `ProjectService.getProjectSkillsCache` (專案技能關聯快取)
+4. **Alert Service (`backend-alert-service`)**：
+   - `AlertCheckLimitService.getLimit` (告警門檻值快取)
+   - `AquarkDataService.getAquarkData` (IoT 水文資料快取)
+```

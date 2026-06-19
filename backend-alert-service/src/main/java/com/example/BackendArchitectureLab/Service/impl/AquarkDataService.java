@@ -19,8 +19,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+
 @Service
 public class AquarkDataService implements IAquarkDataService {
+    @Autowired
+    private TransactionExecutor transactionExecutor;
+
     @Autowired
     private IAquarkDataDataAccess aquarkDataDataAccess;
     @Autowired
@@ -145,9 +150,11 @@ public class AquarkDataService implements IAquarkDataService {
     @Cacheable(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", sync = true)
     @Override
     public AquarkDataRaw getAquarkData(AquarkDataRaw aquarkDataRaw) {
-        AquarkData aquarkData = aquarkDataMapper.toEntity(aquarkDataRaw);
-        AquarkData found = getAquarkDataEntity(aquarkData);
-        return found == null ? null : aquarkDataMapper.toVo(found);
+        return transactionExecutor.executeReadOnly(() -> {
+            AquarkData aquarkData = aquarkDataMapper.toEntity(aquarkDataRaw);
+            AquarkData found = getAquarkDataEntity(aquarkData);
+            return found == null ? null : aquarkDataMapper.toVo(found);
+        });
     }
 
     // 更新數據庫
