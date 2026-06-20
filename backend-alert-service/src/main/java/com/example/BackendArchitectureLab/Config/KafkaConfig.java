@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.Dto.CacheStatsEvent;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +8,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +52,16 @@ public class KafkaConfig {
     }
 
     @Bean
+    public KafkaTemplate<String, CacheStatsEvent> cacheStatsKafkaTemplate() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, resolveBootstrapServers());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        ProducerFactory<String, CacheStatsEvent> factory = new DefaultKafkaProducerFactory<>(props);
+        return new KafkaTemplate<>(factory);
+    }
+
+    @Bean
     public ConsumerFactory<String, List<AlarmMessage>> alarmMessageConsumerFactory(ObjectMapper objectMapper) {
         String bootstrapServers = resolveBootstrapServers();
 
@@ -65,6 +77,25 @@ public class KafkaConfig {
         );
         deserializer.addTrustedPackages("com.example.BackendArchitectureLab.Util");
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, CacheStatsEvent> cacheStatsKafkaListenerContainerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, resolveBootstrapServers());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
+        JsonDeserializer<CacheStatsEvent> deserializer = new JsonDeserializer<>(CacheStatsEvent.class);
+        deserializer.addTrustedPackages("com.example.BackendArchitectureLab");
+
+        DefaultKafkaConsumerFactory<String, CacheStatsEvent> cf =
+                new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
+
+        ConcurrentKafkaListenerContainerFactory<String, CacheStatsEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(cf);
+        return factory;
     }
 
     @Bean(name = "alarmMessageKafkaListenerContainerFactory")

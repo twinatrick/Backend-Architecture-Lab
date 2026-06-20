@@ -4,12 +4,10 @@ import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.impl.UserJobLinkDataAccessImpl;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
-import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Repository.CompanyRepository;
 import com.example.BackendArchitectureLab.Repository.JobPostingRepository;
 import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,11 +37,8 @@ class UserJobLinkDataAccessImplTest {
     private CompanyRepository companyRepository;
 
     @Autowired
-    private EntityManager entityManager;
-
-    @Autowired
     private IUserJobLinkDataAccess userJobLinkDataAccess;
-    private User testUser;
+    private UUID testUserId;
     private JobPosting testJobPosting;
 
     @BeforeEach
@@ -51,11 +46,7 @@ class UserJobLinkDataAccessImplTest {
         userJobLinkRepository.deleteAll();
         jobPostingRepository.deleteAll();
         companyRepository.deleteAll();
-        testUser = new User();
-        testUser.setEmail("test@example.com");
-        testUser.setPassword("password");
-        entityManager.persist(testUser);
-        entityManager.flush();
+        testUserId = UUID.randomUUID();
 
         Company company = new Company();
         company.setName("Test Company");
@@ -72,7 +63,7 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should save user job link successfully")
     void testSave() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         link.setUserNotes("Interested");
 
@@ -87,12 +78,12 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should find all user job links")
     void testFindAll() {
         UserJobLink link1 = new UserJobLink();
-        link1.setUser(testUser);
+        link1.setUserId(testUserId);
         link1.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link1);
 
         UserJobLink link2 = new UserJobLink();
-        link2.setUser(testUser);
+        link2.setUserId(testUserId);
         link2.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link2);
 
@@ -105,7 +96,7 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should find user job link by id")
     void testFindById() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         UserJobLink saved = userJobLinkRepository.save(link);
 
@@ -126,7 +117,7 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should check if user job link exists by id")
     void testExistsById() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         UserJobLink saved = userJobLinkRepository.save(link);
 
@@ -138,7 +129,7 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should delete user job link by id")
     void testDeleteById() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         UserJobLink saved = userJobLinkRepository.save(link);
 
@@ -151,11 +142,11 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should find links by user id")
     void testFindByUserId() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link);
 
-        List<UserJobLink> result = userJobLinkDataAccess.findByUserId(testUser.getId());
+        List<UserJobLink> result = userJobLinkDataAccess.findByUserId(testUserId);
 
         assertEquals(1, result.size());
     }
@@ -172,7 +163,7 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should find links by job posting id")
     void testFindByJobPostingId() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link);
 
@@ -185,12 +176,12 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should find link by user id and job posting id")
     void testFindByUserIdAndJobPostingId() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link);
 
         Optional<UserJobLink> result = userJobLinkDataAccess.findByUserIdAndJobPostingId(
-                testUser.getId(), testJobPosting.getId());
+                testUserId, testJobPosting.getId());
 
         assertTrue(result.isPresent());
     }
@@ -199,11 +190,11 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should delete link by user id and job posting id")
     void testDeleteByUserIdAndJobPostingId() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link);
 
-        userJobLinkDataAccess.deleteByUserIdAndJobPostingId(testUser.getId(), testJobPosting.getId());
+        userJobLinkDataAccess.deleteByUserIdAndJobPostingId(testUserId, testJobPosting.getId());
 
         assertEquals(0, userJobLinkRepository.findAll().size());
     }
@@ -212,12 +203,12 @@ class UserJobLinkDataAccessImplTest {
     @DisplayName("Should check existence by user id and job posting id")
     void testExistsByUserIdAndJobPostingId() {
         UserJobLink link = new UserJobLink();
-        link.setUser(testUser);
+        link.setUserId(testUserId);
         link.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link);
 
         assertTrue(userJobLinkDataAccess.existsByUserIdAndJobPostingId(
-                testUser.getId(), testJobPosting.getId()));
+                testUserId, testJobPosting.getId()));
         assertFalse(userJobLinkDataAccess.existsByUserIdAndJobPostingId(
                 UUID.randomUUID(), testJobPosting.getId()));
     }

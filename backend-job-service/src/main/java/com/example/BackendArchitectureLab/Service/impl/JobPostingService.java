@@ -13,7 +13,7 @@ import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
-import com.example.BackendArchitectureLab.Feign.AiServiceFeignClient;
+import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +49,7 @@ public class JobPostingService implements IJobPostingService {
     @Autowired
     private CompositeJobCrawler jobCrawler;
     @Autowired
-    private AiServiceFeignClient aiServiceFeignClient;
+    private ExternalApiServiceFeignClient aiServiceFeignClient;
     @Autowired
     private CacheManager cacheManager;
     @Autowired

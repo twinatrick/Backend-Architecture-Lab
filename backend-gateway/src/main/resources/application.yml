@@ -31,15 +31,15 @@ spring:
           filters:
             - StripPrefix=1
 
-        - id: project-skill-service
-          uri: lb://project-skill-service
+        - id: competency-service
+          uri: lb://competency-service
           predicates:
             - Path=/api/skill/**,/api/project/**,/api/user/bindings/**
           filters:
             - StripPrefix=1
 
-        - id: ai-service
-          uri: lb://ai-service
+        - id: external-api-service
+          uri: lb://external-api-service
           predicates:
             - Path=/api/stt/**,/api/ai/**
           filters:
@@ -66,10 +66,10 @@ spring:
           filters:
             - StripPrefix=2
 
-        - id: project-skill-api-docs
-          uri: lb://project-skill-service
+        - id: competency-api-docs
+          uri: lb://competency-service
           predicates:
-            - Path=/service-docs/project-skill/**
+            - Path=/service-docs/competency/**
           filters:
             - StripPrefix=2
 
@@ -80,10 +80,10 @@ spring:
           filters:
             - StripPrefix=2
 
-        - id: ai-api-docs
-          uri: lb://ai-service
+        - id: external-api-docs
+          uri: lb://external-api-service
           predicates:
-            - Path=/service-docs/ai/**
+            - Path=/service-docs/external-api/**
           filters:
             - StripPrefix=2
 

@@ -20,8 +20,6 @@ public interface UserMapper {
 
     @Mapping(target = "id", expression = "java(userVo.getId() == null || userVo.getId().isBlank() ? null : java.util.UUID.fromString(userVo.getId()))")
     @Mapping(target = "roles", ignore = true)
-    @Mapping(target = "userSkills", ignore = true)
-    @Mapping(target = "userProjects", ignore = true)
     User toEntity(UserVo userVo);
 
     /**

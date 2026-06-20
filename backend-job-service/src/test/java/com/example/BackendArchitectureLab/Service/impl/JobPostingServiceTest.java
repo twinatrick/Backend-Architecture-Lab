@@ -12,7 +12,7 @@ import com.example.BackendArchitectureLab.Dto.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.CompanyWebsite;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
-import com.example.BackendArchitectureLab.Feign.AiServiceFeignClient;
+import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +55,7 @@ class JobPostingServiceTest {
     private CompositeJobCrawler jobCrawler;
 
     @Mock
-    private AiServiceFeignClient aiServiceFeignClient;
+    private ExternalApiServiceFeignClient aiServiceFeignClient;
 
     @Mock
     private CacheManager cacheManager;

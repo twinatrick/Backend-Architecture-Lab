@@ -21,9 +21,9 @@
         <module>backend-common</module>
         <module>backend-gateway</module>
         <module>backend-iam-service</module>
-        <module>backend-project-skill-service</module>
+        <module>backend-competency-service</module>
         <module>backend-job-service</module>
-        <module>backend-ai-service</module>
+        <module>backend-external-api-service</module>
         <module>backend-alert-service</module>
     </modules>
 
@@ -88,12 +88,14 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+        <!-- spring-boot-docker-compose moved to individual services that need it
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-docker-compose</artifactId>
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+        -->
         <!-- ========================================== -->
         <!-- 🎯 新增微服務集體監控必備依賴 (Actuator + Prometheus) -->
         <!-- ========================================== -->

@@ -10,9 +10,9 @@ COPY pom.xml .
 COPY backend-common/pom.xml backend-common/
 COPY backend-gateway/pom.xml backend-gateway/
 COPY backend-iam-service/pom.xml backend-iam-service/
-COPY backend-project-skill-service/pom.xml backend-project-skill-service/
+COPY backend-competency-service/pom.xml backend-competency-service/
 COPY backend-job-service/pom.xml backend-job-service/
-COPY backend-ai-service/pom.xml backend-ai-service/
+COPY backend-external-api-service/pom.xml backend-external-api-service/
 COPY backend-alert-service/pom.xml backend-alert-service/
 
 # 預先下載相依性（獨立 layer，source code 未變更時可快取）
@@ -22,9 +22,9 @@ RUN mvn dependency:go-offline -pl backend-gateway -am -B -q || true
 COPY backend-common/src backend-common/src/
 COPY backend-gateway/src backend-gateway/src/
 COPY backend-iam-service/src backend-iam-service/src/
-COPY backend-project-skill-service/src backend-project-skill-service/src/
+COPY backend-competency-service/src backend-competency-service/src/
 COPY backend-job-service/src backend-job-service/src/
-COPY backend-ai-service/src backend-ai-service/src/
+COPY backend-external-api-service/src backend-external-api-service/src/
 COPY backend-alert-service/src backend-alert-service/src/
 
 # 編譯並打包 gateway（含其依賴模組），跳過測試

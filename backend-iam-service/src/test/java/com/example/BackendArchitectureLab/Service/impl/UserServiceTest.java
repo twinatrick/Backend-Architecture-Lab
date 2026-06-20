@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
-import com.example.BackendArchitectureLab.Feign.ProjectServiceFeignClient;
+import com.example.BackendArchitectureLab.Feign.CompetencyProjectFeignClient;
 import com.example.BackendArchitectureLab.Dto.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
@@ -66,7 +66,7 @@ class UserServiceTest {
     private IRoleService roleService;
 
     @Mock
-    private ProjectServiceFeignClient projectServiceFeignClient;
+    private CompetencyProjectFeignClient projectServiceFeignClient;
 
     @Mock
     private UserMapper userMapper;

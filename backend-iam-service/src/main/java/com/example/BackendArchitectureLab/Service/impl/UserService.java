@@ -8,7 +8,7 @@ import com.example.BackendArchitectureLab.Service.IUserService;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
-import com.example.BackendArchitectureLab.Feign.ProjectServiceFeignClient;
+import com.example.BackendArchitectureLab.Feign.CompetencyProjectFeignClient;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
 import com.example.BackendArchitectureLab.Entity.Function;
@@ -52,7 +52,7 @@ public class UserService implements IUserService {
     @Autowired
     private IFunctionDataAccess functionDataAccess;
     @Autowired
-    private ProjectServiceFeignClient projectServiceFeignClient;
+    private CompetencyProjectFeignClient projectServiceFeignClient;
     @Autowired
     private UserMapper userMapper;
     @Autowired

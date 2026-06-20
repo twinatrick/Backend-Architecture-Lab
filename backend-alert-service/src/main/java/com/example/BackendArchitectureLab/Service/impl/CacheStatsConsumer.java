@@ -17,7 +17,7 @@ public class CacheStatsConsumer {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    @KafkaListener(topics = "cache-stats")
+    @KafkaListener(topics = "cache-stats", containerFactory = "cacheStatsKafkaListenerContainerFactory")
     public void consume(CacheStatsEvent event) {
         try {
             stringRedisTemplate.opsForHash().increment(

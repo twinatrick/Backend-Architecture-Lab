@@ -27,9 +27,9 @@ class FeignClientContractTest {
     private static final List<Class<?>> FEIGN_CLIENTS = List.of(
             UserServiceFeignClient.class,
             AlertCheckLimitFeignClient.class,
-            ProjectServiceFeignClient.class,
-            SkillServiceFeignClient.class,
-            AiServiceFeignClient.class
+            CompetencyProjectFeignClient.class,
+            CompetencySkillFeignClient.class,
+            ExternalApiServiceFeignClient.class
     );
 
     private static final Set<Class<? extends Annotation>> HTTP_METHOD_ANNOTATIONS = Set.of(

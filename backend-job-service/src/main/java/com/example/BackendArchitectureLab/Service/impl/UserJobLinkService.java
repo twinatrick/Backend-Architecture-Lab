@@ -6,7 +6,6 @@ import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
 import com.example.BackendArchitectureLab.Dto.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
-import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
@@ -62,9 +61,7 @@ public class UserJobLinkService implements IUserJobLinkService {
             if (!userServiceFeignClient.existsUserById(userUuid)) {
                 throw new IllegalArgumentException("User not found");
             }
-            User user = new User();
-            user.setId(userUuid);
-            link.setUser(user);
+            link.setUserId(userUuid);
         }
 
         if (userJobLinkVo.getJobPostingId() != null) {
@@ -113,7 +110,7 @@ public class UserJobLinkService implements IUserJobLinkService {
         }
         UserJobLink link = userJobLinkDataAccess.findById(uuid)
                 .orElseThrow(() -> new IllegalArgumentException("User job link not found"));
-        String userId = link.getUser().getId().toString();
+        String userId = link.getUserId().toString();
         String jobPostingId = link.getJobPosting().getId().toString();
         userJobLinkDataAccess.deleteById(uuid);
         Cache cache = cacheManager.getCache("userJobLinks");
@@ -211,9 +208,7 @@ public class UserJobLinkService implements IUserJobLinkService {
         JobPosting jobPosting = jobPostingDataAccess.findById(jobUuid)
                 .orElseThrow(() -> new IllegalArgumentException("Job posting not found"));
         UserJobLink link = new UserJobLink();
-        User user = new User();
-        user.setId(userUuid);
-        link.setUser(user);
+        link.setUserId(userUuid);
         link.setJobPosting(jobPosting);
         link = userJobLinkDataAccess.save(link);
         return userJobLinkMapper.toVo(link);

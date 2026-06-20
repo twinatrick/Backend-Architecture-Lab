@@ -5,6 +5,9 @@ target/
 !**/src/test/**/target/
 .env
 *.bat
+*.log
+*.err
+TODO.md
 jmeter.log
 /simulate.sql
 

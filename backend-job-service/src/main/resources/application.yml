@@ -5,7 +5,7 @@ spring:
   application:
     name: job-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
+    url: jdbc:postgresql://localhost:5432/job_service
     username: postgres
     password: verYs3cret
     driver-class-name: org.postgresql.Driver
