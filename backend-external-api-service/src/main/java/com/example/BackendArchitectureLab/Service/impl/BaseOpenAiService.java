@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -47,7 +47,7 @@ public abstract class BaseOpenAiService implements IAiService {
     protected abstract String getModelName();
 
     @Override
-    public List<AiJobPostingDto> analyzeJobPostings(String companyName, String htmlContent) {
+    public List<AiJobPostingVo> analyzeJobPostings(String companyName, String htmlContent) {
         String truncatedHtml = htmlContent.length() > 60000
                 ? htmlContent.substring(0, 60000)
                 : htmlContent;
@@ -88,7 +88,7 @@ public abstract class BaseOpenAiService implements IAiService {
                 }
 
                 previousResponse = response;
-                List<AiJobPostingDto> result = parseResponse(response);
+                List<AiJobPostingVo> result = parseResponse(response);
 
                 if (isValidJobList(result)) return result;
                 log.warn("{} response format invalid for company: {} (attempt {})", getModelName(), companyName, attempt + 1);
@@ -163,9 +163,9 @@ public abstract class BaseOpenAiService implements IAiService {
         return gson.toJson(requestBody);
     }
 
-    private boolean isValidJobList(List<AiJobPostingDto> jobs) {
+    private boolean isValidJobList(List<AiJobPostingVo> jobs) {
         if (jobs == null || jobs.isEmpty()) return false;
-        for (AiJobPostingDto job : jobs) {
+        for (AiJobPostingVo job : jobs) {
             if (job.getTitle() == null || job.getTitle().isBlank()) return false;
             if (job.getDescription() == null || job.getDescription().isBlank()) return false;
         }
@@ -189,7 +189,7 @@ public abstract class BaseOpenAiService implements IAiService {
         return rawResponse;
     }
 
-    protected List<AiJobPostingDto> parseResponse(String response) {
+    protected List<AiJobPostingVo> parseResponse(String response) {
         try {
             JsonObject responseObj = gson.fromJson(response, JsonObject.class);
             JsonArray choices = responseObj.getAsJsonArray("choices");
@@ -217,10 +217,10 @@ public abstract class BaseOpenAiService implements IAiService {
             String jsonArray = text.substring(start, end + 1);
             JsonArray jobs = gson.fromJson(jsonArray, JsonArray.class);
 
-            List<AiJobPostingDto> result = new ArrayList<>();
+            List<AiJobPostingVo> result = new ArrayList<>();
             for (JsonElement jobElement : jobs) {
                 JsonObject jobObj = jobElement.getAsJsonObject();
-                AiJobPostingDto dto = new AiJobPostingDto();
+                AiJobPostingVo dto = new AiJobPostingVo();
                 
                 JsonElement title = jobObj.get("title");
                 dto.setTitle(title != null && !title.isJsonNull() ? title.getAsString() : "");

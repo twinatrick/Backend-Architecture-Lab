@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,7 +76,7 @@ class GeminiServiceTest {
         String content = "[{\"title\":\"Engineer\",\"description\":\"desc\"}]";
         String json = buildGeminiApiResponse(content);
         @SuppressWarnings("unchecked")
-        List<AiJobPostingDto> result = (List<AiJobPostingDto>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
+        List<AiJobPostingVo> result = (List<AiJobPostingVo>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
         assertEquals(1, result.size());
         assertEquals("Engineer", result.get(0).getTitle());
     }
@@ -86,7 +86,7 @@ class GeminiServiceTest {
     void parseResponseEmptyCandidates() throws Exception {
         String json = "{\"candidates\":[]}";
         @SuppressWarnings("unchecked")
-        List<AiJobPostingDto> result = (List<AiJobPostingDto>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
+        List<AiJobPostingVo> result = (List<AiJobPostingVo>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
         assertTrue(result.isEmpty());
     }
 
@@ -94,7 +94,7 @@ class GeminiServiceTest {
     @DisplayName("parseResponse should return empty list for missing candidates")
     void parseResponseMissingCandidates() throws Exception {
         @SuppressWarnings("unchecked")
-        List<AiJobPostingDto> result = (List<AiJobPostingDto>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, "{}");
+        List<AiJobPostingVo> result = (List<AiJobPostingVo>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, "{}");
         assertTrue(result.isEmpty());
     }
 
@@ -103,7 +103,7 @@ class GeminiServiceTest {
     void parseResponseNoParts() throws Exception {
         String json = "{\"candidates\":[{\"content\":{\"parts\":[]}}]}";
         @SuppressWarnings("unchecked")
-        List<AiJobPostingDto> result = (List<AiJobPostingDto>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
+        List<AiJobPostingVo> result = (List<AiJobPostingVo>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
         assertTrue(result.isEmpty());
     }
 
@@ -112,7 +112,7 @@ class GeminiServiceTest {
     void parseResponseNoJsonArray() throws Exception {
         String json = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"plain text\"}]}}]}";
         @SuppressWarnings("unchecked")
-        List<AiJobPostingDto> result = (List<AiJobPostingDto>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
+        List<AiJobPostingVo> result = (List<AiJobPostingVo>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, json);
         assertTrue(result.isEmpty());
     }
 
@@ -120,7 +120,7 @@ class GeminiServiceTest {
     @DisplayName("parseResponse should return empty list for malformed JSON")
     void parseResponseMalformed() throws Exception {
         @SuppressWarnings("unchecked")
-        List<AiJobPostingDto> result = (List<AiJobPostingDto>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, "bad json");
+        List<AiJobPostingVo> result = (List<AiJobPostingVo>) invokePrivate(service, "parseResponse", new Class<?>[]{String.class}, "bad json");
         assertTrue(result.isEmpty());
     }
 

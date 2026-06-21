@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,11 +33,11 @@ class CompositeAiServiceTest {
     private CompositeAiService compositeAiService;
 
     private final String companyName = "Test Company";
-    private List<AiJobPostingDto> mockResult;
+    private List<AiJobPostingVo> mockResult;
 
     @BeforeEach
     void setUp() {
-        AiJobPostingDto dto = new AiJobPostingDto();
+        AiJobPostingVo dto = new AiJobPostingVo();
         dto.setTitle("Software Engineer");
         mockResult = List.of(dto);
     }
@@ -47,7 +47,7 @@ class CompositeAiServiceTest {
     void testGeminiSucceedsFirst() {
         when(geminiService.analyzeJobPostings(companyName, "clean text")).thenReturn(mockResult);
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
 
         assertEquals(1, result.size());
         verify(geminiService).analyzeJobPostings(companyName, "clean text");
@@ -60,7 +60,7 @@ class CompositeAiServiceTest {
         when(geminiService.analyzeJobPostings(companyName, "clean text")).thenThrow(new RuntimeException("Gemini down"));
         when(groqService.analyzeJobPostings(companyName, "clean text")).thenReturn(mockResult);
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
 
         assertEquals(1, result.size());
         verify(geminiService).analyzeJobPostings(companyName, "clean text");
@@ -75,7 +75,7 @@ class CompositeAiServiceTest {
         when(groqService.analyzeJobPostings(companyName, "clean text")).thenThrow(new RuntimeException("down"));
         when(deepSeekService.analyzeJobPostings(companyName, "clean text")).thenReturn(mockResult);
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
 
         assertEquals(1, result.size());
         verify(deepSeekService).analyzeJobPostings(companyName, "clean text");
@@ -90,7 +90,7 @@ class CompositeAiServiceTest {
         when(deepSeekService.analyzeJobPostings(companyName, "clean text")).thenThrow(new RuntimeException("down"));
         when(gitHubModelsService.analyzeJobPostings(companyName, "clean text")).thenReturn(mockResult);
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
 
         assertEquals(1, result.size());
         verify(gitHubModelsService).analyzeJobPostings(companyName, "clean text");
@@ -104,7 +104,7 @@ class CompositeAiServiceTest {
         when(deepSeekService.analyzeJobPostings(companyName, "clean text")).thenThrow(new RuntimeException("down"));
         when(gitHubModelsService.analyzeJobPostings(companyName, "clean text")).thenThrow(new RuntimeException("down"));
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
 
         assertTrue(result.isEmpty());
     }
@@ -115,7 +115,7 @@ class CompositeAiServiceTest {
         when(geminiService.analyzeJobPostings(companyName, "clean text")).thenReturn(List.of());
         when(groqService.analyzeJobPostings(companyName, "clean text")).thenReturn(mockResult);
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, "clean text");
 
         assertEquals(1, result.size());
         verify(geminiService).analyzeJobPostings(companyName, "clean text");
@@ -129,7 +129,7 @@ class CompositeAiServiceTest {
         when(geminiService.analyzeJobPostings(companyName, "Software Engineer at Test Company"))
                 .thenReturn(mockResult);
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, html);
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, html);
 
         assertEquals(1, result.size());
         verify(geminiService).analyzeJobPostings(companyName, "Software Engineer at Test Company");
@@ -140,7 +140,7 @@ class CompositeAiServiceTest {
     void testNullHtml() {
         when(geminiService.analyzeJobPostings(companyName, "")).thenReturn(mockResult);
 
-        List<AiJobPostingDto> result = compositeAiService.analyzeJobPostings(companyName, null);
+        List<AiJobPostingVo> result = compositeAiService.analyzeJobPostings(companyName, null);
 
         assertEquals(1, result.size());
         verify(geminiService).analyzeJobPostings(companyName, "");

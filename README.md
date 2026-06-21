@@ -183,20 +183,25 @@ graph LR
     subgraph "微服務 (port)"
         GW[Gateway<br/>8000]
         IAM[IAM Service<br/>8002]
-        PSS[Project-Skill Service<br/>8004]
+        COMP[Competency Service<br/>8004]
         JOB[Job Service<br/>8006]
-        AI[AI Service<br/>8007]
+        EXT[External API Service<br/>8007]
         ALT[Alert Service<br/>8008]
+    end
+
+    subgraph "Python Sidecar"
+        AIPY[AI-PY Service<br/>5001]
     end
 
     subgraph "Nacos 服務發現"
         NC((Nacos<br/>8848))
     end
 
-    NC -.-> GW & IAM & PSS & JOB & AI & ALT
+    NC -.-> GW & IAM & COMP & JOB & EXT & ALT
 
-    GW --> IAM & PSS & JOB & AI & ALT
-    IAM & PSS & JOB & ALT --> PG
+    GW --> IAM & COMP & JOB & EXT & ALT
+    AIPY -.->|直接 HTTP| EXT
+    IAM & COMP & JOB & ALT --> PG
     IAM & ALT --> RD
     JOB & ALT --> KF
     KF --> ZK
@@ -396,6 +401,38 @@ erDiagram
 - ✅ `skill_level` 與 `skill` 為一對多關係，確保等級定義與技能綁定
 - ✅ `function` 支援樹狀結構（parent 欄位），實現階層式功能選單
 
+## 服務名稱變更記錄
+
+| 原名稱 | 新名稱 | 說明 |
+|-------|-------|------|
+| `backend-ai-service` | `backend-external-api-service` | 擴增職責為外部整合中心（LINE/Discord/Config/AI 代理） |
+| `backend-project-skill-service` | `backend-competency-service` | 更貼近領域意涵：Competency = 技能 + 能力管理 |
+
+## Database-per-Service
+
+為實現微服務資料隔離，每個服務擁有獨立的 PostgreSQL 資料庫：
+
+| 資料庫名稱 | 歸屬服務 | 主要 Entity |
+|-----------|---------|------------|
+| `iam_service` | backend-iam-service | User, Role, Function, UserRole, RoleFunction |
+| `competency_service` | backend-competency-service | Project, Skill, SkillLevel, UserSkill, UserProject, ProjectSkill, UserProjectSkill |
+| `job_service` | backend-job-service | Company, JobPosting, CompanyWebsite, UserJobLink |
+| `external_api_service` | backend-external-api-service | VoiceDiary, BotConfig, ApiUsageLog |
+| `alert_service` | backend-alert-service | AquarkData, AlertCheckLimit |
+
+## Python AI 側車服務 (`backend-ai-py`)
+
+為了解決 Java 生態在 AI 推論方面的限制（語音辨識、語音合成、LLM Chat），引入 Python 側車架構：
+
+- **語言**：Python 3.11 + FastAPI
+- **服務名**：`ai-py-service`（Nacos 註冊）
+- **Port**：`5001`
+- **不經 Gateway**：由 `backend-external-api-service` 透過 Feign Client 直接內部呼叫
+- **功能**：
+  - **STT**：faster-whisper 語音辨識
+  - **TTS**：GPT-SoVIT HTTP API（主） + sherpa-onnx（備援）
+  - **Chat**：Ollama API 聊天（不含 LangChain / Milvus / RAG）
+
 ## 技術選型說明
 
 | 技術                    | 用途           | 選型原因                                            |
@@ -440,9 +477,16 @@ erDiagram
 | **職缺管理模組**  | 職缺 CRUD、依公司查詢、爬蟲結果儲存                                  | `/job-posting/*`              |
 | **爬蟲分析模組**  | Jsoup/Selenium 複合爬蟲抓取公司網站 + Gemini API 智能分析職缺資訊       | `內部服務`                        |
 | **AI 語音辨識模組**| 整合 whisperjni (whisper.cpp) 進行 GPU 加速 STT，支援中日文羅馬音/注音/拼音轉換 | `/stt/v1/*`                   |
+| **Python STT 模組** | 透過 Python sidecar (faster-whisper) 提供語音辨識，支援 LINE 音訊流程 | `POST /ai/inner/stt/recognize` |
+| **Python TTS 模組** | 透過 Python sidecar (GPT-SoVIT) 提供語音合成，儲存至 MinIO 回傳 URL | `POST /ai/inner/tts/synthesize` |
+| **Ollama Chat 模組** | 透過 Python sidecar 呼叫 Ollama 語言模型，支援同步/串流 | `POST /ai/inner/chat` |
 | **告警通知模組**  | 定時拉取外部資料、閾值比對、Kafka 非同步推送、WebSocket 即時通知              | `/alertCheckLimit/*`          |
 | **資料查詢模組**  | Aquark 感測器資料查詢、動態條件過濾、Redis 快取                        | `/aquarkData/*`               |
 | **快取統計監控模組** | Kafka-based 快取命中/未命中/Bloom Filter 阻擋統計，聚合至 Redis Hash 提供查詢 | `/cache-stats`                |
+| **LINE Bot 模組** | LINE Messaging API 整合，支援文字/音訊訊息處理、用量追蹤 | `/api/external/line/callback` |
+| **Discord Bot 模組** | Java Discord API (JDA) 整合，支援 `!chat` 指令呼叫 Ollama | 內部 WebSocket 連線 |
+| **外部 Config 管理** | 動態配置管理（平台 + 金鑰），支援用量限制設定 | `/api/external/config/**` |
+| **用量追蹤模組** | 各服務呼叫記錄、成本估算、每日額度檢查 | `/api/external/usage/**` |
 
 ## 工程實踐
 
@@ -645,7 +689,15 @@ cp .env.example .env
 docker compose -f compose.yaml up -d
 ```
 
-### Phase 2：啟動微服務
+### Phase 2：啟動 Python AI 側車服務
+
+Python 側車服務 (AI-PY) 提供 STT/TTS/Chat 功能，不經 Gateway，由 External API Service 直接呼叫：
+
+```bash
+conda run -n backend-ai-py uvicorn main:app --port 5001
+```
+
+### Phase 3：啟動微服務
 
 **選項 B：個別啟動（開發除錯）**
 
@@ -654,9 +706,9 @@ docker compose -f compose.yaml up -d
 ```bash
 # 啟動順序：iam-service → 其他服務 → gateway（最後）
 ./mvnw spring-boot:run -pl backend-iam-service
-./mvnw spring-boot:run -pl backend-project-skill-service
+./mvnw spring-boot:run -pl backend-competency-service
 ./mvnw spring-boot:run -pl backend-job-service
-./mvnw spring-boot:run -pl backend-ai-service
+./mvnw spring-boot:run -pl backend-external-api-service
 ./mvnw spring-boot:run -pl backend-alert-service
 ./mvnw spring-boot:run -pl backend-gateway
 ```
@@ -667,11 +719,16 @@ docker compose -f compose.yaml up -d
 |------|------|------|
 | Gateway | `8000` | API 入口閘道 |
 | IAM Service | `8002` | 身分識別與授權 |
-| Project-Skill Service | `8004` | 專案與技能管理 |
+| Competency Service | `8004` | 專案與技能管理 (原 Project-Skill Service) |
 | Job Service | `8006` | 職缺管理 |
-| AI Service | `8007` | AI 語音辨識 |
+| External API Service | `8007` | 外部整合、AI 代理、LINE/Discord Bot (原 AI Service) |
 | Alert Service | `8008` | 告警通知 |
+| AI-PY Service | `5001` | Python 側車服務 (STT/TTS/Chat，不經 Gateway) |
 | Nacos | `8848` | 服務發現主控台 |
+
+### 外部服務入口 (LINE Bot / Discord Bot)
+
+LINE Bot 與 Discord Bot 的完整設定說明（Webhook URL、Token 申請、頻道訂閱）請見 [`外部入口說明.md`](外部入口說明.md)
 
 ### Docker 內啟動 Gateway
 

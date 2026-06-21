@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
@@ -27,9 +27,9 @@ public class CompositeAiService implements IAiService {
     private GitHubModelsService gitHubModelsService;
 
     @Override
-    public List<AiJobPostingDto> analyzeJobPostings(String companyName, String htmlContent) {
+    public List<AiJobPostingVo> analyzeJobPostings(String companyName, String htmlContent) {
         String cleanText = cleanHtmlToText(htmlContent);
-        List<AiJobPostingDto> result;
+        List<AiJobPostingVo> result;
 
         result = tryService(geminiService, "Gemini", companyName, cleanText);
         if (result != null) return result;
@@ -47,10 +47,10 @@ public class CompositeAiService implements IAiService {
         return List.of();
     }
 
-    private List<AiJobPostingDto> tryService(IAiService service, String name, String companyName, String cleanText) {
+    private List<AiJobPostingVo> tryService(IAiService service, String name, String companyName, String cleanText) {
         try {
             log.info("Trying {} API for company: {}", name, companyName);
-            List<AiJobPostingDto> result = service.analyzeJobPostings(companyName, cleanText);
+            List<AiJobPostingVo> result = service.analyzeJobPostings(companyName, cleanText);
             if (result != null && !result.isEmpty()) {
                 return result;
             }

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,7 +27,7 @@ class BaseOpenAiServiceTest {
         protected String getModelName() { return modelName; }
 
         @Override
-        public List<AiJobPostingDto> parseResponse(String response) {
+        public List<AiJobPostingVo> parseResponse(String response) {
             return super.parseResponse(response);
         }
     }
@@ -60,7 +60,7 @@ class BaseOpenAiServiceTest {
     @DisplayName("parseResponse should extract single job from valid response")
     void parseResponseValidSingleJob() {
         String content = "[{\"title\":\"Engineer\",\"url\":\"https://x.com\",\"description\":\"desc\",\"requirements\":\"req\",\"responsibilities\":\"resp\",\"salaryRange\":\"100k\"}]";
-        List<AiJobPostingDto> result = service.parseResponse(buildApiResponse(content));
+        List<AiJobPostingVo> result = service.parseResponse(buildApiResponse(content));
         assertEquals(1, result.size());
         assertEquals("Engineer", result.get(0).getTitle());
         assertEquals("https://x.com", result.get(0).getUrl());
@@ -74,7 +74,7 @@ class BaseOpenAiServiceTest {
     @DisplayName("parseResponse should extract multiple jobs")
     void parseResponseMultipleJobs() {
         String content = "[{\"title\":\"A\",\"description\":\"d1\"},{\"title\":\"B\",\"description\":\"d2\"}]";
-        List<AiJobPostingDto> result = service.parseResponse(buildApiResponse(content));
+        List<AiJobPostingVo> result = service.parseResponse(buildApiResponse(content));
         assertEquals(2, result.size());
         assertEquals("A", result.get(0).getTitle());
         assertEquals("B", result.get(1).getTitle());
@@ -116,7 +116,7 @@ class BaseOpenAiServiceTest {
     @DisplayName("parseResponse should fill missing optional fields with empty string")
     void parseResponseMissingOptionalFields() {
         String content = "[{\"title\":\"T\",\"description\":\"D\"}]";
-        List<AiJobPostingDto> result = service.parseResponse(buildApiResponse(content));
+        List<AiJobPostingVo> result = service.parseResponse(buildApiResponse(content));
         assertEquals(1, result.size());
         assertEquals("T", result.get(0).getTitle());
         assertEquals("D", result.get(0).getDescription());
@@ -130,7 +130,7 @@ class BaseOpenAiServiceTest {
     @DisplayName("parseResponse should handle null field values gracefully")
     void parseResponseNullFieldValues() {
         String content = "[{\"title\":null,\"url\":null,\"description\":\"D\",\"requirements\":null,\"responsibilities\":null,\"salaryRange\":null}]";
-        List<AiJobPostingDto> result = service.parseResponse(buildApiResponse(content));
+        List<AiJobPostingVo> result = service.parseResponse(buildApiResponse(content));
         assertEquals(1, result.size());
         assertEquals("", result.get(0).getTitle());
         assertEquals("", result.get(0).getUrl());

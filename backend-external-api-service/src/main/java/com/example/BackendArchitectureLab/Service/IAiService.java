@@ -1,9 +1,9 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import java.util.List;
 
 public interface IAiService {
 
-    List<AiJobPostingDto> analyzeJobPostings(String companyName, String htmlContent);
+    List<AiJobPostingVo> analyzeJobPostings(String companyName, String htmlContent);
 }

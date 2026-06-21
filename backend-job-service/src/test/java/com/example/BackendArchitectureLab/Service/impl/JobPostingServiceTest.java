@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
@@ -369,7 +369,7 @@ class JobPostingServiceTest {
         existingJob.setTitle("Software Engineer");
         existingJob.setSalaryRange("100k-150k");
 
-        AiJobPostingDto aiJob = AiJobPostingDto.builder()
+        AiJobPostingVo aiJob = AiJobPostingVo.builder()
                 .title("Software Engineer")
                 .salaryRange("100k-150k")
                 .url("https://example.com/job")
@@ -396,7 +396,7 @@ class JobPostingServiceTest {
         website.setCompany(testCompany);
         testCompany.setWebsites(List.of(website));
 
-        AiJobPostingDto aiJob = AiJobPostingDto.builder()
+        AiJobPostingVo aiJob = AiJobPostingVo.builder()
                 .title(null)
                 .url("https://example.com/job")
                 .build();
@@ -451,7 +451,7 @@ class JobPostingServiceTest {
         when(companyDataAccess.findById(companyId)).thenReturn(Optional.of(testCompany));
         when(jobCrawler.crawl(url)).thenReturn("<html>job content</html>");
 
-        AiJobPostingDto aiJob = AiJobPostingDto.builder()
+        AiJobPostingVo aiJob = AiJobPostingVo.builder()
                 .title("Software Engineer")
                 .url("https://example.com/job")
                 .build();

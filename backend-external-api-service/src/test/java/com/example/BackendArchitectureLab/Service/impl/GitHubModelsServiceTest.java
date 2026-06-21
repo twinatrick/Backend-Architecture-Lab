@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,7 +65,7 @@ class GitHubModelsServiceTest {
     @DisplayName("analyzeJobPostings should return empty list when apiKey is blank")
     void analyzeJobPostingsBlankApiKey() throws Exception {
         setField(service, "apiKey", "");
-        List<AiJobPostingDto> result = service.analyzeJobPostings("TestCorp", "html");
+        List<AiJobPostingVo> result = service.analyzeJobPostings("TestCorp", "html");
         assertTrue(result.isEmpty());
     }
 
@@ -73,7 +73,7 @@ class GitHubModelsServiceTest {
     @DisplayName("analyzeJobPostings should return empty list when apiKey is null")
     void analyzeJobPostingsNullApiKey() throws Exception {
         setField(service, "apiKey", null);
-        List<AiJobPostingDto> result = service.analyzeJobPostings("TestCorp", "html");
+        List<AiJobPostingVo> result = service.analyzeJobPostings("TestCorp", "html");
         assertTrue(result.isEmpty());
     }
 

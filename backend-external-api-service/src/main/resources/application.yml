@@ -2,6 +2,9 @@ server:
   port: 8007
   max-http-request-header-size: 64KB
 spring:
+  docker:
+    compose:
+      enabled: false
   servlet:
     multipart:
       max-file-size: 50MB
@@ -18,6 +21,10 @@ spring:
     open-in-view: false
   application:
     name: external-api-service
+  autoconfigure:
+    exclude:
+      - com.linecorp.bot.spring.boot.LineBotWebMvcAutoConfiguration
+      - com.linecorp.bot.spring.boot.LineBotHandlerAutoConfiguration
   task:
     execution:
       shutdown:
@@ -27,6 +34,15 @@ spring:
     virtual:
       enabled: true
   cloud:
+    openfeign:
+      client:
+        config:
+          ai-py-service:
+            connect-timeout: 5000
+            read-timeout: 300000
+          gpt-sovit-client:
+            connect-timeout: 5000
+            read-timeout: 300000
     nacos:
       discovery:
         server-addr: localhost:8848
@@ -58,6 +74,49 @@ ai:
     logprob-thold: ${WHISPER_LOGPROB_THOLD:0.0}
     no-speech-thold: ${WHISPER_NO_SPEECH_THOLD:0.1}
     temperature-inc: ${WHISPER_TEMPERATURE_INC:0.0}
+minio:
+  url: ${MINIO_URL:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:ai-audio}
+
+line:
+  bot:
+    channel-secret: ${LINE_CHANNEL_SECRET:}
+    channel-token: ${LINE_CHANNEL_ACCESS_TOKEN:}
+  gf:
+    channel-secret: ${LINE_GF_CHANNEL_SECRET:}
+    channel-token: ${LINE_GF_CHANNEL_ACCESS_TOKEN:}
+  diary:
+    channel-secret: ${LINE_DIARY_CHANNEL_SECRET:}
+    channel-token: ${LINE_DIARY_CHANNEL_ACCESS_TOKEN:}
+
+discord:
+  gf:
+    token: ${DISCORD_GF_TOKEN:}
+  diary:
+    token: ${DISCORD_DIARY_TOKEN:}
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 120s
+        sliding-window-size: 5
+    instances:
+      pythonSttClient:
+        base-config: default
+      gptSoVitClient:
+        base-config: default
+      ai-py-service:
+        base-config: default
+  bulkhead:
+    instances:
+      pythonSttClient:
+        max-concurrent-calls: 3
+        max-wait-duration: 30s
+
 jwt:
   secret:
     use: ${JWT_SECRET_USE:qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}

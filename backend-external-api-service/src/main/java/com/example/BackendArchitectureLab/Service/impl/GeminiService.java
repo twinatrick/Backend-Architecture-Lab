@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -55,7 +55,7 @@ public class GeminiService implements IAiService {
     private String apiUrl;
 
     @Override
-    public List<AiJobPostingDto> analyzeJobPostings(String companyName, String htmlContent) {
+    public List<AiJobPostingVo> analyzeJobPostings(String companyName, String htmlContent) {
         String truncatedHtml = htmlContent.length() > 60000
                 ? htmlContent.substring(0, 60000)
                 : htmlContent;
@@ -96,7 +96,7 @@ public class GeminiService implements IAiService {
                 }
 
                 previousResponse = response;
-                List<AiJobPostingDto> result = parseResponse(response);
+                List<AiJobPostingVo> result = parseResponse(response);
 
                 if (isValidJobList(result)) return result;
                 log.warn("Gemini response format invalid for company: {} (attempt {})", companyName, attempt + 1);
@@ -198,9 +198,9 @@ public class GeminiService implements IAiService {
         return gson.toJson(requestBody);
     }
 
-    private boolean isValidJobList(List<AiJobPostingDto> jobs) {
+    private boolean isValidJobList(List<AiJobPostingVo> jobs) {
         if (jobs == null || jobs.isEmpty()) return false;
-        for (AiJobPostingDto job : jobs) {
+        for (AiJobPostingVo job : jobs) {
             if (job.getTitle() == null || job.getTitle().isBlank()) return false;
             if (job.getDescription() == null || job.getDescription().isBlank()) return false;
         }
@@ -227,7 +227,7 @@ public class GeminiService implements IAiService {
         return rawResponse;
     }
 
-    private List<AiJobPostingDto> parseResponse(String response) {
+    private List<AiJobPostingVo> parseResponse(String response) {
         try {
             JsonObject responseObj = gson.fromJson(response, JsonObject.class);
             JsonArray candidates = responseObj.getAsJsonArray("candidates");
@@ -257,10 +257,10 @@ public class GeminiService implements IAiService {
             String jsonArray = text.substring(start, end + 1);
             JsonArray jobs = gson.fromJson(jsonArray, JsonArray.class);
 
-            List<AiJobPostingDto> result = new ArrayList<>();
+            List<AiJobPostingVo> result = new ArrayList<>();
             for (JsonElement jobElement : jobs) {
                 JsonObject jobObj = jobElement.getAsJsonObject();
-                AiJobPostingDto dto = new AiJobPostingDto();
+                AiJobPostingVo dto = new AiJobPostingVo();
                 
                 JsonElement title = jobObj.get("title");
                 dto.setTitle(title != null && !title.isJsonNull() ? title.getAsString() : "");

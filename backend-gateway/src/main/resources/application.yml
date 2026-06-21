@@ -41,7 +41,7 @@ spring:
         - id: external-api-service
           uri: lb://external-api-service
           predicates:
-            - Path=/api/stt/**,/api/ai/**
+            - Path=/api/stt/**,/api/ai/**,/api/external/**
           filters:
             - StripPrefix=1
 

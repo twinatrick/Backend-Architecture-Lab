@@ -31,12 +31,20 @@
   - **Mockito Warning**: 測試已在 Maven Surefire 中設定 `-XX:+EnableDynamicAgentLoading` 來消除 Java 21 下的警告。
 
 ## Architecture & Code Conventions
+- **實作前必須先調查既有風格與慣例 (Pre-flight Investigation)**: 在新增或修改功能前，**必須先調查**既有程式碼的風格與慣例，包含但不限於：Entity 欄位型別、Repository 方法簽名、既有 Service 是否有 Interface、Mapper/DTO 所在模組位置、依賴注入風格、日期型別使用方式。不得預設假設或憑空猜測，應以 master 分支或同模組既有檔案為準。
 - **Master Branch 為最終依據**: 在判斷程式碼行為是否合理時，**必須優先參考 `master` 分支的實作**，因為 master 是經過 Review 後的結論。若當前分支與 master 有歧異，以 master 為準。
 - **Base Package**: `com.example.BackendArchitectureLab` (注意大小寫)
 - **Generators**: 專案大量使用 MapStruct 與 Lombok，Maven 已設定對應的 Annotation Processors。
 - **Package Quirks**: 請遵守現有的 Package 命名與大小寫慣例：
   - 首字母大寫: `Aop`, `Dto`, `Entity`, `Repository`, `Service`, `Timer`, `Util`, `WebSocket`,`Annotation`, `Config`, `Controller`, `Dataaccess`, `Exception`, `Filter`, `Mapper`
 - **Dependency Injection**: 專案使用 **Field injection**（`@Autowired` 直接寫在欄位上）作為預設注入方式。
+- **Service 層與 Mapper 使用規範 (重要)**：
+  - Mapper 僅可在 Service Impl 層中使用，Controller **嚴禁**注入或呼叫 Mapper
+  - Service 介面方法簽名必須回傳 DTO（如 `UserVo`、`BotConfigDto`），嚴禁回傳 Entity
+  - Service 實作內部透過 Mapper 進行 Entity ↔ DTO 雙向轉換
+  - Controller 只與 Service 介面及 DTO 型別互動，Controller 程式碼中不得出現 Entity 型別
+- **Entity 使用規範 (重要)**:
+  - Entity 僅在 Repository、DataAccess 及 Service Impl（經 Mapper 轉換後）中使用，**嚴禁**傳遞至 Controller 層或作為 API 回傳型別
 - **微服務分類使用規則**: **絕對必須遵守** `微服務分類使用規則.md` 中的所有架構規範，特別是模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager 等規則。
 
 ## Git & Version Control (嚴格規定)

@@ -6,7 +6,7 @@ import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
@@ -104,10 +104,10 @@ public class JobPostingService implements IJobPostingService {
     public JobPostingVo getJobPostingById(String id) {
         UUID uuid = mapUuid(id);
         if (uuid == null) {
-            throw new AppException("NOT_FOUND", "職缺不存在", 404);
+            throw new AppException("NOT_FOUND", "?�缺不�???, 404);
         }
         JobPosting jobPosting = jobPostingDataAccess.findById(uuid)
-                .orElseThrow(() -> new AppException("NOT_FOUND", "職缺不存在", 404));
+                .orElseThrow(() -> new AppException("NOT_FOUND", "?�缺不�???, 404));
         return jobPostingMapper.toVo(jobPosting);
     }
 
@@ -238,12 +238,12 @@ public class JobPostingService implements IJobPostingService {
                 continue;
             }
 
-            List<AiJobPostingDto> analyzedJobs = aiServiceFeignClient.analyzeJobPostings(company.getName(), htmlContent);
+            List<AiJobPostingVo> analyzedJobs = aiServiceFeignClient.analyzeJobPostings(company.getName(), htmlContent);
             log.info("AI service returned {} jobs from URL: {}", analyzedJobs.size(), url);
 
             List<JobPosting> existingJobs = jobPostingDataAccess.findByCompanyId(uuid);
 
-            for (AiJobPostingDto jobData : analyzedJobs) {
+            for (AiJobPostingVo jobData : analyzedJobs) {
                 try {
                     String title = jobData.getTitle() != null && !jobData.getTitle().isBlank() ? jobData.getTitle() : "Unknown Title";
                     String salaryRange = jobData.getSalaryRange() != null ? jobData.getSalaryRange() : "";
@@ -339,7 +339,7 @@ public class JobPostingService implements IJobPostingService {
         return null;
     }
 
-    private boolean updateIfChanged(JobPosting existing, AiJobPostingDto newData) {
+    private boolean updateIfChanged(JobPosting existing, AiJobPostingVo newData) {
         boolean changed = false;
         String newUrl = newData.getUrl() != null ? newData.getUrl() : "";
         if (!newUrl.equals(existing.getUrl() != null ? existing.getUrl() : "")) {

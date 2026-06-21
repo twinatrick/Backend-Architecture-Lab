@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
+import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -36,7 +36,7 @@ public class GitHubModelsService extends BaseOpenAiService {
     }
 
     @Override
-    public List<AiJobPostingDto> analyzeJobPostings(String companyName, String htmlContent) {
+    public List<AiJobPostingVo> analyzeJobPostings(String companyName, String htmlContent) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("GitHub Models API key not configured, skipping");
             return List.of();
