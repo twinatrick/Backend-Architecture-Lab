@@ -10,12 +10,12 @@ sys.modules["av"] = MagicMock()
 sys.modules["faster_whisper"] = MagicMock()
 sys.modules["minio"] = MagicMock()
 
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
 
 # Ensure backend-ai-py folder is in the python search path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from main import app
+from main import app  # noqa: E402
 
 
 def test_health():
