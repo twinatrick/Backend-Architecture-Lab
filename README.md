@@ -609,9 +609,10 @@ erDiagram
 
 ### 非同步事件處理
 
-- 告警訊息透過 Kafka `socketSend` topic 非同步傳輸
-- 消費者群組 `myGroup` 確保訊息可靠消費
-- 解耦資料檢查與即時推送邏輯
+- 整合 Kafka 消息佇列，構建高性能、低延遲的事件驅動與非同步解耦架構
+- 涵蓋即時告警廣播 (`socketSend`)、分散式交易補償 (`transaction-compensation`) 以及跨服務快取指標監控 (`cache-stats`) 三大核心業務
+- 支援消費者群組負載均衡（預設 `myGroup`）、批量拉取消費與 Spring Kafka 自動化重試及異常處理（`DefaultErrorHandler`）
+- 詳盡的架構設計、Topic 欄位規格、補償機制及消費重試細節請見 **`非同步事件處理.md`**
 
 ### Spring Security 認證攔截
 
