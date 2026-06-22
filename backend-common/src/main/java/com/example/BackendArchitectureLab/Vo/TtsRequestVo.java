@@ -12,4 +12,7 @@ import lombok.NoArgsConstructor;
 public class TtsRequestVo {
     private String text;
     private String language = "zh";
+    private String voiceSampleKey;
+    private String voiceSampleText;
+    private String voiceSampleLang;
 }

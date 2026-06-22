@@ -18,7 +18,8 @@ public class DiscordBotConfig {
     public JDA discordGfJda(@Value("${discord.gf.token}") String token,
                             DiscordGfListener listener) {
         return JDABuilder.createDefault(token)
-                .enableIntents(GatewayIntent.MESSAGE_CONTENT)
+                .enableIntents(GatewayIntent.MESSAGE_CONTENT,
+                        GatewayIntent.GUILD_MESSAGES)
                 .addEventListeners(listener)
                 .build();
     }
