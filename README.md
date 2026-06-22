@@ -165,6 +165,32 @@ sequenceDiagram
     end
 ```
 
+### 快取監控統計流程 🆕
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as 應用服務 (IAM/Competency/Job)
+    participant Kafka as Kafka Topic: "cache-stats"
+    participant Alert as Alert Service (CacheStatsConsumer)
+    participant Redis as Redis (cache:stats:*)
+    participant Client as 監控前端 / 管理員
+    participant Ctrl as CacheStatsController
+
+    App ->> App: 觸發快取事件 (Hit / Miss / Bloom Filter 阻擋)
+    App ->> Kafka: 發送 CacheStatsEvent (cacheName, field)
+    Kafka -->> Alert: 消費事件訊息
+    Alert ->> Redis: 更新統計數據 (HINCRBY cacheName field)
+    
+    rect rgb(240, 248, 255)
+        note right of Ctrl: 監控查詢流程
+        Client ->> Ctrl: GET /cache-stats
+        Ctrl ->> Redis: 讀取統計資料
+        Redis -->> Ctrl: 回傳統計數據
+        Ctrl -->> Client: 結構化 JSON 統計回傳
+    end
+```
+
 ### 基礎設施拓撲
 
 ```mermaid
@@ -372,6 +398,78 @@ erDiagram
     }
 ```
 
+#### 6. 外部與 AI 代理資料模型 🆕
+
+```mermaid
+erDiagram
+    LINE_GF_SESSION {
+        uuid id PK
+        string user_id UK "唯一"
+        boolean active
+        string prompt
+        boolean voice_enabled
+        string voice_sample_key
+        string voice_sample_text
+        boolean pending_prompt
+        string gf_name
+        string gf_avatar_url
+        string conversation_history
+    }
+
+    DISCORD_GF_SESSION {
+        uuid id PK
+        string guild_id
+        string channel_id
+        string user_id
+        boolean active
+        string prompt
+        boolean voice_enabled
+        string voice_sample_key
+        string voice_sample_text
+        string gf_name
+        string gf_avatar_url
+        string conversation_history
+    }
+
+    DISCORD_SUBSCRIPTION {
+        uuid id PK
+        string guild_id
+        string channel_id
+        string bot_type
+        string webhook_url
+        string webhook_id
+    }
+
+    BOT_CONFIG {
+        uuid id PK
+        string platform
+        string config_key
+        string config_value
+        string description
+        decimal cost_limit_daily
+        decimal cost_alert_at
+    }
+
+    API_USAGE_LOG {
+        uuid id PK
+        string service
+        string call_type
+        string input_unit
+        integer input_amount
+        decimal estimated_cost
+        string user_id
+    }
+
+    VOICE_DIARY {
+        uuid id PK
+        string user_id
+        string audio_url
+        string transcript
+        string language
+        string source
+    }
+```
+
 **核心資料表說明**：
 
 | 資料表                  | 類型  | 用途                       | 唯一約束                            |
@@ -391,6 +489,12 @@ erDiagram
 | `company`            | 主實體 | 公司/企業資訊                  | -                               |
 | `job_posting`        | 主實體 | 職缺資訊（含 Gemini 分析結果）      | -                               |
 | `user_job_link`      | 關聯表 | 使用者儲存的職缺（個人收藏）           | (user_id, job_posting_id)       |
+| `line_gf_session`    | 主實體 | LINE 女友聊天會話狀態          | user_id                         |
+| `discord_gf_session` | 主實體 | Discord 女友聊天會話狀態       | (channel_id, user_id)           |
+| `discord_subscription`| 主實體 | Discord Webhook 訂閱設定      | -                               |
+| `bot_config`         | 主實體 | 平台與機器人全局設定、用量水位    | -                               |
+| `api_usage_log`      | 審計表 | 外部 API 呼叫用量與估算成本記錄  | -                               |
+| `voice_diary`        | 主實體 | 語音日記轉譯記錄與音訊網址      | -                               |
 
 **資料模型設計特點**：
 
@@ -417,7 +521,7 @@ erDiagram
 | `iam_service` | backend-iam-service | User, Role, Function, UserRole, RoleFunction |
 | `competency_service` | backend-competency-service | Project, Skill, SkillLevel, UserSkill, UserProject, ProjectSkill, UserProjectSkill |
 | `job_service` | backend-job-service | Company, JobPosting, CompanyWebsite, UserJobLink |
-| `external_api_service` | backend-external-api-service | VoiceDiary, BotConfig, ApiUsageLog |
+| `external_api_service` | backend-external-api-service | VoiceDiary, BotConfig, ApiUsageLog, LineGfSession, DiscordGfSession, DiscordSubscription |
 | `alert_service` | backend-alert-service | AquarkData, AlertCheckLimit |
 
 ## Python AI 側車服務 (`backend-ai-py`)
@@ -449,8 +553,6 @@ erDiagram
 | **Lombok**            | 程式碼簡化        | 減少 getter/setter/constructor 樣板程式碼              |
 | **Jsoup**             | HTML 解析與網頁爬蟲 | 輕量級靜態頁面爬取，支援 CSS Selector 與 DOM 操作，適合結構化頁面      |
 | **Selenium**          | 動態網頁爬蟲       | 瀏覽器自動化工具，處理 JavaScript 渲染頁面，作為 Jsoup 的 fallback |
-| **whisperjni (whisper.cpp)** | AI 模型推論引擎   | JNI 封裝 whisper.cpp，用於本地端 GPU/CUDA 加速語音辨識 (STT)    |
-| **jave-all-deps**     | 音訊轉檔工具      | 基於 FFmpeg，用於將各類音訊檔轉換為 Whisper 需要的 16kHz PCM    |
 | **Kuromoji**          | 日文 NLP 工具    | 日文形態素分析與片假名拼音萃取                                 |
 | **Pinyin4j/Bopomofo** | 中文拼音/注音轉換   | 中文字轉漢語拼音及注音符號轉換引擎                               |
 | **opencc4j**          | 簡繁中文轉換      | STT 辨識結果由簡體轉換為繁體中文輸出                             |
@@ -476,8 +578,7 @@ erDiagram
 | **公司管理模組**  | 公司 CRUD，作為職缺的隸屬企業                                     | `/company/*`                  |
 | **職缺管理模組**  | 職缺 CRUD、依公司查詢、爬蟲結果儲存                                  | `/job-posting/*`              |
 | **爬蟲分析模組**  | Jsoup/Selenium 複合爬蟲抓取公司網站 + Gemini API 智能分析職缺資訊       | `內部服務`                        |
-| **AI 語音辨識模組**| 整合 whisperjni (whisper.cpp) 進行 GPU 加速 STT，支援中日文羅馬音/注音/拼音轉換 | `/stt/v1/*`                   |
-| **Python STT 模組** | 透過 Python sidecar (faster-whisper) 提供語音辨識，支援 LINE 音訊流程 | `POST /ai/inner/stt/recognize` |
+| **AI 語音辨識模組**| 透過 Java 整合 Python sidecar (faster-whisper) 進行高效率語音辨識、支援 LINE 音訊流程與 MinIO 雲端儲存，並提供中日文羅馬音/注音/拼音轉換 | `/stt/v1/*` 與 `POST /ai/inner/stt/recognize` |
 | **Python TTS 模組** | 透過 Python sidecar (GPT-SoVIT) 提供語音合成，儲存至 MinIO 回傳 URL | `POST /ai/inner/tts/synthesize` |
 | **Ollama Chat 模組** | 透過 Python sidecar 呼叫 Ollama 語言模型，支援同步/串流 | `POST /ai/inner/chat` |
 | **告警通知模組**  | 定時拉取外部資料、閾值比對、Kafka 非同步推送、WebSocket 即時通知              | `/alertCheckLimit/*`          |
@@ -613,61 +714,66 @@ erDiagram
 
 ## 🤖 AI 語音辨識功能 (STT) 說明
 
-系統已內建基於 **whisperjni (whisper.cpp)** 的 Whisper 語音辨識服務，支援 CUDA GPU 加速，可將上傳的音訊進行本地推論，並將結果轉換為各種拼音格式。
+本專案採用 **Java + Python 協作架構**，將語音推論交由 Python 側車服務 (`backend-ai-py`) 執行。透過高效率的 `faster-whisper` 推論引擎，不僅提升了辨識速度，也消除了 Java 原生 JNI 與 FFmpeg 轉檔庫的複雜依賴。
 
-### API 介面：`POST /stt/v1/{lan}/{mode}`
+### 運作架構
 
-*   **參數說明**:
-    *   `lan`: 語言。`zh` (繁體中文), `ja` (日文)
-    *   `mode`: 輸出模式。`pinyin` (拼音), `zhuyin` (注音), `romaji` (日文羅馬音), `none` (不輸出拼音)
-    *   `file`: 音訊檔案 (MultipartFile，支援 MP3/WAV/M4A，後端會使用 FFmpeg 自動轉 16kHz PCM)
-
-*   **CURL 測試範例**:
-    ```bash
-    curl -X POST "http://localhost:8000/stt/v1/zh/zhuyin" \
-         -H "Content-Type: multipart/form-data" \
-         -F "file=@/path/to/your/audio.mp3"
-    ```
-
-### 模型下載與配置指南
-
-本專案使用 **GGML 格式** 的 Whisper 模型（非 ONNX），透過 whisper.cpp 在本地執行推論。
-
-#### 下載模型
-
-```bash
-# 下載 ggml-large-v3-turbo.bin（約 1.5GB，高準確度，建議 NVIDIA GPU）
-curl -L -o src/main/resources/models/ggml-large-v3-turbo.bin ^
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
-
-# 或下載 ggml-tiny.bin（約 75MB，快速測試用，支援 CPU）
-curl -L -o src/main/resources/models/ggml-tiny.bin ^
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
+```mermaid
+graph LR
+    Client[客戶端/LINE/Discord] -->|1. 上傳音訊| JavaService[Java Web 服務]
+    JavaService -->|2. OpenFeign 調用 POST /stt| PyService[Python AI-PY 服務]
+    PyService -->|3. 轉 WAV & faster-whisper 推論| PyService
+    PyService -->|4. 上傳音訊| MinIO[(MinIO 儲存)]
+    PyService -->>|5. 回傳辨識文字與 MinIO URL| JavaService
+    JavaService -->|6. 本地 NLP 拼音轉換| JavaService
+    JavaService -->>|7. 回傳結果| Client
 ```
 
-#### 配置模型路徑
+1. **音訊上傳與中繼**：Java 服務接收音訊檔案後，不進行本地轉檔，直接透過 Feign Client 將音訊原始位元組轉發至 Python 側車服務 (`backend-ai-py`) 的 `/stt` 端點。
+2. **高效推論與雲端儲存**：Python 服務將音訊自動轉為標準 16kHz WAV 格式，使用 `faster-whisper` 執行語音轉文字（STT），同時將音訊自動上傳至 MinIO 物件儲存，並計算音訊長度。
+3. **本地 NLP 拼音轉換**：Java 服務接收到 Python 回傳的文字後，使用 JVM 本地 NLP 引擎（如 `opencc4j`, `Pinyin4j`, `Kuromoji`）完成繁簡轉換、注音、漢語拼音或日文羅馬拼音的精密轉換，最終回傳。
 
-預設路徑為 `models/ggml-large-v3-turbo.bin`（相對於工作目錄），可透過環境變數或 `application.yml` 修改：
+---
 
-```yaml
-ai:
-  whisper:
-    model-path: ${WHISPER_MODEL_PATH:models/ggml-large-v3-turbo.bin}
-```
+### 提供之 API 介面
 
-或直接在啟動時指定：
+#### 1. 前端/拼音轉換整合介面：`POST /stt/v1/{lan}/{mode}`
+由 Java `LearnController` 提供，整合了 STT 與本地 NLP 拼音注音轉換：
+* **路徑參數**:
+  * `lan`: 辨識目標語言。支援 `zh` (繁體中文), `ja` (日文)
+  * `mode`: 拼音輸出模式。支援 `pinyin` (拼音), `zhuyin` (注音), `romaji` (日文羅馬拼音), `none` (不輸出拼音)
+* **請求參數**:
+  * `file`: 音訊檔案 (MultipartFile，支援 MP3/WAV/M4A/AMR 等)
+* **CURL 測試範例**:
+  ```bash
+  curl -X POST "http://localhost:8000/stt/v1/zh/zhuyin" \
+       -H "Content-Type: multipart/form-data" \
+       -F "file=@/path/to/your/audio.mp3"
+  ```
 
-```bash
-set WHISPER_MODEL_PATH=models/ggml-tiny.bin
-./mvnw spring-boot:run
-```
+#### 2. 內部通用辨識介面：`POST /ai/inner/stt/recognize`
+由 Java `AiInternalController` 提供，供 Discord Bot、LINE Bot 等背景服務直接獲取辨識結果與音訊檔案儲存 URL：
+* **請求參數**:
+  * `file`: 音訊檔案 (MultipartFile)
+  * `language`: 辨識目標語言 (String，預設 `zh`)
+* **回應格式 (SttResponseVo)**:
+  ```json
+  {
+    "text": "語音辨識內容",
+    "language": "zh",
+    "duration_sec": 4.52,
+    "audio_url": "http://localhost:9000/ai-audio/stt/2026/06/xxx.wav"
+  }
+  ```
 
-#### GPU 加速說明
+---
 
-- whisperjni 會自動偵測系統上的 NVIDIA CUDA 驅動
-- 若偵測到 CUDA，推論將自動在 GPU 上執行（需安裝 [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)）
-- 若無 GPU，則自動回退至 CPU 推論
-- 推論線程數可透過 `params.nThreads` 調整（預設 4）
+### Python 側端模型與推論設定
+
+可在 Python 側車服務中的 `.env` 檔案中設定以下參數來調校 `faster-whisper`：
+* `WHISPER_MODEL_SIZE`: 模型大小。預設為 `base`（支援 `tiny`, `small`, `medium`, `large-v3` 等）。
+* `WHISPER_DEVICE`: 運作裝置。預設為 `cpu`（若有 NVIDIA 顯卡可設為 `cuda`）。
+* `WHISPER_COMPUTE_TYPE`: 計算精度。預設為 `int8`（如使用 GPU 可改為 `float16` 以提升推論速度）。
 
 ## 啟動方式
 
@@ -1614,7 +1720,6 @@ class UserIntegrationTest {
 | `Service/impl/Kafka*`, `*Alarm*` | Kafka 依賴，需 Broker 基礎設施 |
 | `Service/impl/CheckApiService` | 外部 API 定時輪詢，需實際端點 |
 | `Util/CallApi.class` | HTTP 請求工具類，單純 HttpClient 封裝 |
-| `Service/Onnx/**` | 需 GPU 與 Whisper 模型檔 (GGML) 才能執行 |
 | `Crawler/**` | 網頁爬蟲需實際連線目標網站，無法單元驗證 |
 
 **檢視覆蓋率報告：**

@@ -39,7 +39,6 @@
         <selenium.version>4.29.0</selenium.version>
         <webdrivermanager.version>5.9.3</webdrivermanager.version>
         <jose4j.version>0.7.12</jose4j.version>
-        <jave.version>3.5.0</jave.version>
         <kuromoji.version>0.9.0</kuromoji.version>
         <pinyin4j.version>2.5.1</pinyin4j.version>
         <bopomofo4j.version>1.0.1</bopomofo4j.version>
@@ -194,11 +193,6 @@
                 <groupId>org.bitbucket.b_c</groupId>
                 <artifactId>jose4j</artifactId>
                 <version>${jose4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>ws.schild</groupId>
-                <artifactId>jave-all-deps</artifactId>
-                <version>${jave.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.atilika.kuromoji</groupId>
