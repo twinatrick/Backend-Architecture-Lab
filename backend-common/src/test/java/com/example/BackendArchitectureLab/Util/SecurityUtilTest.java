@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Util;
 
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

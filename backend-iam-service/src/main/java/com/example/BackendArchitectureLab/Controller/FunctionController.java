@@ -1,15 +1,15 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.FunctionSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IFunctionService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionTransVo;
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.FunctionTransVo;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;

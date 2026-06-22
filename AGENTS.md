@@ -26,19 +26,33 @@
        RTK 進行極致壓縮。
   - **Coverage**: `./mvnw jacoco:report`。Jacoco 覆蓋率報告位於 `target/site/jacoco/index.html`。
   - **Coverage Rules**: 專案設定了最低 80% 的覆蓋率要求 (`BUNDLE` 級別)。注意：多數的對外介面與資料存取層 (Controller,
-    Entity, Dto, mapper 等) 在 `pom.xml` 中被設定排除覆蓋率計算。
+    Entity, mapper 等) 在 `pom.xml` 中被設定排除覆蓋率計算。
   - **Commit Rule**: 當 `./mvnw test` 未全部通過時，**禁止 commit**。必須先確認測試全部通過（Failures: 0, Errors: 0），才能執行 git commit。
   - **Mockito Warning**: 測試已在 Maven Surefire 中設定 `-XX:+EnableDynamicAgentLoading` 來消除 Java 21 下的警告。
 
 ## Architecture & Code Conventions
+- **實作前必須先調查既有風格與慣例 (Pre-flight Investigation)**: 在新增或修改功能前，**必須先調查**既有程式碼的風格與慣例，包含但不限於：Entity 欄位型別、Repository 方法簽名、既有 Service 是否有 Interface、Mapper/Vo 所在模組位置、依賴注入風格、日期型別使用方式。不得預設假設或憑空猜測，應以 master 分支或同模組既有檔案為準。
 - **Master Branch 為最終依據**: 在判斷程式碼行為是否合理時，**必須優先參考 `master` 分支的實作**，因為 master 是經過 Review 後的結論。若當前分支與 master 有歧異，以 master 為準。
 - **Base Package**: `com.example.BackendArchitectureLab` (注意大小寫)
 - **Generators**: 專案大量使用 MapStruct 與 Lombok，Maven 已設定對應的 Annotation Processors。
 - **Package Quirks**: 請遵守現有的 Package 命名與大小寫慣例：
-  - 首字母大寫: `Aop`, `Dto`, `Entity`, `Repository`, `Service`, `Timer`, `Util`, `WebSocket`,`Annotation`, `Config`, `Controller`, `Dataaccess`, `Exception`, `Filter`, `Mapper`
+  - 首字母大寫: `Aop`, `Vo`, `Entity`, `Repository`, `Service`, `Timer`, `Util`, `WebSocket`,`Annotation`, `Config`, `Controller`, `Dataaccess`, `Exception`, `Filter`, `Mapper`
 - **Dependency Injection**: 專案使用 **Field injection**（`@Autowired` 直接寫在欄位上）作為預設注入方式。
+- **Service 層與 Mapper 使用規範 (重要)**：
+  - Mapper 僅可在 Service Impl 層中使用，Controller **嚴禁**注入或呼叫 Mapper
+  - Service 介面方法簽名必須回傳 Vo（如 `UserVo`、`BotConfigVo`），嚴禁回傳 Entity
+  - Service 實作內部透過 Mapper 進行 Entity ↔ Vo 雙向轉換
+  - Controller 只與 Service 介面及 Vo 型別互動，Controller 程式碼中不得出現 Entity 型別
+- **Entity 使用規範 (重要)**:
+  - Entity 僅在 Repository、DataAccess 及 Service Impl（經 Mapper 轉換後）中使用，**嚴禁**傳遞至 Controller 層或作為 API 回傳型別
 - **微服務分類使用規則**: **絕對必須遵守** `微服務分類使用規則.md` 中的所有架構規範，特別是模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager 等規則。
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。
 - **敏感檔案保護**：執行任何 Git 相關操作前，必須檢查並確保 `.env` 等包含機密/本地設定的檔案已正確列入 `.gitignore`，嚴禁將其加入版本控制。
+- **禁止提交日誌與暫存檔案 (Pre-commit 優先檢查)**：
+  在每次執行 `git commit` 前，**必須優先檢查**工作目錄中是否包含 `*.log`、`*.err` 等日誌/錯誤檔案，
+  以及 `TODO.md` 等非原始碼文件。若發現這些檔案被暫存 (staged) 或存在於 Git 追蹤清單中，
+  **必須立即中斷 commit 流程**，先執行 `git rm --cached` 將其從追蹤中移除，
+  並確認 `.gitignore` 已涵蓋對應模式，才能繼續提交動作。
+  **例外情況**：若該檔案在 `README.md` 中有明確提及或作為專案必要文件說明，則不在此限。

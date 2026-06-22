@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

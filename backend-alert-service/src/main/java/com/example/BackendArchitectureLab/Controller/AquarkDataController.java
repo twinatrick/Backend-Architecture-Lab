@@ -2,15 +2,15 @@ package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IAquarkDataService;
-import com.example.BackendArchitectureLab.Annotation.Ingnore;
+import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.AquarkDataRaw;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.AverageAquark;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.CriteriaAPIFilter;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.TimeRange;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.TimeRange;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,7 +39,7 @@ public class AquarkDataController {
         return new ResponseType<>(aquarkDataService.getColumnNameList());
     }
 
-    @Ingnore
+    @Ignore
     @PostMapping("/getAverage")
     @ApiOperationBadRequest(summary = "Get average aquark data", description = "Returns averaged aquark data within a time range.")
     public ResponseType<List<AverageAquark>> getAverage(@RequestBody TimeRange time) {

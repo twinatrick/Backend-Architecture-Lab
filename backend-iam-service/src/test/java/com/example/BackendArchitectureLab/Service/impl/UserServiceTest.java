@@ -2,16 +2,16 @@ package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
-import com.example.BackendArchitectureLab.Feign.ProjectServiceFeignClient;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.UserSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Feign.CompetencyProjectFeignClient;
+import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.impl.UserService;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.User;
 import org.junit.jupiter.api.AfterEach;
@@ -66,7 +66,7 @@ class UserServiceTest {
     private IRoleService roleService;
 
     @Mock
-    private ProjectServiceFeignClient projectServiceFeignClient;
+    private CompetencyProjectFeignClient projectServiceFeignClient;
 
     @Mock
     private UserMapper userMapper;

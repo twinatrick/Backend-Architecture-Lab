@@ -1,11 +1,11 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.PersonalProjectRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectMemberSkillVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectSkillVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.ProjectSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
+import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
+import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
+import com.example.BackendArchitectureLab.Vo.ProjectVo;
+import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 
 import java.util.List;
 import java.util.Map;

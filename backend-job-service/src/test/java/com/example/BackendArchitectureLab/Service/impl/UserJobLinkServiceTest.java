@@ -2,10 +2,9 @@ package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
-import com.example.BackendArchitectureLab.Dto.Vo.UserJobLinkVo;
+import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
-import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
@@ -53,7 +52,7 @@ class UserJobLinkServiceTest {
     @InjectMocks
     private UserJobLinkService userJobLinkService;
 
-    private User testUser;
+    private UUID testUserUuid;
     private JobPosting testJobPosting;
     private UserJobLink testLink;
     private UserJobLinkVo testLinkVo;
@@ -68,9 +67,7 @@ class UserJobLinkServiceTest {
         jobPostingId = UUID.randomUUID();
         linkId = UUID.randomUUID();
 
-        testUser = new User();
-        testUser.setId(userId);
-        testUser.setEmail("test@example.com");
+        testUserUuid = userId;
 
         Company company = new Company();
         company.setId(UUID.randomUUID());
@@ -83,7 +80,7 @@ class UserJobLinkServiceTest {
 
         testLink = new UserJobLink();
         testLink.setId(linkId);
-        testLink.setUser(testUser);
+        testLink.setUserId(testUserUuid);
         testLink.setJobPosting(testJobPosting);
         testLink.setUserNotes("Interested");
 
@@ -99,9 +96,9 @@ class UserJobLinkServiceTest {
             if (link.getId() != null) {
                 vo.setId(link.getId().toString());
             }
-            if (link.getUser() != null) {
-                vo.setUserId(link.getUser().getId().toString());
-                vo.setUserEmail(link.getUser().getEmail());
+            if (link.getUserId() != null) {
+                vo.setUserId(link.getUserId().toString());
+                vo.setUserEmail("");
             }
             if (link.getJobPosting() != null) {
                 vo.setJobPostingId(link.getJobPosting().getId().toString());

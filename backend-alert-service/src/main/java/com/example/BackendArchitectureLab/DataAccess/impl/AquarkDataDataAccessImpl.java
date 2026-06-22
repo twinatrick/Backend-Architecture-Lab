@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.impl;
 
 import com.example.BackendArchitectureLab.Repository.AquarkDataRepository;
 import com.example.BackendArchitectureLab.DataAccess.IAquarkDataDataAccess;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.CriteriaBuilder;

@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.RoleSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Entity.*;
 import com.example.BackendArchitectureLab.Service.impl.RoleService;
 import com.example.BackendArchitectureLab.DataAccess.*;
@@ -9,9 +9,9 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.RoleMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
-import com.example.BackendArchitectureLab.Dto.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -47,7 +47,7 @@ public class KafkaCompensationConfig {
 
         JsonDeserializer<CompensationEvent> deserializer = new JsonDeserializer<>(
                 CompensationEvent.class, objectMapper, false);
-        deserializer.addTrustedPackages("com.example.BackendArchitectureLab.Dto.Kafka");
+        deserializer.addTrustedPackages("com.example.BackendArchitectureLab.Vo.Kafka");
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
     }
 

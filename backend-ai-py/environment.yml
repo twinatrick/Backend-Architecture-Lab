@@ -1,0 +1,24 @@
+name: backend-ai-py
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+
+  # Core infrastructure: conda channel
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - httpx
+  - requests
+  - pydantic-settings
+  - av
+
+  # pip-only / unavailable on conda-forge
+  - pip:
+    - faster-whisper
+    - sherpa-onnx
+    - soundfile
+    - minio
+    - nacos-sdk-python

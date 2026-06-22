@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AlertCheckLimitVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.AlertCheckLimitSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
+import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 
 import java.util.List;
 

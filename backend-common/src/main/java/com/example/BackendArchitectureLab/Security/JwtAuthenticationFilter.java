@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Security;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -75,10 +75,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                    if (userDetails instanceof CustomUserDetails customUser) {
-                        request.setAttribute("user", customUser.getUser());
-                    }
                 }
             }
         } catch (InvalidJwtException e) {

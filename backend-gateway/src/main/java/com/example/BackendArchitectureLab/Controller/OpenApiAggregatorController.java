@@ -28,17 +28,17 @@ public class OpenApiAggregatorController {
 
     private static final Map<String, String> SERVICE_PATHS = Map.of(
         "iam-service", "/api-docs/BackendArchitectureLab",
-        "project-skill-service", "/v3/api-docs/BackendArchitectureLab",
+        "competency-service", "/v3/api-docs/BackendArchitectureLab",
         "job-service", "/v3/api-docs/BackendArchitectureLab",
-        "ai-service", "/v3/api-docs/BackendArchitectureLab",
+        "external-api-service", "/v3/api-docs/BackendArchitectureLab",
         "alert-service", "/v3/api-docs/BackendArchitectureLab"
     );
 
     private static final Map<String, String> SERVICE_PREFIXES = Map.of(
         "iam-service", "/api",
-        "project-skill-service", "/api",
+        "competency-service", "/api",
         "job-service", "/api",
-        "ai-service", "/api",
+        "external-api-service", "/api",
         "alert-service", "/api"
     );
 

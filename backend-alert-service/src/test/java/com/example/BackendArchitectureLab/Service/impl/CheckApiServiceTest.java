@@ -1,10 +1,10 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.AquarkDataRaw;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.RowData;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.aquarkApiReturnVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
-import com.example.BackendArchitectureLab.Dto.Vo.AlertCheckLimitVo;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.RowData;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkApiReturnVo;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
 import com.example.BackendArchitectureLab.Service.IApiFetcher;
@@ -195,14 +195,14 @@ class CheckApiServiceTest {
         rowData.setStation_id("ST-001");
         rowData.setObs_time("2024-06-27 10:00:00");
         rowData.setRain_d(5f);
-        aquarkApiReturnVo returnVo = new aquarkApiReturnVo();
+        AquarkApiReturnVo returnVo = new AquarkApiReturnVo();
         returnVo.setRaw(List.of(rowData));
         AquarkDataRaw savedData = createAquarkDataRaw(1f, 2f, 3f, 4f, 5f, 6f, 7f, 25f, 55f, 5f, 1f);
         savedData.setStation_id("ST-001");
         savedData.setTrans_time(Timestamp.valueOf(LocalDateTime.of(2024, 6, 27, 10, 0, 0)));
 
         when(apiFetcher.get(anyString())).thenReturn(jsonResponse);
-        when(objectMapper.readValue(jsonResponse, aquarkApiReturnVo.class)).thenReturn(returnVo);
+        when(objectMapper.readValue(jsonResponse, AquarkApiReturnVo.class)).thenReturn(returnVo);
         when(aquarkDataService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
         when(alertCheckLimitService.getLimit("aquark_data", "v1")).thenReturn(createLimitVo(10.0));
         when(alertCheckLimitService.getLimit("aquark_data", "v2")).thenReturn(createLimitVo(10.0));
@@ -229,14 +229,14 @@ class CheckApiServiceTest {
         rowData.setStation_id("ST-001");
         rowData.setObs_time("2024-06-27 10:00:00");
         rowData.setRain_d(15f);
-        aquarkApiReturnVo returnVo = new aquarkApiReturnVo();
+        AquarkApiReturnVo returnVo = new AquarkApiReturnVo();
         returnVo.setRaw(List.of(rowData));
         AquarkDataRaw savedData = createAquarkDataRaw(15f, 2f, 3f, 4f, 5f, 6f, 7f, 25f, 55f, 15f, 1f);
         savedData.setStation_id("ST-001");
         savedData.setTrans_time(Timestamp.valueOf(LocalDateTime.of(2024, 6, 27, 10, 0, 0)));
 
         when(apiFetcher.get(anyString())).thenReturn(jsonResponse);
-        when(objectMapper.readValue(jsonResponse, aquarkApiReturnVo.class)).thenReturn(returnVo);
+        when(objectMapper.readValue(jsonResponse, AquarkApiReturnVo.class)).thenReturn(returnVo);
         when(aquarkDataService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
         when(alertCheckLimitService.getLimit("aquark_data", "v1")).thenReturn(createLimitVo(10.0));
         when(alertCheckLimitService.getLimit("aquark_data", "v2")).thenReturn(createLimitVo(10.0));
@@ -270,14 +270,14 @@ class CheckApiServiceTest {
         rowData.setStation_id("ST-001");
         rowData.setObs_time("2024-06-27 10:00:00");
         rowData.setRain_d(5f);
-        aquarkApiReturnVo returnVo = new aquarkApiReturnVo();
+        AquarkApiReturnVo returnVo = new AquarkApiReturnVo();
         returnVo.setRaw(List.of(rowData));
         AquarkDataRaw savedData = createAquarkDataRaw(1f, 2f, 3f, 4f, 5f, 6f, 7f, 25f, 55f, 5f, 1f);
         savedData.setStation_id("ST-001");
         savedData.setTrans_time(Timestamp.valueOf(LocalDateTime.of(2024, 6, 27, 10, 0, 0)));
 
         when(apiFetcher.get(anyString())).thenReturn(jsonResponse);
-        when(objectMapper.readValue(jsonResponse, aquarkApiReturnVo.class)).thenReturn(returnVo);
+        when(objectMapper.readValue(jsonResponse, AquarkApiReturnVo.class)).thenReturn(returnVo);
         when(aquarkDataService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
         when(alertCheckLimitService.getLimit(anyString(), anyString())).thenReturn(createLimitVo(100.0));
 

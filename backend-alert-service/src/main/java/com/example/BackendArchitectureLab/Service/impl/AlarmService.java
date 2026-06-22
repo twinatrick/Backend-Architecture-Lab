@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IAlarmPublisher;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
 import lombok.extern.slf4j.Slf4j;

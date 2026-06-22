@@ -1,10 +1,10 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.JobPostingSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
+import com.example.BackendArchitectureLab.Vo.JobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 
 import java.util.List;
 

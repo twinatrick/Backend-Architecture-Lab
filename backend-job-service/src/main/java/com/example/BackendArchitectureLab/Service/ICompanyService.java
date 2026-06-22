@@ -1,11 +1,11 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
-import com.example.BackendArchitectureLab.Dto.Vo.CompanyVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.CreateCompanyRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.CompanySearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.UpdateCompanyRequest;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.CompanyVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.CreateCompanyRequest;
+import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
+import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
 
 import java.util.List;
 

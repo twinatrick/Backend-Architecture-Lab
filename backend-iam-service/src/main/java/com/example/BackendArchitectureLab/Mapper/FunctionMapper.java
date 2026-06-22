@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Entity.Function;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;

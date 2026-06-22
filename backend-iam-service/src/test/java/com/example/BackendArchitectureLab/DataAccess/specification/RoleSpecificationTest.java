@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.RoleSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Role;
 import jakarta.persistence.criteria.*;
 import org.junit.jupiter.api.DisplayName;

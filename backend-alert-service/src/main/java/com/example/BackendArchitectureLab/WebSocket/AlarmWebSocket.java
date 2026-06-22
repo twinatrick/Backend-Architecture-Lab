@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.WebSocket;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.websocket.OnClose;
 import lombok.extern.slf4j.Slf4j;

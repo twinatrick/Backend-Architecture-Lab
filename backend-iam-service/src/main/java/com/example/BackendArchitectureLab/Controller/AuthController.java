@@ -3,23 +3,23 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
-import com.example.BackendArchitectureLab.Annotation.Ingnore;
+import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Security.JwtAuthenticationToken;
-import com.example.BackendArchitectureLab.Dto.Vo.LoginRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;
-import com.example.BackendArchitectureLab.Dto.Vo.SignupRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.SuperUserRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.LoginRequest;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.SignupRequest;
+import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.IUserService;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jose4j.lang.JoseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import com.example.BackendArchitectureLab.Dto.Response.Token;
+import com.example.BackendArchitectureLab.Vo.Response.Token;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -56,7 +56,7 @@ public class AuthController {
     @Value("${superuser.key}")
     private String superUserKey;
 
-    @Ingnore
+    @Ignore
     @PostMapping("/signup")
     @ApiOperationBadRequest(summary = "Register a new user", description = "Creates a user account and returns a JWT access token.")
     public ResponseType<Token> signup(@RequestBody SignupRequest request) throws JoseException {
@@ -87,7 +87,7 @@ public class AuthController {
         return new ResponseType<>(0, res, "User registered successfully");
     }
 
-    @Ingnore
+    @Ignore
     @PostMapping("/login")
     @ApiOperationAuth(summary = "User login", description = "Authenticates user credentials and returns a JWT access token.")
     public ResponseType<Token> login(@RequestBody LoginRequest request) throws JoseException {
@@ -108,7 +108,7 @@ public class AuthController {
         return new ResponseType<>(0, res, "Login successful");
     }
 
-    @Ingnore
+    @Ignore
     @PostMapping("/superuser")
     @ApiOperationBadRequest(summary = "Create super user", description = "Creates an admin user when the provided key matches configuration.")
     public ResponseType<?> createSuperUser(@RequestBody SuperUserRequest request) {

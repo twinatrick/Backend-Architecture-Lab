@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
+import com.example.BackendArchitectureLab.Vo.JobPostingVo;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

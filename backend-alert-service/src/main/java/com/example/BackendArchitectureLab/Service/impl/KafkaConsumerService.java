@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IKafkaConsumerService;
 import com.example.BackendArchitectureLab.WebSocket.AlarmWebSocket;
 import org.slf4j.Logger;

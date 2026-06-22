@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
 
 import java.util.Date;

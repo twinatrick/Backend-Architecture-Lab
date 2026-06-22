@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Aop;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
 import feign.FeignException;
 import jakarta.servlet.http.HttpServletResponse;

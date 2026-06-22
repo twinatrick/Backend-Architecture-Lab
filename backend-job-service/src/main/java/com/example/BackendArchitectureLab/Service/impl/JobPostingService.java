@@ -1,19 +1,19 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.JobPostingSearchQuery;
+import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
+import com.example.BackendArchitectureLab.Vo.JobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
-import com.example.BackendArchitectureLab.Feign.AiServiceFeignClient;
+import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +49,7 @@ public class JobPostingService implements IJobPostingService {
     @Autowired
     private CompositeJobCrawler jobCrawler;
     @Autowired
-    private AiServiceFeignClient aiServiceFeignClient;
+    private ExternalApiServiceFeignClient aiServiceFeignClient;
     @Autowired
     private CacheManager cacheManager;
     @Autowired
@@ -238,12 +238,12 @@ public class JobPostingService implements IJobPostingService {
                 continue;
             }
 
-            List<AiJobPostingDto> analyzedJobs = aiServiceFeignClient.analyzeJobPostings(company.getName(), htmlContent);
+            List<AiJobPostingVo> analyzedJobs = aiServiceFeignClient.analyzeJobPostings(company.getName(), htmlContent);
             log.info("AI service returned {} jobs from URL: {}", analyzedJobs.size(), url);
 
             List<JobPosting> existingJobs = jobPostingDataAccess.findByCompanyId(uuid);
 
-            for (AiJobPostingDto jobData : analyzedJobs) {
+            for (AiJobPostingVo jobData : analyzedJobs) {
                 try {
                     String title = jobData.getTitle() != null && !jobData.getTitle().isBlank() ? jobData.getTitle() : "Unknown Title";
                     String salaryRange = jobData.getSalaryRange() != null ? jobData.getSalaryRange() : "";
@@ -339,7 +339,7 @@ public class JobPostingService implements IJobPostingService {
         return null;
     }
 
-    private boolean updateIfChanged(JobPosting existing, AiJobPostingDto newData) {
+    private boolean updateIfChanged(JobPosting existing, AiJobPostingVo newData) {
         boolean changed = false;
         String newUrl = newData.getUrl() != null ? newData.getUrl() : "";
         if (!newUrl.equals(existing.getUrl() != null ? existing.getUrl() : "")) {

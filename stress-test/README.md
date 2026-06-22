@@ -28,7 +28,7 @@
 | 測試腳本 | 測試範圍 | 所需服務 | 預設併發 |
 |---------|---------|---------|---------|
 | `test-iam.jmx` | users/search, role/get, function/get | IAM + Gateway | 500 |
-| `test-project-skill.jmx` | skill/get, project/search, skill/personal/add, project/personal/add | IAM + Project-Skill + Gateway | 500 |
+| `test-competency.jmx` | skill/get, project/search, skill/personal/add, project/personal/add | IAM + Competency + Gateway | 500 |
 | `test-job.jmx` | company/get, company/add, job-posting/search | IAM + Job + Gateway | 500 |
 | `test-alert.jmx` | aquarkData/getColumnNameList | IAM + Alert + Gateway | 200 |
 
@@ -44,10 +44,17 @@ docker compose -f compose.yaml up -d
 
 ### 2. 載入壓力測試資料
 
+Database-per-Service 架構下，需分別載入各資料庫：
+
 ```bash
-# 使用 psql 載入全部資料
-psql -U postgres -d postgres -f stress-test/run_all.sql
+# 依序載入各服務資料庫
+psql -U postgres -d iam_service -f stress-test/run_iam.sql
+psql -U postgres -d competency_service -f stress-test/run_competency.sql
+psql -U postgres -d job_service -f stress-test/run_job.sql
+psql -U postgres -d alert_service -f stress-test/run_alert.sql
 ```
+
+> 若仍需使用單一資料庫（monolith 模式），可用 `psql -U postgres -d postgres -f stress-test/run_all.sql`
 
 ### 3. 編譯專案
 
@@ -63,7 +70,7 @@ psql -U postgres -d postgres -f stress-test/run_all.sql
 | 服務 | JAR 路徑 | Port | 建議 Heap |
 |------|---------|------|----------|
 | IAM | `backend-iam-service/target/backend-iam-service-0.0.1-SNAPSHOT.jar` | 8002 | `-Xmx384m` |
-| Project-Skill | `backend-project-skill-service/target/backend-project-skill-service-0.0.1-SNAPSHOT.jar` | 8004 | `-Xmx512m` |
+| Competency | `backend-competency-service/target/backend-competency-service-0.0.1-SNAPSHOT.jar` | 8004 | `-Xmx512m` |
 | Job | `backend-job-service/target/backend-job-service-0.0.1-SNAPSHOT.jar` | 8006 | `-Xmx384m` |
 | Alert | `backend-alert-service/target/backend-alert-service-0.0.1-SNAPSHOT.jar` | 8008 | `-Xmx256m` |
 | Gateway | `backend-gateway/target/backend-gateway-0.0.1-SNAPSHOT.jar` | 8000 | `-Xmx256m` |
@@ -85,11 +92,11 @@ java -Xmx384m -jar backend-iam-service/target/backend-iam-service-0.0.1-SNAPSHOT
 | 測試組 | 需啟動的服務 | 啟動指令（依序） |
 |-------|-------------|----------------|
 | **IAM 測試** | IAM + Gateway | `java -Xmx384m -jar backend-iam-service.jar --server.port=8002`<br>`java -Xmx256m -jar backend-gateway.jar --server.port=8000` |
-| **Project-Skill 測試** | IAM + Project-Skill + Gateway | 加上 `java -Xmx512m -jar backend-project-skill-service.jar --server.port=8004` |
+| **Competency 測試** | IAM + Competency + Gateway | 加上 `java -Xmx512m -jar backend-competency-service.jar --server.port=8004` |
 | **Job 測試** | IAM + Job + Gateway | 加上 `java -Xmx384m -jar backend-job-service.jar --server.port=8006` |
 | **Alert 測試** | IAM + Alert + Gateway | 加上 `java -Xmx256m -jar backend-alert-service.jar --server.port=8008` |
 
-> **不需要啟動的服務**：AI 服務在所有測試中均未使用，請勿啟動以節省記憶體。
+> **不需要啟動的服務**：External API Service、AI-PY 服務在所有測試中均未使用，請勿啟動以節省記憶體。
 
 ## 執行 JMeter 測試（GUI 模式）
 

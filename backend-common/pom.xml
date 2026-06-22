@@ -11,7 +11,7 @@
     <artifactId>backend-common</artifactId>
     <packaging>jar</packaging>
     <name>backend-common</name>
-    <description>Shared library: DTOs, Exceptions, Annotations, Feign clients</description>
+    <description>Shared library: Vos, Exceptions, Annotations, Feign clients</description>
 
     <dependencies>
         <dependency>
@@ -68,6 +68,10 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.kafka</groupId>

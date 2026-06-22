@@ -1,15 +1,15 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import org.springframework.context.annotation.Lazy;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.FunctionSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IFunctionService;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IRoleFunctionDataAccess;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Entity.Function;
 import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;

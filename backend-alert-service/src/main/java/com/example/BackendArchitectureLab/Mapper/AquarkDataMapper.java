@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.AquarkDataRaw;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

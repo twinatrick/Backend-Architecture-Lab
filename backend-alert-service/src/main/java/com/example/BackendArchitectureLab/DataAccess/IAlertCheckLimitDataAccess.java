@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.AlertCheckLimitSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import org.springframework.data.domain.Page;
 

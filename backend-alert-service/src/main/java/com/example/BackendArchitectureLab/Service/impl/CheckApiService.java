@@ -1,14 +1,14 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
 import com.example.BackendArchitectureLab.Service.IApiFetcher;
 import com.example.BackendArchitectureLab.Service.IAquarkDataService;
 import com.example.BackendArchitectureLab.Service.ICheckApiService;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.RowData;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.aquarkApiReturnVo;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.AquarkDataRaw;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.RowData;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkApiReturnVo;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,8 +49,8 @@ public class CheckApiService implements ICheckApiService {
         List<AquarkDataRaw> aquarkDataRawList = new ArrayList<>();
         for (String url : urlList) {
             String result = getApiOnlyUrl(url);
-            aquarkApiReturnVo aquarkApiReturnVo =objectMapper.readValue(result, aquarkApiReturnVo.class);
-            log.debug("aquarkApiReturnVo Raw size: {}", aquarkApiReturnVo.getRaw().size());
+            AquarkApiReturnVo aquarkApiReturnVo =objectMapper.readValue(result, AquarkApiReturnVo.class);
+            log.debug("AquarkApiReturnVo Raw size: {}", aquarkApiReturnVo.getRaw().size());
             aquarkDataRawList.addAll(aquarkApiReturnVo.getRaw().stream().map(RowData::transToDbData).toList());
 
         }

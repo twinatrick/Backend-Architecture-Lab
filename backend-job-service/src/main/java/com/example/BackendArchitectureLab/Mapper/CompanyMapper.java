@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.CompanyVo;
+import com.example.BackendArchitectureLab.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.CompanyWebsite;
 import org.mapstruct.Mapper;

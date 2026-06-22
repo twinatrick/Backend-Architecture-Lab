@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.CacheStatsEvent;
+import com.example.BackendArchitectureLab.Vo.CacheStatsEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,7 +17,7 @@ public class CacheStatsConsumer {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
-    @KafkaListener(topics = "cache-stats")
+    @KafkaListener(topics = "cache-stats", containerFactory = "cacheStatsKafkaListenerContainerFactory")
     public void consume(CacheStatsEvent event) {
         try {
             stringRedisTemplate.opsForHash().increment(

@@ -4,15 +4,15 @@ import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingDto;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.JobPostingSearchQuery;
+import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
+import com.example.BackendArchitectureLab.Vo.JobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.CompanyWebsite;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
-import com.example.BackendArchitectureLab.Feign.AiServiceFeignClient;
+import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +55,7 @@ class JobPostingServiceTest {
     private CompositeJobCrawler jobCrawler;
 
     @Mock
-    private AiServiceFeignClient aiServiceFeignClient;
+    private ExternalApiServiceFeignClient aiServiceFeignClient;
 
     @Mock
     private CacheManager cacheManager;
@@ -369,7 +369,7 @@ class JobPostingServiceTest {
         existingJob.setTitle("Software Engineer");
         existingJob.setSalaryRange("100k-150k");
 
-        AiJobPostingDto aiJob = AiJobPostingDto.builder()
+        AiJobPostingVo aiJob = AiJobPostingVo.builder()
                 .title("Software Engineer")
                 .salaryRange("100k-150k")
                 .url("https://example.com/job")
@@ -396,7 +396,7 @@ class JobPostingServiceTest {
         website.setCompany(testCompany);
         testCompany.setWebsites(List.of(website));
 
-        AiJobPostingDto aiJob = AiJobPostingDto.builder()
+        AiJobPostingVo aiJob = AiJobPostingVo.builder()
                 .title(null)
                 .url("https://example.com/job")
                 .build();
@@ -451,7 +451,7 @@ class JobPostingServiceTest {
         when(companyDataAccess.findById(companyId)).thenReturn(Optional.of(testCompany));
         when(jobCrawler.crawl(url)).thenReturn("<html>job content</html>");
 
-        AiJobPostingDto aiJob = AiJobPostingDto.builder()
+        AiJobPostingVo aiJob = AiJobPostingVo.builder()
                 .title("Software Engineer")
                 .url("https://example.com/job")
                 .build();

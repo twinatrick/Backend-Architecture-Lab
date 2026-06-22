@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Entity.BaseEntity;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.RoleFunction;

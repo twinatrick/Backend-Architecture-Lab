@@ -1,17 +1,17 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.UserSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
-import com.example.BackendArchitectureLab.Dto.Vo.UserProjectBindRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.UserRoleRebindRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.UserProjectBindRequest;
+import com.example.BackendArchitectureLab.Vo.UserRoleRebindRequest;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

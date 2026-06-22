@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Kafka.CompensationEvent;
-import com.example.BackendArchitectureLab.Dto.Kafka.CompensationStatus;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
