@@ -6,6 +6,7 @@ import sherpa_onnx
 import soundfile as sf
 
 from config import settings
+from utils.file_adapter import download_from_minio
 
 
 def _text_to_sound_fallback(text: str, save_path: str) -> bytes:
@@ -29,12 +30,30 @@ def _text_to_sound_fallback(text: str, save_path: str) -> bytes:
         return f.read()
 
 
-def text_to_sound(text: str, language: str) -> bytes:
+def text_to_sound(text: str, language: str,
+                  voice_sample_key: str | None = None,
+                  voice_sample_text: str | None = None,
+                  voice_sample_lang: str = "zh") -> bytes:
     payload = {
         "text": text,
         "text_lang": language,
         "text_split_method": "cut5",
     }
+
+    ref_key = voice_sample_key or settings.gpt_sovit_ref_audio_minio_key
+    if ref_key:
+        try:
+            ref_path = download_from_minio(ref_key)
+            payload["ref_audio_path"] = ref_path
+            if voice_sample_text:
+                payload["prompt_text"] = voice_sample_text
+                payload["prompt_lang"] = voice_sample_lang
+            else:
+                payload["prompt_text"] = settings.gpt_sovit_prompt_text
+                payload["prompt_lang"] = settings.gpt_sovit_prompt_lang
+        except Exception:
+            pass
+
     try:
         response = requests.post(settings.gpt_sovit_url, json=payload, timeout=60)
         response.raise_for_status()

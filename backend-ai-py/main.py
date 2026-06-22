@@ -1,6 +1,10 @@
 import asyncio
 import socket
+import threading
+import time
+from contextlib import asynccontextmanager
 
+import httpx
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from routers import chat, stt, tts
 
-app = FastAPI(title="AI Python Sidecar", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _nacos_register()
+    await _warmup_ollama()
+    yield
+    _nacos_deregister()
+
+app = FastAPI(title="AI Python Sidecar", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,20 +34,24 @@ app.include_router(tts.router)
 app.include_router(chat.router)
 
 
-@app.on_event("startup")
-async def startup():
-    _nacos_register()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    _nacos_deregister()
-
-
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
+
+async def _warmup_ollama():
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            await client.post(
+                f"{settings.ollama_base_url.rstrip('/')}/api/chat",
+                json={
+                    "model": settings.llm_model,
+                    "messages": [{"role": "user", "content": "hello"}],
+                    "stream": False,
+                },
+            )
+    except Exception:
+        pass
 
 _nacos_service = None
 
@@ -68,6 +83,18 @@ def _nacos_register():
             ephemeral=True,
         )
         _nacos_service = client
+        print(f"[nacos] registered {settings.service_name}@{ip}:{settings.server_port}")
+
+        def _heartbeat():
+            while True:
+                time.sleep(5)
+                try:
+                    client.send_heartbeat(settings.service_name, ip, settings.server_port)
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_heartbeat, daemon=True)
+        t.start()
     except Exception as e:
         print(f"[nacos] register failed: {e}")
 
@@ -88,4 +115,4 @@ def _nacos_deregister():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=settings.server_port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=settings.server_port)
