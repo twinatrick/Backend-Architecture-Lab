@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.Config.CachePenetrationProtectionCacheManager;
-import com.example.BackendArchitectureLab.Dto.CacheStatsEvent;
+import com.example.BackendArchitectureLab.Vo.CacheStatsEvent;
 import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ChatRequestVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ChatResponseVo;
+import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.IChatService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Discord;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AudioRecognizeVo;
+import com.example.BackendArchitectureLab.Vo.AudioRecognizeVo;
 import com.example.BackendArchitectureLab.Service.ILearnService;
 import com.example.BackendArchitectureLab.Service.Nlp.PhoneticConvertService;
 import com.example.BackendArchitectureLab.Service.Onnx.WhisperOnnxService;

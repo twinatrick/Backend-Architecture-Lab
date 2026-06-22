@@ -1,12 +1,12 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.AlertCheckLimitSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
 import com.example.BackendArchitectureLab.DataAccess.IAlertCheckLimitDataAccess;
 import com.example.BackendArchitectureLab.Mapper.AlertCheckLimitMapper;
-import com.example.BackendArchitectureLab.Dto.Vo.AlertCheckLimitVo;
+import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;

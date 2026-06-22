@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ApiUsageLogVo;
+import com.example.BackendArchitectureLab.Vo.ApiUsageLogVo;
 
 import java.util.Date;
 import java.util.List;

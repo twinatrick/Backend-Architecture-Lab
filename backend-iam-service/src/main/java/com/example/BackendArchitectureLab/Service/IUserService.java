@@ -1,9 +1,9 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.UserSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
+import com.example.BackendArchitectureLab.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 
 import java.util.List;
 import java.util.UUID;

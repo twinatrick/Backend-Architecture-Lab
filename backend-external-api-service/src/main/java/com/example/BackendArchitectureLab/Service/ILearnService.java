@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AudioRecognizeVo;
+import com.example.BackendArchitectureLab.Vo.AudioRecognizeVo;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface ILearnService {

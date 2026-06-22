@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Discord;
 
-import com.example.BackendArchitectureLab.Dto.Vo.SttResponseVo;
+import com.example.BackendArchitectureLab.Vo.SttResponseVo;
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;

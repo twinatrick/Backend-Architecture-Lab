@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Dto.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;

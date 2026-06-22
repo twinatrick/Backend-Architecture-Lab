@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.UserJobLinkVo;
+import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

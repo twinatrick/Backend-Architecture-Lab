@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AudioRecognizeVo;
+import com.example.BackendArchitectureLab.Vo.AudioRecognizeVo;
 import com.example.BackendArchitectureLab.Service.Nlp.PhoneticConvertService;
 import com.example.BackendArchitectureLab.Service.Onnx.WhisperOnnxService;
 import com.example.BackendArchitectureLab.Util.AudioProcessUtil;
@@ -21,7 +21,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class LearnServiceImplTest {
+class LearnServiceTest {
 
     @Mock
     private AudioProcessUtil audioProcessUtil;
@@ -36,7 +36,7 @@ class LearnServiceImplTest {
     private MultipartFile mockFile;
 
     @InjectMocks
-    private LearnServiceImpl learnService;
+    private LearnService learnService;
 
     @BeforeEach
     void setUp() throws Exception {

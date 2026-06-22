@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.AlertCheckLimitSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;

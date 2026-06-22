@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Exception;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

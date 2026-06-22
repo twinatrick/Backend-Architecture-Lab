@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.Ingnore;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ITtsRefAudioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;

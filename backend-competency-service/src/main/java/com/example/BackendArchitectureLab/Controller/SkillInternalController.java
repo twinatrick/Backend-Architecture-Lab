@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Dto.Vo.SkillLevelVo;
-import com.example.BackendArchitectureLab.Dto.Vo.SkillVo;
+import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
+import com.example.BackendArchitectureLab.Vo.SkillVo;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;

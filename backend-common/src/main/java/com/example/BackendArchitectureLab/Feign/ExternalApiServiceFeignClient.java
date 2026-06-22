@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Feign;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
+import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;

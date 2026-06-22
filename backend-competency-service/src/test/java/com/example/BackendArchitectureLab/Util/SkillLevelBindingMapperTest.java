@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Util;
 
-import com.example.BackendArchitectureLab.Dto.Vo.SkillLevelBindingItem;
+import com.example.BackendArchitectureLab.Vo.SkillLevelBindingItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

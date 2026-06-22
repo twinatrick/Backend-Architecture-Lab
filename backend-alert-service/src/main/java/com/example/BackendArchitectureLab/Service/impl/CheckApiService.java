@@ -1,14 +1,14 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
 import com.example.BackendArchitectureLab.Service.IApiFetcher;
 import com.example.BackendArchitectureLab.Service.IAquarkDataService;
 import com.example.BackendArchitectureLab.Service.ICheckApiService;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.RowData;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.aquarkApiReturnVo;
-import com.example.BackendArchitectureLab.Dto.Vo.AquarkUse.AquarkDataRaw;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.RowData;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.aquarkApiReturnVo;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

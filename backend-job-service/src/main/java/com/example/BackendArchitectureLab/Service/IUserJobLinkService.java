@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
-import com.example.BackendArchitectureLab.Dto.Vo.UserJobLinkVo;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 
 import java.util.List;
 

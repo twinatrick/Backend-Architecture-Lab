@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
+import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;

@@ -1,11 +1,11 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Dto.Vo.MemberSkillBindings;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectMemberSkillsRebindRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectSkillRebindRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Dto.Vo.UserProjectRebindRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.UserSkillRebindRequest;
+import com.example.BackendArchitectureLab.Vo.MemberSkillBindings;
+import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillsRebindRequest;
+import com.example.BackendArchitectureLab.Vo.ProjectSkillRebindRequest;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.UserProjectRebindRequest;
+import com.example.BackendArchitectureLab.Vo.UserSkillRebindRequest;
 import com.example.BackendArchitectureLab.Service.IProjectService;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Feign.CompetencySkillFeignClient;

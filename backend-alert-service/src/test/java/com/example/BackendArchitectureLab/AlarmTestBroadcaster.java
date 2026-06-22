@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.WebSocket.AlarmWebSocket;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;

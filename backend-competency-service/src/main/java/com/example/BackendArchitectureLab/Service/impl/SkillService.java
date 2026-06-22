@@ -1,14 +1,14 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import org.springframework.context.annotation.Lazy;
-import com.example.BackendArchitectureLab.Dto.Vo.CurrentUserSkillVo;
-import com.example.BackendArchitectureLab.Dto.Vo.PersonalSkillRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillLevelSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillSearchQuery;
-import com.example.BackendArchitectureLab.Dto.Vo.SkillLevelVo;
-import com.example.BackendArchitectureLab.Dto.Vo.SkillVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
+import com.example.BackendArchitectureLab.Vo.PersonalSkillRequest;
+import com.example.BackendArchitectureLab.Vo.Search.SkillLevelSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.SkillSearchQuery;
+import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
+import com.example.BackendArchitectureLab.Vo.SkillVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.ProjectSkill;
 import com.example.BackendArchitectureLab.Entity.Skill;

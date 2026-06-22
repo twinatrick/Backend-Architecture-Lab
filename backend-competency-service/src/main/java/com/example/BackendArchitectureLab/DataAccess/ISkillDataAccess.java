@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.VoiceDiaryVo;
+import com.example.BackendArchitectureLab.Vo.VoiceDiaryVo;
 import com.example.BackendArchitectureLab.Entity.VoiceDiary;
 import org.mapstruct.Mapper;
 

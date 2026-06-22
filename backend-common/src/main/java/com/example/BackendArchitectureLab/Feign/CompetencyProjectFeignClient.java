@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Feign;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectVo;
+import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

@@ -1,10 +1,10 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
-import com.example.BackendArchitectureLab.Dto.Vo.UserJobLinkVo;
+import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Exception.AppException;

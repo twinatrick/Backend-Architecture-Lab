@@ -1,0 +1,12 @@
+package com.example.BackendArchitectureLab.Vo;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.LocalDate;
+
+@Getter
+@Setter
+public class ScrapeJobRequest {
+    private String companyId;
+}

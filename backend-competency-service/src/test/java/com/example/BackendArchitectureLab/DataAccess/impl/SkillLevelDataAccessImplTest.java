@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.impl.SkillLevelDataAccessImpl;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillLevelSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.SkillLevelSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Repository.SkillLevelRepository;

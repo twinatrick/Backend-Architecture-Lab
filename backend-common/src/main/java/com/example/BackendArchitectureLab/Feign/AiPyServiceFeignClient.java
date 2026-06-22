@@ -1,10 +1,10 @@
 package com.example.BackendArchitectureLab.Feign;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ChatRequestVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ChatResponseVo;
-import com.example.BackendArchitectureLab.Dto.Vo.SttResponseVo;
-import com.example.BackendArchitectureLab.Dto.Vo.TtsRequestVo;
-import com.example.BackendArchitectureLab.Dto.Vo.TtsResponseVo;
+import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
+import com.example.BackendArchitectureLab.Vo.SttResponseVo;
+import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;

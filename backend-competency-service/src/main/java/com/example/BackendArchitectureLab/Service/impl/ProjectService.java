@@ -1,14 +1,14 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.DataAccess.*;
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
-import com.example.BackendArchitectureLab.Dto.Vo.MemberSkillLevelVo;
-import com.example.BackendArchitectureLab.Dto.Vo.PersonalProjectRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectMemberSkillVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectSkillVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ProjectVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.ProjectSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.MemberSkillLevelVo;
+import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
+import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
+import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
+import com.example.BackendArchitectureLab.Vo.ProjectVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Entity.*;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;

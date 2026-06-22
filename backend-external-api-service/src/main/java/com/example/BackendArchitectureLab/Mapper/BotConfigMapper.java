@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.BotConfigVo;
+import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

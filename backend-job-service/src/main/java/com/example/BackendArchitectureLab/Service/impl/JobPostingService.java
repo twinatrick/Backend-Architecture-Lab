@@ -1,16 +1,16 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Crawler.impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Dto.Vo.CreateJobPostingRequest;
-import com.example.BackendArchitectureLab.Dto.Vo.JobPostingVo;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.JobPostingSearchQuery;
+import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
+import com.example.BackendArchitectureLab.Vo.JobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
@@ -104,10 +104,10 @@ public class JobPostingService implements IJobPostingService {
     public JobPostingVo getJobPostingById(String id) {
         UUID uuid = mapUuid(id);
         if (uuid == null) {
-            throw new AppException("NOT_FOUND", "?�缺不�???, 404);
+            throw new AppException("NOT_FOUND", "職缺不存在", 404);
         }
         JobPosting jobPosting = jobPostingDataAccess.findById(uuid)
-                .orElseThrow(() -> new AppException("NOT_FOUND", "?�缺不�???, 404));
+                .orElseThrow(() -> new AppException("NOT_FOUND", "職缺不存在", 404));
         return jobPostingMapper.toVo(jobPosting);
     }
 

@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service.impl;
 import com.example.BackendArchitectureLab.Entity.ApiUsageLog;
 import com.example.BackendArchitectureLab.Mapper.ApiUsageLogMapper;
 import com.example.BackendArchitectureLab.Repository.ApiUsageLogRepository;
-import com.example.BackendArchitectureLab.Dto.Vo.ApiUsageLogVo;
+import com.example.BackendArchitectureLab.Vo.ApiUsageLogVo;
 import com.example.BackendArchitectureLab.Service.IApiUsageLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

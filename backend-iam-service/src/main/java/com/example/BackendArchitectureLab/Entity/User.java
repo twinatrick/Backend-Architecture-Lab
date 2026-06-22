@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Entity;
 
-import com.example.BackendArchitectureLab.Dto.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.hibernate.annotations.BatchSize;

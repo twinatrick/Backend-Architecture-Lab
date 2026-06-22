@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.JobPostingSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import jakarta.persistence.criteria.*;
 import org.junit.jupiter.api.DisplayName;

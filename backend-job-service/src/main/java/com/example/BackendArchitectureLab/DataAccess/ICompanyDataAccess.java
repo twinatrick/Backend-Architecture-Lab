@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.CompanySearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import org.springframework.data.domain.Page;
 

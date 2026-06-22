@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Config;
 
-import com.example.BackendArchitectureLab.Dto.CacheStatsEvent;
-import com.example.BackendArchitectureLab.Dto.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Vo.CacheStatsEvent;
+import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;

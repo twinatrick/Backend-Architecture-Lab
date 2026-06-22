@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.BotConfigVo;
+import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 
 import java.util.List;
 import java.util.UUID;

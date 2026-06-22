@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.TtsRequestVo;
-import com.example.BackendArchitectureLab.Dto.Vo.TtsResponseVo;
+import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;

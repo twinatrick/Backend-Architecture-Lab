@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
-import com.example.BackendArchitectureLab.Dto.Vo.Search.UserSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Entity.User;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;

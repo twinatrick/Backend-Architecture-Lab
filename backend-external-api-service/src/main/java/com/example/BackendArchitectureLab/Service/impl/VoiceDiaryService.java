@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.Dto.Vo.VoiceDiaryVo;
+import com.example.BackendArchitectureLab.Vo.VoiceDiaryVo;
 import com.example.BackendArchitectureLab.Mapper.VoiceDiaryMapper;
 import com.example.BackendArchitectureLab.Repository.VoiceDiaryRepository;
 import com.example.BackendArchitectureLab.Service.IVoiceDiaryService;

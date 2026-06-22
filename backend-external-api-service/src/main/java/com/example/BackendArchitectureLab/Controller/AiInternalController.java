@@ -1,11 +1,11 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Dto.Vo.AiJobPostingVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ChatRequestVo;
-import com.example.BackendArchitectureLab.Dto.Vo.ChatResponseVo;
-import com.example.BackendArchitectureLab.Dto.Vo.SttResponseVo;
-import com.example.BackendArchitectureLab.Dto.Vo.TtsRequestVo;
-import com.example.BackendArchitectureLab.Dto.Vo.TtsResponseVo;
+import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
+import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
+import com.example.BackendArchitectureLab.Vo.SttResponseVo;
+import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
 import com.example.BackendArchitectureLab.Service.IChatService;
 import com.example.BackendArchitectureLab.Service.ISttService;

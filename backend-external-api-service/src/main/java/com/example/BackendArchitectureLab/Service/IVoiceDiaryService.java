@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.VoiceDiaryVo;
+import com.example.BackendArchitectureLab.Vo.VoiceDiaryVo;
 
 import java.util.List;
 

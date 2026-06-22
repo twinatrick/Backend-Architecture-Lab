@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.impl.SkillDataAccessImpl;
-import com.example.BackendArchitectureLab.Dto.Vo.Search.SkillSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Repository.SkillRepository;
 import org.junit.jupiter.api.BeforeEach;

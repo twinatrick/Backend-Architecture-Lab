@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Feign;
 
-import com.example.BackendArchitectureLab.Dto.Vo.SkillLevelVo;
-import com.example.BackendArchitectureLab.Dto.Vo.SkillVo;
+import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
+import com.example.BackendArchitectureLab.Vo.SkillVo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

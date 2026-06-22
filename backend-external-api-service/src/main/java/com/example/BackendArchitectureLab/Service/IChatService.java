@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ChatResponseVo;
+import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 
 import java.util.List;
 import java.util.Map;

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Dto.Vo.ApiUsageLogVo;
+import com.example.BackendArchitectureLab.Vo.ApiUsageLogVo;
 import com.example.BackendArchitectureLab.Entity.ApiUsageLog;
 import org.mapstruct.Mapper;
 
