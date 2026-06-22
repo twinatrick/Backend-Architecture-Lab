@@ -1,4 +1,3 @@
-import os
 import tempfile
 
 import av
@@ -8,7 +7,6 @@ def convert_to_wav(input_path: str, sample_rate: int = 16000) -> str:
     container = av.open(input_path)
     output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
     output = av.open(output_path, "w", format="wav")
-    input_stream = container.streams.audio[0]
     output_stream = output.add_stream("pcm_s16le", rate=sample_rate, layout="mono")
     for frame in container.decode(audio=0):
         frame.pts = None

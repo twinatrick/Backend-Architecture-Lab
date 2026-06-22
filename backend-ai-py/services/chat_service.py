@@ -10,7 +10,9 @@ def chat(messages: list[dict], temperature: float | None = None) -> str:
     payload = {
         "model": settings.llm_model,
         "messages": messages,
-        "temperature": temperature if temperature is not None else settings.llm_temperature,
+        "temperature": temperature
+        if temperature is not None
+        else settings.llm_temperature,
         "stream": False,
     }
     resp = httpx.post(
@@ -28,7 +30,9 @@ async def chat_stream(
     payload = {
         "model": settings.llm_model,
         "messages": messages,
-        "temperature": temperature if temperature is not None else settings.llm_temperature,
+        "temperature": temperature
+        if temperature is not None
+        else settings.llm_temperature,
         "stream": True,
     }
     async with httpx.AsyncClient(timeout=300) as client:

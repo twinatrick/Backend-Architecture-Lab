@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     tts_model_dir: str = "tts_models"
     gpt_sovit_url: str = "http://127.0.0.1:9880/tts"
     gpt_sovit_ref_audio_minio_key: str = "tts-refs/girlfriend-voice.wav"
-    gpt_sovit_prompt_text: str = "いいんじゃない。最近、一緒に歌ってる人の声に合わせられるようになってきたし"
+    gpt_sovit_prompt_text: str = (
+        "いいんじゃない。最近、一緒に歌ってる人の声に合わせられるようになってきたし"
+    )
     gpt_sovit_prompt_lang: str = "ja"
 
     minio_endpoint: str = "http://localhost:9000"

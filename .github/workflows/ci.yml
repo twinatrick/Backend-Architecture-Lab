@@ -45,11 +45,42 @@ jobs:
           path: target/surefire-reports/
 
   # ============================================
+  # Job 1.5：Python 服務驗證 (Ruff & Pytest)
+  # ============================================
+  python-verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest httpx fastapi pydantic-settings python-multipart
+
+      - name: Run Ruff Linter
+        run: ruff check backend-ai-py
+
+      - name: Run Ruff Formatter Check
+        run: ruff format --check backend-ai-py
+
+      - name: Run pytest
+        run: |
+          cd backend-ai-py
+          pytest
+
+  # ============================================
   # Job 2：Docker 映像建置（僅 tag push 或手動觸發）
   # ============================================
   docker:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    needs: build
+    needs: [build, python-verify]
     runs-on: ubuntu-latest
 
     steps:

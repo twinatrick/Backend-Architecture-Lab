@@ -30,10 +30,13 @@ def _text_to_sound_fallback(text: str, save_path: str) -> bytes:
         return f.read()
 
 
-def text_to_sound(text: str, language: str,
-                  voice_sample_key: str | None = None,
-                  voice_sample_text: str | None = None,
-                  voice_sample_lang: str = "zh") -> bytes:
+def text_to_sound(
+    text: str,
+    language: str,
+    voice_sample_key: str | None = None,
+    voice_sample_text: str | None = None,
+    voice_sample_lang: str = "zh",
+) -> bytes:
     payload = {
         "text": text,
         "text_lang": language,

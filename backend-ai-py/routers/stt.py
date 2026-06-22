@@ -2,7 +2,6 @@ import os
 
 from fastapi import APIRouter, File, Form, UploadFile
 
-from config import settings
 from services.stt_service import sound_to_text
 from utils.audio import convert_to_wav, get_audio_duration
 from utils.file_adapter import generate_object_key, upload_to_minio
@@ -24,7 +23,9 @@ async def stt_endpoint(
         text = sound_to_text(wav_path, language)
         ext = os.path.splitext(file.filename or "audio.wav")[1] or ".wav"
         object_key = generate_object_key("stt", ext)
-        audio_url = upload_to_minio(open(tmp_input, "rb").read(), object_key, file.content_type or "audio/wav")
+        audio_url = upload_to_minio(
+            open(tmp_input, "rb").read(), object_key, file.content_type or "audio/wav"
+        )
     finally:
         for p in [tmp_input, wav_path]:
             if os.path.exists(p):

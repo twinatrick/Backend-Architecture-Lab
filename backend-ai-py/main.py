@@ -1,4 +1,3 @@
-import asyncio
 import socket
 import threading
 import time
@@ -12,12 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from routers import chat, stt, tts
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _nacos_register()
     await _warmup_ollama()
     yield
     _nacos_deregister()
+
 
 app = FastAPI(title="AI Python Sidecar", version="1.0.0", lifespan=lifespan)
 
@@ -53,6 +54,7 @@ async def _warmup_ollama():
     except Exception:
         pass
 
+
 _nacos_service = None
 
 
@@ -74,7 +76,10 @@ def _nacos_register():
         return
     try:
         from nacos import NacosClient
-        client = NacosClient(settings.nacos_server_addr, namespace=settings.nacos_namespace)
+
+        client = NacosClient(
+            settings.nacos_server_addr, namespace=settings.nacos_namespace
+        )
         ip = _get_local_ip()
         client.add_naming_instance(
             settings.service_name,
@@ -89,7 +94,9 @@ def _nacos_register():
             while True:
                 time.sleep(5)
                 try:
-                    client.send_heartbeat(settings.service_name, ip, settings.server_port)
+                    client.send_heartbeat(
+                        settings.service_name, ip, settings.server_port
+                    )
                 except Exception:
                     pass
 
