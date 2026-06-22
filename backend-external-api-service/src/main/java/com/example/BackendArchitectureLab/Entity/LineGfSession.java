@@ -34,6 +34,9 @@ public class LineGfSession extends BaseEntity {
     @Column(name = "voice_sample_text", columnDefinition = "TEXT")
     private String voiceSampleText;
 
+    @Column(name = "pending_prompt")
+    private Boolean pendingPrompt = false;
+
     @Column(name = "conversation_history", columnDefinition = "TEXT")
     private String conversationHistory;
 }

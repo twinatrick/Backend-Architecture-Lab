@@ -67,7 +67,7 @@ public class LineGfRichMenuService implements ILineGfRichMenuService {
                     .chatBarText("女友模式")
                     .areas(List.of(
                             new RichMenuArea(new RichMenuBounds(0, 0, 833, 843), new MessageAction("啟用女友", "#啟用女友")),
-                            new RichMenuArea(new RichMenuBounds(833, 0, 834, 843), new MessageAction("提示詞", "#提示詞 ")),
+                            new RichMenuArea(new RichMenuBounds(833, 0, 834, 843), new MessageAction("提示詞", "#提示詞")),
                             new RichMenuArea(new RichMenuBounds(1667, 0, 833, 843), new MessageAction("啟用語音", "#啟用語音")),
                             new RichMenuArea(new RichMenuBounds(0, 843, 833, 843), new MessageAction("關閉女友", "#關閉女友")),
                             new RichMenuArea(new RichMenuBounds(833, 843, 834, 843), new MessageAction("狀態", "#狀態")),

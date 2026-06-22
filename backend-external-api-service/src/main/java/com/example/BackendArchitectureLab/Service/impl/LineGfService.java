@@ -56,8 +56,20 @@ public class LineGfService implements ILineGfService {
         }
 
         Optional<LineGfSession> sessionOpt = sessionRepository.findByUserId(userId);
-        if (sessionOpt.isPresent() && Boolean.TRUE.equals(sessionOpt.get().getActive())) {
-            handleAiChat(replyToken, text, userId, sessionOpt.get());
+        if (sessionOpt.isEmpty()) return;
+        LineGfSession session = sessionOpt.get();
+
+        if (Boolean.TRUE.equals(session.getPendingPrompt())) {
+            session.setPrompt(text);
+            session.setPendingPrompt(false);
+            session.setConversationHistory(null);
+            sessionRepository.save(session);
+            replyText(replyToken, "✅ 已設定提示詞");
+            return;
+        }
+
+        if (Boolean.TRUE.equals(session.getActive())) {
+            handleAiChat(replyToken, text, userId, session);
         }
     }
 
@@ -77,7 +89,11 @@ public class LineGfService implements ILineGfService {
         } else if (text.startsWith("#提示詞 ")) {
             setPrompt(replyToken, userId, text.substring(4).trim());
         } else if ("#提示詞".equals(text)) {
-            replyText(replyToken, "請傳送 #提示詞 [你的提示詞內容]，例如：\n#提示詞 你是一個可愛的女朋友，用溫柔關心的語氣回覆");
+            LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+            session.setUserId(userId);
+            session.setPendingPrompt(true);
+            sessionRepository.save(session);
+            replyText(replyToken, "請輸入提示詞內容，直接傳送即可：");
         } else if ("#設定說話語音".equals(text)) {
             replyText(replyToken, "LINE 不支援上傳語音樣本，請使用 Discord 進行語音設定");
         } else {

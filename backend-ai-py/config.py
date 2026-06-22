@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     nacos_namespace: str = ""
 
     ollama_base_url: str = "http://localhost:11434"
-    llm_model: str = "qwen:7b-q4_K_M"
+    llm_model: str = "gemma4:31b-cloud"
     llm_temperature: float = 0.5
 
     whisper_model_size: str = "base"
