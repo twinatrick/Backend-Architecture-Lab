@@ -699,7 +699,7 @@ void deleteLimitEntity(AlertCheckLimit entity);
 
 | 模組 | 快取名稱 | Key 模式 | 返回型別 |
 |------|---------|---------|---------|
-| **project-skill** | `skills` | `'all'` | `CacheListWrapper<SkillVo>` |
+| **competency** | `skills` | `'all'` | `CacheListWrapper<SkillVo>` |
 | | `skillLevels` | `#skillId` | `CacheListWrapper<SkillLevelVo>` |
 | | `currentUserSkills` | `'byuser:'+#currentUserId` | `CacheListWrapper<CurrentUserSkillVo>` |
 | | `projects` | `'all'` | `CacheListWrapper<ProjectVo>` |
@@ -827,7 +827,7 @@ public CompanyVo getCompanyById(String id) {
    - `CompanyService.getAllCompaniesCache` (全量公司快取)
    - `CompanyService.getCompanyById` (ID 查詢公司)
    - `CompanyService.searchCompanies` (分頁搜尋公司)
-3. **Project Skill Service (`backend-project-skill-service`)**：
+3. **Competency Service (`backend-competency-service`)**：
    - `ProjectService.getProjectListCache` (全量專案快取)
    - `ProjectService.searchProjects` (分頁搜尋專案)
    - `ProjectService.getCurrentUserProjectsCache` (使用者專案快取)

@@ -94,6 +94,10 @@ public class LineGfService implements ILineGfService {
             session.setPendingPrompt(true);
             sessionRepository.save(session);
             replyText(replyToken, "請輸入提示詞內容，直接傳送即可：");
+        } else if (text.startsWith("#女友名稱 ")) {
+            setGfName(replyToken, userId, text.substring(5).trim());
+        } else if (text.startsWith("#女友頭像 ")) {
+            setGfAvatar(replyToken, userId, text.substring(5).trim());
         } else if ("#設定說話語音".equals(text)) {
             replyText(replyToken, "LINE 不支援上傳語音樣本，請使用 Discord 進行語音設定");
         } else {
@@ -129,6 +133,22 @@ public class LineGfService implements ILineGfService {
         replyText(replyToken, "✅ 已設定提示詞");
     }
 
+    private void setGfName(String replyToken, String userId, String gfName) {
+        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        session.setUserId(userId);
+        session.setGfName(gfName);
+        sessionRepository.save(session);
+        replyText(replyToken, "✅ 已設定女友名稱：" + gfName);
+    }
+
+    private void setGfAvatar(String replyToken, String userId, String gfAvatarUrl) {
+        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        session.setUserId(userId);
+        session.setGfAvatarUrl(gfAvatarUrl);
+        sessionRepository.save(session);
+        replyText(replyToken, "✅ 已設定女友頭像（LINE 僅記錄，無法實際更改顯示圖片）");
+    }
+
     private void showStatus(String replyToken, String userId) {
         Optional<LineGfSession> opt = sessionRepository.findByUserId(userId);
         if (opt.isEmpty()) {
@@ -139,6 +159,7 @@ public class LineGfService implements ILineGfService {
         StringBuilder sb = new StringBuilder();
         sb.append("女友模式：").append(Boolean.TRUE.equals(s.getActive()) ? "✅ 啟用" : "❌ 關閉").append("\n");
         sb.append("語音回覆：").append(Boolean.TRUE.equals(s.getVoiceEnabled()) ? "✅ 啟用" : "❌ 關閉").append("\n");
+        sb.append("女友名稱：").append(s.getGfName() != null ? s.getGfName() : "預設").append("\n");
         sb.append("提示詞：").append(s.getPrompt() != null ? s.getPrompt().substring(0, Math.min(30, s.getPrompt().length())) + "..." : "未設定").append("\n");
         if (s.getConversationHistory() != null) {
             try {
@@ -159,6 +180,8 @@ public class LineGfService implements ILineGfService {
                 #啟用女友 - 啟用對話模式
                 #關閉女友 - 關閉對話模式
                 #提示詞 [內容] - 設定角色提示詞
+                #女友名稱 [名稱] - 設定女友名稱
+                #女友頭像 [網址] - 設定女友頭像網址
                 #啟用語音 - 啟用語音回覆
                 #關閉語音 - 關閉語音回覆
                 #狀態 - 查看目前設定
@@ -182,9 +205,7 @@ public class LineGfService implements ILineGfService {
         List<Map<String, String>> userHistory = allHistories.getOrDefault(userId, new ArrayList<>());
 
         List<Map<String, String>> messages = new ArrayList<>();
-        if (session.getPrompt() != null) {
-            messages.add(Map.of("role", "system", "content", session.getPrompt()));
-        }
+        buildSystemMessage(messages, session);
         messages.addAll(userHistory);
         messages.add(Map.of("role", "user", "content", text));
 
@@ -226,6 +247,16 @@ public class LineGfService implements ILineGfService {
             messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("你說：" + text))).join();
         } catch (Exception e) {
             messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("辨識失敗：" + e.getMessage()))).join();
+        }
+    }
+
+    private void buildSystemMessage(List<Map<String, String>> messages, LineGfSession session) {
+        if (session.getGfName() != null) {
+            String nameRule = "你的名字是「" + session.getGfName() + "」。你自稱「" + session.getGfName() + "」。\n";
+            String prompt = session.getPrompt() != null ? session.getPrompt() : "你是一個可愛的女朋友，用溫柔關心的語氣回覆";
+            messages.add(Map.of("role", "system", "content", nameRule + prompt));
+        } else if (session.getPrompt() != null) {
+            messages.add(Map.of("role", "system", "content", session.getPrompt()));
         }
     }
 

@@ -484,7 +484,7 @@ erDiagram
 | **資料查詢模組**  | Aquark 感測器資料查詢、動態條件過濾、Redis 快取                        | `/aquarkData/*`               |
 | **快取統計監控模組** | Kafka-based 快取命中/未命中/Bloom Filter 阻擋統計，聚合至 Redis Hash 提供查詢 | `/cache-stats`                |
 | **LINE Bot 模組** | LINE Messaging API 整合，支援文字/音訊訊息處理、用量追蹤 | `/api/external/line/callback` |
-| **Discord Bot 模組** | Java Discord API (JDA) 整合，支援 `!chat` 指令呼叫 Ollama | 內部 WebSocket 連線 |
+| **Discord Bot 模組** | Java Discord API (JDA) 整合，支援 Slash 指令啟用女友對話、提示詞設定、語音回覆、自訂女友名稱與頭像 | 內部 WebSocket 連線 |
 | **外部 Config 管理** | 動態配置管理（平台 + 金鑰），支援用量限制設定 | `/api/external/config/**` |
 | **用量追蹤模組** | 各服務呼叫記錄、成本估算、每日額度檢查 | `/api/external/usage/**` |
 

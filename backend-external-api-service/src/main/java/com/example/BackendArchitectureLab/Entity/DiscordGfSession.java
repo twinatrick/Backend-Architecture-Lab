@@ -40,6 +40,12 @@ public class DiscordGfSession extends BaseEntity {
     @Column(name = "voice_sample_text", columnDefinition = "TEXT")
     private String voiceSampleText;
 
+    @Column(name = "gf_name")
+    private String gfName;
+
+    @Column(name = "gf_avatar_url", columnDefinition = "TEXT")
+    private String gfAvatarUrl;
+
     @Column(name = "conversation_history", columnDefinition = "TEXT")
     private String conversationHistory;
 }

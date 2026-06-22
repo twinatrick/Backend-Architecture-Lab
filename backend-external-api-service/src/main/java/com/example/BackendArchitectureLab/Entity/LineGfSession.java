@@ -37,6 +37,12 @@ public class LineGfSession extends BaseEntity {
     @Column(name = "pending_prompt")
     private Boolean pendingPrompt = false;
 
+    @Column(name = "gf_name")
+    private String gfName;
+
+    @Column(name = "gf_avatar_url", columnDefinition = "TEXT")
+    private String gfAvatarUrl;
+
     @Column(name = "conversation_history", columnDefinition = "TEXT")
     private String conversationHistory;
 }
