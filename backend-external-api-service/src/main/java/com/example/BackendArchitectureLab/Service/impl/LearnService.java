@@ -1,10 +1,10 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.Vo.AudioRecognizeVo;
+import com.example.BackendArchitectureLab.Vo.SttResponseVo;
 import com.example.BackendArchitectureLab.Service.ILearnService;
+import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.Nlp.PhoneticConvertService;
-import com.example.BackendArchitectureLab.Service.Onnx.WhisperOnnxService;
-import com.example.BackendArchitectureLab.Util.AudioProcessUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -13,9 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class LearnService implements ILearnService {
 
     @Autowired
-    private AudioProcessUtil audioProcessUtil;
-    @Autowired
-    private WhisperOnnxService whisperOnnxService;
+    private ISttService sttService;
     @Autowired
     private PhoneticConvertService phoneticConvertService;
 
@@ -24,14 +22,12 @@ public class LearnService implements ILearnService {
         AudioRecognizeVo vo = new AudioRecognizeVo();
         
         try {
-            // 1. 處理音訊轉檔 (16kHz PCM Float Array)
-            float[] audioData = audioProcessUtil.convertTo16kMonoFloatArray(file);
-
-            // 2. Whisper ONNX 推論出文字
-            String text = whisperOnnxService.transcribe(audioData, lang);
+            // 1. 呼叫 Python STT 服務進行語音辨識
+            SttResponseVo sttResult = sttService.recognize(file.getBytes(), lang);
+            String text = (sttResult != null && sttResult.getText() != null) ? sttResult.getText() : "";
             vo.setText(text);
 
-            // 3. 轉換拼音/注音/羅馬音
+            // 2. 轉換拼音/注音/羅馬音
             String phonetic = phoneticConvertService.convert(text, mode, lang);
             vo.setPhonetic(phonetic);
 

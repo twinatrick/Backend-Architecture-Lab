@@ -1,9 +1,9 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.Vo.AudioRecognizeVo;
+import com.example.BackendArchitectureLab.Vo.SttResponseVo;
+import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.Nlp.PhoneticConvertService;
-import com.example.BackendArchitectureLab.Service.Onnx.WhisperOnnxService;
-import com.example.BackendArchitectureLab.Util.AudioProcessUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,10 +24,7 @@ import static org.mockito.Mockito.*;
 class LearnServiceTest {
 
     @Mock
-    private AudioProcessUtil audioProcessUtil;
-
-    @Mock
-    private WhisperOnnxService whisperOnnxService;
+    private ISttService sttService;
 
     @Mock
     private PhoneticConvertService phoneticConvertService;
@@ -38,10 +35,16 @@ class LearnServiceTest {
     @InjectMocks
     private LearnService learnService;
 
+    private SttResponseVo defaultSttResponse;
+
     @BeforeEach
     void setUp() throws Exception {
-        when(audioProcessUtil.convertTo16kMonoFloatArray(any())).thenReturn(new float[]{0.1f, 0.2f, 0.3f});
-        when(whisperOnnxService.transcribe(any(), any())).thenReturn("你好世界");
+        defaultSttResponse = new SttResponseVo();
+        defaultSttResponse.setText("你好世界");
+        defaultSttResponse.setLanguage("zh");
+
+        when(mockFile.getBytes()).thenReturn(new byte[]{1, 2, 3});
+        when(sttService.recognize(any(), any())).thenReturn(defaultSttResponse);
         when(phoneticConvertService.convert(any(), any(), any())).thenReturn("nǐ hǎo shì jiè");
     }
 
@@ -68,10 +71,9 @@ class LearnServiceTest {
     }
 
     @Test
-    @DisplayName("音訊轉檔失敗時應回傳錯誤訊息")
-    void shouldHandleAudioConversionError() throws Exception {
-        when(audioProcessUtil.convertTo16kMonoFloatArray(any()))
-                .thenThrow(new RuntimeException("轉檔失敗"));
+    @DisplayName("STT 服務異常或讀取 byte 失敗時應回傳錯誤訊息")
+    void shouldHandleSttError() throws Exception {
+        when(mockFile.getBytes()).thenThrow(new RuntimeException("讀取音訊檔案失敗"));
 
         AudioRecognizeVo vo = learnService.processAudio(mockFile, "zh", "pinyin");
 
@@ -81,9 +83,13 @@ class LearnServiceTest {
     }
 
     @Test
-    @DisplayName("Whisper 回傳 mock 文字時應正確傳遞")
+    @DisplayName("STT 服務回傳日文文字時應正確傳遞")
     void shouldPassThroughMockText() {
-        when(whisperOnnxService.transcribe(any(), eq("ja"))).thenReturn("こんにちは");
+        SttResponseVo jaResponse = new SttResponseVo();
+        jaResponse.setText("こんにちは");
+        jaResponse.setLanguage("ja");
+
+        when(sttService.recognize(any(), eq("ja"))).thenReturn(jaResponse);
         when(phoneticConvertService.convert(any(), any(), any())).thenReturn("konnichiwa");
 
         AudioRecognizeVo vo = learnService.processAudio(mockFile, "ja", "romaji");
