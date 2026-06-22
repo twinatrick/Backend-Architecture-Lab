@@ -1,6 +1,15 @@
 import sys
 import os
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+
+# Mock out external libraries that might not be installed or are heavy in CI
+sys.modules["uvicorn"] = MagicMock()
+sys.modules["sherpa_onnx"] = MagicMock()
+sys.modules["soundfile"] = MagicMock()
+sys.modules["av"] = MagicMock()
+sys.modules["faster_whisper"] = MagicMock()
+sys.modules["minio"] = MagicMock()
+
 from fastapi.testclient import TestClient
 
 # Ensure backend-ai-py folder is in the python search path
