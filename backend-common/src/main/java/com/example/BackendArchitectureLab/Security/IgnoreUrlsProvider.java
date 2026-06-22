@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Security;
 
-import com.example.BackendArchitectureLab.Annotation.Ingnore;
+import com.example.BackendArchitectureLab.Annotation.Ignore;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -29,7 +29,7 @@ public class IgnoreUrlsProvider implements InitializingBean {
 
         for (Map.Entry<RequestMappingInfo, HandlerMethod> entry : handlerMethods.entrySet()) {
             HandlerMethod handlerMethod = entry.getValue();
-            if (handlerMethod.hasMethodAnnotation(Ingnore.class)) {
+            if (handlerMethod.hasMethodAnnotation(Ignore.class)) {
                 RequestMappingInfo mappingInfo = entry.getKey();
                 if (mappingInfo.getPatternValues() != null) {
                     ignoredUrls.addAll(mappingInfo.getPatternValues());

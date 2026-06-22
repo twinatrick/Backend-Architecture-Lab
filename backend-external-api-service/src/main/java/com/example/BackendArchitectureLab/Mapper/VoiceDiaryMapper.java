@@ -6,5 +6,5 @@ import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface VoiceDiaryMapper {
-    VoiceDiaryVo toDto(VoiceDiary entity);
+    VoiceDiaryVo toVo(VoiceDiary entity);
 }

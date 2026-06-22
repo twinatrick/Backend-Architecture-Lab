@@ -340,7 +340,7 @@
                         <excludes>
                             <exclude>com/example/BackendArchitectureLab/Controller/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Entity/**</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Dto/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Vo/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Mapper/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/DataAccess/specification/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Config/**</exclude>

@@ -5,7 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * 個人專案請求 DTO
+ * 個人專案請求 Vo
  * 用於一般使用者新增或修改個人專案
  */
 @Getter

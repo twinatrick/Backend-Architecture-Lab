@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IAquarkDataService;
-import com.example.BackendArchitectureLab.Annotation.Ingnore;
+import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
@@ -39,7 +39,7 @@ public class AquarkDataController {
         return new ResponseType<>(aquarkDataService.getColumnNameList());
     }
 
-    @Ingnore
+    @Ignore
     @PostMapping("/getAverage")
     @ApiOperationBadRequest(summary = "Get average aquark data", description = "Returns averaged aquark data within a time range.")
     public ResponseType<List<AverageAquark>> getAverage(@RequestBody TimeRange time) {

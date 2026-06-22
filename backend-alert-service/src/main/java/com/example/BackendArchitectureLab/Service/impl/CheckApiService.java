@@ -7,7 +7,7 @@ import com.example.BackendArchitectureLab.Service.IAquarkDataService;
 import com.example.BackendArchitectureLab.Service.ICheckApiService;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.RowData;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.aquarkApiReturnVo;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkApiReturnVo;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -49,8 +49,8 @@ public class CheckApiService implements ICheckApiService {
         List<AquarkDataRaw> aquarkDataRawList = new ArrayList<>();
         for (String url : urlList) {
             String result = getApiOnlyUrl(url);
-            aquarkApiReturnVo aquarkApiReturnVo =objectMapper.readValue(result, aquarkApiReturnVo.class);
-            log.debug("aquarkApiReturnVo Raw size: {}", aquarkApiReturnVo.getRaw().size());
+            AquarkApiReturnVo aquarkApiReturnVo =objectMapper.readValue(result, AquarkApiReturnVo.class);
+            log.debug("AquarkApiReturnVo Raw size: {}", aquarkApiReturnVo.getRaw().size());
             aquarkDataRawList.addAll(aquarkApiReturnVo.getRaw().stream().map(RowData::transToDbData).toList());
 
         }

@@ -653,7 +653,7 @@ void deleteLimitEntity(AlertCheckLimit entity);
 | `Util/NullValue.java` | 可序列化的空值佔位 POJO |
 | `Service/CacheStatsPublisher.java` | 快取統計發布者介面 |
 | `Service/impl/KafkaCacheStatsPublisher.java` | Kafka 實作，發送 hit/miss/bloom_rejects 事件 |
-| `Dto/CacheStatsEvent.java` | 快取統計事件 DTO（cacheName, field） |
+| `Vo/CacheStatsEvent.java` | 快取統計事件 Vo（cacheName, field） |
 | `../alert-service/.../Controller/CacheStatsController.java` | `GET /cache-stats` 查詢 API |
 | `../alert-service/.../Service/ICacheStatsService.java` | 統計查詢服務介面 |
 | `../alert-service/.../Service/impl/CacheStatsServiceImpl.java` | 統計查詢實作（讀取 Redis Hash） |

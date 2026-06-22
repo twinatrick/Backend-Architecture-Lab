@@ -21,7 +21,7 @@ public class VoiceDiaryService implements IVoiceDiaryService {
     @Override
     public List<VoiceDiaryVo> findByUserId(String userId) {
         return voiceDiaryRepository.findByUserIdOrderByCreatedTimeDesc(userId).stream()
-                .map(voiceDiaryMapper::toDto)
+                .map(voiceDiaryMapper::toVo)
                 .toList();
     }
 }

@@ -37,9 +37,9 @@ class CompositeAiServiceTest {
 
     @BeforeEach
     void setUp() {
-        AiJobPostingVo dto = new AiJobPostingVo();
-        dto.setTitle("Software Engineer");
-        mockResult = List.of(dto);
+        AiJobPostingVo vo = new AiJobPostingVo();
+        vo.setTitle("Software Engineer");
+        mockResult = List.of(vo);
     }
 
     @Test

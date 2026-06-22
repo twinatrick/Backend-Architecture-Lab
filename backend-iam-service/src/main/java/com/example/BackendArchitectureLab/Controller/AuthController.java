@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
-import com.example.BackendArchitectureLab.Annotation.Ingnore;
+import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Security.JwtAuthenticationToken;
 import com.example.BackendArchitectureLab.Vo.LoginRequest;
@@ -56,7 +56,7 @@ public class AuthController {
     @Value("${superuser.key}")
     private String superUserKey;
 
-    @Ingnore
+    @Ignore
     @PostMapping("/signup")
     @ApiOperationBadRequest(summary = "Register a new user", description = "Creates a user account and returns a JWT access token.")
     public ResponseType<Token> signup(@RequestBody SignupRequest request) throws JoseException {
@@ -87,7 +87,7 @@ public class AuthController {
         return new ResponseType<>(0, res, "User registered successfully");
     }
 
-    @Ingnore
+    @Ignore
     @PostMapping("/login")
     @ApiOperationAuth(summary = "User login", description = "Authenticates user credentials and returns a JWT access token.")
     public ResponseType<Token> login(@RequestBody LoginRequest request) throws JoseException {
@@ -108,7 +108,7 @@ public class AuthController {
         return new ResponseType<>(0, res, "Login successful");
     }
 
-    @Ingnore
+    @Ignore
     @PostMapping("/superuser")
     @ApiOperationBadRequest(summary = "Create super user", description = "Creates an admin user when the provided key matches configuration.")
     public ResponseType<?> createSuperUser(@RequestBody SuperUserRequest request) {

@@ -445,7 +445,7 @@ erDiagram
 | **Kafka**             | 非同步訊息佇列      | 高吞吐、持久化、支援消費者群組，適合事件驅動架構                        |
 | **WebSocket**         | 即時通訊         | 全雙工通訊，適合告警即時推送場景                                |
 | **jose4j**            | JWT 處理       | 支援 JWS/JWE 標準、API 設計清晰、安全性高                     |
-| **MapStruct**         | DTO 映射       | 編譯期產生程式碼、效能優於反射、型別安全                            |
+| **MapStruct**         | Vo 映射        | 編譯期產生程式碼、效能優於反射、型別安全                            |
 | **Lombok**            | 程式碼簡化        | 減少 getter/setter/constructor 樣板程式碼              |
 | **Jsoup**             | HTML 解析與網頁爬蟲 | 輕量級靜態頁面爬取，支援 CSS Selector 與 DOM 操作，適合結構化頁面      |
 | **Selenium**          | 動態網頁爬蟲       | 瀏覽器自動化工具，處理 JavaScript 渲染頁面，作為 Jsoup 的 fallback |
@@ -497,7 +497,7 @@ erDiagram
 ### 模組依賴隔離 (Dependency Isolation)
 為了解決微服務架構中常見的全域依賴過重問題（Jar Hell）與啟動效能問題，專案實作了嚴格的依賴隔離策略：
 - Parent POM (`pom.xml`) 僅負責版本管理 (`<dependencyManagement>`) 與極少數的全域基礎依賴（如 Lombok, MapStruct 等）。
-- 各微服務子模組依照其領域職責（例如：`backend-job-service` 需要爬蟲工具、`backend-ai-service` 需要語音辨識與 NLP 套件），各自明確宣告所需的 `<dependencies>`，徹底避免無用類別庫的強迫載入，顯著降低不需要該依賴之服務（如 API Gateway）的啟動時間與編譯體積。
+- 各微服務子模組依照其領域職責（例如：`backend-job-service` 需要爬蟲工具、`backend-external-api-service` 需要語音辨識與 NLP 套件），各自明確宣告所需的 `<dependencies>`，徹底避免無用類別庫的強迫載入，顯著降低不需要該依賴之服務（如 API Gateway）的啟動時間與編譯體積。
 
 ### 快取策略
 
@@ -529,7 +529,7 @@ erDiagram
 - 使用 JPA Specification 實現分頁與多條件搜尋
 - 複雜查詢 (AquarkData) 使用 Criteria API 動態建構
 
-### DTO 映射
+### Vo 映射
 
 - MapStruct 編譯期產生映射程式碼，效能優於反射
 - 支援 `@AfterMapping` 處理複雜轉換 (如權限解析)
@@ -538,7 +538,7 @@ erDiagram
 
 - JUnit 5 + Mockito 單元測試
 - H2 in-memory database 隔離測試環境
-- JaCoCo 覆蓋率要求 ≥ 80% (排除介面、Entity、DTO 等樣板層)
+- JaCoCo 覆蓋率要求 ≥ 80% (排除介面、Entity、Vo 等樣板層)
 
 ### Docker Compose 本地開發
 
@@ -1169,7 +1169,7 @@ public ResponseType<Token> signup(@Valid @RequestBody SignupRequest request) {
 }
 ```
 
-**DTO 驗證規則：**
+**Vo 驗證規則：**
 
 ```java
 public class SignupRequest {
@@ -1260,7 +1260,7 @@ grep -r "@Query.*nativeQuery.*true" src/
 </configuration>
 ```
 
-**選項 B：DTO 層面遮罩**
+**選項 B：Vo 層面遮罩**
 
 ```java
 
@@ -1300,7 +1300,7 @@ public class UserVo {
 
 #### 應用安全
 
-- [ ] 所有 DTO 已加上 `@Valid` 驗證
+- [ ] 所有 Vo 已加上 `@Valid` 驗證
 - [ ] 密碼驗證規則已設定（長度、複雜度）
 - [ ] 敏感資料不會出現在日誌中
 - [ ] SQL Injection 防護已檢查（native query）
@@ -1588,7 +1588,7 @@ class UserIntegrationTest {
 **排除項目：**
 
 - Controller 層（透過整合測試驗證）
-- Entity、DTO、VO（資料類別）
+- Entity、Vo（資料類別）
 - Mapper（MapStruct 自動生成）
 - Config、Filter、WebSocket（配置類別）
 
@@ -1724,7 +1724,7 @@ class UserMapperTest {
         // ... 準備測試資料
 
         // When
-        List<UserProjectDto> result = userMapper.findUsersWithProjects(params);
+        List<UserProjectVo> result = userMapper.findUsersWithProjects(params);
 
         // Then
         assertThat(result).isNotEmpty();

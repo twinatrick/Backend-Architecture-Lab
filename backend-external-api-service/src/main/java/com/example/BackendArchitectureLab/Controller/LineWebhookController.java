@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Annotation.Ingnore;
+import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Service.ILineDiaryService;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
 import com.example.BackendArchitectureLab.Service.ILineWebhookService;
@@ -31,7 +31,7 @@ public class LineWebhookController {
     @Value("${line.diary.channel-secret:}")
     private String diarySecret;
 
-    @Ingnore
+    @Ignore
     @PostMapping("/external/line/callback")
     public ResponseEntity<String> gfCallback(
             @RequestBody String body,
@@ -48,7 +48,7 @@ public class LineWebhookController {
         }
     }
 
-    @Ingnore
+    @Ignore
     @PostMapping("/external/line/diary/callback")
     public ResponseEntity<String> diaryCallback(
             @RequestBody String body,

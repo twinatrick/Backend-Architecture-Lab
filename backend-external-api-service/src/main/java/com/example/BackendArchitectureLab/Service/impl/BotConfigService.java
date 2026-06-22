@@ -24,21 +24,21 @@ public class BotConfigService implements IBotConfigService {
     @Override
     public List<BotConfigVo> findAll() {
         return botConfigRepository.findAll().stream()
-                .map(botConfigMapper::toDto)
+                .map(botConfigMapper::toVo)
                 .toList();
     }
 
     @Override
     public BotConfigVo findById(UUID id) {
         return botConfigRepository.findById(id)
-                .map(botConfigMapper::toDto)
+                .map(botConfigMapper::toVo)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "BotConfig not found", 404));
     }
 
     @Override
     public BotConfigVo create(BotConfigVo vo) {
         BotConfig entity = botConfigMapper.toEntity(vo);
-        return botConfigMapper.toDto(botConfigRepository.save(entity));
+        return botConfigMapper.toVo(botConfigRepository.save(entity));
     }
 
     @Override
@@ -52,7 +52,7 @@ public class BotConfigService implements IBotConfigService {
         existing.setDescription(updates.getDescription());
         existing.setCostLimitDaily(updates.getCostLimitDaily());
         existing.setCostAlertAt(updates.getCostAlertAt());
-        return botConfigMapper.toDto(botConfigRepository.save(existing));
+        return botConfigMapper.toVo(botConfigRepository.save(existing));
     }
 
     @Override

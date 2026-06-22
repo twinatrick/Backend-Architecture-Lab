@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class voltArray {
+public class VoltArray {
     private float v1;
     private float v2;
     private float v3;

@@ -260,27 +260,27 @@ public class GeminiService implements IAiService {
             List<AiJobPostingVo> result = new ArrayList<>();
             for (JsonElement jobElement : jobs) {
                 JsonObject jobObj = jobElement.getAsJsonObject();
-                AiJobPostingVo dto = new AiJobPostingVo();
+                AiJobPostingVo vo = new AiJobPostingVo();
                 
                 JsonElement title = jobObj.get("title");
-                dto.setTitle(title != null && !title.isJsonNull() ? title.getAsString() : "");
+                vo.setTitle(title != null && !title.isJsonNull() ? title.getAsString() : "");
                 
                 JsonElement url = jobObj.get("url");
-                dto.setUrl(url != null && !url.isJsonNull() ? url.getAsString() : "");
+                vo.setUrl(url != null && !url.isJsonNull() ? url.getAsString() : "");
                 
                 JsonElement description = jobObj.get("description");
-                dto.setDescription(description != null && !description.isJsonNull() ? description.getAsString() : "");
+                vo.setDescription(description != null && !description.isJsonNull() ? description.getAsString() : "");
                 
                 JsonElement requirements = jobObj.get("requirements");
-                dto.setRequirements(requirements != null && !requirements.isJsonNull() ? requirements.getAsString() : "");
+                vo.setRequirements(requirements != null && !requirements.isJsonNull() ? requirements.getAsString() : "");
                 
                 JsonElement responsibilities = jobObj.get("responsibilities");
-                dto.setResponsibilities(responsibilities != null && !responsibilities.isJsonNull() ? responsibilities.getAsString() : "");
+                vo.setResponsibilities(responsibilities != null && !responsibilities.isJsonNull() ? responsibilities.getAsString() : "");
                 
                 JsonElement salaryRange = jobObj.get("salaryRange");
-                dto.setSalaryRange(salaryRange != null && !salaryRange.isJsonNull() ? salaryRange.getAsString() : "");
+                vo.setSalaryRange(salaryRange != null && !salaryRange.isJsonNull() ? salaryRange.getAsString() : "");
                 
-                result.add(dto);
+                result.add(vo);
             }
 
             return result;

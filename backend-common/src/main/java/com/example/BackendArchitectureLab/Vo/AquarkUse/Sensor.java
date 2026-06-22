@@ -8,7 +8,7 @@ import lombok.Setter;
 @Setter
 public class Sensor {
     @JsonProperty("Volt")
-    private voltArray Volt;
+    private VoltArray Volt;
     @JsonProperty("StickTxRh")
     private StickTxRh StickTxRh;
     @JsonProperty("Ultrasonic_Level")

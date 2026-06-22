@@ -6,5 +6,5 @@ import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface ApiUsageLogMapper {
-    ApiUsageLogVo toDto(ApiUsageLog entity);
+    ApiUsageLogVo toVo(ApiUsageLog entity);
 }

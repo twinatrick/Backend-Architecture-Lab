@@ -11,7 +11,7 @@
     <artifactId>backend-common</artifactId>
     <packaging>jar</packaging>
     <name>backend-common</name>
-    <description>Shared library: DTOs, Exceptions, Annotations, Feign clients</description>
+    <description>Shared library: Vos, Exceptions, Annotations, Feign clients</description>
 
     <dependencies>
         <dependency>

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Annotation.Ingnore;
+import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ITtsRefAudioService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +16,7 @@ public class TtsRefAudioController {
     @Autowired
     private ITtsRefAudioService ttsRefAudioService;
 
-    @Ingnore
+    @Ignore
     @PostMapping(value = "/external/tts/ref-audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseType<String> uploadRefAudio(
             @RequestParam("channel") String channel,

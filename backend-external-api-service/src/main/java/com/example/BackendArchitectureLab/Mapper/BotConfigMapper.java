@@ -7,7 +7,7 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface BotConfigMapper {
-    BotConfigVo toDto(BotConfig entity);
+    BotConfigVo toVo(BotConfig entity);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdTime", ignore = true)

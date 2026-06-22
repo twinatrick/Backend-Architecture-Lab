@@ -30,7 +30,7 @@ public class ApiUsageLogService implements IApiUsageLogService {
         } else {
             logs = apiUsageLogRepository.findByCreatedTimeBetweenOrderByCreatedTimeDesc(start, end);
         }
-        return logs.stream().map(apiUsageLogMapper::toDto).toList();
+        return logs.stream().map(apiUsageLogMapper::toVo).toList();
     }
 
     @Override
