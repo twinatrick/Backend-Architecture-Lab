@@ -1,9 +1,11 @@
+import uuid
 from pydantic import BaseModel
 
 from fastapi import APIRouter
 
 from services.tts_service import text_to_sound
 from utils.file_adapter import generate_object_key, upload_to_minio
+from utils.audio import convert_wav_to_m4a
 
 router = APIRouter()
 
@@ -25,6 +27,8 @@ async def tts_endpoint(body: TtsRequest):
         body.voiceSampleText,
         body.voiceSampleLang,
     )
-    object_key = generate_object_key("tts", ".wav")
-    audio_url = upload_to_minio(audio_bytes, object_key, "audio/wav")
+    # 將 WAV 轉換為符合手機版 LINE 要求之 M4A 壓縮格式
+    m4a_bytes = convert_wav_to_m4a(audio_bytes)
+    object_key = f"tts/{uuid.uuid4().hex}.m4a"
+    audio_url = upload_to_minio(m4a_bytes, object_key, "audio/x-m4a")
     return {"audio_url": audio_url}

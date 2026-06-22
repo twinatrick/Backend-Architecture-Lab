@@ -4,19 +4,28 @@ import com.example.BackendArchitectureLab.Entity.LineGfSession;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Repository.LineGfSessionRepository;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
+import com.example.BackendArchitectureLab.Service.ITtsService;
+import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
+import java.net.URI;
 import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Vo.SttResponseVo;
+import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
+import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
+import com.example.BackendArchitectureLab.Vo.LineGfSessionVo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.bot.client.LineBlobClient;
 import com.linecorp.bot.client.LineMessagingClient;
 import com.linecorp.bot.client.MessageContentResponse;
 import com.linecorp.bot.model.ReplyMessage;
+import com.linecorp.bot.model.message.AudioMessage;
 import com.linecorp.bot.model.message.TextMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -40,10 +49,22 @@ public class LineGfService implements ILineGfService {
     private AiPyServiceFeignClient aiPyServiceFeignClient;
 
     @Autowired
+    private ITtsService ttsService;
+
+    @Autowired
+    private ISttService sttService;
+
+    @Autowired
     private IUsageTrackService usageTrackService;
 
     @Autowired
     private LineGfSessionRepository sessionRepository;
+
+    @Autowired
+    private GfSessionMapper gfSessionMapper;
+
+    @Value("${OUT_URL:}")
+    private String outUrl;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -98,11 +119,25 @@ public class LineGfService implements ILineGfService {
             setGfName(replyToken, userId, text.substring(5).trim());
         } else if (text.startsWith("#女友頭像 ")) {
             setGfAvatar(replyToken, userId, text.substring(5).trim());
+        } else if (text.startsWith("#語言 ")) {
+            setLanguage(replyToken, userId, text.substring(4).trim().toLowerCase());
         } else if ("#設定說話語音".equals(text)) {
             replyText(replyToken, "LINE 不支援上傳語音樣本，請使用 Discord 進行語音設定");
         } else {
             replyText(replyToken, "未知指令，請輸入 #幫助 查看可用指令");
         }
+    }
+
+    private void setLanguage(String replyToken, String userId, String lang) {
+        if (!List.of("zh", "ja", "en").contains(lang)) {
+            replyText(replyToken, "❌ 不支援的語言。目前僅支援: zh (繁中), ja (日文), en (英文)");
+            return;
+        }
+        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        session.setUserId(userId);
+        session.setLanguage(lang);
+        sessionRepository.save(session);
+        replyText(replyToken, "✅ 已將女友語言設定為：" + lang);
     }
 
     private void toggleGf(String replyToken, String userId, boolean enable) {
@@ -159,6 +194,7 @@ public class LineGfService implements ILineGfService {
         StringBuilder sb = new StringBuilder();
         sb.append("女友模式：").append(Boolean.TRUE.equals(s.getActive()) ? "✅ 啟用" : "❌ 關閉").append("\n");
         sb.append("語音回覆：").append(Boolean.TRUE.equals(s.getVoiceEnabled()) ? "✅ 啟用" : "❌ 關閉").append("\n");
+        sb.append("女友語言：").append(s.getLanguage() != null ? s.getLanguage() : "zh").append("\n");
         sb.append("女友名稱：").append(s.getGfName() != null ? s.getGfName() : "預設").append("\n");
         sb.append("提示詞：").append(s.getPrompt() != null ? s.getPrompt().substring(0, Math.min(30, s.getPrompt().length())) + "..." : "未設定").append("\n");
         if (s.getConversationHistory() != null) {
@@ -184,6 +220,7 @@ public class LineGfService implements ILineGfService {
                 #女友頭像 [網址] - 設定女友頭像網址
                 #啟用語音 - 啟用語音回覆
                 #關閉語音 - 關閉語音回覆
+                #語言 [zh/ja/en] - 設定女友語言
                 #狀態 - 查看目前設定
                 #幫助 - 顯示此訊息
                 """);
@@ -204,8 +241,8 @@ public class LineGfService implements ILineGfService {
 
         List<Map<String, String>> userHistory = allHistories.getOrDefault(userId, new ArrayList<>());
 
-        List<Map<String, String>> messages = new ArrayList<>();
-        buildSystemMessage(messages, session);
+        LineGfSessionVo sessionVo = gfSessionMapper.toVo(session);
+        List<Map<String, String>> messages = sessionVo.buildSystemMessage();
         messages.addAll(userHistory);
         messages.add(Map.of("role", "user", "content", text));
 
@@ -227,36 +264,74 @@ public class LineGfService implements ILineGfService {
         }
         sessionRepository.save(session);
 
-        if (Boolean.TRUE.equals(session.getVoiceEnabled())) {
-            replyText(replyToken, reply + "\n（語音模式已啟用）");
+        // boolean voiceEnable = Boolean.TRUE.equals(session.getVoiceEnabled());
+        boolean voiceEnable = false; // 暫時全面關閉 LINE 語音回復（TTS 發送），避開免費版 ngrok 攔截警告。未來只需將此行改回即可一秒還原。
+
+        if (voiceEnable) {
+            try {
+                String lang = sessionVo.getLanguage() != null ? sessionVo.getLanguage() : "zh";
+                
+                // 套用動作過濾：只將純台詞傳送給語音合成，避免尷尬旁白讀出，且大幅加速合成
+                String speechText = TtsService.filterActionsForTts(reply);
+                if (speechText.isEmpty()) {
+                    speechText = reply; // 如果全為動作描述，則回退使用原本的回覆
+                }
+
+                TtsRequestVo ttsRequest = TtsRequestVo.builder()
+                        .text(speechText)
+                        .language(lang)
+                        .voiceSampleKey(sessionVo.getVoiceSampleKey())
+                        .voiceSampleText(sessionVo.getVoiceSampleText())
+                        .voiceSampleLang(lang)
+                        .build();
+                 TtsResponseVo ttsResponse = aiPyServiceFeignClient.synthesize(ttsRequest);
+                 String audioUrl = ttsResponse.getAudioUrl();
+                 String presignedUrl;
+                 if (outUrl != null && !outUrl.isBlank()) {
+                     String fileName = audioUrl.substring(audioUrl.lastIndexOf("/") + 1);
+                     presignedUrl = outUrl.trim() + "/external/public/audio/stream/" + fileName;
+                 } else {
+                     presignedUrl = ttsService.getPresignedUrl(audioUrl);
+                 }
+                
+                // 動態估算音檔毫秒長度（字數 * 300毫秒，最低 2000毫秒，以純台詞長度為準）
+                Long duration = Long.valueOf(Math.max(2000, speechText.length() * 300));
+
+                messagingClient.replyMessage(new ReplyMessage(replyToken, List.of(
+                        new TextMessage(reply),
+                        new AudioMessage(URI.create(presignedUrl), duration)
+                ))).join();
+            } catch (Exception e) {
+                e.printStackTrace();
+                messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage(reply + "\n（語音合成失敗）"))).join();
+            }
         } else {
             replyText(replyToken, reply);
         }
     }
 
     @Override
-    public void handleAudio(String replyToken, String messageId) {
-        usageTrackService.track("line-gf", "stt", "file", 1L);
+    public void handleAudio(String replyToken, String messageId, String userId) {
         try {
             MessageContentResponse content = blobClient.getMessageContent(messageId).get();
             byte[] audioBytes = content.getStream().readAllBytes();
             content.close();
 
-            SttResponseVo stt = aiPyServiceFeignClient.recognize(audioBytes, "zh");
-            String text = stt.getText() != null ? stt.getText() : "無法辨識";
-            messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("你說：" + text))).join();
-        } catch (Exception e) {
-            messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("辨識失敗：" + e.getMessage()))).join();
-        }
-    }
+            LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+            String lang = session.getLanguage() != null ? session.getLanguage() : "zh";
 
-    private void buildSystemMessage(List<Map<String, String>> messages, LineGfSession session) {
-        if (session.getGfName() != null) {
-            String nameRule = "你的名字是「" + session.getGfName() + "」。你自稱「" + session.getGfName() + "」。\n";
-            String prompt = session.getPrompt() != null ? session.getPrompt() : "你是一個可愛的女朋友，用溫柔關心的語氣回覆";
-            messages.add(Map.of("role", "system", "content", nameRule + prompt));
-        } else if (session.getPrompt() != null) {
-            messages.add(Map.of("role", "system", "content", session.getPrompt()));
+            // 呼叫共用高階處理
+            String text = sttService.recognizeAndTrack(audioBytes, lang, "line-gf");
+            if (text.isEmpty()) {
+                replyText(replyToken, "（聽不清楚你說什麼...）");
+                return;
+            }
+
+            // 直接呼叫 handleText，啟動 AI 思考與語音回覆！
+            handleText(replyToken, text, userId);
+        } catch (Exception e) {
+            e.printStackTrace();
+            replyText(replyToken, "聽取語音失敗：" + e.getMessage());
         }
     }
 

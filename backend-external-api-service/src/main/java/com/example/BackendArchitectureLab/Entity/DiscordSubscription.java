@@ -33,6 +33,9 @@ public class DiscordSubscription extends BaseEntity {
     @Column(name = "webhook_id")
     private String webhookId;
 
+    @Column(name = "language")
+    private String language = "zh";
+
     public DiscordSubscription(String guildId, String channelId, String botType) {
         this.guildId = guildId;
         this.channelId = channelId;

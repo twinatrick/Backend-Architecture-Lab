@@ -1,3 +1,5 @@
+import os
+import subprocess
 import tempfile
 
 import av
@@ -24,3 +26,35 @@ def get_audio_duration(file_path: str) -> float:
     duration = float(container.duration) / 1_000_000 if container.duration else 0.0
     container.close()
     return duration
+
+
+def convert_wav_to_m4a(wav_bytes: bytes) -> bytes:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tf_in:
+        tf_in.write(wav_bytes)
+        tf_in_name = tf_in.name
+    
+    tf_out_name = tempfile.NamedTemporaryFile(delete=False, suffix=".m4a").name
+    try:
+        # 使用 ffmpeg 將 wav 轉成 aac 編碼的 m4a，並使用 faststart 優化串流播放
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            tf_in_name,
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
+            tf_out_name,
+        ]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        with open(tf_out_name, "rb") as f:
+            m4a_bytes = f.read()
+        return m4a_bytes
+    finally:
+        if os.path.exists(tf_in_name):
+            os.remove(tf_in_name)
+        if os.path.exists(tf_out_name):
+            os.remove(tf_out_name)

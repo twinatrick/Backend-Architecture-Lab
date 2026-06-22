@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 @FeignClient(name = "ai-py-service")
 public interface AiPyServiceFeignClient {
 
-    @PostMapping(value = "/stt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    SttResponseVo recognize(@RequestPart("file") byte[] fileData,
+    @PostMapping("/stt")
+    SttResponseVo recognize(@RequestParam("object_key") String objectKey,
                           @RequestParam("language") String language);
 
     @PostMapping("/tts")

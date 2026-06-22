@@ -1,35 +1,49 @@
 import os
+from typing import Optional
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 
+from config import settings
 from services.stt_service import sound_to_text
 from utils.audio import convert_to_wav, get_audio_duration
-from utils.file_adapter import generate_object_key, upload_to_minio
+from utils.file_adapter import download_from_minio, generate_object_key, upload_to_minio
 
 router = APIRouter()
 
 
 @router.post("/stt")
 async def stt_endpoint(
-    file: UploadFile = File(...),
-    language: str = Form("zh"),
+    object_key: str,
+    language: str = "zh",
 ):
-    tmp_input = f"/tmp/stt_input_{id(file)}"
-    with open(tmp_input, "wb") as f:
-        f.write(await file.read())
+    tmp_input = None
+    wav_path = None
+
     try:
+        tmp_input = download_from_minio(object_key, settings.minio_bucket_stt)
+        filename = os.path.basename(object_key)
+        content_type = "audio/wav"
+
         wav_path = convert_to_wav(tmp_input)
         duration = get_audio_duration(wav_path)
         text = sound_to_text(wav_path, language)
-        ext = os.path.splitext(file.filename or "audio.wav")[1] or ".wav"
-        object_key = generate_object_key("stt", ext)
-        audio_url = upload_to_minio(
-            open(tmp_input, "rb").read(), object_key, file.content_type or "audio/wav"
-        )
+
+        audio_url = f"{settings.minio_endpoint.rstrip('/')}/{settings.minio_bucket_audio}/{object_key}"
+
     finally:
-        for p in [tmp_input, wav_path]:
+        paths_to_clean = []
+        if wav_path:
+            paths_to_clean.append(wav_path)
+        if tmp_input:
+            paths_to_clean.append(tmp_input)
+
+        for p in paths_to_clean:
             if os.path.exists(p):
-                os.remove(p)
+                try:
+                    os.remove(p)
+                except Exception as e:
+                    print(f"Failed to remove temp file {p}: {e}")
+
     return {
         "text": text,
         "language": language,

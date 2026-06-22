@@ -25,9 +25,12 @@ def generate_object_key(prefix: str, ext: str) -> str:
     return f"{prefix}/{today}/{uid}{ext}"
 
 
-def download_from_minio(object_path: str) -> str:
+def download_from_minio(object_path: str, bucket_name: str = None) -> str:
     client = _get_client()
-    response = client.get_object(settings.minio_bucket_audio, object_path)
+    bucket = bucket_name or settings.minio_bucket_audio
+    if not client.bucket_exists(bucket):
+        client.make_bucket(bucket)
+    response = client.get_object(bucket, object_path)
     suffix = Path(object_path).suffix
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp.write(response.read())

@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Vo.SttResponseVo;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.ILineDiaryService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
+import com.example.BackendArchitectureLab.Service.ISttService;
 import com.linecorp.bot.client.LineBlobClient;
 import com.linecorp.bot.client.LineMessagingClient;
 import com.linecorp.bot.client.MessageContentResponse;
@@ -25,7 +26,7 @@ public class LineDiaryService implements ILineDiaryService {
     private LineBlobClient blobClient;
 
     @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
+    private ISttService sttService;
 
     @Autowired
     private IUsageTrackService usageTrackService;
@@ -41,7 +42,6 @@ public class LineDiaryService implements ILineDiaryService {
 
     @Override
     public void handleAudio(String replyToken, String messageId) {
-        usageTrackService.track("line-diary", "stt", "file", 1L);
         if (messagingClient == null || blobClient == null) {
             throw new IllegalStateException("Diary LINE bot not configured");
         }
@@ -50,8 +50,12 @@ public class LineDiaryService implements ILineDiaryService {
             byte[] audioBytes = content.getStream().readAllBytes();
             content.close();
 
-            SttResponseVo stt = aiPyServiceFeignClient.recognize(audioBytes, "zh");
-            String text = stt.getText() != null ? stt.getText() : "無法辨識";
+            // 呼叫共用高階處理 (日記預設 zh)
+            String text = sttService.recognizeAndTrack(audioBytes, "zh", "line-diary");
+            if (text.isEmpty()) {
+                messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("（聽不清楚你說什麼...）"))).join();
+                return;
+            }
             messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("語音內容：" + text))).join();
         } catch (Exception e) {
             messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("辨識失敗：" + e.getMessage()))).join();

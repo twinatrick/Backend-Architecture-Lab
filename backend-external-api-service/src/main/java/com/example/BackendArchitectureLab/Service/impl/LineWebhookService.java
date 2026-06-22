@@ -46,7 +46,8 @@ public class LineWebhookService implements ILineWebhookService {
             } else if (msgEvent.getMessage() instanceof AudioMessageContent) {
                 String messageId = ((AudioMessageContent) msgEvent.getMessage()).getId();
                 if (service instanceof ILineGfService) {
-                    ((ILineGfService) service).handleAudio(replyToken, messageId);
+                    String userId = msgEvent.getSource().getUserId();
+                    ((ILineGfService) service).handleAudio(replyToken, messageId, userId);
                 } else if (service instanceof ILineDiaryService) {
                     ((ILineDiaryService) service).handleAudio(replyToken, messageId);
                 }

@@ -4,10 +4,14 @@ import com.example.BackendArchitectureLab.Entity.DiscordGfSession;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Repository.DiscordGfSessionRepository;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
+import com.example.BackendArchitectureLab.Service.ITtsService;
+import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
 import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
+import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
+import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.MinioClient;
@@ -43,6 +47,9 @@ public class DiscordGfListener extends ListenerAdapter {
     private DiscordGfSessionRepository sessionRepository;
 
     @Autowired
+    private GfSessionMapper gfSessionMapper;
+
+    @Autowired
     private AiPyServiceFeignClient aiPyServiceFeignClient;
 
     @Autowired
@@ -50,6 +57,12 @@ public class DiscordGfListener extends ListenerAdapter {
 
     @Autowired
     private MinioClient minioClient;
+
+    @Autowired
+    private ITtsService ttsService;
+
+    @Autowired
+    private ISttService sttService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -72,6 +85,8 @@ public class DiscordGfListener extends ListenerAdapter {
             Commands.slash("設定說話語音", "上傳語音樣本設定女友聲音")
                     .addOption(OptionType.STRING, "台詞", "音檔中說的台詞文字", true)
                     .addOption(OptionType.ATTACHMENT, "音檔", "上傳語音檔案", true),
+            Commands.slash("女友語言", "設定女友說話與聽取的語言")
+                    .addOption(OptionType.STRING, "語言", "選擇語言 (zh/ja/en)", true),
             Commands.slash("狀態", "查看當前女友模式設定")
     );
 
@@ -93,6 +108,7 @@ public class DiscordGfListener extends ListenerAdapter {
             case "設定說話語音" -> handleSetVoice(event, channelId, userId);
             case "女友名稱" -> handleSetGfName(event, channelId, userId);
             case "女友頭像" -> handleSetGfAvatar(event, channelId, userId);
+            case "女友語言" -> handleSetLanguage(event, channelId, userId);
             case "狀態" -> handleStatus(event, channelId, userId);
         }
     }
@@ -149,6 +165,22 @@ public class DiscordGfListener extends ListenerAdapter {
         event.reply("已關閉你的語音回覆").setEphemeral(true).queue();
     }
 
+    private void handleSetLanguage(SlashCommandInteractionEvent event, String channelId, String userId) {
+        String lang = event.getOption("語言").getAsString().toLowerCase();
+        if (!List.of("zh", "ja", "en").contains(lang)) {
+            event.reply("❌ 不支援的語言。僅支援: zh (繁中), ja (日文), en (英文)").setEphemeral(true).queue();
+            return;
+        }
+        DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+                .orElse(new DiscordGfSession());
+        session.setGuildId(event.getGuild().getId());
+        session.setChannelId(channelId);
+        session.setUserId(userId);
+        session.setLanguage(lang);
+        sessionRepository.save(session);
+        event.reply("✅ 已將女友語言設定為：" + lang).setEphemeral(true).queue();
+    }
+
     private void handleSetVoice(SlashCommandInteractionEvent event, String channelId, String userId) {
         String text = event.getOption("台詞").getAsString();
         Message.Attachment attachment = event.getOption("音檔").getAsAttachment();
@@ -196,6 +228,7 @@ public class DiscordGfListener extends ListenerAdapter {
         sb.append("**女友名稱**：").append(s.getGfName() != null ? s.getGfName() : "預設").append("\n");
         sb.append("**女友頭像**：").append(s.getGfAvatarUrl() != null ? "✅ 已設定" : "❌ 未設定").append("\n");
         sb.append("**語音回覆**：").append(Boolean.TRUE.equals(s.getVoiceEnabled()) ? "✅ 啟用" : "❌ 關閉").append("\n");
+        sb.append("**女友語言**：").append(s.getLanguage() != null ? s.getLanguage() : "zh").append("\n");
         sb.append("**語音樣本**：").append(s.getVoiceSampleKey() != null ? "✅ 已設定" : "❌ 未設定").append("\n");
         if (s.getConversationHistory() != null) {
             try {
@@ -244,14 +277,48 @@ public class DiscordGfListener extends ListenerAdapter {
         Optional<DiscordGfSession> sessionOpt = sessionRepository.findByChannelIdAndUserId(channelId, userId);
         if (sessionOpt.isEmpty() || !Boolean.TRUE.equals(sessionOpt.get().getActive())) return;
 
+        DiscordGfSession session = sessionOpt.get();
+        String userName = event.getMember() != null ? event.getMember().getEffectiveName() : event.getAuthor().getName();
+
+        // 1. 處理語音附件接收
+        if (!event.getMessage().getAttachments().isEmpty()) {
+            var attachment = event.getMessage().getAttachments().get(0);
+            String ct = attachment.getContentType();
+            if (ct != null && ct.startsWith("audio/")) {
+                attachment.getProxy().download().thenAcceptAsync(inputStream -> {
+                    try {
+                        byte[] audioBytes = inputStream.readAllBytes();
+                        String lang = session.getLanguage() != null ? session.getLanguage() : "zh";
+
+                        // 呼叫共用高階處理
+                        String text = sttService.recognizeAndTrack(audioBytes, lang, "discord-gf");
+
+                        if (text.isEmpty()) {
+                            event.getChannel().sendMessage("（聽不清楚你說什麼...）").queue();
+                            return;
+                        }
+
+                        // 直接非同步呼叫對話處理大腦！
+                        processChat(event, session, text, userName);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        event.getChannel().sendMessage("（聽取語音失敗）").queue();
+                    }
+                });
+                return;
+            }
+        }
+
+        // 2. 處理文字對話
         String content = event.getMessage().getContentRaw();
         if (content == null || content.isBlank()) return;
         if (content.startsWith("/")) return;
 
-        DiscordGfSession session = sessionOpt.get();
+        processChat(event, session, content, userName);
+    }
 
-        String userName = event.getMember() != null ? event.getMember().getEffectiveName() : event.getAuthor().getName();
-
+    private void processChat(MessageReceivedEvent event, DiscordGfSession session, String content, String userName) {
+        String userId = event.getAuthor().getId();
         TypeReference<Map<String, List<Map<String, String>>>> mapTypeRef = new TypeReference<>() {};
         Map<String, List<Map<String, String>>> allHistories = new HashMap<>();
         if (session.getConversationHistory() != null) {
@@ -264,8 +331,8 @@ public class DiscordGfListener extends ListenerAdapter {
 
         List<Map<String, String>> userHistory = allHistories.getOrDefault(userId, new ArrayList<>());
 
-        List<Map<String, String>> messages = new ArrayList<>();
-        buildSystemMessage(messages, session);
+        DiscordGfSessionVo sessionVo = gfSessionMapper.toVo(session);
+        List<Map<String, String>> messages = sessionVo.buildSystemMessage();
         messages.addAll(userHistory);
         messages.add(Map.of("role", "user", "content", content, "name", userName));
 
@@ -290,33 +357,32 @@ public class DiscordGfListener extends ListenerAdapter {
 
         if (Boolean.TRUE.equals(session.getVoiceEnabled())) {
             try {
+                String lang = session.getLanguage() != null ? session.getLanguage() : "zh";
+
+                // 套用動作過濾：只將純台詞傳送給語音合成，避免尷尬旁白讀出，且大幅加速合成
+                String speechText = com.example.BackendArchitectureLab.Service.impl.TtsService.filterActionsForTts(reply);
+                if (speechText.isEmpty()) {
+                    speechText = reply; // 如果全為動作描述，則回退使用原本的回覆
+                }
+
                 TtsRequestVo ttsRequest = TtsRequestVo.builder()
-                        .text(reply)
-                        .language("zh")
+                        .text(speechText)
+                        .language(lang)
                         .voiceSampleKey(session.getVoiceSampleKey())
                         .voiceSampleText(session.getVoiceSampleText())
-                        .voiceSampleLang("zh")
+                        .voiceSampleLang(lang)
                         .build();
                 TtsResponseVo ttsResponse = aiPyServiceFeignClient.synthesize(ttsRequest);
                 String audioUrl = ttsResponse.getAudioUrl();
 
-                byte[] audioBytes = downloadFromUrl(audioUrl);
-                sendReply(event, session, reply, audioBytes);
+                byte[] audioBytes = ttsService.downloadAudio(audioUrl);
+                sendReply(event, session, " ", audioBytes);
             } catch (Exception e) {
+                e.printStackTrace();
                 sendReply(event, session, reply + "\n（語音合成失敗）", null);
             }
         } else {
             sendReply(event, session, reply, null);
-        }
-    }
-
-    private void buildSystemMessage(List<Map<String, String>> messages, DiscordGfSession session) {
-        if (session.getGfName() != null) {
-            String nameRule = "你的名字是「" + session.getGfName() + "」。你自稱「" + session.getGfName() + "」。\n";
-            String prompt = session.getPrompt() != null ? session.getPrompt() : "你是一個可愛的女朋友，用溫柔關心的語氣回覆";
-            messages.add(Map.of("role", "system", "content", nameRule + prompt));
-        } else if (session.getPrompt() != null) {
-            messages.add(Map.of("role", "system", "content", session.getPrompt()));
         }
     }
 
@@ -373,13 +439,6 @@ public class DiscordGfListener extends ListenerAdapter {
                     .queue();
         } else {
             event.getChannel().sendMessage(text).queue();
-        }
-    }
-
-    private byte[] downloadFromUrl(String audioUrl) throws Exception {
-        URL url = new URL(audioUrl);
-        try (var is = url.openStream()) {
-            return is.readAllBytes();
         }
     }
 }

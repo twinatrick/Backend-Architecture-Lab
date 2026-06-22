@@ -2,9 +2,9 @@ package com.example.BackendArchitectureLab.Service.Discord;
 
 import com.example.BackendArchitectureLab.Vo.SttResponseVo;
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
-import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
+import com.example.BackendArchitectureLab.Service.ISttService;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -20,7 +20,7 @@ public class DiscordDiaryListener extends ListenerAdapter {
     private DiscordSubscriptionRepository subscriptionRepository;
 
     @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
+    private ISttService sttService;
 
     @Autowired
     private DiscordWebhookNotifier webhookNotifier;
@@ -83,15 +83,18 @@ public class DiscordDiaryListener extends ListenerAdapter {
             String ct = attachment.getContentType();
             if (ct == null || !ct.startsWith("audio/")) return;
 
-            usageTrackService.track("discord-diary", "stt", "file", 1L);
-
             event.getChannel().sendMessage("語音辨識中，請稍後..").queue();
 
             attachment.getProxy().download().thenAcceptAsync(inputStream -> {
                 try {
                     byte[] audioBytes = inputStream.readAllBytes();
-                    SttResponseVo stt = aiPyServiceFeignClient.recognize(audioBytes, "zh");
-                    String text = stt.getText() != null ? stt.getText() : "無法辨識";
+                    
+                    // 呼叫共用高階處理 (日記預設 zh)
+                    String text = sttService.recognizeAndTrack(audioBytes, "zh", "discord-diary");
+                    if (text.isEmpty()) {
+                        event.getChannel().sendMessage("（聽不清楚你說什麼...）").queue();
+                        return;
+                    }
 
                     String webhookUrl = sub.get().getWebhookUrl();
                     if (webhookUrl != null) {
