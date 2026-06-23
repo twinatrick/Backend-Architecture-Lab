@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     minio_access_key: str = ""
     minio_secret_key: str = ""
     minio_bucket_audio: str = "audio"
+    minio_bucket_stt: str = "user-audio"
     minio_region: str = "us-east-1"
 
     model_config = SettingsConfigDict(

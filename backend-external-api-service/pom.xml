@@ -27,14 +27,6 @@
             <artifactId>gson</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.github.givimad</groupId>
-            <artifactId>whisper-jni</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ws.schild</groupId>
-            <artifactId>jave-all-deps</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.atilika.kuromoji</groupId>
             <artifactId>kuromoji-ipadic</artifactId>
         </dependency>

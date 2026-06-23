@@ -4,15 +4,21 @@ import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Service.ILineDiaryService;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
 import com.example.BackendArchitectureLab.Service.ILineWebhookService;
+import com.example.BackendArchitectureLab.Service.ITtsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,6 +34,9 @@ public class LineWebhookController {
 
     @Autowired
     private ILineWebhookService lineWebhookService;
+
+    @Autowired
+    private ITtsService ttsService;
 
     @Value("${line.gf.channel-secret:}")
     private String gfSecret;
@@ -74,6 +83,29 @@ public class LineWebhookController {
         } catch (Exception e) {
             log.warn("diaryCallback parse failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Parse failed: " + e.getMessage());
+        }
+    }
+
+    @Ignore
+    @GetMapping("/external/public/audio/stream/{fileName}")
+    public ResponseEntity<byte[]> streamAudio(@PathVariable("fileName") String fileName) {
+        log.info("streamAudio requested for fileName={}", fileName);
+        try {
+            byte[] data = ttsService.downloadTtsFile(fileName);
+            HttpHeaders headers = new HttpHeaders();
+            
+            String contentType = "audio/x-wav";
+            if (fileName != null && fileName.endsWith(".m4a")) {
+                contentType = "audio/mp4";
+            }
+            
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            headers.setContentLength(data.length);
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"");
+            return new ResponseEntity<>(data, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            log.warn("streamAudio failed for file: {}, error: {}", fileName, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
 }
