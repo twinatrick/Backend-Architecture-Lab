@@ -69,9 +69,10 @@
 
 ### AI Integration
 
-- Gemini API
-- Whisper STT
-- Milvus Vector Database
+- 多大語言模型整合 (Gemini, Groq, DeepSeek, GitHub Models, Ollama)
+- faster-whisper STT 語音辨識 (Python 側車)
+- GPT-SoVIT TTS 語音合成 (Python 側車)
+- 本地 NLP 整合 (繁簡轉換、中日文拼音與注音轉換)
 
 ---
 
@@ -105,7 +106,9 @@ Consumer，且已實作註解式角色權限控管機制。
 
 ## 系統架構
 
-### 分層架構
+### 微服務內部三層架構設計
+
+本專案各個微服務內部所共同遵循的統一程式碼分層規範，以確保開發品質與職責分離（圖中以 Alert Service 的內部非同步/告警機制為例）：
 
 ```mermaid
 graph TB
@@ -200,10 +203,7 @@ graph LR
         RD[(Redis<br/>port: 6379)]
         ZK[(Zookeeper<br/>port: 2181)]
         KF[(Kafka<br/>port: 9092)]
-        ETCD[(etcd<br/>port: 2379)]
         MINIO[(MinIO<br/>port: 9000/9001)]
-        MILVUS[(Milvus<br/>port: 19530)]
-        ATTU[(Attu UI<br/>port: 8001)]
     end
 
     subgraph "微服務 (port)"
@@ -223,25 +223,22 @@ graph LR
         NC((Nacos<br/>8848))
     end
 
-    NC -.-> GW & IAM & COMP & JOB & EXT & ALT
+    NC -.-> GW & IAM & COMP & JOB & EXT & ALT & AIPY
 
     GW --> IAM & COMP & JOB & EXT & ALT
-    AIPY -.->|直接 HTTP| EXT
+    EXT -->|Feign Client| AIPY
     IAM & COMP & JOB & ALT --> PG
-    IAM & ALT --> RD
-    JOB & ALT --> KF
+    IAM & COMP & JOB & ALT --> RD
+    IAM & COMP & JOB & EXT & ALT --> KF
     KF --> ZK
-    MILVUS --> ETCD
-    MILVUS --> MINIO
-    MILVUS --> PG
-    ATTU --> MILVUS
+    EXT & AIPY -.-> MINIO
 ```
 
 ### 資料模型
 
-系統採用關聯式資料模型，按業務領域拆分為 5 大模組：
+系統採用分散式資料庫設計（Database-per-Service），各微服務資料庫完全隔離。按微服務業務領域將資料模型劃分為 4 大核心領域：
 
-#### 1. 權限管理模組 (RBAC)
+#### 1. 身份與權限管理領域 (IAM Service)
 
 ```mermaid
 erDiagram
@@ -283,7 +280,11 @@ erDiagram
     }
 ```
 
-#### 2. 技能管理模組
+#### 2. 能力與專案管理領域 (Competency Service)
+
+能力與專案管理領域涵蓋技能管理、專案管理以及專案成員技能等子模組。
+
+##### A. 技能管理子模組
 
 ```mermaid
 erDiagram
@@ -314,7 +315,7 @@ erDiagram
     }
 ```
 
-#### 3. 專案管理模組
+##### B. 專案管理子模組
 
 ```mermaid
 erDiagram
@@ -344,7 +345,7 @@ erDiagram
     }
 ```
 
-#### 4. 專案成員技能模組 🆕
+##### C. 專案成員技能子模組 🆕
 
 ```mermaid
 erDiagram
@@ -362,10 +363,11 @@ erDiagram
     }
 ```
 
-#### 5. 公司與職缺管理模組 🆕
+#### 3. 企業與職缺管理領域 (Job Service) 🆕
 
 ```mermaid
 erDiagram
+    COMPANY ||--o{ COMPANY_WEBSITE: "has"
     COMPANY ||--o{ JOB_POSTING: "has"
     USER ||--o{ USER_JOB_LINK: "saves"
     JOB_POSTING ||--o{ USER_JOB_LINK: "linked"
@@ -373,8 +375,14 @@ erDiagram
     COMPANY {
         uuid id PK
         string name
-        string website
         string description
+        date last_scraped_at
+    }
+
+    COMPANY_WEBSITE {
+        uuid id PK
+        uuid company_id FK
+        string url
     }
 
     JOB_POSTING {
@@ -398,7 +406,7 @@ erDiagram
     }
 ```
 
-#### 6. 外部與 AI 代理資料模型 🆕
+#### 4. 外部與 AI 代理服務領域 (External API Service) 🆕
 
 ```mermaid
 erDiagram
@@ -472,29 +480,30 @@ erDiagram
 
 **核心資料表說明**：
 
-| 資料表                  | 類型  | 用途                       | 唯一約束                            |
-|----------------------|-----|--------------------------|---------------------------------|
-| `user`               | 主實體 | 使用者資訊                    | email                           |
-| `role`               | 主實體 | 角色定義                     | -                               |
-| `function`           | 主實體 | 功能權限（樹狀結構）               | -                               |
-| `skill`              | 主實體 | 技能定義                     | -                               |
-| `skill_level`        | 主實體 | 技能等級（隸屬於技能）              | (skill_id, level_value)         |
-| `project`            | 主實體 | 專案資訊                     | -                               |
-| `user_role`          | 關聯表 | 使用者角色綁定                  | (user_id, role_id)              |
-| `role_function`      | 關聯表 | 角色權限綁定                   | -                               |
-| `user_skill`         | 關聯表 | 使用者個人技能庫                 | (user_id, skill_id)             |
-| `project_skill`      | 關聯表 | 專案技能需求                   | (project_id, skill_id)          |
-| `user_project`       | 關聯表 | 專案成員                     | (user_id, project_id)           |
-| `user_project_skill` | 關聯表 | 🆕 專案成員技能（使用者在特定專案的技能等級） | (user_id, project_id, skill_id) |
-| `company`            | 主實體 | 公司/企業資訊                  | -                               |
-| `job_posting`        | 主實體 | 職缺資訊（含 Gemini 分析結果）      | -                               |
-| `user_job_link`      | 關聯表 | 使用者儲存的職缺（個人收藏）           | (user_id, job_posting_id)       |
-| `line_gf_session`    | 主實體 | LINE 女友聊天會話狀態          | user_id                         |
-| `discord_gf_session` | 主實體 | Discord 女友聊天會話狀態       | (channel_id, user_id)           |
-| `discord_subscription`| 主實體 | Discord Webhook 訂閱設定      | -                               |
-| `bot_config`         | 主實體 | 平台與機器人全局設定、用量水位    | -                               |
-| `api_usage_log`      | 審計表 | 外部 API 呼叫用量與估算成本記錄  | -                               |
-| `voice_diary`        | 主實體 | 語音日記轉譯記錄與音訊網址      | -                               |
+| 資料表 | 類型 | 歸屬微服務 | 用途 | 唯一約束 |
+|---|---|---|---|---|
+| `user` | 主實體 | `backend-iam-service` | 使用者資訊 | email |
+| `role` | 主實體 | `backend-iam-service` | 角色定義 | - |
+| `function` | 主實體 | `backend-iam-service` | 功能權限（樹狀結構） | - |
+| `user_role` | 關聯表 | `backend-iam-service` | 使用者角色綁定 | (user_id, role_id) |
+| `role_function` | 關聯表 | `backend-iam-service` | 角色權限綁定 | - |
+| `skill` | 主實體 | `backend-competency-service` | 技能定義 | - |
+| `skill_level` | 主實體 | `backend-competency-service` | 技能等級（隸屬於技能） | (skill_id, level_value) |
+| `project` | 主實體 | `backend-competency-service` | 專案資訊 | - |
+| `user_skill` | 關聯表 | `backend-competency-service` | 使用者個人技能庫 | (user_id, skill_id) |
+| `project_skill` | 關聯表 | `backend-competency-service` | 專案技能需求 | (project_id, skill_id) |
+| `user_project` | 關聯表 | `backend-competency-service` | 專案成員 | (user_id, project_id) |
+| `user_project_skill` | 關聯表 | `backend-competency-service` | 🆕 專案成員技能（使用者在特定專案的技能等級） | (user_id, project_id, skill_id) |
+| `company` | 主實體 | `backend-job-service` | 公司/企業資訊 | - |
+| `company_website` | 子實體 | `backend-job-service` | 🆕 企業相關網站連結（一對多關聯） | - |
+| `job_posting` | 主實體 | `backend-job-service` | 職缺資訊（含 Gemini 分析結果） | - |
+| `user_job_link` | 關聯表 | `backend-job-service` | 使用者儲存的職缺（個人收藏） | (user_id, job_posting_id) |
+| `line_gf_session` | 主實體 | `backend-external-api-service` | LINE 女友聊天會話狀態 | user_id |
+| `discord_gf_session` | 主實體 | `backend-external-api-service` | Discord 女友聊天會話狀態 | (channel_id, user_id) |
+| `discord_subscription`| 主實體 | `backend-external-api-service` | Discord Webhook 訂閱設定 | - |
+| `bot_config` | 主實體 | `backend-external-api-service` | 平台與機器人全局設定、用量水位 | - |
+| `api_usage_log` | 審計表 | `backend-external-api-service` | 外部 API 呼叫用量與估算成本記錄 | - |
+| `voice_diary` | 主實體 | `backend-external-api-service` | 語音日記轉譯記錄與音訊網址 | - |
 
 **資料模型設計特點**：
 
@@ -644,7 +653,7 @@ erDiagram
 
 ### Docker Compose 本地開發
 
-- 一鍵啟動 PostgreSQL、Redis、Kafka、Zookeeper、Milvus 等服務
+- 一鍵啟動 PostgreSQL、Redis、Kafka、Zookeeper、MinIO 等服務
 - 環境變數模板化 (`.env.example`)，便於團隊協作
 
 ### 統一例外處理
@@ -702,10 +711,8 @@ erDiagram
 
 ### AI Integration
 
-- [ ] RAG Architecture
-- [ ] Hybrid Search
-- [ ] Vector Search Optimization
-- [ ] Multi-Agent Workflow
+- [ ] Python AI 側車服務 (`backend-ai-py`) 向量檢索優化 (評估 Milvus 向量資料庫整合)
+- [ ] Multi-Agent 協作與複雜任務流調度
 
 ## 提供的介面類型
 
@@ -725,9 +732,9 @@ graph LR
     JavaService -->|2. OpenFeign 調用 POST /stt| PyService[Python AI-PY 服務]
     PyService -->|3. 轉 WAV & faster-whisper 推論| PyService
     PyService -->|4. 上傳音訊| MinIO[(MinIO 儲存)]
-    PyService -->>|5. 回傳辨識文字與 MinIO URL| JavaService
+    PyService -.->|5. 回傳辨識文字與 MinIO URL| JavaService
     JavaService -->|6. 本地 NLP 拼音轉換| JavaService
-    JavaService -->>|7. 回傳結果| Client
+    JavaService -.->|7. 回傳結果| Client
 ```
 
 1. **音訊上傳與中繼**：Java 服務接收音訊檔案後，不進行本地轉檔，直接透過 Feign Client 將音訊原始位元組轉發至 Python 側車服務 (`backend-ai-py`) 的 `/stt` 端點。
@@ -790,7 +797,7 @@ cp .env.example .env
 
 ### Phase 1：啟動基礎設施
 
-使用 Docker Compose 啟動 PostgreSQL、Redis、Kafka、Milvus、Nacos 等依賴服務：
+使用 Docker Compose 啟動 PostgreSQL、Redis、Kafka、MinIO、Nacos 等依賴服務：
 
 ```bash
 docker compose -f compose.yaml up -d
@@ -1018,36 +1025,6 @@ ws.onerror = (error) => console.error('Connection failed:', error);
        proxy_set_header Connection "upgrade";
    }
    ```
-
----
-
-### Milvus 連線問題
-
-**症狀：**
-
-```
-Failed to connect to Milvus server at milvus:19530
-```
-
-**解決步驟：**
-
-```bash
-# 1. 確認 Milvus 及相依服務運行中
-docker ps | grep -E "milvus|etcd|minio"
-
-# 2. 檢查 Milvus 健康狀態
-curl http://localhost:9091/healthz
-# 預期回應：OK
-
-# 3. 透過 Attu UI 驗證連線
-# 瀏覽器開啟：http://localhost:8001（若設定了 ATTU_PORT=8002，請使用對應埠號）
-# 使用帳密：root / Milvus
-```
-
-**Token 驗證錯誤：**
-
-- 檢查 `.env` 中的 `MILVUS_TOKEN` 是否與應用程式配置一致
-- 預設 token：`milvus-default-token`
 
 ## 安全性配置指南
 
@@ -1714,14 +1691,36 @@ class UserIntegrationTest {
 
 **排除範圍與原因：**
 
-| 排除範圍 | 原因 |
-|---------|------|
-| `Security/**` | Spring Security Filter Chain 需完整 Servlet 容器模擬 |
-| `Service/impl/*AiService*.class` | 外部 HTTP API 調用，脫離實際端點無法驗證 |
-| `Service/impl/Kafka*`, `*Alarm*` | Kafka 依賴，需 Broker 基礎設施 |
-| `Service/impl/CheckApiService` | 外部 API 定時輪詢，需實際端點 |
-| `Util/CallApi.class` | HTTP 請求工具類，單純 HttpClient 封裝 |
-| `Crawler/**` | 網頁爬蟲需實際連線目標網站，無法單元驗證 |
+為了確保測試覆蓋率指標（80% BUNDLE 級別）能真實反映核心商務邏輯的健壯性，專案在 `pom.xml` 中排除了無業務邏輯、或高度依賴外部基礎設施與第三方平台的程式碼。具體排除範圍與工程原因如下：
+
+#### 1. 分層與通用架構（全域排除）
+
+| 排除路徑 (相對於 Base Package) | 原因說明 |
+| :--- | :--- |
+| `Controller/**` | 對外 API 路由與控制器層。主要負責 HTTP 請求映射、參數校驗與響應封裝，應由整合測試或端到端測試涵蓋，單元測試在此層效益極低。 |
+| `Entity/**`、`Vo/**` | 純資料載體模型（POJO / DTO / VO）。僅包含自動生成的 Getter/Setter/Constructor，無任何核心商務邏輯，予以排除。 |
+| `Mapper/**`、`Util/*Mapper.class` | MapStruct 編譯期自動生成的物件轉換實作（如 Vo ↔ Entity 轉換類），無需為自動生成代碼進行單元測試。 |
+| `Repository/**` | Spring Data JPA 介面定義。其實作由 Spring 框架動態代理生成，測試重點在於資料庫整合，而非單元測試。 |
+| `DataAccess/I*.class`、`Service/I*.class` | 介面（Interface）定義。純方法聲明，不包含任何具體實作程式碼。 |
+| `DataAccess/specification/**` | JPA 動態查詢 Specification 構造器。高度依賴真實 Database 執行環境，不適合在 mock 環境下進行單元測試。 |
+| `Config/**`、`Annotation/**` | Spring 系統配置與自訂註解。包含資料庫連接池、JSON 序列化、Redis 序列化與全域 Bean 配置，需完整 IoC 容器支援。 |
+| `Aop/**`、`Filter/**`、`WebSocket/**`、`Timer/**` | Spring 基礎設施與切面。包含日誌 AOP、過濾器、WebSocket 連線管理、定時任務觸發器，需要完整 Servlet 容器與中介軟體模擬。 |
+| `Security/**` | Spring Security 安全過濾鏈配置。包含密碼加密、權限校驗與 Token 驗證，需模擬完整安全上下文，更適合進行端到端整合測試。 |
+| `Exception/**` | 全域與自訂異常定義。僅承載異常狀態碼與訊息定義，無核心業務邏輯。 |
+| `**/*Application.class` | 微服務啟動引導類（SpringBootApplication）。僅包含 `main` 方法引導 Spring 容器啟動，無任何商務邏輯。 |
+
+#### 2. 特定業務與第三方/外部依賴（模組排除）
+
+| 排除路徑 (相對於 Base Package) | 原因說明 |
+| :--- | :--- |
+| `Crawler/**` | 網頁爬蟲模組。需向外部目標網站（如 Job 平台）發送真實 HTTP 請求並解析 HTML，極易因外部網站改版或連線逾時導致測試失效。 |
+| `impl/*AiService.class`、`impl/*Service.class` (AI 相關) | 多大語言模型整合服務。包括 `BaseOpenAiService`、`GeminiService`、`DeepSeekService`、`GroqService`、`GitHubModelsService`、`CompositeAiService`、`ChatService`、`TtsService`、`SttService`、`TtsRefAudioService`。高度依賴外部第三方 API 端點或 Python 側車服務，缺乏真實端點或網絡模擬時無法通過驗證。 |
+| `impl/LineWebhookService.class`、`impl/LineGfService.class`、`impl/LineGfRichMenuService.class`、`impl/LineDiaryService.class` | LINE 機器人生態與日記應用。深度耦合 LINE 官方 Webhook 回調與外部 AI 模型。 |
+| `impl/VoiceDiaryService.class`、`impl/BotConfigService.class`、`impl/ApiUsageLogService.class` | 語音日記與機器人配置。與外部 Bot 控制及 AI 語音處理流程高頻互動，並非純粹的核心領域業務邏輯。 |
+| `impl/ProjectService.class`、`impl/LearnService.class` | 專案推薦與學習路徑規劃服務。內部深度耦合 AI 計算邏輯與複雜第三方外部呼叫，難以進行純粹的單元 Mock 隔離。 |
+| `Service/UsageTracker.class`、`impl/UsageTrackService.class` | AI 額度與 API 呼叫計量監控。與 AI 計算模組高度耦合。 |
+| `impl/CacheStatsConsumer.class` | Kafka 快取統計事件消費者。高度依賴真實 Kafka Broker 與 Zookeeper 等基礎設施。 |
+| `Service/Discord/**` | Discord 機器人生態。高度依賴 Discord 官方 WebSocket 連線與 SDK 回調，無 Broker 模擬則無法驗證。 |
 
 **檢視覆蓋率報告：**
 

@@ -340,7 +340,6 @@
                             <exclude>com/example/BackendArchitectureLab/Repository/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/DataAccess/I*.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/I*.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/Onnx/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Crawler/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Security/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Annotation/**</exclude>
@@ -353,8 +352,6 @@
                             <exclude>com/example/BackendArchitectureLab/Service/impl/SttService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/UsageTrackService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/TtsRefAudioService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/DiscordBotService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/LineBotService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/LineGfService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/LineGfRichMenuService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/LineWebhookService.class</exclude>
@@ -368,7 +365,6 @@
                             <exclude>com/example/BackendArchitectureLab/Service/impl/DeepSeekService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/GroqService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/UsageTracker.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/CacheStatsProducer.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/CacheStatsConsumer.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Discord/**</exclude>
                             <exclude>**/*Application.class</exclude>
