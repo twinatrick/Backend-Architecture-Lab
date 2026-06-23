@@ -32,7 +32,7 @@ def convert_wav_to_m4a(wav_bytes: bytes) -> bytes:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tf_in:
         tf_in.write(wav_bytes)
         tf_in_name = tf_in.name
-    
+
     tf_out_name = tempfile.NamedTemporaryFile(delete=False, suffix=".m4a").name
     try:
         # 使用 ffmpeg 將 wav 轉成 aac 編碼的 m4a，並使用 faststart 優化串流播放
@@ -49,7 +49,9 @@ def convert_wav_to_m4a(wav_bytes: bytes) -> bytes:
             "+faststart",
             tf_out_name,
         ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+        )
         with open(tf_out_name, "rb") as f:
             m4a_bytes = f.read()
         return m4a_bytes
