@@ -350,6 +350,7 @@
                             <exclude>com/example/BackendArchitectureLab/Service/impl/ProjectService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/ChatService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/TtsService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/impl/SttService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/UsageTrackService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/TtsRefAudioService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/impl/DiscordBotService.class</exclude>

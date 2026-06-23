@@ -1,12 +1,11 @@
 import os
-from typing import Optional
 
-from fastapi import APIRouter, File, Form, UploadFile, HTTPException
+from fastapi import APIRouter
 
 from config import settings
 from services.stt_service import sound_to_text
 from utils.audio import convert_to_wav, get_audio_duration
-from utils.file_adapter import download_from_minio, generate_object_key, upload_to_minio
+from utils.file_adapter import download_from_minio
 
 router = APIRouter()
 
@@ -21,8 +20,6 @@ async def stt_endpoint(
 
     try:
         tmp_input = download_from_minio(object_key, settings.minio_bucket_stt)
-        filename = os.path.basename(object_key)
-        content_type = "audio/wav"
 
         wav_path = convert_to_wav(tmp_input)
         duration = get_audio_duration(wav_path)

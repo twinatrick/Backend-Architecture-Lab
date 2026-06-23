@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter
 
 from services.tts_service import text_to_sound
-from utils.file_adapter import generate_object_key, upload_to_minio
+from utils.file_adapter import upload_to_minio
 from utils.audio import convert_wav_to_m4a
 
 router = APIRouter()
