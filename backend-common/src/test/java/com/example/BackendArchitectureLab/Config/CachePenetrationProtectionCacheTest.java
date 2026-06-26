@@ -208,6 +208,29 @@ class CachePenetrationProtectionCacheTest {
     }
 
     @Test
+    void getWithLoader_WhenBloomFilterSaysNo_ReturnsNullWithoutCallingLoader() throws Exception {
+        when(stringRedisTemplate.hasKey(nullKey)).thenReturn(false);
+        when(bloomFilterService.mightContain(cacheName, testKey)).thenReturn(false);
+        java.util.concurrent.Callable<String> loader = mock(java.util.concurrent.Callable.class);
+
+        Object result = cache.get(testKey, loader);
+
+        assertNull(result);
+        verify(loader, never()).call();
+    }
+
+    @Test
+    void getWithLoader_WhenNullMarkerExists_ReturnsNullWithoutQuerying() throws Exception {
+        when(stringRedisTemplate.hasKey(nullKey)).thenReturn(true);
+        java.util.concurrent.Callable<String> loader = mock(java.util.concurrent.Callable.class);
+
+        Object result = cache.get(testKey, loader);
+
+        assertNull(result);
+        verify(loader, never()).call();
+    }
+
+    @Test
     void getName_ReturnsCorrectName() {
         assertEquals(cacheName, cache.getName());
     }
