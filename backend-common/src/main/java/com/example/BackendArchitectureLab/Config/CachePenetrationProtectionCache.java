@@ -148,6 +148,11 @@ public class CachePenetrationProtectionCache implements Cache {
             return null;
         }
 
+        if (!bloomFilterMightContain(cacheKey)) {
+            incrementStat("bloom_rejects");
+            return null;
+        }
+
         boolean semaphoreAcquired = false;
         try {
             // 公平鎖信號量排隊，最大並發 10，最多等 30 秒
