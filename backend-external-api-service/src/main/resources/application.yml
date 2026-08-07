@@ -40,9 +40,6 @@ spring:
           ai-py-service:
             connect-timeout: 5000
             read-timeout: 300000
-          gpt-sovit-client:
-            connect-timeout: 5000
-            read-timeout: 300000
     nacos:
       discovery:
         server-addr: localhost:8848
@@ -74,6 +71,13 @@ minio:
   bucket: ${MINIO_BUCKET:audio}
   stt-bucket: ${MINIO_STT_BUCKET:user-audio}
 
+stt:
+  providers:
+    whisper:
+      enabled: true
+    sensevoice:
+      enabled: false
+
 line:
   bot:
     channel-secret: ${LINE_CHANNEL_SECRET:}
@@ -101,8 +105,6 @@ resilience4j:
     instances:
       pythonSttClient:
         base-config: default
-      gptSoVitClient:
-        base-config: default
       ai-py-service:
         base-config: default
   bulkhead:
@@ -117,3 +119,9 @@ jwt:
   issuer: ${JWT_ISSUER:BackendArchitectureLab}
   audience: ${JWT_AUDIENCE:BackendArchitectureLab}
   expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440}
+
+cache:
+  bloom-filter:
+    entities:
+      - "UserVoiceUpload:userVoiceUploads"
+      - "VoiceTranslation:voiceTranslations"

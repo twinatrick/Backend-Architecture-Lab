@@ -4,17 +4,20 @@ import com.example.BackendArchitectureLab.Vo.SttResponseVo;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
+import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
+import io.minio.http.Method;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class SttService implements ISttService {
@@ -44,6 +47,11 @@ public class SttService implements ISttService {
 
     @Override
     public SttResponseVo recognize(byte[] fileData, String language) {
+        return recognize(fileData, language, null);
+    }
+
+    @Override
+    public SttResponseVo recognize(byte[] fileData, String language, String provider) {
         if (fileData == null || fileData.length == 0) {
             throw new IllegalArgumentException("fileData is empty");
         }
@@ -61,8 +69,20 @@ public class SttService implements ISttService {
                     .contentType("audio/wav")
                     .build());
 
-            // 呼叫 Feign
-            return aiPyServiceFeignClient.recognize(objectKey, language);
+            // 呼叫 Feign（可依 provider 指定轉譯引擎）
+            SttResponseVo vo = aiPyServiceFeignClient.recognize(objectKey, language, provider);
+
+            // 以 1 小時時效 presigned URL 回填 audioUrl（python 拼湊的 audio_url 不使用）
+            if (vo != null) {
+                String presignedUrl = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                        .method(Method.GET)
+                        .bucket(bucket)
+                        .object(objectKey)
+                        .expiry(1, TimeUnit.HOURS)
+                        .build());
+                vo.setAudioUrl(presignedUrl);
+            }
+            return vo;
         } catch (Exception e) {
             throw new RuntimeException("STT 暫存中轉處理異常: " + e.getMessage(), e);
         } finally {

@@ -44,7 +44,7 @@ class LearnServiceTest {
         defaultSttResponse.setLanguage("zh");
 
         when(mockFile.getBytes()).thenReturn(new byte[]{1, 2, 3});
-        when(sttService.recognize(any(), any())).thenReturn(defaultSttResponse);
+        when(sttService.recognize(any(), any(), any())).thenReturn(defaultSttResponse);
         when(phoneticConvertService.convert(any(), any(), any())).thenReturn("nǐ hǎo shì jiè");
     }
 
@@ -89,12 +89,38 @@ class LearnServiceTest {
         jaResponse.setText("こんにちは");
         jaResponse.setLanguage("ja");
 
-        when(sttService.recognize(any(), eq("ja"))).thenReturn(jaResponse);
+        when(sttService.recognize(any(), eq("ja"), any())).thenReturn(jaResponse);
         when(phoneticConvertService.convert(any(), any(), any())).thenReturn("konnichiwa");
 
         AudioRecognizeVo vo = learnService.processAudio(mockFile, "ja", "romaji");
 
         assertEquals("こんにちは", vo.getText());
         assertEquals("konnichiwa", vo.getPhonetic());
+    }
+
+    @Test
+    @DisplayName("processAudio 應透傳 STT 的 duration_sec 與 audio_url")
+    void shouldPassThroughDurationAndAudioUrl() {
+        SttResponseVo richResponse = new SttResponseVo();
+        richResponse.setText("你好世界");
+        richResponse.setLanguage("zh");
+        richResponse.setDurationSec(3.25);
+        richResponse.setAudioUrl("http://localhost:9000/user-audio/presigned-url");
+
+        when(sttService.recognize(any(), any(), any())).thenReturn(richResponse);
+
+        AudioRecognizeVo vo = learnService.processAudio(mockFile, "zh", "pinyin");
+
+        assertEquals("你好世界", vo.getText());
+        assertEquals(3.25, vo.getDurationSec());
+        assertEquals("http://localhost:9000/user-audio/presigned-url", vo.getAudioUrl());
+    }
+
+    @Test
+    @DisplayName("processAudio 指定 provider 時應透傳給 STT Service")
+    void shouldForwardProviderToSttService() {
+        learnService.processAudio(mockFile, "zh", "pinyin", "sensevoice");
+
+        verify(sttService).recognize(any(), eq("zh"), eq("sensevoice"));
     }
 }

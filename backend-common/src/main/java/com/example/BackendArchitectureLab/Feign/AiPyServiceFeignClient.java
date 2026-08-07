@@ -17,7 +17,16 @@ public interface AiPyServiceFeignClient {
 
     @PostMapping("/stt")
     SttResponseVo recognize(@RequestParam("object_key") String objectKey,
-                          @RequestParam("language") String language);
+                          @RequestParam("language") String language,
+                          @RequestParam(value = "provider", required = false) String provider);
+
+    @PostMapping("/stt/whisper")
+    SttResponseVo recognizeWithWhisper(@RequestParam("object_key") String objectKey,
+                                     @RequestParam("language") String language);
+
+    @PostMapping("/stt/sensevoice")
+    SttResponseVo recognizeWithSenseVoice(@RequestParam("object_key") String objectKey,
+                                        @RequestParam("language") String language);
 
     @PostMapping("/tts")
     TtsResponseVo synthesize(@RequestBody TtsRequestVo request);
