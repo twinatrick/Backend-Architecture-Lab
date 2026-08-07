@@ -2,13 +2,13 @@ package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Service.IAuthService;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
-import com.example.BackendArchitectureLab.Vo.UserProjectBindRequest;
 import com.example.BackendArchitectureLab.Vo.UserRoleRebindRequest;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserVo;
@@ -32,9 +32,12 @@ public class UserController {
     @Autowired
     private IUserService userService;
 
+    @Autowired
+    private IAuthService authService;
+
 
     @PostMapping(value = "/create")
-    @RequirePermission({"System", "ProjectManagement", "EditAll"})
+    @RequirePermission({"System", "User", "Create"})
     @ApiOperationBadRequest(summary = "Create user", description = "Creates a new user account.")
     public boolean createUser(@RequestBody UserVo user) {
         userService.createUser(user);
@@ -44,16 +47,7 @@ public class UserController {
     @GetMapping("/infoVo")
     @ApiOperationAuth(summary = "Get current user info", description = "Returns current user profile and permissions.")
     public ResponseType<UserVo> getUserInfo() {
-        return new ResponseType<>(userService.getCurrentUserInfo());
-    }
-
-    @PostMapping("/bindProject")
-    @Deprecated
-    @RequirePermission({"System", "ProjectManagement", "Edit"})
-    @ApiOperationBadRequest(summary = "Bind user project", description = "Binds a user to a project.")
-    public ResponseType<String> bindUserProject(@RequestBody UserProjectBindRequest body) {
-        userService.bindUserProject(body.getUserId(), body.getProjectId());
-        return ResponseType.Success("User project bound successfully");
+        return new ResponseType<>(authService.getCurrentUserInfo());
     }
 
     @GetMapping("/{id}")
@@ -71,7 +65,7 @@ public class UserController {
     }
 
     @PostMapping("/saveUser")
-    @RequirePermission({"System", "ProjectManagement", "Edit"})
+    @RequirePermission({"System", "User", "Edit"})
     @ApiOperationBadRequest(summary = "Save user with roles", description = "Updates a user and their role assignments.")
     public ResponseType<String> saveUser(@RequestBody UserVo user) {
         userService.saveUserWithRole(user);
@@ -79,7 +73,7 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/roles/rebind")
-    @RequirePermission({"System", "ProjectManagement", "Edit"})
+    @RequirePermission({"System", "User", "Edit"})
     @ApiOperationBadRequest(
             summary = "Rebind user roles",
             description = "完整覆蓋式綁定使用者角色。空清單清空所有角色，null 清單拋出異常。"

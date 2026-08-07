@@ -2,7 +2,6 @@ package com.example.BackendArchitectureLab.Aop;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
 import feign.FeignException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -13,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -38,31 +36,7 @@ public class PermissionCheck {
     private static final Logger log = LoggerFactory.getLogger(PermissionCheck.class);
 
     @Autowired
-    private PermissionCheckFeignClient permissionCheckFeignClient;
-    @Autowired
-    private ApplicationContext applicationContext;
-
-    private Object localController = null;
-    private Method localValidateMethod = null;
-    private boolean localChecked = false;
-
-    private synchronized void checkLocal() {
-        if (localChecked) {
-            return;
-        }
-        try {
-            if (applicationContext.containsBean("permissionInternalController")) {
-                localController = applicationContext.getBean("permissionInternalController");
-                localValidateMethod = localController.getClass().getMethod("validatePermission",
-                        String.class, String.class, String.class, String.class);
-                log.info("Successfully detected local permissionInternalController. Bypassing Feign for IAM service.");
-            }
-        } catch (Exception e) {
-            log.warn("Failed to set up local permission validation", e);
-        } finally {
-            localChecked = true;
-        }
-    }
+    private LocalPermissionValidator localPermissionValidator;
 
     @Around("execution(* com.example.BackendArchitectureLab.Controller..*.*(..))")
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
@@ -100,20 +74,11 @@ public class PermissionCheck {
 
         boolean matched;
         try {
-            checkLocal();
-            if (localController != null && localValidateMethod != null) {
-                matched = (boolean) localValidateMethod.invoke(localController,
-                        email,
-                        permissionPath.get(0),
-                        permissionPath.get(1),
-                        permissionPath.get(2));
-            } else {
-                matched = permissionCheckFeignClient.validatePermission(
-                        email,
-                        permissionPath.get(0),
-                        permissionPath.get(1),
-                        permissionPath.get(2));
-            }
+            matched = localPermissionValidator.validate(
+                    email,
+                    permissionPath.get(0),
+                    permissionPath.get(1),
+                    permissionPath.get(2));
         } catch (Exception e) {
             Throwable cause = e instanceof java.lang.reflect.InvocationTargetException ? e.getCause() : e;
             if (cause instanceof FeignException fe) {

@@ -6,14 +6,9 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import com.example.BackendArchitectureLab.Util.SortFieldValidator;
-import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
-import com.example.BackendArchitectureLab.Feign.CompetencyProjectFeignClient;
-import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
-import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.User;
-import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -21,19 +16,11 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.context.annotation.Lazy;
@@ -50,13 +37,7 @@ public class UserService implements IUserService {
     @Autowired
     private IRoleService roleService;
     @Autowired
-    private IFunctionDataAccess functionDataAccess;
-    @Autowired
-    private CompetencyProjectFeignClient projectServiceFeignClient;
-    @Autowired
     private UserMapper userMapper;
-    @Autowired
-    private FunctionMapper functionMapper;
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Transactional
@@ -154,96 +135,8 @@ public class UserService implements IUserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<FunctionVo> getAllParent(List<String> child){
-        List<UUID> childUUID = child.stream().map(UUID::fromString).toList();
-        List<Function> functions = functionDataAccess.findAllById(childUUID);
-        List<UUID> parentUUID = functions.stream().map(Function::getParent).filter(parent -> parent != null && !parent.isEmpty()).map(UUID::fromString).toList();
-        List<Function> parentFunctions = functionDataAccess.findAllById(parentUUID);
-
-
-        List<String> result = new ArrayList<>(parentFunctions.stream().map(Function::getId).map(UUID::toString).toList());
-        parentFunctions.stream().map(Function::getParent).forEach(result::add);
-        List<Function> parentParentFunctions = functionDataAccess.findAllById(result.stream().filter(x -> x != null && !x.isEmpty()).map(UUID::fromString).toList());
-
-
-        return parentParentFunctions.stream().map(functionMapper::toVo).toList();
-    }
-
-    private String getCurrentUserEmail() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) {
-            throw new IllegalArgumentException("User not authenticated");
-        }
-        return auth.getName();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public UserVo getCurrentUserInfo() {
-        String email = getCurrentUserEmail();
-        User user = userDataAccess.findByEmail(email).orElseThrow(
-                () -> new IllegalArgumentException("User not found")
-        );
-        UserVo userVo = userMapper.toVo(user);
-        List<FunctionVo> parent = getAllParent(userVo.getPermissions().stream().map(FunctionVo::getId).toList());
-        userVo.getPermissions().addAll(parent);
-        return userVo;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<UserVo> getAllUsersVo() {
         return getUser();
-    }
-
-    @Override
-    @Transactional
-    public void bindUserProject(String userId, String projectId) {
-        UUID userUuid = mapUuid(userId);
-        UUID projectUuid = mapUuid(projectId);
-        if (userUuid == null || projectUuid == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        }
-
-        if (projectServiceFeignClient.existsUserProject(userUuid, projectUuid)) {
-            throw new IllegalArgumentException("Project already bind to user");
-        }
-
-        projectServiceFeignClient.saveUserProject(userUuid, projectUuid);
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(value = "projects", key = "'current:' + #userId")
-    public void rebindUserProjects(UUID userId, List<UUID> projectIds) {
-        if (userId == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        }
-
-        userDataAccess.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-        Set<UUID> targetProjectIds = projectIds == null
-                ? Set.of()
-                : projectIds.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        List<UUID> existingIds = projectServiceFeignClient.getUserProjectIds(userId);
-        Set<UUID> existingProjectIds = new HashSet<>(
-                existingIds != null ? existingIds : List.of());
-
-        for (UUID existingProjectId : existingProjectIds) {
-            if (!targetProjectIds.contains(existingProjectId)) {
-                projectServiceFeignClient.deleteUserProject(userId, existingProjectId);
-            }
-        }
-
-        for (UUID targetProjectId : targetProjectIds) {
-            if (!existingProjectIds.contains(targetProjectId)) {
-                projectServiceFeignClient.saveUserProject(userId, targetProjectId);
-            }
-        }
     }
 
     @Override

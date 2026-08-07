@@ -6,7 +6,6 @@ import com.example.BackendArchitectureLab.Service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,14 +20,8 @@ public class UserInternalController {
     }
 
     @PostMapping("/by-email")
-    public UserVo getUserByEmail(@RequestBody String email) {
+    public UserVo getUserByEmail(@RequestParam("email") String email) {
         return userService.getOnlyUserByEmail(email);
-    }
-
-    @PostMapping("/rebind-projects")
-    public void rebindUserProjects(@RequestParam("userId") UUID userId,
-                                   @RequestBody List<UUID> projectIds) {
-        userService.rebindUserProjects(userId, projectIds);
     }
 
     @GetMapping("/exists/{id}")
