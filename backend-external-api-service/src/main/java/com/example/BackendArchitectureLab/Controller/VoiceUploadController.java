@@ -31,7 +31,7 @@ public class VoiceUploadController {
     private SecurityUtil securityUtil;
 
     @PostMapping
-    @RequirePermission({"VoiceUpload", "Edit"})
+    @RequirePermission("Edit")
     public ResponseType<UserVoiceUploadVo> createUpload(@Valid @RequestBody UserVoiceUploadVo vo) {
         String currentUserId = securityUtil.requireCurrentUserId().toString();
         vo.setUserId(currentUserId);
@@ -40,7 +40,7 @@ public class VoiceUploadController {
     }
 
     @GetMapping("/{id}")
-    @RequirePermission({"VoiceUpload", "View"})
+    @RequirePermission("View")
     public ResponseType<UserVoiceUploadVo> getUpload(@PathVariable("id") UUID id) {
         UserVoiceUploadVo upload = voiceUploadService.getUploadById(id);
         String currentUserId = securityUtil.requireCurrentUserId().toString();
@@ -54,7 +54,7 @@ public class VoiceUploadController {
     }
 
     @PostMapping("/current/search")
-    @RequirePermission({"VoiceUpload", "View"})
+    @RequirePermission("View")
     public ResponseType<PageResult<UserVoiceUploadVo>> searchCurrentUserUploads(
             @Valid @RequestBody VoiceUploadSearchQuery query) {
         String currentUserId = securityUtil.requireCurrentUserId().toString();
@@ -63,7 +63,7 @@ public class VoiceUploadController {
     }
 
     @PostMapping("/{id}/translations")
-    @RequirePermission({"VoiceUpload", "Edit"})
+    @RequirePermission("Edit")
     public ResponseType<VoiceTranslationVo> createTranslation(
             @PathVariable("id") UUID uploadId,
             @Valid @RequestBody VoiceTranslationVo vo) {
@@ -81,7 +81,7 @@ public class VoiceUploadController {
     }
 
     @GetMapping("/{id}/translations")
-    @RequirePermission({"VoiceUpload", "View"})
+    @RequirePermission("View")
     public ResponseType<List<VoiceTranslationVo>> getTranslations(@PathVariable("id") UUID uploadId) {
         UserVoiceUploadVo upload = voiceUploadService.getUploadById(uploadId);
         String currentUserId = securityUtil.requireCurrentUserId().toString();
