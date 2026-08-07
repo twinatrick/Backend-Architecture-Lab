@@ -61,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff pytest httpx fastapi pydantic-settings python-multipart requests
+          pip install ruff pytest httpx fastapi pydantic-settings python-multipart requests av minio nacos-sdk-python==2.0.11 opencc soundfile numpy faster-whisper sherpa-onnx
 
       - name: Run Ruff Linter
         run: ruff check backend-ai-py
