@@ -1,10 +1,11 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -28,7 +29,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction("PROJECT_MEMBER_SKILLS_REBIND");
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
         event.setStatus(CompensationStatus.COMPENSATED);
         event.setBeforeState(Map.of("key1", "value1"));
         event.setAfterState(Map.of("key2", "value2"));
@@ -54,7 +55,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction("PROJECT_MEMBER_SKILLS_REBIND");
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
         event.setStatus(CompensationStatus.COMMITTED);
         event.setTimestamp(Instant.now());
 
@@ -66,7 +67,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction("PROJECT_MEMBER_SKILLS_REBIND");
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
         event.setStatus(CompensationStatus.SAVE_POINT);
         event.setTimestamp(Instant.now());
 
@@ -78,7 +79,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction("PROJECT_MEMBER_SKILLS_REBIND");
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
         event.setStatus(CompensationStatus.FAILED);
         event.setTimestamp(Instant.now());
 
@@ -90,7 +91,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction("PROJECT_MEMBER_SKILLS_REBIND");
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
         event.setStatus(null);
         event.setTimestamp(Instant.now());
 
@@ -98,7 +99,7 @@ class CompensationConsumerTest {
     }
 
     @Test
-    void handleCompensation_whenActionIsNullAndStatusCompensated_shouldThrowNullPointerException() {
+    void handleCompensation_whenActionIsNullAndStatusCompensated_shouldLogWarningNotThrow() {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
@@ -106,7 +107,7 @@ class CompensationConsumerTest {
         event.setStatus(CompensationStatus.COMPENSATED);
         event.setTimestamp(Instant.now());
 
-        assertThrows(NullPointerException.class, () -> compensationConsumer.handleCompensation(event));
+        assertDoesNotThrow(() -> compensationConsumer.handleCompensation(event));
     }
 
     @Test
@@ -114,7 +115,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent(
                 UUID.randomUUID(),
                 "project-service",
-                "PROJECT_MEMBER_SKILLS_REBIND",
+                CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name(),
                 CompensationStatus.COMPENSATED,
                 Map.of("role", "admin"),
                 Map.of("role", "user"),

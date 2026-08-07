@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -73,18 +74,32 @@ public class ProjectService implements IProjectService {
     @Autowired
     private CacheManager cacheManager;
 
+    @Autowired
+    @Lazy
+    private ProjectService self;
+
     /**
      * 新增專案
      * @param project 要新增的專案實體
      * @return 保存後的專案實體
      * @throws IllegalArgumentException 當參數驗證失敗時拋出
      */
-    @Transactional
     @Override
+    public ProjectVo addProject(ProjectVo projectVo) {
+        if (projectVo.getUserIds() != null) {
+            validateUsersExist(projectVo.getUserIds().stream().map(UUID::fromString).toList());
+        }
+        return self.doAddProject(projectVo);
+    }
+
+    /**
+     * 交易內新增專案（由 addProject 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "projects", key = "'all'")
     })
-    public ProjectVo addProject(ProjectVo projectVo) {
+    public ProjectVo doAddProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
         if (project.getId() != null) {
             throw new IllegalArgumentException("Key must be null");
@@ -111,12 +126,22 @@ public class ProjectService implements IProjectService {
      * @param project 要更新的專案實體
      * @throws IllegalArgumentException 當參數驗證失敗時拋出
      */
-    @Transactional
     @Override
+    public void updateProject(ProjectVo projectVo) {
+        if (projectVo.getUserIds() != null) {
+            validateUsersExist(projectVo.getUserIds().stream().map(UUID::fromString).toList());
+        }
+        self.doUpdateProject(projectVo);
+    }
+
+    /**
+     * 交易內更新專案（由 updateProject 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "projects", key = "'all'")
     })
-    public void updateProject(ProjectVo projectVo) {
+    public void doUpdateProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
         if (project.getId() == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -156,13 +181,6 @@ public class ProjectService implements IProjectService {
         
         // 綁定每個使用者
         for (UUID userId : targetUserIds) {
-            String userIdStr = userId.toString();
-            
-            // 驗證使用者是否存在
-            if (!userServiceFeignClient.existsUserById(userId)) {
-                throw new IllegalArgumentException("User not found: " + userIdStr);
-            }
-            
             // 檢查是否已存在綁定
             if (!userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)) {
                 UserProject userProject = new UserProject();
@@ -172,6 +190,24 @@ public class ProjectService implements IProjectService {
             }
         }
     }
+
+    /**
+     * 在交易外驗證所有使用者存在（同步 Feign 呼叫不應占用資料庫交易）
+     *
+     * @param userIds 要驗證的使用者 ID 集合
+     * @throws IllegalArgumentException 當任一使用者不存在時拋出
+     */
+    private void validateUsersExist(Collection<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        for (UUID userId : userIds) {
+            if (!userServiceFeignClient.existsUserById(userId)) {
+                throw new IllegalArgumentException("User not found: " + userId);
+            }
+        }
+    }
+
     /**
      * 查詢所有專案
      * @return 所有專案列表
@@ -726,8 +762,6 @@ public class ProjectService implements IProjectService {
     }
 
     @Override
-    @Transactional
-    @CacheEvict(value = "projectSkills", key = "#projectId")
     public void rebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap) {
         if (projectId == null) {
             throw new IllegalArgumentException("Project ID must not be null");
@@ -736,16 +770,23 @@ public class ProjectService implements IProjectService {
             memberSkillsMap = Map.of();
         }
 
+        // 交易外的 Feign 驗證（使用者存在性）
+        validateUsersExist(memberSkillsMap.keySet());
+        self.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+    }
+
+    /**
+     * 交易內重新綁定成員技能（由 rebindProjectMemberSkills 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    public void doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap) {
         // 驗證專案存在
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
 
-        // 驗證所有使用者存在且已綁定到該專案
+        // 驗證所有使用者已綁定到該專案
         for (UUID userId : memberSkillsMap.keySet()) {
-            if (!userServiceFeignClient.existsUserById(userId)) {
-                throw new IllegalArgumentException("User not found: " + userId);
-            }
-
             if (!userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)) {
                 throw new IllegalArgumentException(
                         "User " + userId + " is not a member of project " + projectId
@@ -849,32 +890,5 @@ public class ProjectService implements IProjectService {
     @Override
     public void deleteProjectSkillsBySkillId(UUID skillId) {
         projectSkillDataAccess.deleteBySkillId(skillId);
-    }
-
-    @Override
-    public boolean existsUserProject(UUID userId, UUID projectId) {
-        return userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId);
-    }
-
-    @Override
-    public List<UUID> getUserProjectIds(UUID userId) {
-        return userProjectDataAccess.findByUserId(userId).stream()
-                .map(up -> up.getProject().getId())
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public void saveUserProject(UUID userId, UUID projectId) {
-        Project project = projectDataAccess.findById(projectId)
-                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-        UserProject userProject = new UserProject();
-        userProject.setUserId(userId);
-        userProject.setProject(project);
-        userProjectDataAccess.save(userProject);
-    }
-
-    @Override
-    public void deleteUserProject(UUID userId, UUID projectId) {
-        userProjectDataAccess.deleteByUserIdAndProjectId(userId, projectId);
     }
 }

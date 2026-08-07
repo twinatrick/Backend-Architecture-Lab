@@ -93,6 +93,15 @@ class ProjectServiceTest {
             return supplier.get();
         });
 
+        // Inject self reference（自我代理：交易外驗證後呼叫自身交易方法）
+        try {
+            java.lang.reflect.Field selfField = ProjectService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(projectService, projectService);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not inject self into ProjectService", e);
+        }
+
         testId = UUID.randomUUID();
         testProject = new Project();
         testProject.setId(testId);
@@ -526,10 +535,6 @@ class ProjectServiceTest {
         projectVo.setDescription("Java Project Description");
         projectVo.setUserIds(List.of(invalidUserId.toString()));
         
-        when(projectMapper.toEntity(projectVo)).thenReturn(newProject);
-        when(projectDataAccess.findByName("Java Project")).thenReturn(Collections.emptyList());
-        when(projectDataAccess.save(newProject)).thenReturn(testProject);
-        when(projectDataAccess.findById(testProject.getId())).thenReturn(Optional.of(testProject));
         when(userServiceFeignClient.existsUserById(invalidUserId)).thenReturn(false);
         
         // Act & Assert

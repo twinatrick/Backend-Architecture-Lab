@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.DataAccess.IBloomFilterDataAccess;
 import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
 import com.example.BackendArchitectureLab.Service.impl.BloomFilterService;
@@ -148,6 +149,8 @@ public class RedisConfig implements CachingConfigurer {
         cacheConfigs.put("userJobLinks", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
         cacheConfigs.put("userRoles", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
         cacheConfigs.put("aquarkDataAvg", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(30))));
+        cacheConfigs.put("userVoiceUploads", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
+        cacheConfigs.put("voiceTranslations", defaultConfig.entryTtl(withJitter(Duration.ofMinutes(10))));
 
         LOGGER.info("Redis 快取配置完成 - 預設 TTL: {} 小時 (含亂數偏移)", cacheTtlHours);
 
@@ -170,12 +173,13 @@ public class RedisConfig implements CachingConfigurer {
     @ConditionalOnExpression("'${spring.cache.type:redis}' == 'redis' && '${app.init.enabled:true}' == 'true'")
     public ApplicationRunner bloomFilterInitializer(IBloomFilterService bloomFilterService,
                                                     ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider,
+                                                    ObjectProvider<IBloomFilterDataAccess> bloomFilterDataAccessProvider,
                                                     BloomFilterProperties bloomFilterProperties) {
-        EntityManagerFactory emf = entityManagerFactoryProvider.getIfAvailable();
-        if (emf == null) {
+        if (entityManagerFactoryProvider.getIfAvailable() == null
+                || bloomFilterDataAccessProvider.getIfAvailable() == null) {
             return args -> LOGGER.info("EntityManagerFactory 不可用，跳過布隆過濾器初始化");
         }
-        return new BloomFilterInitializer(bloomFilterService, emf, bloomFilterProperties);
+        return new BloomFilterInitializer(bloomFilterService, bloomFilterDataAccessProvider.getObject(), bloomFilterProperties);
     }
 
     Duration withJitter(Duration base) {
