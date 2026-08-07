@@ -55,3 +55,6 @@ __pycache__/
 
 # Stress test results
 *.csv
+
+# 非原始碼文件（不提交）
+代辦清單.md
