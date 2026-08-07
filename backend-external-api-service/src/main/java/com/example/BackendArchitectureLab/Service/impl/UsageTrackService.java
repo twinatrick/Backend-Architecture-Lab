@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
 import com.example.BackendArchitectureLab.Config.BotConfigLoader;
+import com.example.BackendArchitectureLab.DataAccess.IApiUsageLogDataAccess;
 import com.example.BackendArchitectureLab.Entity.ApiUsageLog;
-import com.example.BackendArchitectureLab.Repository.ApiUsageLogRepository;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,7 +19,7 @@ import java.util.Map;
 public class UsageTrackService implements IUsageTrackService {
 
     @Autowired
-    private ApiUsageLogRepository apiUsageLogRepository;
+    private IApiUsageLogDataAccess apiUsageLogDataAccess;
 
     @Autowired
     private BotConfigLoader botConfigLoader;
@@ -51,7 +51,7 @@ public class UsageTrackService implements IUsageTrackService {
         log.setInputUnit(inputUnit);
         log.setInputAmount(inputAmount);
         log.setEstimatedCost(estimatedCost);
-        apiUsageLogRepository.save(log);
+        apiUsageLogDataAccess.save(log);
         return true;
     }
 
@@ -59,7 +59,7 @@ public class UsageTrackService implements IUsageTrackService {
         LocalDate today = LocalDate.now();
         Date start = Date.from(today.atStartOfDay(ZoneId.systemDefault()).toInstant());
         Date end = Date.from(today.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant());
-        return apiUsageLogRepository.findByServiceAndCreatedTimeBetweenOrderByCreatedTimeDesc(
+        return apiUsageLogDataAccess.findByServiceAndCreatedTimeBetween(
                 service, start, end).stream()
                 .map(ApiUsageLog::getEstimatedCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

@@ -139,12 +139,4 @@ public interface IProjectService {
     boolean existsProjectSkillByLevelId(UUID levelId);
 
     void deleteProjectSkillsBySkillId(UUID skillId);
-
-    boolean existsUserProject(UUID userId, UUID projectId);
-
-    List<UUID> getUserProjectIds(UUID userId);
-
-    void saveUserProject(UUID userId, UUID projectId);
-
-    void deleteUserProject(UUID userId, UUID projectId);
 }

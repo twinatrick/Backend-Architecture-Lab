@@ -7,8 +7,8 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserProjectRebindRequest;
 import com.example.BackendArchitectureLab.Vo.UserSkillRebindRequest;
 import com.example.BackendArchitectureLab.Service.IProjectService;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
-import com.example.BackendArchitectureLab.Feign.CompetencySkillFeignClient;
+import com.example.BackendArchitectureLab.Service.IUserProjectService;
+import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.SkillLevelBindingMapper;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
@@ -36,11 +36,11 @@ public class ProjectAdminController {
     private static final Logger log = LoggerFactory.getLogger(ProjectAdminController.class);
 
     @Autowired
-    private UserServiceFeignClient userServiceFeignClient;
-    @Autowired
-    private CompetencySkillFeignClient skillServiceFeignClient;
-    @Autowired
     private IProjectService projectService;
+    @Autowired
+    private IUserProjectService userProjectService;
+    @Autowired
+    private ISkillService skillService;
 
     @PostMapping("/user-project/rebind")
     @ApiOperationBadRequest(summary = "Rebind user projects", description = "Rebind all user-project relations with diff strategy")
@@ -50,7 +50,7 @@ public class ProjectAdminController {
                 ? List.of()
                 : request.getProjectIds().stream().map(id -> parseUuid(id, "projectId")).toList();
         log.info("Admin rebinding user {} to {} projects", userId, projectIds.size());
-        userServiceFeignClient.rebindUserProjects(userId, projectIds);
+        userProjectService.rebindUserProjects(userId, projectIds);
         log.info("Admin rebound user {} projects successfully", userId);
         return ResponseType.Success("User projects rebound successfully");
     }
@@ -61,7 +61,7 @@ public class ProjectAdminController {
         UUID userId = parseUuid(request.getUserId(), "userId");
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("Admin rebinding user {} with {} skill bindings", userId, bindingCount);
-        skillServiceFeignClient.rebindUserSkills(userId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
+        skillService.rebindUserSkills(userId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
         log.info("Admin rebound user {} skills successfully", userId);
         return ResponseType.Success("User skills rebound successfully");
     }

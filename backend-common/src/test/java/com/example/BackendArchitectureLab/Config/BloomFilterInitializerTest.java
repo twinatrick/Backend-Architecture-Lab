@@ -1,9 +1,7 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.DataAccess.IBloomFilterDataAccess;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,9 +13,13 @@ import org.mockito.quality.Strictness;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.startsWith;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -27,13 +29,7 @@ class BloomFilterInitializerTest {
     private IBloomFilterService bloomFilterService;
 
     @Mock
-    private EntityManagerFactory entityManagerFactory;
-
-    @Mock
-    private EntityManager entityManager;
-
-    @Mock
-    private Query mockQuery;
+    private IBloomFilterDataAccess bloomFilterDataAccess;
 
     @Mock
     private BloomFilterProperties bloomFilterProperties;
@@ -48,8 +44,7 @@ class BloomFilterInitializerTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(entityManagerFactory.createEntityManager()).thenReturn(entityManager);
-        lenient().when(entityManager.createQuery(anyString())).thenReturn(mockQuery);
+        lenient().when(bloomFilterDataAccess.findAllEntityIds(anyString())).thenReturn(sampleIds);
         lenient().when(bloomFilterProperties.getEntityCacheMap()).thenReturn(Map.of(
             "User", "users",
             "Company", "companies",
@@ -58,13 +53,11 @@ class BloomFilterInitializerTest {
             "Function", "functions",
             "JobPosting", "jobPostings"
         ));
-        initializer = new BloomFilterInitializer(bloomFilterService, entityManagerFactory, bloomFilterProperties);
+        initializer = new BloomFilterInitializer(bloomFilterService, bloomFilterDataAccess, bloomFilterProperties);
     }
 
     @Test
     void run_AllEntitiesHaveData_PopulatesSixFilters() {
-        when(mockQuery.getResultList()).thenReturn((List) sampleIds);
-
         initializer.run(null);
 
         verify(bloomFilterService).addAll(eq("users"), anyList());
@@ -77,13 +70,11 @@ class BloomFilterInitializerTest {
 
     @Test
     void run_SomeEntitiesNotPresent_SkipsGracefully() {
-        when(mockQuery.getResultList()).thenReturn((List) sampleIds);
-
-        when(entityManager.createQuery(startsWith("SELECT e.id FROM Company")))
+        when(bloomFilterDataAccess.findAllEntityIds("Company"))
             .thenThrow(new IllegalArgumentException("Not a managed entity"));
-        when(entityManager.createQuery(startsWith("SELECT e.id FROM Role")))
+        when(bloomFilterDataAccess.findAllEntityIds("Role"))
             .thenThrow(new IllegalArgumentException("Not a managed entity"));
-        when(entityManager.createQuery(startsWith("SELECT e.id FROM JobPosting")))
+        when(bloomFilterDataAccess.findAllEntityIds("JobPosting"))
             .thenThrow(new IllegalArgumentException("Not a managed entity"));
 
         initializer.run(null);
@@ -98,7 +89,7 @@ class BloomFilterInitializerTest {
 
     @Test
     void run_AllEntitiesEmpty_DoesNotCallAddAll() {
-        when(mockQuery.getResultList()).thenReturn(List.of());
+        when(bloomFilterDataAccess.findAllEntityIds(anyString())).thenReturn(List.of());
 
         initializer.run(null);
 
@@ -111,7 +102,7 @@ class BloomFilterInitializerTest {
 
         initializer.run(null);
 
-        verify(entityManagerFactory, never()).createEntityManager();
+        verify(bloomFilterDataAccess, never()).findAllEntityIds(anyString());
         verify(bloomFilterService, never()).addAll(anyString(), anyList());
     }
 }

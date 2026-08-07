@@ -1,10 +1,10 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.DataAccess.IBotConfigDataAccess;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.BotConfigMapper;
-import com.example.BackendArchitectureLab.Repository.BotConfigRepository;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,7 +16,7 @@ import java.util.UUID;
 public class BotConfigService implements IBotConfigService {
 
     @Autowired
-    private BotConfigRepository botConfigRepository;
+    private IBotConfigDataAccess botConfigRepository;
 
     @Autowired
     private BotConfigMapper botConfigMapper;

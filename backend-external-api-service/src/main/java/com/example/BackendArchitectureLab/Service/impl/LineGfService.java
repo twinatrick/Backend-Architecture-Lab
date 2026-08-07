@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.DataAccess.ILineGfSessionDataAccess;
 import com.example.BackendArchitectureLab.Entity.LineGfSession;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
-import com.example.BackendArchitectureLab.Repository.LineGfSessionRepository;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.ISttService;
@@ -58,7 +58,7 @@ public class LineGfService implements ILineGfService {
     private IUsageTrackService usageTrackService;
 
     @Autowired
-    private LineGfSessionRepository sessionRepository;
+    private ILineGfSessionDataAccess sessionRepository;
 
     @Autowired
     private GfSessionMapper gfSessionMapper;

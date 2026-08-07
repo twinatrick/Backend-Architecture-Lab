@@ -7,7 +7,7 @@ import com.example.BackendArchitectureLab.Vo.PersonalProjectSkillBindRequest;
 import com.example.BackendArchitectureLab.Vo.PersonalProjectSkillLevelRequest;
 import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Service.IProjectService;
-import com.example.BackendArchitectureLab.Feign.CompetencySkillFeignClient;
+import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
@@ -30,7 +30,7 @@ public class ProjectController {
     @Autowired
     private IProjectService projectService;
     @Autowired
-    private CompetencySkillFeignClient skillServiceFeignClient;
+    private ISkillService skillService;
 
     @PostMapping("/add")
     @RequirePermission({"System", "Project", "Edit"})
@@ -67,7 +67,7 @@ public class ProjectController {
     @RequirePermission({"System", "ProjectManagement", "Edit"})
     @ApiOperationBadRequest(summary = "Bind project skill", description = "Binds a skill level to a project. This operation manages binding relation only and does not modify skill content. Admin-assigned skills can still be bound by authorized users.")
     public ResponseType<String> bindProjectSkill(@RequestBody ProjectSkillBindRequest body) {
-        skillServiceFeignClient.bindProjectSkill(body.getProjectId(), body.getSkillId(), body.getSkillLevelId());
+        skillService.bindProjectSkill(body.getProjectId(), body.getSkillId(), body.getSkillLevelId());
         return ResponseType.Success("Project skill bound successfully");
     }
     

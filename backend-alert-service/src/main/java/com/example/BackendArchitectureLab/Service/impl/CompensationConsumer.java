@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
 import lombok.extern.slf4j.Slf4j;
@@ -24,9 +25,10 @@ public class CompensationConsumer {
         log.warn("Executing compensation for transaction {} action {}",
                 event.getTransactionId(), event.getAction());
 
-        switch (event.getAction()) {
-            case "PROJECT_MEMBER_SKILLS_REBIND" -> compensateProjectMemberSkillsRebind(event);
-            default -> log.warn("Unknown compensation action: {}", event.getAction());
+        if (CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name().equals(event.getAction())) {
+            compensateProjectMemberSkillsRebind(event);
+        } else {
+            log.warn("Unknown compensation action: {}", event.getAction());
         }
     }
 
