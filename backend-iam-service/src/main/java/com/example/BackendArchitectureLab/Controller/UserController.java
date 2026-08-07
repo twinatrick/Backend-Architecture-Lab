@@ -37,7 +37,7 @@ public class UserController {
 
 
     @PostMapping(value = "/create")
-    @RequirePermission({"System", "User", "Create"})
+    @RequirePermission("Create")
     @ApiOperationBadRequest(summary = "Create user", description = "Creates a new user account.")
     public boolean createUser(@RequestBody UserVo user) {
         userService.createUser(user);
@@ -51,21 +51,21 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @RequirePermission({"System", "User", "View"})
+    @RequirePermission("View")
     @ApiOperationOk(summary = "Get user by ID", description = "根據 ID 取得使用者資訊。")
     public ResponseType<UserVo> getUserById(@PathVariable String id) {
         return ResponseType.Success(userService.getUserById(id), "使用者查詢成功");
     }
 
     @GetMapping("/getAllUser")
-    @RequirePermission({"System", "User", "View"})
+    @RequirePermission("View")
     @ApiOperationOk(summary = "Get all users", description = "Returns all users with their roles and permissions.")
     public ResponseType<List<UserVo>> getAllUser() {
         return new ResponseType<>(0, userService.getAllUsersVo());
     }
 
     @PostMapping("/saveUser")
-    @RequirePermission({"System", "User", "Edit"})
+    @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "Save user with roles", description = "Updates a user and their role assignments.")
     public ResponseType<String> saveUser(@RequestBody UserVo user) {
         userService.saveUserWithRole(user);
@@ -73,7 +73,7 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/roles/rebind")
-    @RequirePermission({"System", "User", "Edit"})
+    @RequirePermission("Edit")
     @ApiOperationBadRequest(
             summary = "Rebind user roles",
             description = "完整覆蓋式綁定使用者角色。空清單清空所有角色，null 清單拋出異常。"
@@ -92,7 +92,7 @@ public class UserController {
     }
     
     @PostMapping("/search")
-    @RequirePermission({"System", "User", "View"})
+    @RequirePermission("View")
     @ApiOperationOk(summary = "Search users with pagination", description = "搜尋使用者並回傳分頁結果，支援多種查詢條件與排序")
     public ResponseType<PageResult<UserVo>> searchUsers(@Valid @RequestBody UserSearchQuery query) {
         PageResult<UserVo> result = userService.searchUsers(query);

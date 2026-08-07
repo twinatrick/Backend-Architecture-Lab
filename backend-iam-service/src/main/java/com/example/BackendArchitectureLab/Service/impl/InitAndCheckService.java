@@ -85,42 +85,47 @@ public class InitAndCheckService implements IInitAndCheckService {
     @Override
     public void checkFunctionBindDefaultRole() {
         List<List<String>> allFunctionList = new ArrayList<>();
-        allFunctionList.add(new ArrayList<>( List.of("System", "User", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "User", "Create")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "User", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "RolePermission", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("DataView", "AquarkData", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("DataView", "AquarkDataAvg", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "LimitSetting", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "SkillManagement", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "ProjectManagement", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "ProjectManagement", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "ProjectManagement", "EditAll")));
-
-        allFunctionList.add(new ArrayList<>( List.of("System", "Company", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Company", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "JobPosting", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "JobPosting", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "JobPosting", "Scrape")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "UserJobLink", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "UserJobLink", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "User", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Function", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Function", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Role", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Role", "Edit")));
-
-        allFunctionList.add(new ArrayList<>( List.of("System", "Skill", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Skill", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "SkillLevel", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "SkillLevel", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "PersonalSkill", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "AlertLimit", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "AlertLimit", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "AquarkData", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Project", "View")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Project", "Edit")));
-        allFunctionList.add(new ArrayList<>( List.of("System", "Project", "PersonalEdit")));
+        List.of(
+                // Iam
+                List.of("Iam", "User", "View"),
+                List.of("Iam", "User", "Create"),
+                List.of("Iam", "User", "Edit"),
+                List.of("Iam", "RolePermission", "View"),
+                List.of("Iam", "Role", "View"),
+                List.of("Iam", "Role", "Edit"),
+                List.of("Iam", "Function", "View"),
+                List.of("Iam", "Function", "Edit"),
+                // Competency
+                List.of("Competency", "SkillManagement", "View"),
+                List.of("Competency", "Skill", "View"),
+                List.of("Competency", "Skill", "Edit"),
+                List.of("Competency", "SkillLevel", "View"),
+                List.of("Competency", "SkillLevel", "Edit"),
+                List.of("Competency", "PersonalSkill", "Edit"),
+                List.of("Competency", "ProjectManagement", "View"),
+                List.of("Competency", "ProjectManagement", "Edit"),
+                List.of("Competency", "ProjectManagement", "EditAll"),
+                List.of("Competency", "Project", "View"),
+                List.of("Competency", "Project", "Edit"),
+                List.of("Competency", "Project", "PersonalEdit"),
+                // Job
+                List.of("Job", "Company", "View"),
+                List.of("Job", "Company", "Edit"),
+                List.of("Job", "JobPosting", "View"),
+                List.of("Job", "JobPosting", "Edit"),
+                List.of("Job", "JobPosting", "Scrape"),
+                List.of("Job", "UserJobLink", "View"),
+                List.of("Job", "UserJobLink", "Edit"),
+                // Alert
+                List.of("Alert", "AquarkData", "View"),
+                List.of("Alert", "AquarkDataAvg", "View"),
+                List.of("Alert", "AlertLimit", "View"),
+                List.of("Alert", "AlertLimit", "Edit"),
+                List.of("Alert", "LimitSetting", "View"),
+                // ExternalApi
+                List.of("ExternalApi", "VoiceUpload", "View"),
+                List.of("ExternalApi", "VoiceUpload", "Edit")
+        ).forEach(entry -> allFunctionList.add(new ArrayList<>(entry)));
 
         for (List<String> functionListStr : allFunctionList) {
             if (!checkIsExist(functionListStr.get(0), functionListStr.get(1), functionListStr.get(2))) {

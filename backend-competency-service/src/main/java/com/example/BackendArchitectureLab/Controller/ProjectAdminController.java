@@ -29,7 +29,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/project/admin/bindings")
-@RequirePermission({"System", "ProjectManagement", "EditAll"})
+@RequirePermission(layer = "ProjectManagement")
 @ApiControllerTag(name = "Project Admin", description = "Backend API endpoints - Project admin binding management")
 public class ProjectAdminController {
 
@@ -43,6 +43,7 @@ public class ProjectAdminController {
     private ISkillService skillService;
 
     @PostMapping("/user-project/rebind")
+    @RequirePermission("EditAll")
     @ApiOperationBadRequest(summary = "Rebind user projects", description = "Rebind all user-project relations with diff strategy")
     public ResponseType<String> rebindUserProjects(@Valid @RequestBody UserProjectRebindRequest request) {
         UUID userId = parseUuid(request.getUserId(), "userId");
@@ -56,6 +57,7 @@ public class ProjectAdminController {
     }
 
     @PostMapping("/user-skill/rebind")
+    @RequirePermission("EditAll")
     @ApiOperationBadRequest(summary = "Rebind user skills", description = "Rebind all user-skill relations with level diff strategy")
     public ResponseType<String> rebindUserSkills(@Valid @RequestBody UserSkillRebindRequest request) {
         UUID userId = parseUuid(request.getUserId(), "userId");
@@ -67,6 +69,7 @@ public class ProjectAdminController {
     }
 
     @PostMapping("/project-skill/rebind")
+    @RequirePermission("EditAll")
     @ApiOperationBadRequest(summary = "Rebind project skills", description = "Rebind all project-skill relations with level diff strategy")
     public ResponseType<String> rebindProjectSkills(@Valid @RequestBody ProjectSkillRebindRequest request) {
         UUID projectId = parseUuid(request.getProjectId(), "projectId");
@@ -78,6 +81,7 @@ public class ProjectAdminController {
     }
 
     @PostMapping("/project-members-skills/rebind")
+    @RequirePermission("EditAll")
     @ApiOperationBadRequest(
             summary = "Rebind project member skills",
             description = "完整覆蓋式綁定專案成員技能。使用者必須已是專案成員（user_project 存在），否則拋出異常。"

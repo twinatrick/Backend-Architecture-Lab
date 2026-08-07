@@ -23,7 +23,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/user/bindings")
-@RequirePermission({"System", "ProjectManagement", "Edit"})
+@RequirePermission(layer = "ProjectManagement")
 @ApiControllerTag(name = "User Bindings", description = "Backend API endpoints - User binding self-service")
 public class UserBindingController {
 
@@ -37,6 +37,7 @@ public class UserBindingController {
     private SecurityUtil securityUtil;
 
     @PostMapping("/skill/rebind")
+    @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "Rebind current user skills", description = "Rebind all current-user skill-level bindings with diff strategy")
     public ResponseType<String> rebindCurrentUserSkills(@Valid @RequestBody SkillBindingsRebindRequest request) {
         UUID currentUserId = securityUtil.requireCurrentUserId();
@@ -48,6 +49,7 @@ public class UserBindingController {
     }
 
     @PostMapping("/project/{projectId}/skill/rebind")
+    @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "Rebind current user project skills", description = "Rebind project skills for a manageable project with diff strategy")
     public ResponseType<String> rebindCurrentUserProjectSkills(
             @PathVariable UUID projectId,
