@@ -46,6 +46,7 @@
 - **Entity 使用規範 (重要)**:
   - Entity 僅在 Repository、DataAccess 及 Service Impl（經 Mapper 轉換後）中使用，**嚴禁**傳遞至 Controller 層或作為 API 回傳型別
 - **微服務分類使用規則**: **絕對必須遵守** `微服務分類使用規則.md` 中的所有架構規範，特別是模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager 等規則。
+- **Controller API 註記規則**: **必須遵守** `Controller API 註記規則.md`；Controller 的 OpenAPI 文件註記一律使用 `Annotation/OpenApi` 標準註記（`ApiControllerTag`、`ApiOperationOk`、`ApiOperationAuth`、`ApiOperationBadRequest`），嚴禁直接使用 `io.swagger.v3.oas.annotations.Operation`。
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。

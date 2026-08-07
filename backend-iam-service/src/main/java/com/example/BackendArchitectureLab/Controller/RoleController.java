@@ -14,7 +14,6 @@ import com.example.BackendArchitectureLab.Vo.PermissionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,8 +37,7 @@ public class RoleController {
     @PostMapping("/add")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Add role", description = "Deprecated: 請改用 /role/addWithFunctions。此 API 只建立角色，不會同步 functionIds 權限綁定。")
-    @Operation(deprecated = true, summary = "Add role", description = "Deprecated: 請改用 /role/addWithFunctions。此 API 只建立角色，不會同步 functionIds 權限綁定。")
+    @ApiOperationBadRequest(summary = "Add role", description = "Deprecated: 請改用 /role/addWithFunctions。此 API 只建立角色，不會同步 functionIds 權限綁定。", deprecated = true)
     public ResponseType<RoleOutVo> addRole(@RequestBody RoleOutVo role) {
         return ResponseType.Success(roleService.addRole(role), "Role added successfully");
     }
@@ -61,8 +59,7 @@ public class RoleController {
     @PostMapping("/update")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Update role", description = "Deprecated: 請改用 /role/updateWithFunctions。此 API 只更新角色資料，不會同步 functionIds 權限綁定。")
-    @Operation(deprecated = true, summary = "Update role", description = "Deprecated: 請改用 /role/updateWithFunctions。此 API 只更新角色資料，不會同步 functionIds 權限綁定。")
+    @ApiOperationBadRequest(summary = "Update role", description = "Deprecated: 請改用 /role/updateWithFunctions。此 API 只更新角色資料，不會同步 functionIds 權限綁定。", deprecated = true)
     public ResponseType<RoleOutVo> updateRole(@RequestBody RoleOutVo role) {
         return ResponseType.Success(roleService.updateRole(role), "Role updated successfully");
     }
@@ -85,8 +82,7 @@ public class RoleController {
     @PostMapping("/roleBindFunction")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Bind role to functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限。")
-    @Operation(deprecated = true, summary = "Bind role to functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限。")
+    @ApiOperationBadRequest(summary = "Bind role to functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限。", deprecated = true)
     public ResponseType<RoleOutVo> roleBindFunction(@RequestBody PermissionVo permissionVo) {
         roleService.roleBindFunction(permissionVo.getRole(), permissionVo.getFunctionList());
         return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "Role bound to function successfully");
@@ -113,9 +109,9 @@ public class RoleController {
     @Deprecated
     @ApiOperationBadRequest(
             summary = "Bind user to roles (deprecated)",
-            description = "Deprecated: 請改用 POST /users/{userId}/roles/rebind，提供更清晰的完整覆蓋語意。"
+            description = "Deprecated: 請改用 POST /users/{userId}/roles/rebind，提供更清晰的完整覆蓋語意。",
+            deprecated = true
     )
-    @Operation(deprecated = true)
     public ResponseType<UserVo> userBindRole(@RequestBody PermissionVo permissionVo) {
         roleService.userBindRole(permissionVo.getUser(), permissionVo.getRoleList());
         return ResponseType.Success(userService.getUserById(permissionVo.getUser()), "User bound to role successfully");
@@ -140,8 +136,7 @@ public class RoleController {
     @PostMapping("/roleUnbindFunction")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Unbind role from functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限；若要清空權限請傳 functionIds = []。")
-    @Operation(deprecated = true, summary = "Unbind role from functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限；若要清空權限請傳 functionIds = []。")
+    @ApiOperationBadRequest(summary = "Unbind role from functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限；若要清空權限請傳 functionIds = []。", deprecated = true)
     public ResponseType<RoleOutVo> roleUnbindFunction(@RequestBody PermissionVo permissionVo) {
         roleService.roleUnbindFunction(permissionVo.getRole(), permissionVo.getFunctionList());
         return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "Role unbound from function successfully");
