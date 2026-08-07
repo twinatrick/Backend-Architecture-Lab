@@ -1,28 +1,20 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
-import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
-import com.example.BackendArchitectureLab.Feign.CompetencyProjectFeignClient;
 import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.impl.UserService;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
-import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.User;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -31,7 +23,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -60,19 +51,10 @@ class UserServiceTest {
     private IUserDataAccess userDataAccess;
 
     @Mock
-    private IFunctionDataAccess functionDataAccess;
-
-    @Mock
     private IRoleService roleService;
 
     @Mock
-    private CompetencyProjectFeignClient projectServiceFeignClient;
-
-    @Mock
     private UserMapper userMapper;
-
-    @Mock
-    private FunctionMapper functionMapper;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -81,12 +63,6 @@ class UserServiceTest {
     private UserService userService;
 
     private User testUser;
-    private Function testFunction;
-
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
 
     @BeforeEach
     void setUp() {
@@ -104,11 +80,6 @@ class UserServiceTest {
         testUser.setEmail("test@example.com");
         testUser.setPassword("hashedPassword");
         testUser.setDisabled(false);
-
-        testFunction = new Function();
-        testFunction.setId(UUID.randomUUID());
-        testFunction.setName("TestFunction");
-        testFunction.setParent("");
 
         when(userMapper.toEntity(any(UserVo.class))).thenAnswer(invocation -> {
             UserVo vo = invocation.getArgument(0);
@@ -130,14 +101,6 @@ class UserServiceTest {
             vo.setEmail(user.getEmail());
             vo.setPassword(user.getPassword());
             vo.setDisabled(user.isDisabled());
-            return vo;
-        });
-        when(functionMapper.toVo(any(Function.class))).thenAnswer(invocation -> {
-            Function function = invocation.getArgument(0);
-            FunctionVo vo = new FunctionVo();
-            vo.setId(function.getId() == null ? null : function.getId().toString());
-            vo.setName(function.getName());
-            vo.setParent(function.getParent());
             return vo;
         });
 
@@ -289,86 +252,6 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Should get all parent functions successfully")
-    void testGetAllParent() {
-        // Arrange
-        UUID childId = UUID.randomUUID();
-        UUID parentId = UUID.randomUUID();
-        UUID grandParentId = UUID.randomUUID();
-
-        Function childFunction = new Function();
-        childFunction.setId(childId);
-        childFunction.setParent(parentId.toString());
-
-        Function parentFunction = new Function();
-        parentFunction.setId(parentId);
-        parentFunction.setParent(grandParentId.toString());
-
-        Function grandParentFunction = new Function();
-        grandParentFunction.setId(grandParentId);
-        grandParentFunction.setParent("");
-
-        // Mock first call - get child functions
-        when(functionDataAccess.findAllById(List.of(childId)))
-                .thenReturn(List.of(childFunction));
-
-        // Mock second call - get parent functions
-        when(functionDataAccess.findAllById(List.of(parentId)))
-                .thenReturn(List.of(parentFunction));
-
-        // Mock third call - get grandparent functions
-        when(functionDataAccess.findAllById(argThat(list ->
-                list.contains(parentId) && list.contains(grandParentId)
-        ))).thenReturn(List.of(grandParentFunction));
-
-        // Act
-        List<FunctionVo> result = userService.getAllParent(List.of(childId.toString()));
-
-        // Assert
-        assertNotNull(result);
-        assertEquals(1, result.size());
-        verify(functionDataAccess, times(3)).findAllById(anyList());
-    }
-
-    @Test
-    @DisplayName("Should handle empty child list in getAllParent")
-    void testGetAllParent_EmptyList() {
-        // Arrange
-        when(functionDataAccess.findAllById(anyList())).thenReturn(new ArrayList<>());
-
-        // Act
-        List<FunctionVo> result = userService.getAllParent(new ArrayList<>());
-
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-        verify(functionDataAccess, atLeastOnce()).findAllById(anyList());
-    }
-
-    @Test
-    @DisplayName("Should handle functions without parents in getAllParent")
-    void testGetAllParent_NoParents() {
-        // Arrange
-        UUID childId = UUID.randomUUID();
-        Function childFunction = new Function();
-        childFunction.setId(childId);
-        childFunction.setParent(""); // No parent
-
-        when(functionDataAccess.findAllById(List.of(childId)))
-                .thenReturn(List.of(childFunction));
-        when(functionDataAccess.findAllById(new ArrayList<>()))
-                .thenReturn(new ArrayList<>());
-
-        // Act
-        List<FunctionVo> result = userService.getAllParent(List.of(childId.toString()));
-
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-        verify(functionDataAccess, times(3)).findAllById(anyList());
-    }
-
-    @Test
     @DisplayName("Should search users with pagination")
     void testSearchUsers_Success() {
         // Arrange
@@ -495,57 +378,6 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Should bind user to project successfully")
-    void testBindUserProject_Success() {
-        // Arrange
-        UUID userId = UUID.randomUUID();
-        UUID projectId = UUID.randomUUID();
-
-        when(projectServiceFeignClient.existsUserProject(userId, projectId)).thenReturn(false);
-        doNothing().when(projectServiceFeignClient).saveUserProject(userId, projectId);
-
-        // Act
-        userService.bindUserProject(userId.toString(), projectId.toString());
-
-        // Assert
-        verify(projectServiceFeignClient).existsUserProject(userId, projectId);
-        verify(projectServiceFeignClient).saveUserProject(userId, projectId);
-    }
-
-    @Test
-    @DisplayName("Should throw Exception when binding user ID is null")
-    void testBindUserProject_NullUserId() {
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> userService.bindUserProject(null, UUID.randomUUID().toString()));
-        assertEquals("Key must not be null", exception.getMessage());
-    }
-
-    @Test
-    @DisplayName("Should throw Exception when binding project ID is null")
-    void testBindUserProject_NullProjectId() {
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> userService.bindUserProject(UUID.randomUUID().toString(), null));
-        assertEquals("Key must not be null", exception.getMessage());
-    }
-
-    @Test
-    @DisplayName("Should throw Exception when project already bound to user")
-    void testBindUserProject_AlreadyBound() {
-        // Arrange
-        UUID userId = UUID.randomUUID();
-        UUID projectId = UUID.randomUUID();
-
-        when(projectServiceFeignClient.existsUserProject(userId, projectId)).thenReturn(true);
-
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> userService.bindUserProject(userId.toString(), projectId.toString()));
-        assertEquals("Project already bind to user", exception.getMessage());
-    }
-
-    @Test
     @DisplayName("Should get all users VO successfully")
     void testGetAllUsersVo() {
         // Arrange
@@ -559,72 +391,6 @@ class UserServiceTest {
         assertNotNull(result);
         assertEquals(1, result.size());
         verify(userDataAccess).findAll();
-    }
-
-    @Test
-    @DisplayName("Should get current user info successfully")
-    void testGetCurrentUserInfo() {
-        // Arrange
-        UUID functionId = UUID.randomUUID();
-        UUID parentId = UUID.randomUUID();
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            SecurityContextHolder.getContext().setAuthentication(
-                    new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                            "test@example.com", null));
-        }
-        when(userDataAccess.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
-        
-        FunctionVo functionVo = new FunctionVo();
-        functionVo.setId(functionId.toString());
-        functionVo.setParent(parentId.toString());
-        
-        UserVo userVo = new UserVo();
-        userVo.setEmail("test@example.com");
-        userVo.setPermissions(new ArrayList<>(List.of(functionVo)));
-        
-        when(userMapper.toVo(testUser)).thenReturn(userVo);
-        
-        Function childFunction = new Function();
-        childFunction.setId(functionId);
-        childFunction.setParent(parentId.toString());
-        
-        Function parentFunction = new Function();
-        parentFunction.setId(parentId);
-        parentFunction.setParent("");
-        
-        when(functionDataAccess.findAllById(List.of(functionId))).thenReturn(List.of(childFunction));
-        when(functionDataAccess.findAllById(List.of(parentId))).thenReturn(List.of(parentFunction));
-        when(functionDataAccess.findAllById(argThat(list -> list.contains(parentId)))).thenReturn(List.of(parentFunction));
-        
-        FunctionVo parentVo = new FunctionVo();
-        parentVo.setId(parentId.toString());
-        when(functionMapper.toVo(parentFunction)).thenReturn(parentVo);
-
-        // Act
-        UserVo result = userService.getCurrentUserInfo();
-
-        // Assert
-        assertNotNull(result);
-        assertEquals("test@example.com", result.getEmail());
-        assertTrue(result.getPermissions().size() >= 1);
-        verify(userDataAccess).findByEmail("test@example.com");
-    }
-
-    @Test
-    @DisplayName("Should throw Exception when current user not found")
-    void testGetCurrentUserInfo_UserNotFound() {
-        // Arrange
-        SecurityContextHolder.getContext().setAuthentication(
-                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                        "notfound@example.com", null));
-        when(userDataAccess.findByEmail("notfound@example.com")).thenReturn(Optional.empty());
-
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> userService.getCurrentUserInfo());
-        assertEquals("User not found", exception.getMessage());
     }
 
     @Test
@@ -697,68 +463,6 @@ class UserServiceTest {
         // Assert
         assertNotNull(result);
         verify(userDataAccess).save(any(User.class));
-    }
-
-    @Test
-    @DisplayName("Should rebind user projects with diff strategy")
-    void testRebindUserProjects_Success() {
-        // Arrange
-        UUID userId = UUID.randomUUID();
-        UUID projectId1 = UUID.randomUUID();
-        UUID projectId2 = UUID.randomUUID();
-
-        when(userDataAccess.findById(userId)).thenReturn(Optional.of(testUser));
-        when(projectServiceFeignClient.getUserProjectIds(userId)).thenReturn(List.of(projectId1));
-
-        // Act
-        userService.rebindUserProjects(userId, List.of(projectId1, projectId2));
-
-        // Assert
-        verify(userDataAccess).findById(userId);
-        verify(projectServiceFeignClient).getUserProjectIds(userId);
-        verify(projectServiceFeignClient, never()).deleteUserProject(any(), any());
-        verify(projectServiceFeignClient).saveUserProject(userId, projectId2);
-    }
-
-    @Test
-    @DisplayName("Should throw Exception when userId is null in rebindUserProjects")
-    void testRebindUserProjects_NullUserId() {
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> userService.rebindUserProjects(null, List.of(UUID.randomUUID())));
-        assertEquals("Key must not be null", exception.getMessage());
-    }
-
-    @Test
-    @DisplayName("Should handle empty project list in rebindUserProjects")
-    void testRebindUserProjects_EmptyProjectList() {
-        // Arrange
-        UUID userId = UUID.randomUUID();
-
-        when(userDataAccess.findById(userId)).thenReturn(Optional.of(testUser));
-        when(projectServiceFeignClient.getUserProjectIds(userId)).thenReturn(List.of());
-
-        // Act
-        userService.rebindUserProjects(userId, List.of());
-
-        // Assert
-        verify(userDataAccess).findById(userId);
-        verify(projectServiceFeignClient).getUserProjectIds(userId);
-        verify(projectServiceFeignClient, never()).deleteUserProject(any(), any());
-        verify(projectServiceFeignClient, never()).saveUserProject(any(), any());
-    }
-
-    @Test
-    @DisplayName("Should throw Exception when user not found in rebindUserProjects")
-    void testRebindUserProjects_UserNotFound() {
-        // Arrange
-        UUID userId = UUID.randomUUID();
-        when(userDataAccess.findById(userId)).thenReturn(Optional.empty());
-
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> userService.rebindUserProjects(userId, List.of(UUID.randomUUID())));
-        assertEquals("User not found", exception.getMessage());
     }
 
     @Test

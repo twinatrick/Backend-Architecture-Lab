@@ -14,7 +14,7 @@ import java.util.UUID;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class SecurityUtil {
 
-    @Autowired
+    @Autowired(required = false)
     private UserServiceFeignClient userServiceFeignClient;
 
     public UUID requireCurrentUserId() {
@@ -25,6 +25,9 @@ public class SecurityUtil {
         String email = auth.getName();
         if (email == null || email.isBlank()) {
             throw new IllegalStateException("Current user not found - no email in authentication");
+        }
+        if (userServiceFeignClient == null) {
+            throw new IllegalStateException("Current user not found - UserServiceFeignClient is not available in this service");
         }
         UserVo userVo = userServiceFeignClient.getUserByEmail(email);
         if (userVo == null || userVo.getId() == null) {

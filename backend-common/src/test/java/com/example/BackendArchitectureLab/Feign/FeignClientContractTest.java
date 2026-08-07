@@ -25,10 +25,9 @@ import static org.junit.jupiter.api.Assertions.*;
 class FeignClientContractTest {
 
     private static final List<Class<?>> FEIGN_CLIENTS = List.of(
+            PermissionCheckFeignClient.class,
             UserServiceFeignClient.class,
-            AlertCheckLimitFeignClient.class,
-            CompetencyProjectFeignClient.class,
-            CompetencySkillFeignClient.class,
+            AiPyServiceFeignClient.class,
             ExternalApiServiceFeignClient.class
     );
 

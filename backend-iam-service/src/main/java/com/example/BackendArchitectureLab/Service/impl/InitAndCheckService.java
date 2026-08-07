@@ -86,6 +86,8 @@ public class InitAndCheckService implements IInitAndCheckService {
     public void checkFunctionBindDefaultRole() {
         List<List<String>> allFunctionList = new ArrayList<>();
         allFunctionList.add(new ArrayList<>( List.of("System", "User", "View")));
+        allFunctionList.add(new ArrayList<>( List.of("System", "User", "Create")));
+        allFunctionList.add(new ArrayList<>( List.of("System", "User", "Edit")));
         allFunctionList.add(new ArrayList<>( List.of("System", "RolePermission", "View")));
         allFunctionList.add(new ArrayList<>( List.of("DataView", "AquarkData", "View")));
         allFunctionList.add(new ArrayList<>( List.of("DataView", "AquarkDataAvg", "View")));

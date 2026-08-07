@@ -1,6 +1,5 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
@@ -23,15 +22,7 @@ public interface IUserService {
 
     void saveUserWithRole(UserVo userVo);
 
-    List<FunctionVo> getAllParent(List<String> child);
-
-    UserVo getCurrentUserInfo();
-
     List<UserVo> getAllUsersVo();
-
-    void bindUserProject(String userId, String projectId);
-
-    void rebindUserProjects(UUID userId, List<UUID> projectIds);
 
     /**
      * 完整覆蓋式綁定使用者角色。空清單清空所有角色，null 清單拋出異常。

@@ -6,20 +6,15 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequ
 import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Security.JwtAuthenticationToken;
+import com.example.BackendArchitectureLab.Service.IAuthService;
 import com.example.BackendArchitectureLab.Vo.LoginRequest;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.SignupRequest;
 import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
-import com.example.BackendArchitectureLab.Vo.UserVo;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
-import com.example.BackendArchitectureLab.Service.IUserService;
-import com.example.BackendArchitectureLab.Vo.UserVo;
+import com.example.BackendArchitectureLab.Vo.Response.Token;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jose4j.lang.JoseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import com.example.BackendArchitectureLab.Vo.Response.Token;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,7 +26,6 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.HashMap;
-import java.util.List;
 
 @RestController
 @RequestMapping("/auth")
@@ -39,10 +33,7 @@ import java.util.List;
 public class AuthController {
 
     @Autowired
-    private IUserService userService;
-
-    @Autowired
-    private UserServiceFeignClient userServiceFeignClient;
+    private IAuthService authService;
 
     @Autowired
     private HttpServletResponse httpResponse;
@@ -53,33 +44,13 @@ public class AuthController {
     @Autowired
     private AuthenticationManager authenticationManager;
 
-    @Value("${superuser.key}")
-    private String superUserKey;
-
     @Ignore
     @PostMapping("/signup")
     @ApiOperationBadRequest(summary = "Register a new user", description = "Creates a user account and returns a JWT access token.")
     public ResponseType<Token> signup(@RequestBody SignupRequest request) throws JoseException {
-        List<UserVo> existingUsers = userService.getUserByEmail(request.getEmail());
-        if (!existingUsers.isEmpty()) {
-            throw new AppException("VALIDATION_ERROR", "User already exists", 400);
-        }
-
-        UserVo userVo = new UserVo();
-        userVo.setEmail(request.getEmail());
-        userVo.setPassword(request.getPassword());
-        userVo.setName(request.getEmail());
-        UserVo savedUser = userService.createUser(userVo);
+        authService.signup(request);
 
         String token = jwtUtils.generateJWT(request.getEmail());
-
-        List<RoleOutVo> roles = userServiceFeignClient.getAllRoles();
-        RoleOutVo defaultRole = roles.stream()
-                .filter(role -> "user".equalsIgnoreCase(role.getName()))
-                .findFirst().orElse(null);
-        if (defaultRole != null) {
-            userServiceFeignClient.userBindRole(String.valueOf(savedUser.getId()), String.valueOf(defaultRole.getId()));
-        }
 
         httpResponse.addHeader("Authorization", "Bearer " + token);
         Token res = new Token();
@@ -112,29 +83,9 @@ public class AuthController {
     @PostMapping("/superuser")
     @ApiOperationBadRequest(summary = "Create super user", description = "Creates an admin user when the provided key matches configuration.")
     public ResponseType<?> createSuperUser(@RequestBody SuperUserRequest request) {
-        if (request.getKey() == null || !request.getKey().equals(superUserKey)) {
-            throw new AppException("VALIDATION_ERROR", "Invalid key", 400);
-        }
+        authService.createSuperUser(request);
+
         String email = (request.getEmail() == null || request.getEmail().isBlank()) ? "admin" : request.getEmail();
-        List<UserVo> existingUsers = userService.getUserByEmail(email);
-        if (!existingUsers.isEmpty()) {
-            throw new AppException("VALIDATION_ERROR", "User already exists", 400);
-        }
-
-        UserVo userVo = new UserVo();
-        userVo.setEmail(email);
-        userVo.setPassword("admin");
-        userVo.setName(email);
-        UserVo savedUser = userService.createUser(userVo);
-
-        RoleOutVo adminRole = userServiceFeignClient.getRoleByName("admin");
-        if (adminRole == null) {
-            RoleOutVo role = new RoleOutVo();
-            role.setName("admin");
-            adminRole = userServiceFeignClient.addRole(role);
-        }
-        userServiceFeignClient.userBindRole(String.valueOf(savedUser.getId()), String.valueOf(adminRole.getId()));
-
         HashMap<String, String> res = new HashMap<>();
         res.put("email", email);
         res.put("password", "admin");
