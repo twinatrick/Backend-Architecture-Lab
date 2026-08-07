@@ -2,7 +2,6 @@ from faster_whisper import WhisperModel
 
 from config import settings
 
-
 _model: WhisperModel | None = None
 
 

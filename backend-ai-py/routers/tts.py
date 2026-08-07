@@ -1,11 +1,11 @@
 import uuid
-from pydantic import BaseModel
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from services.tts_service import text_to_sound
-from utils.file_adapter import upload_to_minio
 from utils.audio import convert_wav_to_m4a
+from utils.file_adapter import upload_to_minio
 
 router = APIRouter()
 

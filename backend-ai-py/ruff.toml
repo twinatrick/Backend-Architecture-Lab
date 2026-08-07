@@ -1,0 +1,22 @@
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "N"]
+# N：命名規則（backend-ai-py 目錄名含短橫線 N999；Pydantic/API 欄位名 N815）
+# S：安全規則中 try/except-pass 屬預期容錯（S110）
+# SIM105：容錯 suppress 用 try/except-pass 尚可；SIM115：取 tempfile .name 樣式亦常見
+# BLE：照專案共識可寬限盲捕 Exception
+ignore = [
+    "N999",
+    "N815",
+    "S110",
+    "SIM105",
+    "SIM115",
+    "BLE001",
+]
+
+[lint.isort]
+known-first-party = ["config", "routers", "services", "utils", "models"]
+force-single-line = true
+order-by-type = true

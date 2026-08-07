@@ -1,10 +1,10 @@
-from pydantic import BaseModel
-
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from config import settings
-from services.chat_service import chat, chat_stream
+from services.chat_service import chat
+from services.chat_service import chat_stream
 
 router = APIRouter()
 
