@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import tempfile
 
 import av
@@ -26,6 +27,38 @@ def get_audio_duration(file_path: str) -> float:
     duration = float(container.duration) / 1_000_000 if container.duration else 0.0
     container.close()
     return duration
+
+
+def _prepare_audio(file_path: str):
+    """智慧型格式預處理：非 WAV 格式（如 .mp3）以當前環境 ffmpeg 轉為 16kHz mono WAV"""
+    ext = os.path.splitext(file_path.lower())[1]
+    if ext == ".wav":
+        return file_path, None
+
+    temp_wav = None
+    try:
+        conda_env_dir = os.path.dirname(sys.executable)
+        ffmpeg_exe = os.path.join(conda_env_dir, "Library", "bin", "ffmpeg.exe")
+        if not os.path.exists(ffmpeg_exe):
+            ffmpeg_exe = "ffmpeg"
+
+        fd, temp_wav = tempfile.mkstemp(suffix="_stt_input.wav")
+        os.close(fd)
+        subprocess.run(
+            [ffmpeg_exe, "-y", "-i", file_path, "-ar", "16000", "-ac", "1", temp_wav],
+            capture_output=True,
+            check=True,
+        )
+        print("[STT] Up-front WAV conversion completed successfully.")
+        return temp_wav, temp_wav
+    except Exception as e:
+        print(f"[STT] FFmpeg 前置轉檔失敗，嘗試直接讀取原檔: {e}")
+        if temp_wav and os.path.exists(temp_wav):
+            try:
+                os.remove(temp_wav)
+            except Exception:
+                pass
+        return file_path, None
 
 
 def convert_wav_to_m4a(wav_bytes: bytes) -> bytes:

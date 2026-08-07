@@ -19,13 +19,22 @@ public class LearnService implements ILearnService {
 
     @Override
     public AudioRecognizeVo processAudio(MultipartFile file, String lang, String mode) {
+        return processAudio(file, lang, mode, null);
+    }
+
+    @Override
+    public AudioRecognizeVo processAudio(MultipartFile file, String lang, String mode, String provider) {
         AudioRecognizeVo vo = new AudioRecognizeVo();
-        
+
         try {
-            // 1. 呼叫 Python STT 服務進行語音辨識
-            SttResponseVo sttResult = sttService.recognize(file.getBytes(), lang);
+            // 1. 呼叫 Python STT 服務進行語音辨識（可指定 provider）
+            SttResponseVo sttResult = sttService.recognize(file.getBytes(), lang, provider);
             String text = (sttResult != null && sttResult.getText() != null) ? sttResult.getText() : "";
             vo.setText(text);
+            if (sttResult != null) {
+                vo.setDurationSec(sttResult.getDurationSec());
+                vo.setAudioUrl(sttResult.getAudioUrl());
+            }
 
             // 2. 轉換拼音/注音/羅馬音
             String phonetic = phoneticConvertService.convert(text, mode, lang);

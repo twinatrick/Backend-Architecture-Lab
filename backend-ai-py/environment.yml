@@ -21,4 +21,6 @@ dependencies:
     - sherpa-onnx
     - soundfile
     - minio
-    - nacos-sdk-python
+    - nacos-sdk-python==2.0.11  # 3.x API 全面改版（無 NacosClient），鎖定 2.x 以相容 main.py
+    - opencc
+    - numpy  # 必須用 pip 版（openblas 後端）：conda 版（mkl BLAS）在 Windows 執行 BLAS 運算會崩潰（0xC06D007F，av 依賴會自動拉入 conda 版）

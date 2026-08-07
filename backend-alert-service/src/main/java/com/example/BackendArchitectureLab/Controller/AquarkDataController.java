@@ -24,7 +24,7 @@ public class AquarkDataController {
     private IAquarkDataService aquarkDataService;
 
     @PostMapping("/getData")
-    @RequirePermission({"System", "AquarkData", "View"})
+    @RequirePermission("View")
     @ApiOperationBadRequest(summary = "Get aquark data", description = "Returns aquark data filtered by criteria.")
     public ResponseType<List<AquarkDataRaw>> getData(@RequestBody List<CriteriaAPIFilter> fillterList) {
 
@@ -33,7 +33,7 @@ public class AquarkDataController {
     }
 
     @GetMapping("/getColumnNameList")
-    @RequirePermission({"System", "AquarkData", "View"})
+    @RequirePermission("View")
     @ApiOperationOk(summary = "Get column names", description = "Returns available aquark data column names.")
     public ResponseType<List<String>> getColumnNameList() {
         return new ResponseType<>(aquarkDataService.getColumnNameList());

@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Service.impl;
 
+import com.example.BackendArchitectureLab.DataAccess.IApiUsageLogDataAccess;
 import com.example.BackendArchitectureLab.Entity.ApiUsageLog;
 import com.example.BackendArchitectureLab.Mapper.ApiUsageLogMapper;
-import com.example.BackendArchitectureLab.Repository.ApiUsageLogRepository;
 import com.example.BackendArchitectureLab.Vo.ApiUsageLogVo;
 import com.example.BackendArchitectureLab.Service.IApiUsageLogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,7 @@ import java.util.Map;
 public class ApiUsageLogService implements IApiUsageLogService {
 
     @Autowired
-    private ApiUsageLogRepository apiUsageLogRepository;
+    private IApiUsageLogDataAccess apiUsageLogRepository;
 
     @Autowired
     private ApiUsageLogMapper apiUsageLogMapper;
@@ -26,9 +26,9 @@ public class ApiUsageLogService implements IApiUsageLogService {
     public List<ApiUsageLogVo> findByRange(Date start, Date end, String service) {
         List<ApiUsageLog> logs;
         if (service != null) {
-            logs = apiUsageLogRepository.findByServiceAndCreatedTimeBetweenOrderByCreatedTimeDesc(service, start, end);
+            logs = apiUsageLogRepository.findByServiceAndCreatedTimeBetween(service, start, end);
         } else {
-            logs = apiUsageLogRepository.findByCreatedTimeBetweenOrderByCreatedTimeDesc(start, end);
+            logs = apiUsageLogRepository.findByCreatedTimeBetween(start, end);
         }
         return logs.stream().map(apiUsageLogMapper::toVo).toList();
     }
@@ -37,9 +37,9 @@ public class ApiUsageLogService implements IApiUsageLogService {
     public Map<String, Object> getSummary(Date start, Date end, String service) {
         List<ApiUsageLog> logs;
         if (service != null) {
-            logs = apiUsageLogRepository.findByServiceAndCreatedTimeBetweenOrderByCreatedTimeDesc(service, start, end);
+            logs = apiUsageLogRepository.findByServiceAndCreatedTimeBetween(service, start, end);
         } else {
-            logs = apiUsageLogRepository.findByCreatedTimeBetweenOrderByCreatedTimeDesc(start, end);
+            logs = apiUsageLogRepository.findByCreatedTimeBetween(start, end);
         }
 
         long totalCalls = logs.size();
