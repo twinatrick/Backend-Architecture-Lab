@@ -9,7 +9,6 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequ
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -52,8 +51,7 @@ public class AlertCheckLimitController {
     
     @PostMapping("/search")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "搜尋告警檢查限制", description = "支援分頁與條件查詢的告警檢查限制搜尋")
-    @Operation(summary = "搜尋告警檢查限制（分頁）", description = "支援 tableName、columnName、limitValue 範圍、createdBy 查詢條件，預設按 createdTime 降序排序")
+    @ApiOperationBadRequest(summary = "搜尋告警檢查限制（分頁）", description = "支援 tableName、columnName、limitValue 範圍、createdBy 查詢條件，預設按 createdTime 降序排序")
     public ResponseType<PageResult<AlertCheckLimitVo>> searchAlertCheckLimits(@RequestBody AlertCheckLimitSearchQuery query) {
         return ResponseType.Success(alertCheckLimitService.searchAlertCheckLimits(query), "告警檢查限制查詢成功");
     }

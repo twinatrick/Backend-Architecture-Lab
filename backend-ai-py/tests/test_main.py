@@ -1,6 +1,7 @@
-import sys
 import os
-from unittest.mock import patch, MagicMock
+import sys
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 # Mock out external libraries that might not be installed or are heavy in CI
 sys.modules["uvicorn"] = MagicMock()
@@ -24,11 +25,11 @@ def test_health():
         patch("main._nacos_register"),
         patch("main._warmup_ollama"),
         patch("main._nacos_deregister"),
+        TestClient(app) as client,
     ):
-        with TestClient(app) as client:
-            response = client.get("/health")
-            assert response.status_code == 200
-            assert response.json() == {"status": "ok"}
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
 
 
 def test_settings():

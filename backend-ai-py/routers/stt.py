@@ -4,7 +4,8 @@ from fastapi import APIRouter
 
 from config import settings
 from services.stt_service import sound_to_text
-from utils.audio import convert_to_wav, get_audio_duration
+from utils.audio import convert_to_wav
+from utils.audio import get_audio_duration
 from utils.file_adapter import download_from_minio
 
 router = APIRouter()
@@ -22,7 +23,9 @@ async def _run_stt(object_key: str, language: str, provider: str = "") -> dict:
         duration = get_audio_duration(wav_path)
         text = sound_to_text(wav_path, language, provider)
 
-        audio_url = f"{settings.minio_endpoint.rstrip('/')}/{settings.minio_bucket_audio}/{object_key}"
+        audio_url = (
+            f"{settings.minio_endpoint.rstrip('/')}/{settings.minio_bucket_audio}/{object_key}"
+        )
 
     finally:
         paths_to_clean = []

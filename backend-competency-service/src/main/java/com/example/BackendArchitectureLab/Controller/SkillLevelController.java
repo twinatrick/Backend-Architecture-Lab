@@ -9,7 +9,6 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequ
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
-import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -54,8 +53,7 @@ public class SkillLevelController {
 
     @PostMapping("/search")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "搜尋技能等級", description = "支援分頁與條件查詢的技能等級搜尋")
-    @Operation(summary = "搜尋技能等級（分頁）", description = "支援 skillId、levelValue、title、description、createdBy 查詢條件，預設按 createdTime 降序排序")
+    @ApiOperationBadRequest(summary = "搜尋技能等級（分頁）", description = "支援 skillId、levelValue、title、description、createdBy 查詢條件，預設按 createdTime 降序排序")
     public ResponseType<PageResult<SkillLevelVo>> searchSkillLevels(@RequestBody SkillLevelSearchQuery query) {
         return ResponseType.Success(skillService.searchSkillLevels(query), "技能等級查詢成功");
     }

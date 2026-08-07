@@ -50,6 +50,7 @@
   - **import 一律置於檔案最頂端**，嚴禁函數內 import（標準函式庫 → 第三方 → 本專案模組，依序排列）
   - 檔案單一職責：超過約 300 行需拆分成獨立模組（如 `services/` 下按 SenseVoice、Whisper、語者分離、排版職責拆分）
   - 命名慣例：函數/變數 `snake_case`、類別 `PascalCase`、私有函數前綴 `_`、4 空格縮排、型別註釋、註解使用繁體中文
+- **Controller API 註記規則**: **必須遵守** `Controller API 註記規則.md`；Controller 的 OpenAPI 文件註記一律使用 `Annotation/OpenApi` 標準註記（`ApiControllerTag`、`ApiOperationOk`、`ApiOperationAuth`、`ApiOperationBadRequest`），嚴禁直接使用 `io.swagger.v3.oas.annotations.Operation`。
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。

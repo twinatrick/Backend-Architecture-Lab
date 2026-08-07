@@ -26,4 +26,7 @@ public @interface ApiOperationBadRequest {
 
     @AliasFor(annotation = Operation.class, attribute = "description")
     String description() default "";
+
+    @AliasFor(annotation = Operation.class, attribute = "deprecated")
+    boolean deprecated() default false;
 }

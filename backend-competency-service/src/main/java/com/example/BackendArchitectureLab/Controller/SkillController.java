@@ -10,7 +10,6 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
-import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -55,24 +54,21 @@ public class SkillController {
 
     @PostMapping("/search")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "搜尋技能", description = "支援分頁與條件查詢的技能搜尋")
-    @Operation(summary = "搜尋技能（分頁）", description = "支援 name、description、createdBy 查詢條件，預設按 createdTime 降序排序")
+    @ApiOperationBadRequest(summary = "搜尋技能（分頁）", description = "支援 name、description、createdBy 查詢條件，預設按 createdTime 降序排序")
     public ResponseType<PageResult<SkillVo>> searchSkills(@RequestBody SkillSearchQuery query) {
         return ResponseType.Success(skillService.searchSkills(query), "技能查詢成功");
     }
 
     @GetMapping("/current")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得當前使用者技能", description = "返回當前使用者所有技能（合併 USER 直接綁定與 PROJECT 專案技能）。管理者指派技能可查看但視為唯讀。")
-    @Operation(summary = "取得當前使用者技能", description = "合併 USER（直接綁定）和 PROJECT（專案技能）兩個來源，每筆標記 sourceType。管理者指派技能可查看但不可透過個人 API 修改；可依權限進行綁定關聯。")
+    @ApiOperationOk(summary = "取得當前使用者技能", description = "合併 USER（直接綁定）和 PROJECT（專案技能）兩個來源，每筆標記 sourceType。管理者指派技能可查看但不可透過個人 API 修改；可依權限進行綁定關聯。")
     public ResponseType<List<CurrentUserSkillVo>> getCurrentUserSkills() {
         return ResponseType.Success(skillService.getCurrentUserSkills(), "當前使用者技能查詢成功");
     }
 
     @PostMapping("/current/search")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "搜尋當前使用者技能", description = "支援分頁與條件查詢的當前使用者技能搜尋。管理者指派技能可查詢但視為唯讀。")
-    @Operation(summary = "搜尋當前使用者技能（分頁）", description = "在合併後的技能列表中搜尋，支援 name、description、createdBy 查詢條件。管理者指派技能可查詢但不可透過個人 API 修改；可依權限進行綁定關聯。")
+    @ApiOperationBadRequest(summary = "搜尋當前使用者技能（分頁）", description = "在合併後的技能列表中搜尋，支援 name、description、createdBy 查詢條件。管理者指派技能可查詢但不可透過個人 API 修改；可依權限進行綁定關聯。")
     public ResponseType<PageResult<CurrentUserSkillVo>> searchCurrentUserSkills(@RequestBody SkillSearchQuery query) {
         return ResponseType.Success(skillService.searchCurrentUserSkills(query), "當前使用者技能查詢成功");
     }

@@ -82,9 +82,7 @@ def convert_wav_to_m4a(wav_bytes: bytes) -> bytes:
             "+faststart",
             tf_out_name,
         ]
-        subprocess.run(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
-        )
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         with open(tf_out_name, "rb") as f:
             m4a_bytes = f.read()
         return m4a_bytes
