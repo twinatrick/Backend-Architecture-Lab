@@ -1,7 +1,8 @@
-import sys
 import os
+import sys
 from contextlib import ExitStack
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 # Mock out external libraries that might not be installed or are heavy in CI
 sys.modules["uvicorn"] = MagicMock()
@@ -41,60 +42,58 @@ def test_stt_whisper_returns_fields_and_uses_whisper_provider():
     with (
         _patch_stt_flow(),
         patch("routers.stt.sound_to_text", return_value="你好世界") as mock_stt,
+        _make_client() as client,
     ):
-        with _make_client() as client:
-            response = client.post("/stt/whisper?object_key=audio/a.wav&language=zh")
+        response = client.post("/stt/whisper?object_key=audio/a.wav&language=zh")
 
-            assert response.status_code == 200
-            body = response.json()
-            assert body["text"] == "你好世界"
-            assert body["language"] == "zh"
-            assert body["duration_sec"] == 2.5
-            assert body["audio_url"].startswith("http://localhost:9000")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["text"] == "你好世界"
+        assert body["language"] == "zh"
+        assert body["duration_sec"] == 2.5
+        assert body["audio_url"].startswith("http://localhost:9000")
 
-            mock_stt.assert_called_once()
-            assert mock_stt.call_args.args[2] == "whisper"
+        mock_stt.assert_called_once()
+        assert mock_stt.call_args.args[2] == "whisper"
 
 
 def test_stt_sensevoice_uses_sensevoice_provider():
     with (
         _patch_stt_flow(),
         patch("routers.stt.sound_to_text", return_value="你好世界") as mock_stt,
+        _make_client() as client,
     ):
-        with _make_client() as client:
-            response = client.post("/stt/sensevoice?object_key=audio/a.wav&language=zh")
+        response = client.post("/stt/sensevoice?object_key=audio/a.wav&language=zh")
 
-            assert response.status_code == 200
-            assert response.json()["text"] == "你好世界"
+        assert response.status_code == 200
+        assert response.json()["text"] == "你好世界"
 
-            mock_stt.assert_called_once()
-            assert mock_stt.call_args.args[2] == "sensevoice"
+        mock_stt.assert_called_once()
+        assert mock_stt.call_args.args[2] == "sensevoice"
 
 
 def test_stt_endpoint_forwards_provider_param():
     with (
         _patch_stt_flow(),
         patch("routers.stt.sound_to_text", return_value="你好世界") as mock_stt,
+        _make_client() as client,
     ):
-        with _make_client() as client:
-            response = client.post(
-                "/stt?object_key=audio/a.wav&language=zh&provider=sensevoice"
-            )
+        response = client.post("/stt?object_key=audio/a.wav&language=zh&provider=sensevoice")
 
-            assert response.status_code == 200
-            mock_stt.assert_called_once()
-            assert mock_stt.call_args.args[2] == "sensevoice"
+        assert response.status_code == 200
+        mock_stt.assert_called_once()
+        assert mock_stt.call_args.args[2] == "sensevoice"
 
 
 def test_stt_endpoint_default_provider_is_empty():
     with (
         _patch_stt_flow(),
         patch("routers.stt.sound_to_text", return_value="你好世界") as mock_stt,
+        _make_client() as client,
     ):
-        with _make_client() as client:
-            response = client.post("/stt?object_key=audio/a.wav&language=zh")
+        response = client.post("/stt?object_key=audio/a.wav&language=zh")
 
-            assert response.status_code == 200
-            assert response.json()["text"] == "你好世界"
-            mock_stt.assert_called_once()
-            assert mock_stt.call_args.args[2] == ""
+        assert response.status_code == 200
+        assert response.json()["text"] == "你好世界"
+        mock_stt.assert_called_once()
+        assert mock_stt.call_args.args[2] == ""

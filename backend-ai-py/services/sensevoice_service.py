@@ -2,7 +2,8 @@ import sherpa_onnx
 import soundfile as sf
 
 from config import settings
-from services.common import _is_mock, _resolve_path
+from services.common import _is_mock
+from services.common import _resolve_path
 
 _sensevoice_recognizer = None
 

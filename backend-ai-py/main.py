@@ -10,6 +10,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from nacos import NacosClient
 
 from config import settings
 from routers import chat
@@ -80,8 +81,6 @@ def _nacos_register():
     if not settings.nacos_server_addr:
         return
     try:
-        from nacos import NacosClient
-
         client = NacosClient(settings.nacos_server_addr, namespace=settings.nacos_namespace)
         ip = _get_local_ip()
         client.add_naming_instance(

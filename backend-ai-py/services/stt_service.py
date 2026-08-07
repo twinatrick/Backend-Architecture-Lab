@@ -2,14 +2,13 @@ import os
 import tempfile
 
 from config import settings
-from services.diarization_service import (
-    _detect_diarization_device,
-    _resolve_conda_python,
-    _run_diarization,
-)
+from services.diarization_service import _detect_diarization_device
+from services.diarization_service import _resolve_conda_python
+from services.diarization_service import _run_diarization
 from services.formatter_service import _convert_tw_traditional
 from services.sensevoice_service import _transcribe_sensevoice
-from services.whisper_service import _get_whisper_model, _transcribe_whisper
+from services.whisper_service import _get_whisper_model
+from services.whisper_service import _transcribe_whisper
 from utils.audio import _prepare_audio
 
 
@@ -56,7 +55,11 @@ def sound_to_text(file_path: str, language: str, provider: str = "") -> str:
                 return _convert_tw_traditional(text)
 
         model = _get_whisper_model()
-        lang = language if language else (settings.whisper_language if settings.whisper_language else None)
+        lang = (
+            language
+            if language
+            else (settings.whisper_language if settings.whisper_language else None)
+        )
         segments, info = model.transcribe(stt_input_file, beam_size=5, language=lang)
         segment_list = list(segments)
 

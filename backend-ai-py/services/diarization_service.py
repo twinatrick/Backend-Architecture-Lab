@@ -87,7 +87,7 @@ def _run_diarization(pyannote_python: str, audio_path: str, output_json: str, de
 
     if os.path.exists(output_json) and os.path.getsize(output_json) > 0:
         try:
-            with open(output_json, "r", encoding="utf-8") as f:
+            with open(output_json, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             print(f"[STT] Diarization 結果解析失敗: {e}")
