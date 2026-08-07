@@ -74,7 +74,8 @@ def _merge_same_speaker(aligned):
             continue
         if merged and merged[-1]["speaker"] == speaker:
             prev_text = merged[-1]["text"]
-            if prev_text and prev_text[-1] not in ("，", "。", "？", "！", "、", " ", "!", "?", ","):
+            punct = "，。？！、!?,"
+            if prev_text and prev_text[-1] not in punct:
                 merged[-1]["text"] += "，" + text
             else:
                 merged[-1]["text"] += text

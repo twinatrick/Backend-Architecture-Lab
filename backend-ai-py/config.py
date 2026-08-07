@@ -21,8 +21,12 @@ class Settings(BaseSettings):
     whisper_language: str = ""
 
     stt_provider: str = "whisper"
-    sensevoice_model_path: str = "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.onnx"
-    sensevoice_tokens_path: str = "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt"
+    sensevoice_model_path: str = (
+        "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.onnx"
+    )
+    sensevoice_tokens_path: str = (
+        "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt"
+    )
     sensevoice_num_threads: int = 4
     sensevoice_use_itn: bool = True
     sensevoice_provider: str = "cpu"

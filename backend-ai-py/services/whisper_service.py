@@ -7,7 +7,8 @@ from faster_whisper import WhisperModel
 
 from config import settings
 from services.common import _is_mock
-from services.formatter_service import _format_diarized, _format_plain
+from services.formatter_service import _format_diarized
+from services.formatter_service import _format_plain
 
 _whisper_model = None
 
@@ -39,7 +40,7 @@ def _register_whisper_dll_dirs() -> None:
         if not base or not os.path.isdir(base):
             continue
         for root, dirs, files in os.walk(base):
-            depth = root[len(base):].count(os.sep) if root.startswith(base) else 0
+            depth = root[len(base) :].count(os.sep) if root.startswith(base) else 0
             if any(f.lower().endswith(".dll") for f in files):
                 extra_dirs.add(root)
             if depth >= 2:

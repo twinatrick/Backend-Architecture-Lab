@@ -30,7 +30,8 @@ def main():
     # 參數：<file_path> <output_json> [device]
     # 機密（HF_TOKEN）與模型名稱（DIARIZATION_MODEL）一律由父程序以環境變數注入
     if len(sys.argv) < 3:
-        print("[Diarization Worker] Usage: python diarization_worker.py <file_path> <output_json> [device]")
+        usage = "[Diarization Worker] Usage: python diarization_worker.py"
+        print(f"{usage} <file_path> <output_json> [device]")
         sys.exit(1)
 
     file_path = sys.argv[1]
@@ -54,11 +55,13 @@ def main():
 
     turns = []
     for turn, _, speaker in diarization.itertracks(yield_label=True):
-        turns.append({
-            "start": turn.start,
-            "end": turn.end,
-            "speaker": speaker,
-        })
+        turns.append(
+            {
+                "start": turn.start,
+                "end": turn.end,
+                "speaker": speaker,
+            }
+        )
 
     with open(output_json, "w", encoding="utf-8") as f:
         json.dump(turns, f, ensure_ascii=False, indent=2)
