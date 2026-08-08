@@ -20,7 +20,7 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/project")
-@ApiControllerTag(name = "Project Management", description = "Backend API endpoints - Project management operations")
+@ApiControllerTag(name = "Project Management", description = "專案管理（管理層）相關 API")
 public class ProjectManagementController {
     @Autowired
     private IProjectService projectService;
@@ -30,20 +30,20 @@ public class ProjectManagementController {
     @PostMapping("/bindSkill")
     @Deprecated
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Bind project skill", description = "Binds a skill level to a project. This operation manages binding relation only and does not modify skill content. Admin-assigned skills can still be bound by authorized users.")
+    @ApiOperationBadRequest(summary = "綁定專案技能", description = "將技能等級綁定至專案。此操作僅管理綁定關係，不修改技能內容。管理者指派的技能仍可被授權使用者綁定。")
     public ResponseType<String> bindProjectSkill(@RequestBody ProjectSkillBindRequest body) {
         skillService.bindProjectSkill(body.getProjectId(), body.getSkillId(), body.getSkillLevelId());
-        return ResponseType.Success("Project skill bound successfully");
+        return ResponseType.Success("專案技能綁定成功");
     }
 
     @GetMapping("/{projectId}/member-skills")
-    @RequirePermission("EditAll")
+    @RequirePermission("Edit")
     @ApiOperationOk(
-            summary = "Get project member skills",
+            summary = "取得專案成員技能",
             description = "取得專案所有成員在此專案中的技能等級綁定，供編輯專案時回填既有資料"
     )
     public ResponseType<List<ProjectMemberSkillVo>> getProjectMemberSkills(@PathVariable UUID projectId) {
         List<ProjectMemberSkillVo> members = projectService.getProjectMemberSkills(projectId);
-        return ResponseType.Success(members, "Project member skills fetched successfully");
+        return ResponseType.Success(members, "專案成員技能查詢成功");
     }
 }

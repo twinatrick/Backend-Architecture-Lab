@@ -3,9 +3,6 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.PersonalProjectSkillBindRequest;
-import com.example.BackendArchitectureLab.Vo.PersonalProjectSkillLevelRequest;
-import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Service.IProjectService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
@@ -22,139 +19,70 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/project")
-@ApiControllerTag(name = "Projects", description = "Backend API endpoints - Project management")
+@ApiControllerTag(name = "Projects", description = "專案管理相關 API")
 public class ProjectController {
     @Autowired
     private IProjectService projectService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Add project", description = "Creates a new project.")
+    @ApiOperationBadRequest(summary = "新增專案", description = "建立新的專案。")
     public ResponseType<ProjectVo> addProject(@RequestBody ProjectVo project) {
-        return ResponseType.Success(projectService.addProject(project), "Project added successfully");
+        return ResponseType.Success(projectService.addProject(project), "專案新增成功");
     }
 
     @GetMapping("/get")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Get projects", description = "Returns all projects.")
+    @ApiOperationOk(summary = "取得專案列表", description = "回傳所有專案。")
     public ResponseType<List<ProjectVo>> getProject() {
-        return ResponseType.Success(projectService.getProject(), "Projects fetched successfully");
+        return ResponseType.Success(projectService.getProject(), "專案查詢成功");
     }
 
     @PostMapping("/update")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Update project", description = "Updates an existing project.")
+    @ApiOperationBadRequest(summary = "更新專案", description = "更新一筆既有的專案。")
     public ResponseType<String> updateProject(@RequestBody ProjectVo project) {
         projectService.updateProject(project);
-        return ResponseType.Success("Project updated successfully");
+        return ResponseType.Success("專案更新成功");
     }
 
     @PostMapping("/delete")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Delete project", description = "Deletes a project.")
+    @ApiOperationBadRequest(summary = "刪除專案", description = "刪除一筆專案。")
     public ResponseType<String> deleteProject(@RequestBody ProjectVo project) {
         projectService.deleteProject(project);
-        return ResponseType.Success("Project deleted successfully");
+        return ResponseType.Success("專案刪除成功");
     }
 
     @GetMapping("/{projectId}/skills")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Get project skills", description = "獲取指定專案綁定的所有技能與等級詳細資訊")
+    @ApiOperationOk(summary = "取得專案技能", description = "獲取指定專案綁定的所有技能與等級詳細資訊")
     public ResponseType<List<ProjectSkillVo>> getProjectSkills(@PathVariable UUID projectId) {
         List<ProjectSkillVo> skills = projectService.getProjectSkills(projectId);
-        return ResponseType.Success(skills, "Project skills fetched successfully");
+        return ResponseType.Success(skills, "專案技能查詢成功");
     }
 
     @PostMapping("/search")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Search projects with pagination", description = "搜尋專案並回傳分頁結果，支援多種查詢條件與排序")
+    @ApiOperationOk(summary = "分頁搜尋專案", description = "搜尋專案並回傳分頁結果，支援多種查詢條件與排序")
     public ResponseType<PageResult<ProjectVo>> searchProjects(@Valid @RequestBody ProjectSearchQuery query) {
         PageResult<ProjectVo> result = projectService.searchProjects(query);
-        return ResponseType.Success(result, "Projects fetched successfully");
+        return ResponseType.Success(result, "專案查詢成功");
     }
 
     @GetMapping("/current")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Get current user projects", description = "回傳當前使用者所屬的所有專案")
+    @ApiOperationOk(summary = "取得當前使用者專案", description = "回傳當前使用者所屬的所有專案")
     public ResponseType<List<ProjectVo>> getCurrentUserProjects() {
         List<ProjectVo> projects = projectService.getCurrentUserProjects();
-        return ResponseType.Success(projects, "Current user projects fetched successfully");
+        return ResponseType.Success(projects, "當前使用者專案查詢成功");
     }
 
     @PostMapping("/current/search")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Search current user projects with pagination", description = "搜尋當前使用者的專案並回傳分頁結果，支援多種查詢條件與排序")
+    @ApiOperationOk(summary = "分頁搜尋當前使用者專案", description = "搜尋當前使用者的專案並回傳分頁結果，支援多種查詢條件與排序")
     public ResponseType<PageResult<ProjectVo>> searchCurrentUserProjects(@Valid @RequestBody ProjectSearchQuery query) {
         PageResult<ProjectVo> result = projectService.searchCurrentUserProjects(query);
-        return ResponseType.Success(result, "Current user projects fetched successfully");
-    }
-
-    @PostMapping("/personal/add")
-    @RequirePermission("PersonalEdit")
-    @ApiOperationBadRequest(summary = "Add personal project", description = "新增個人專案，自動綁定當前使用者")
-    public ResponseType<ProjectVo> addPersonalProject(@Valid @RequestBody PersonalProjectRequest request) {
-        ProjectVo projectVo = projectService.addPersonalProject(request);
-        return ResponseType.Success(projectVo, "Personal project added successfully");
-    }
-
-    @PutMapping("/personal/update/{projectId}")
-    @RequirePermission("PersonalEdit")
-    @ApiOperationBadRequest(summary = "Update personal project", description = "修改個人專案，僅限擁有者")
-    public ResponseType<String> updatePersonalProject(
-            @PathVariable UUID projectId,
-            @Valid @RequestBody PersonalProjectRequest request) {
-        projectService.updatePersonalProject(projectId, request);
-        return ResponseType.Success("Personal project updated successfully");
-    }
-
-    @DeleteMapping("/personal/delete/{projectId}")
-    @RequirePermission("PersonalEdit")
-    @ApiOperationBadRequest(summary = "Delete personal project", description = "刪除個人專案，僅限擁有者")
-    public ResponseType<String> deletePersonalProject(@PathVariable UUID projectId) {
-        projectService.deletePersonalProject(projectId);
-        return ResponseType.Success("Personal project deleted successfully");
-    }
-
-    @GetMapping("/personal/{projectId}/skills")
-    @RequirePermission("PersonalEdit")
-    @ApiOperationOk(summary = "Get personal project skills", description = "獲取個人專屬的專案綁定的所有技能與等級詳細資訊，會驗證當前使用者權限")
-    public ResponseType<List<ProjectSkillVo>> getPersonalProjectSkills(@PathVariable UUID projectId) {
-        List<ProjectSkillVo> skills = projectService.getPersonalProjectSkills(projectId);
-        return ResponseType.Success(skills, "Personal project skills fetched successfully");
-    }
-
-    @PostMapping("/personal/{projectId}/skill/bind")
-    @RequirePermission("PersonalEdit")
-    @ApiOperationBadRequest(summary = "Bind personal project skill", description = "綁定技能到可操作的個人專案。管理員指定專案雖不可修改主資料，但可修改綁定關係。每個專案技能綁定只能選擇一個等級。")
-    public ResponseType<String> bindPersonalProjectSkill(
-            @PathVariable UUID projectId,
-            @Valid @RequestBody PersonalProjectSkillBindRequest request) {
-        projectService.bindPersonalProjectSkill(
-                projectId,
-                UUID.fromString(request.getSkillId()),
-                UUID.fromString(request.getSkillLevelId())
-        );
-        return ResponseType.Success("Personal project skill bound successfully");
-    }
-
-    @PutMapping("/personal/{projectId}/skill/{skillId}/level")
-    @RequirePermission("PersonalEdit")
-    @ApiOperationBadRequest(summary = "Update personal project skill level", description = "更新個人可操作專案中某技能的等級綁定。僅接受既有等級 ID。")
-    public ResponseType<String> updatePersonalProjectSkillLevel(
-            @PathVariable UUID projectId,
-            @PathVariable UUID skillId,
-            @Valid @RequestBody PersonalProjectSkillLevelRequest request) {
-        projectService.updatePersonalProjectSkillLevel(projectId, skillId, UUID.fromString(request.getSkillLevelId()));
-        return ResponseType.Success("Personal project skill level updated successfully");
-    }
-
-    @DeleteMapping("/personal/{projectId}/skill/{skillId}")
-    @RequirePermission("PersonalEdit")
-    @ApiOperationBadRequest(summary = "Unbind personal project skill", description = "解除個人可操作專案中的技能綁定。")
-    public ResponseType<String> unbindPersonalProjectSkill(
-            @PathVariable UUID projectId,
-            @PathVariable UUID skillId) {
-        projectService.unbindPersonalProjectSkill(projectId, skillId);
-        return ResponseType.Success("Personal project skill unbound successfully");
+        return ResponseType.Success(result, "當前使用者專案查詢成功");
     }
 }
