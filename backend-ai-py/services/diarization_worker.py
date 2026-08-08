@@ -22,8 +22,9 @@ try:
     huggingface_hub.hf_hub_download = _patched_download
     if hasattr(huggingface_hub, "file_download"):
         huggingface_hub.file_download.hf_hub_download = _patched_download
-except Exception:
-    pass
+except Exception as exc:
+    # 相容層 patch 失敗時退回首版行為，不影響後續語者分離流程
+    print(f"[Diarization Worker] HF download patch failed: {exc}")
 
 
 def main():

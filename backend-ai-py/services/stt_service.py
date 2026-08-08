@@ -1,3 +1,4 @@
+import logging
 import os
 import tempfile
 
@@ -10,6 +11,8 @@ from services.sensevoice_service import _transcribe_sensevoice
 from services.whisper_service import _get_whisper_model
 from services.whisper_service import _transcribe_whisper
 from utils.audio import _prepare_audio
+
+logger = logging.getLogger(__name__)
 
 
 def sound_to_text(file_path: str, language: str, provider: str = "") -> str:
@@ -66,5 +69,6 @@ def sound_to_text(file_path: str, language: str, provider: str = "") -> str:
             if temp_f and os.path.exists(temp_f):
                 try:
                     os.remove(temp_f)
-                except Exception:
-                    pass
+                except OSError as exc:
+                    # 暫存檔清理失敗不影響辨識結果，僅記錄供排查
+                    logger.warning("[STT] 暫存檔清理失敗 %s: %s", temp_f, exc)

@@ -1,9 +1,12 @@
+import logging
 import os
 import subprocess
 import sys
 import tempfile
 
 import av
+
+logger = logging.getLogger(__name__)
 
 
 def convert_to_wav(input_path: str, sample_rate: int = 16000) -> str:
@@ -56,8 +59,9 @@ def _prepare_audio(file_path: str):
         if temp_wav and os.path.exists(temp_wav):
             try:
                 os.remove(temp_wav)
-            except Exception:
-                pass
+            except OSError as exc:
+                # 暫存檔清理失敗不影響後續處理，僅記錄
+                logger.warning("[STT] 暫存檔清理失敗 %s: %s", temp_wav, exc)
         return file_path, None
 
 

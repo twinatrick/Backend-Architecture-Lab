@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -7,6 +8,8 @@ import soundfile as sf
 
 from config import settings
 from utils.file_adapter import download_from_minio
+
+logger = logging.getLogger(__name__)
 
 
 def _text_to_sound_fallback(text: str, save_path: str) -> bytes:
@@ -54,8 +57,9 @@ def text_to_sound(
             else:
                 payload["prompt_text"] = settings.gpt_sovit_prompt_text
                 payload["prompt_lang"] = settings.gpt_sovit_prompt_lang
-        except Exception:
-            pass
+        except Exception as exc:
+            # 參考音檔下載失敗時退回純文字合成，不中斷流程
+            logger.warning("[TTS] 參考音檔下載失敗，改以無參考音檔方式合成: %s", exc)
 
     try:
         response = requests.post(settings.gpt_sovit_url, json=payload, timeout=60)

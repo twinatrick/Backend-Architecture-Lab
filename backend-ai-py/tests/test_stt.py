@@ -4,7 +4,7 @@ from contextlib import ExitStack
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
-# Mock out external libraries that might not be installed or are heavy in CI
+# 先行於替換外部相依套件，避免 CI 環境未安裝或載入成本過高
 sys.modules["uvicorn"] = MagicMock()
 sys.modules["sherpa_onnx"] = MagicMock()
 sys.modules["soundfile"] = MagicMock()
@@ -14,7 +14,7 @@ sys.modules["minio"] = MagicMock()
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-# Ensure backend-ai-py folder is in the python search path
+# 確保 backend-ai-py 目錄在 Python 搜尋路徑中
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import app  # noqa: E402
