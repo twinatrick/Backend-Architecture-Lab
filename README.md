@@ -88,6 +88,78 @@
 
 等企業管理平台常見業務情境。
 
+# 架構實作總覽
+
+本章說明本專案**在架構層面實際實作了什麼**——每個架構元件做什麼、為何存在、程式碼在哪，讓接手者可快速掌握全貌。詳細規則見《開發規範.md》。
+
+## 1. 微服務拆分（8 個模組）
+
+本專案不是單體應用，而是以「模組為單位獨立部署」的微服務，根目錄下的每個 `backend-*` 模組都是一個可獨立啟動的服務：
+
+| 模組 | 職責 | 對外埠 |
+|------|------|--------|
+| backend-gateway | 統一入口，路由轉發 + 內部端點防護 + OpenAPI 聚合 | 8000 |
+| backend-iam-service | 使用者認證、角色/權限管理、權限字典建立 | 8002 |
+| backend-competency-service | 技能、技能等級、專案管理 | 8004 |
+| backend-job-service | 公司、職缺管理、職缺爬取分析 | 8006 |
+| backend-external-api-service | 外部整合（LINE/Discord bot）、AI 代理、語音日記、上傳 | 8007 |
+| backend-alert-service | 水情資料、告警門檻、即時告警推送 | 8008 |
+| backend-common | 共用程式碼（Feign Client、Vo、例外處理、Config） | - |
+| backend-ai-py | Python AI 側車（STT 語音辨識、TTS、Chat），獨立於 Java 之外 | 5001 |
+
+**設計原因**：各服務只操作自己領域的資料表（Database-per-Service），避免單一資料庫被多個服務同時修改的耦合；跨服務的資料一律走 Feign 呼叫（見下節），不直接查對方資料庫。
+
+## 2. 服務間通訊：Feign（4 個 Client）
+
+跨服務呼叫統一使用 OpenFeign，Client 集中定義於 `com.example.BackendArchitectureLab.Feign`（backend-common），實際呼叫方向如下：
+
+- `UserServiceFeignClient`（→ IAM `/users/inner/*`）：competency / job / external 查詢使用者
+- `AiPyServiceFeignClient`（→ backend-ai-py：/ai/inner/*）：external 呼叫 Python AI（STT/TTS/Chat）
+- `ExternalApiServiceFeignClient`（→ external `/job/*` 等）：job 呼叫 AI 分析職缺
+- `PermissionCheckFeignClient`（→ IAM `/role/inner/validate`）：驗證 `@RequirePermission`
+
+所有對內呼叫路徑均以 `/inner` 結尾，且 Gateway 有 `com.example.BackendArchitectureLab.Filter.InnerEndpointBlockFilter` 阻擋外部直接訪問 `/inner`，確保只有服務間能呼叫。禁止幽靈 Feign（定義卻沒被使用），檢查方式見《開發規範.md》§5。
+
+## 3. 集中權限驗證（IAM 為唯一權限源）
+
+**實作方式**：前端登入取得 JWT → 各服務收到請求後，業務服務透過 `PermissionCheckFeignClient` 呼叫 IAM 的 `/role/inner/validate`（`com.example.BackendArchitectureLab.Controller.PermissionInternalController`）驗證權限；IAM 自己則直接用本機 `Aop.LocalPermissionValidator`（避免自我 Feign 呼叫）。
+
+**權限模型**：三層結構 `{微服務}/{資源層}/{動作層}`，以 `@RequirePermission` 註記在 Controller 方法上（如 `@RequirePermission("Edit")`）。權限字典在 IAM 啟動時由 `com.example.BackendArchitectureLab.Service.impl.InitAndCheckService` 自動補建，即使開發中新增權限不註冊也會自動建立。
+
+## 4. Kafka 非同步事件（3 大主題）
+
+Kafka 用於解耦跨服務事件，目前有三大主題（Broker 位址由 KafkaConfig 自動依環境判斷，本機 `localhost:9092`、Docker 內 `kafka:9092`）：
+
+- `socketSend`：告警即時推送。`AlarmKafkaPublisher`（alert）發佈 → `KafkaConsumerService` 接收 → WebSocket 推給前端
+- `transaction-compensation`：分散式事務補償。`CompensationConsumer`（alert）處理，`CompensationEvent` 含 transactionId/action/status，支援 COMMITTED / COMPENSATED / SAVE_POINT 狀態
+- `cache-stats`：快取命中統計。`KafkaCacheStatsPublisher` 發佈 → alert-service 的 `CacheStatsController` 暴露查詢
+
+消費者群組統一 `myGroup`，採 at-least-once 語意；容器設有 `DefaultErrorHandler` 處理失敗批次。
+
+## 5. Redis 多層快取（+ 穿透防護）
+
+**機制**：透過 Spring 註解式快取（`@Cacheable` / `@CacheEvict`）將熱門查詢結果存進 Redis，避免每請求打 DB。全專案 43 處 `@Cacheable`，涵蓋使用者、角色、功能、技能、專案、職缺、水情資料、告警門檻等（詳細清單見《開發規範.md》與 `com.example.BackendArchitectureLab.Config.RedisConfig`）。
+
+**設計到穿透防護**：`CachePenetrationProtectionCache` 以 Semaphore 限流入站，並用 Redisson 分散式鎖保護快取重建，避免大量並發同時打到 DB（實測 500 併發下保護有效）。安全處理由 GlobalExceptionHandler 統一轉成 HTTP 回應，Controller 層不自己 catch 拼回應。
+
+**清單型快取的陷阱**：直接回傳 `List` 的 `@Cacheable` 有型別擦除問題，因此包了一層 `CacheListWrapper` 容器再存入 Redis（`com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper`），並在 RedisConfig 註冊 Jackson 序列化器。
+
+## 6. WebSocket 即時告警
+
+前端透過 WebSocket 訂閱告警，後端 `AlarmKafkaPublisher`（Kafka `socketSend` 主題）→ `KafkaConsumerService` 消費 → 透過 WebSocket 推送給瀏覽器。
+
+## 7. Gateway 統一出入口（統一防護）
+
+所有前端請求一律經 `backend-gateway`（埠 8000）轉發到各微服務，Gateway 除了路由，還做了兩件事：
+- **InnerEndpointBlockFilter**：阻擋外部直連 `/inner` 內部 API
+- **OpenAPI 聚合**：把各服務的 Swagger 文件聚合在單一入口
+
+## 8. Python AI 側車服務 backend-ai-py
+
+AI 語音功能以 Python 實作成獨立服務（FastAPI，埠 5001），不經 Gateway，由 Java 的 external-api-service 用 `AiPyServiceFeignClient` 呼叫（/ai/inner/*）。功能：STT（Whisper / SenseVoice）、語者分離（pyannote）、TTS 排版、Chat。環境需 conda 環境 backend-ai-py，啟動指令見 §「Python 環境」。
+
+---
+
 # Java 21 Spring Boot 常見技術 實作方法
 
 通用後端範例專案，整合使用者/角色/權限、專案/技能管理、資料查詢與告警設定等常見後端需求，並提供 REST API、WebSocket 與 Kafka
@@ -542,9 +614,24 @@ erDiagram
 - **Port**：`5001`
 - **不經 Gateway**：由 `backend-external-api-service` 透過 Feign Client 直接內部呼叫
 - **功能**：
-  - **STT**：faster-whisper 語音辨識
+  - **STT**：faster-whisper 語音辨識（SenseVoice 可選）
   - **TTS**：GPT-SoVIT HTTP API（主） + sherpa-onnx（備援）
   - **Chat**：Ollama API 聊天（不含 LangChain / Milvus / RAG）
+  - **語者分離**：pyannote-audio 將多語者音訊拆分成單人音軌，再個別辨識
+
+### Python 環境建置
+
+```bash
+# 建立 conda 環境（backend-ai-py，Python 3.11）
+conda create -n backend-ai-py python=3.11
+conda activate backend-ai-py
+pip install -r backend-ai-py/requirements.txt
+
+# 啟動服務（需先啟動 Docker 基礎設施與 Nacos，供服務註冊）
+conda run -n backend-ai-py uvicorn main:app --port 5001
+```
+
+語者分離（pyannote-audio）需額外安裝（涉及 CUDA 版 PyTorch），完整步驟見 [`docs/archive/語者分離環境安裝說明.md`](docs/archive/語者分離環境安裝說明.md)。
 
 ## 技術選型說明
 
@@ -614,14 +701,29 @@ erDiagram
 - 使用 Spring Cache 抽象層（`@Cacheable` / `@CachePut` / `@CacheEvict`），Redis JSON 序列化
 - 三層級 TTL 策略：參考資料（6-24h）、業務資料（30m-6h）、使用者資料（10-30m）
 - 支援快取穿透防護（Bloom Filter + Null Value）、雪崩防護（TTL 隨機化 + 分散式鎖 + `sync=true`）、清單安全包裝（`CacheListWrapper`）及快取統計監控（Kafka-based）
-- 詳盡的策略說明、TTL 配置、Evict 策略與實作細節請見 **`redis快取策略.md`**
+- 詳盡的策略說明、TTL 配置、Evict 策略與實作細節請見 [`docs/archive/redis快取策略.md`](docs/archive/redis快取策略.md)
+
+**快取是怎麼運作的？** 全專案共有 43 處 `@Cacheable`，散佈在 User / Role / Function / Skill / Project / JobPosting / Company / UserJobLink / AquarkData / AlertCheckLimit 等 Service 上。為了讓第一次讀的人能看懂，重點說明三件事：
+
+1. **Key 設計**：與業務語意一致，例如 `'user:...'`、`'all'`、`'byuser:'`、`'search:'+query`，避免 Key 碰撞。
+2. **清單安全包裝**：直接快取 `List` 會有型別擦除問題，所以回傳清單的方法都改用 `com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper` 包裹。
+3. **穿透/雪崩防護**：高併發查詢同一把快取 Key 時（如 Search API），若快取 miss 所有人都會同時打到 DB。`CachePenetrationProtectionCache` 用 Semaphore（預設容量 10）限流 + Redisson 分散式鎖保護，只讓一個執行緒去 DB 載入再回填快取。500 併發壓力測試中此機制防止了 DB 擊穿（但同時產生了「Semaphore 排隊 30 秒超時」的副作用，詳見 [未來優化](#未來優化)）。
 
 ### 非同步事件處理
 
 - 整合 Kafka 消息佇列，構建高性能、低延遲的事件驅動與非同步解耦架構
 - 涵蓋即時告警廣播 (`socketSend`)、分散式交易補償 (`transaction-compensation`) 以及跨服務快取指標監控 (`cache-stats`) 三大核心業務
 - 支援消費者群組負載均衡（預設 `myGroup`）、批量拉取消費與 Spring Kafka 自動化重試及異常處理（`DefaultErrorHandler`）
-- 詳盡的架構設計、Topic 欄位規格、補償機制及消費重試細節請見 **`非同步事件處理.md`**
+
+**三大主題的實作位置**：
+
+| 主題 | 誰發佈 | 誰消費 | 目的 |
+|------|--------|--------|------|
+| `socketSend` | `AlarmKafkaPublisher`（alert）| `KafkaConsumerService` | 告警即時推送到 WebSocket |
+| `transaction-compensation` | 跨服務寫操作（TransactionManager） | `CompensationConsumer`（alert） | 分散式事務補償（含 transactionId/action/status） |
+| `cache-stats` | `KafkaCacheStatsPublisher`（common） | `CacheStatsConsumer`（alert） | 快取命中/Bloom 阻擋統計聚合至 Redis Hash，供 `/cache-stats` 查詢 |
+
+消費者群組預設 `myGroup`，執行時以 `KafkaConfig`（backend-common）依環境自動解析 Broker（本機 `localhost:9092`、Docker 內 `kafka:9092`）。
 
 ### Spring Security 認證攔截
 
@@ -686,6 +788,19 @@ erDiagram
     Merge Validation
     ↓
     Approve & Merge
+## 未來優化方向
+
+> 來源：500 併發壓力測試（`stress-test/壓力測試結果.md`）。核心矛盾：**Search API 的快取加速與 Semaphore 穿透防護互相衝突**——`@Cacheable(sync=true)` 在快取全 miss 時，所有請求同時排隊等 Semaphore(10) 重建快取，30 秒超時直接回 500；反而「不加快取」時錯誤率 0%。三方案比較：
+
+| 方案 | 作法 | 結果 |
+|------|------|------|
+| **A（推薦）** | 移除 Search 類非單筆查詢的 `@Cacheable` | 徹底消除排隊，換取無快取但穩定（錯誤率 0%） |
+| B | Semaphore 容量調高至 50/100 | 減少排隊但治標不治本，仍有超時風險 |
+| C | `sync=false`（關閉同步回填） | 並發回填改為各自寫入，失去合併請求效益，需搭配 TTL 隨機化 |
+
+- 若未來採虛擬執行緒（Virtual Threads），需注意 Carrier Pinning 對 Semaphore/鎖的影響。
+- 其餘方向（向量檢索 Milvus、多 Agent 協作等）見下方 Roadmap。
+
 ## Roadmap
 
 ### Infrastructure
@@ -842,7 +957,20 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 
 ### 外部服務入口 (LINE Bot / Discord Bot)
 
-LINE Bot 與 Discord Bot 的完整設定說明（Webhook URL、Token 申請、頻道訂閱）請見 [`外部入口說明.md`](外部入口說明.md)
+LINE Bot 與 Discord Bot 的完整設定說明（Webhook URL、Token 申請、頻道訂閱）請見 [`docs/archive/外部入口說明.md`](docs/archive/外部入口說明.md)
+
+#### 所需外部服務與憑證變數
+
+| 服務 | 用途 | 必要環境變數 | 啟動條件 |
+|------|------|--------------|----------|
+| **LINE** | GF / Diary 聊天機器人（Webhook 回呼 LINE 伺服器） | `LINE_CHANNEL_*`、`LINE_DIARY_CHANNEL_*`（Channel Secret / Token） | 需 ngrok 對外轉發至 Gateway `8000` |
+| **Discord** | GF / Diary 機器人（WebSocket 長連線，不需對外 Webhook） | `DISCORD_GF_TOKEN`、`DISCORD_DIARY_TOKEN` | 直接可用 |
+| **ngrok** | 將本機 Gateway 對外暴露供 LINE 回呼 | -（安裝：`winget install ngrok`，啟動：`ngrok http 8010`） | 僅 LINE 需要 |
+| **Ollama** | Python 側車 Chat 能力的本地 LLM | - | `localhost:11434`（如 gemma2 等模型） |
+| **GPT-SoVIT** | TTS 語音合成（主選） | - | `http://127.0.0.1:9880/tts`（亦有 sherpa-onnx 備援） |
+| **backend-ai-py** | Python AI 側車（STT/TTS/Chat） | - | `conda env backend-ai-py` + `uvicorn main:app --port 5001` |
+
+> 注意：缺任一服務時系統仍可啟動（對應功能會回「未啟用」），資料庫/Redis/Kafka 等基礎設施必需。LINE 語音回覆目前關閉（`LineGfService.voiceEnable`），因免費 ngrok 會攔截音訊。
 
 ### Docker 內啟動 Gateway
 
