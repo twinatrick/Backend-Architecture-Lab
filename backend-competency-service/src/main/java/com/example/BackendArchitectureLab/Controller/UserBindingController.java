@@ -24,7 +24,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/user/bindings")
 @RequirePermission(layer = "ProjectManagement")
-@ApiControllerTag(name = "User Bindings", description = "Backend API endpoints - User binding self-service")
+@ApiControllerTag(name = "User Bindings", description = "使用者綁定自助服務相關 API")
 public class UserBindingController {
 
     private static final Logger log = LoggerFactory.getLogger(UserBindingController.class);
@@ -38,19 +38,19 @@ public class UserBindingController {
 
     @PostMapping("/skill/rebind")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Rebind current user skills", description = "Rebind all current-user skill-level bindings with diff strategy")
+    @ApiOperationBadRequest(summary = "重新綁定當前使用者技能", description = "以 diff 策略重新綁定當前使用者的技能等級關聯。")
     public ResponseType<String> rebindCurrentUserSkills(@Valid @RequestBody SkillBindingsRebindRequest request) {
         UUID currentUserId = securityUtil.requireCurrentUserId();
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("User {} rebinding own skills with {} bindings", currentUserId, bindingCount);
         skillService.rebindUserSkills(currentUserId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
         log.info("User {} rebound own skills successfully", currentUserId);
-        return ResponseType.Success("Current user skills rebound successfully");
+        return ResponseType.Success("當前使用者技能重新綁定成功");
     }
 
     @PostMapping("/project/{projectId}/skill/rebind")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Rebind current user project skills", description = "Rebind project skills for a manageable project with diff strategy")
+    @ApiOperationBadRequest(summary = "重新綁定當前使用者專案技能", description = "以 diff 策略重新綁定可管理專案的技能關聯。")
     public ResponseType<String> rebindCurrentUserProjectSkills(
             @PathVariable UUID projectId,
             @Valid @RequestBody SkillBindingsRebindRequest request) {
@@ -58,7 +58,7 @@ public class UserBindingController {
         log.info("User {} rebinding project {} with {} skill bindings", securityUtil.requireCurrentUserId(), projectId, bindingCount);
         projectService.rebindPersonalProjectSkills(projectId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
         log.info("User {} rebound project {} skills successfully", securityUtil.requireCurrentUserId(), projectId);
-        return ResponseType.Success("Current user project skills rebound successfully");
+        return ResponseType.Success("當前使用者專案技能重新綁定成功");
     }
 
 }

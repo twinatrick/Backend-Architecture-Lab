@@ -26,7 +26,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/company")
-@ApiControllerTag(name = "Company", description = "Backend API endpoints - Company management")
+@ApiControllerTag(name = "Company", description = "公司管理相關 API")
 public class CompanyController {
 
     @Autowired

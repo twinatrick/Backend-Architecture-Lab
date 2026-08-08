@@ -25,7 +25,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/job-posting")
-@ApiControllerTag(name = "Job Posting", description = "Backend API endpoints - Job posting management")
+@ApiControllerTag(name = "Job Posting", description = "職缺管理相關 API")
 public class JobPostingController {
 
     @Autowired

@@ -16,37 +16,37 @@ import java.util.List;
 @RestController
 @RequestMapping("/alertCheckLimit")
 @RequirePermission(layer = "AlertLimit")
-@ApiControllerTag(name = "Alert Limits", description = "Backend API endpoints - Alert threshold management")
+@ApiControllerTag(name = "Alert Limits", description = "告警門檻管理相關 API")
 public class AlertCheckLimitController {
     @Autowired
     private IAlertCheckLimitService alertCheckLimitService;
     @PostMapping("/add")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Add alert limit", description = "Creates or updates an alert limit for a table column.")
+    @ApiOperationBadRequest(summary = "新增告警限制", description = "為資料表欄位建立或更新一筆告警限制。")
     public ResponseType<AlertCheckLimitVo> addLimit(@RequestBody AlertCheckLimitVo alertCheckLimitVo) {
-        return ResponseType.Success(alertCheckLimitService.addLimit(alertCheckLimitVo), "Limit added successfully");
+        return ResponseType.Success(alertCheckLimitService.addLimit(alertCheckLimitVo), "告警限制新增成功");
     }
 
     @GetMapping("/get")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Get alert limits", description = "Returns all alert limits.")
+    @ApiOperationOk(summary = "取得告警限制列表", description = "回傳所有告警限制。")
     public ResponseType<List<AlertCheckLimitVo>> getLimit() {
-        return ResponseType.Success(alertCheckLimitService.getLimit(), "Limits fetched successfully");
+        return ResponseType.Success(alertCheckLimitService.getLimit(), "告警限制查詢成功");
     }
 
     @PostMapping("/update")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Update alert limit", description = "Updates an existing alert limit.")
+    @ApiOperationBadRequest(summary = "更新告警限制", description = "更新一筆既有的告警限制。")
     public ResponseType<AlertCheckLimitVo> updateLimit(@RequestBody AlertCheckLimitVo alertCheckLimitVo) {
-        return ResponseType.Success(alertCheckLimitService.updateLimit(alertCheckLimitVo), "Limit updated successfully");
+        return ResponseType.Success(alertCheckLimitService.updateLimit(alertCheckLimitVo), "告警限制更新成功");
     }
 
     @PostMapping("/delete")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Delete alert limit", description = "Deletes an alert limit.")
+    @ApiOperationBadRequest(summary = "刪除告警限制", description = "刪除一筆告警限制。")
     public ResponseType<String> deleteLimit(@RequestBody AlertCheckLimitVo alertCheckLimitVo) {
         alertCheckLimitService.deleteLimit(alertCheckLimitVo);
-        return ResponseType.Success("Limit deleted successfully");
+        return ResponseType.Success("告警限制刪除成功");
     }
     
     @PostMapping("/search")

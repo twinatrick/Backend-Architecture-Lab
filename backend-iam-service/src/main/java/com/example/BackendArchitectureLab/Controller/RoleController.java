@@ -25,7 +25,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/role")
-@ApiControllerTag(name = "Roles", description = "Backend API endpoints - Role and permission management")
+@ApiControllerTag(name = "Roles", description = "角色與權限管理相關 API")
 public class RoleController {
     @Autowired
     private IRoleService roleService;
@@ -37,152 +37,152 @@ public class RoleController {
     @PostMapping("/add")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Add role", description = "Deprecated: 請改用 /role/addWithFunctions。此 API 只建立角色，不會同步 functionIds 權限綁定。", deprecated = true)
+    @ApiOperationBadRequest(summary = "新增角色", description = "Deprecated: 請改用 /role/addWithFunctions。此 API 只建立角色，不會同步 functionIds 權限綁定。", deprecated = true)
     public ResponseType<RoleOutVo> addRole(@RequestBody RoleOutVo role) {
-        return ResponseType.Success(roleService.addRole(role), "Role added successfully");
+        return ResponseType.Success(roleService.addRole(role), "角色新增成功");
     }
 
     @PostMapping("/addWithFunctions")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Add role with functions", description = "建立角色並同步綁定 functionIds 權限。functionIds = null 時不處理權限；functionIds = [] 時清空權限；functionIds 有值時，以該清單為準綁定角色權限。")
+    @ApiOperationBadRequest(summary = "新增角色並綁定權限", description = "建立角色並同步綁定 functionIds 權限。functionIds = null 時不處理權限；functionIds = [] 時清空權限；functionIds 有值時，以該清單為準綁定角色權限。")
     public ResponseType<RoleOutVo> addRoleWithFunctions(@RequestBody RoleOutVo role) {
-        return ResponseType.Success(roleService.addRoleWithFunctions(role), "Role added with functions successfully");
+        return ResponseType.Success(roleService.addRoleWithFunctions(role), "角色新增成功");
     }
 
     @PostMapping("/get")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Get roles", description = "Returns all roles.")
+    @ApiOperationOk(summary = "取得角色列表", description = "回傳所有角色。")
     public ResponseType<List<RoleOutVo>> getRole() {
-        return ResponseType.Success(roleService.getRole(), "Role fetched successfully");
+        return ResponseType.Success(roleService.getRole(), "角色查詢成功");
     }
 
     @PostMapping("/update")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Update role", description = "Deprecated: 請改用 /role/updateWithFunctions。此 API 只更新角色資料，不會同步 functionIds 權限綁定。", deprecated = true)
+    @ApiOperationBadRequest(summary = "更新角色", description = "Deprecated: 請改用 /role/updateWithFunctions。此 API 只更新角色資料，不會同步 functionIds 權限綁定。", deprecated = true)
     public ResponseType<RoleOutVo> updateRole(@RequestBody RoleOutVo role) {
-        return ResponseType.Success(roleService.updateRole(role), "Role updated successfully");
+        return ResponseType.Success(roleService.updateRole(role), "角色更新成功");
     }
 
     @PostMapping("/updateWithFunctions")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Update role with functions", description = "更新角色資料並同步 functionIds 權限。functionIds = null 時保留既有權限不變；functionIds = [] 時清空該角色所有權限；functionIds 有值時，以該清單覆蓋該角色權限。")
+    @ApiOperationBadRequest(summary = "更新角色並同步權限", description = "更新角色資料並同步 functionIds 權限。functionIds = null 時保留既有權限不變；functionIds = [] 時清空該角色所有權限；functionIds 有值時，以該清單覆蓋該角色權限。")
     public ResponseType<RoleOutVo> updateRoleWithFunctions(@RequestBody RoleOutVo role) {
-        return ResponseType.Success(roleService.updateRoleWithFunctions(role), "Role updated with functions successfully");
+        return ResponseType.Success(roleService.updateRoleWithFunctions(role), "角色更新成功");
     }
 
     @PostMapping("/delete")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Delete role", description = "Deletes a role.")
+    @ApiOperationBadRequest(summary = "刪除角色", description = "刪除一筆角色。")
     public ResponseType<RoleOutVo> deleteRole(@RequestBody RoleOutVo role) {
         roleService.deleteRole(role);
-        return ResponseType.Success(role, "Role deleted successfully");
+        return ResponseType.Success(role, "角色刪除成功");
     }
 
     @PostMapping("/roleBindFunction")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Bind role to functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限。", deprecated = true)
+    @ApiOperationBadRequest(summary = "角色綁定功能", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限。", deprecated = true)
     public ResponseType<RoleOutVo> roleBindFunction(@RequestBody PermissionVo permissionVo) {
         roleService.roleBindFunction(permissionVo.getRole(), permissionVo.getFunctionList());
-        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "Role bound to function successfully");
+        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "角色綁定功能成功");
     }
 
     @PostMapping("/functionBindRole")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Bind function to roles", description = "Assigns roles to a function.")
+    @ApiOperationBadRequest(summary = "功能綁定角色", description = "指派角色給一筆功能。")
     public ResponseType<FunctionVo> functionBindRole(@RequestBody PermissionVo permissionVo) {
         roleService.functionBindRole(permissionVo.getFunction(), permissionVo.getRoleList());
-        return ResponseType.Success(functionService.getFunctionById(permissionVo.getFunction()), "Function bound to role successfully");
+        return ResponseType.Success(functionService.getFunctionById(permissionVo.getFunction()), "功能綁定角色成功");
     }
 
     @PostMapping("/roleBindUser")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Bind role to users", description = "Assigns users to a role.")
+    @ApiOperationBadRequest(summary = "角色綁定使用者", description = "指派使用者給一筆角色。")
     public ResponseType<RoleOutVo> roleBindUser(@RequestBody PermissionVo permissionVo) {
         roleService.roleBindUser(permissionVo.getRole(), permissionVo.getUserList());
-        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "Role bound to user successfully");
+        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "角色綁定使用者成功");
     }
 
     @PostMapping("/userBindRole")
     @RequirePermission("Edit")
     @Deprecated
     @ApiOperationBadRequest(
-            summary = "Bind user to roles (deprecated)",
+            summary = "使用者綁定角色（已棄用）",
             description = "Deprecated: 請改用 POST /users/{userId}/roles/rebind，提供更清晰的完整覆蓋語意。",
             deprecated = true
     )
     public ResponseType<UserVo> userBindRole(@RequestBody PermissionVo permissionVo) {
         roleService.userBindRole(permissionVo.getUser(), permissionVo.getRoleList());
-        return ResponseType.Success(userService.getUserById(permissionVo.getUser()), "User bound to role successfully");
+        return ResponseType.Success(userService.getUserById(permissionVo.getUser()), "使用者綁定角色成功");
     }
 
     @PostMapping("/roleUnbindUser")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Unbind role from users", description = "Removes users from a role.")
+    @ApiOperationBadRequest(summary = "角色解除綁定使用者", description = "將使用者從角色中移除。")
     public ResponseType<RoleOutVo> roleUnbindUser(@RequestBody PermissionVo permissionVo) {
         roleService.roleUnbindUser(permissionVo.getRole(), permissionVo.getUserList());
-        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "Role unbound from user successfully");
+        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "角色解除綁定使用者成功");
     }
 
     @PostMapping("/userUnbindRole")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Unbind user from roles", description = "Removes roles from a user.")
+    @ApiOperationBadRequest(summary = "使用者解除綁定角色", description = "將角色從使用者中移除。")
     public ResponseType<UserVo> userUnbindRole(@RequestBody PermissionVo permissionVo) {
         roleService.userUnbindRole(permissionVo.getUser(), permissionVo.getRoleList());
-        return ResponseType.Success(userService.getUserById(permissionVo.getUser()), "User unbound from role successfully");
+        return ResponseType.Success(userService.getUserById(permissionVo.getUser()), "使用者解除綁定角色成功");
     }
 
     @PostMapping("/roleUnbindFunction")
     @RequirePermission("Edit")
     @Deprecated
-    @ApiOperationBadRequest(summary = "Unbind role from functions", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限；若要清空權限請傳 functionIds = []。", deprecated = true)
+    @ApiOperationBadRequest(summary = "角色解除綁定功能", description = "Deprecated: 請改用 /role/updateWithFunctions，透過 functionIds 一次同步角色權限；若要清空權限請傳 functionIds = []。", deprecated = true)
     public ResponseType<RoleOutVo> roleUnbindFunction(@RequestBody PermissionVo permissionVo) {
         roleService.roleUnbindFunction(permissionVo.getRole(), permissionVo.getFunctionList());
-        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "Role unbound from function successfully");
+        return ResponseType.Success(roleService.getRoleById(permissionVo.getRole()), "角色解除綁定功能成功");
     }
 
     @PostMapping("/functionUnbindRole")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Unbind function from roles", description = "Removes roles from a function.")
+    @ApiOperationBadRequest(summary = "功能解除綁定角色", description = "將角色從功能中移除。")
     public ResponseType<FunctionVo> functionUnbindRole(@RequestBody PermissionVo permissionVo) {
         roleService.functionUnbindRole(permissionVo.getFunction(), permissionVo.getRoleList());
-        return ResponseType.Success(functionService.getFunctionById(permissionVo.getFunction()), "Function unbound from role successfully");
+        return ResponseType.Success(functionService.getFunctionById(permissionVo.getFunction()), "功能解除綁定角色成功");
     }
 
     @PostMapping("/getFunctionByRole")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "Get functions by role", description = "Returns functions assigned to a role.")
+    @ApiOperationBadRequest(summary = "依角色取得功能列表", description = "取得指派給指定角色的功能。")
     public ResponseType<List<FunctionVo>> getFunctionByRole(@RequestBody RoleOutVo role) {
-        return ResponseType.Success(roleService.getFunctionByRole(role.getId().toString()), "Function fetched successfully");
+        return ResponseType.Success(roleService.getFunctionByRole(role.getId().toString()), "功能查詢成功");
     }
 
     @PostMapping("/getRoleByFunction")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "Get roles by function", description = "Returns roles assigned to a function.")
+    @ApiOperationBadRequest(summary = "依功能取得角色列表", description = "取得指派給指定功能的角色。")
     public ResponseType<List<RoleOutVo>> getRoleByFunction(@RequestBody FunctionVo function) {
-        return ResponseType.Success(roleService.getRoleByFunction(function.getId()), "Role fetched successfully");
+        return ResponseType.Success(roleService.getRoleByFunction(function.getId()), "角色查詢成功");
     }
 
     @PostMapping("/getRoleByUser")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "Get roles by user", description = "Returns roles assigned to a user.")
+    @ApiOperationBadRequest(summary = "依使用者取得角色列表", description = "取得指派給指定使用者的角色。")
     public ResponseType<List<RoleOutVo>> getRoleByUser(@RequestBody UserVo user) {
-        return ResponseType.Success(roleService.getRoleByUser(user.getId()), "Role fetched successfully");
+        return ResponseType.Success(roleService.getRoleByUser(user.getId()), "角色查詢成功");
     }
 
     @PostMapping("/getUserByRole")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "Get users by role", description = "Returns users assigned to a role.")
+    @ApiOperationBadRequest(summary = "依角色取得使用者列表", description = "取得指派給指定角色的使用者。")
     public ResponseType<List<UserVo>> getUserByRole(@RequestBody RoleOutVo role) {
-        return ResponseType.Success(roleService.getUserByRole(role.getId().toString()), "User fetched successfully");
+        return ResponseType.Success(roleService.getUserByRole(role.getId().toString()), "使用者查詢成功");
     }
     
     @PostMapping("/search")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Search roles with pagination", description = "搜尋角色並回傳分頁結果，支援多種查詢條件與排序")
+    @ApiOperationOk(summary = "分頁搜尋角色", description = "搜尋角色並回傳分頁結果，支援多種查詢條件與排序")
     public ResponseType<PageResult<RoleOutVo>> searchRoles(@Valid @RequestBody RoleSearchQuery query) {
         PageResult<RoleOutVo> result = roleService.searchRoles(query);
-        return ResponseType.Success(result, "Roles fetched successfully");
+        return ResponseType.Success(result, "角色查詢成功");
     }
 }

@@ -15,7 +15,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/skill/personal")
-@ApiControllerTag(name = "Personal Skills", description = "Backend API endpoints - Personal skill management")
+@ApiControllerTag(name = "Personal Skills", description = "個人技能管理相關 API")
 public class PersonalSkillController {
     @Autowired
     private ISkillService skillService;

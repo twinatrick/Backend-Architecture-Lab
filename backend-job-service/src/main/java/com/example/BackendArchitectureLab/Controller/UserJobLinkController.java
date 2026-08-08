@@ -21,7 +21,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/user-job-link")
-@ApiControllerTag(name = "User Job Link", description = "Backend API endpoints - User job link management")
+@ApiControllerTag(name = "User Job Link", description = "使用者職缺連結管理相關 API")
 public class UserJobLinkController {
 
     @Autowired

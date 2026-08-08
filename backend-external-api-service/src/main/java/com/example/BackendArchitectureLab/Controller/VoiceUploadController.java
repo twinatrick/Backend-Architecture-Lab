@@ -1,6 +1,9 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Service.IUserVoiceUploadService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
@@ -22,6 +25,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/voice-uploads")
+@ApiControllerTag(name = "Voice Uploads", description = "語音上傳與翻譯管理相關 API")
 public class VoiceUploadController {
 
     @Autowired
@@ -32,6 +36,7 @@ public class VoiceUploadController {
 
     @PostMapping
     @RequirePermission("Edit")
+    @ApiOperationBadRequest(summary = "建立語音上傳", description = "建立新的語音上傳記錄並綁定當前使用者。")
     public ResponseType<UserVoiceUploadVo> createUpload(@Valid @RequestBody UserVoiceUploadVo vo) {
         String currentUserId = securityUtil.requireCurrentUserId().toString();
         vo.setUserId(currentUserId);
@@ -41,6 +46,7 @@ public class VoiceUploadController {
 
     @GetMapping("/{id}")
     @RequirePermission("View")
+    @ApiOperationOk(summary = "依 ID 取得語音上傳", description = "依 ID 取得語音上傳記錄，僅限擁有者。")
     public ResponseType<UserVoiceUploadVo> getUpload(@PathVariable("id") UUID id) {
         UserVoiceUploadVo upload = voiceUploadService.getUploadById(id);
         String currentUserId = securityUtil.requireCurrentUserId().toString();
@@ -55,6 +61,7 @@ public class VoiceUploadController {
 
     @PostMapping("/current/search")
     @RequirePermission("View")
+    @ApiOperationOk(summary = "搜尋當前使用者上傳記錄", description = "分頁搜尋當前使用者的語音上傳記錄。")
     public ResponseType<PageResult<UserVoiceUploadVo>> searchCurrentUserUploads(
             @Valid @RequestBody VoiceUploadSearchQuery query) {
         String currentUserId = securityUtil.requireCurrentUserId().toString();
@@ -64,6 +71,7 @@ public class VoiceUploadController {
 
     @PostMapping("/{id}/translations")
     @RequirePermission("Edit")
+    @ApiOperationBadRequest(summary = "建立語音翻譯", description = "為指定語音上傳建立翻譯記錄，僅限擁有者。")
     public ResponseType<VoiceTranslationVo> createTranslation(
             @PathVariable("id") UUID uploadId,
             @Valid @RequestBody VoiceTranslationVo vo) {
@@ -82,6 +90,7 @@ public class VoiceUploadController {
 
     @GetMapping("/{id}/translations")
     @RequirePermission("View")
+    @ApiOperationOk(summary = "取得語音翻譯列表", description = "取得指定語音上傳的所有翻譯記錄，僅限擁有者。")
     public ResponseType<List<VoiceTranslationVo>> getTranslations(@PathVariable("id") UUID uploadId) {
         UserVoiceUploadVo upload = voiceUploadService.getUploadById(uploadId);
         String currentUserId = securityUtil.requireCurrentUserId().toString();
