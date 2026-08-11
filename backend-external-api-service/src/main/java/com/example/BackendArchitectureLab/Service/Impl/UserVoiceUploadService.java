@@ -7,7 +7,7 @@ import com.example.BackendArchitectureLab.Entity.VoiceTranslation;
 import com.example.BackendArchitectureLab.Mapper.UserVoiceUploadMapper;
 import com.example.BackendArchitectureLab.Mapper.VoiceTranslationMapper;
 import com.example.BackendArchitectureLab.Service.IUserVoiceUploadService;
-import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
@@ -32,6 +32,10 @@ import java.util.UUID;
 
 @Service
 public class UserVoiceUploadService implements IUserVoiceUploadService {
+
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "fileName", "fileSize", "duration", "status", "createdTime", "updatedTime"
+    );
 
     @Autowired
     private IUserVoiceUploadDataAccess userVoiceUploadDataAccess;
@@ -86,9 +90,7 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
     public PageResult<UserVoiceUploadVo> searchUserUploads(String userId, VoiceUploadSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             // 驗證排序欄位與方向
-            String[] allowedSortFields = {"id", "fileName", "fileSize", "duration", "status", "createdTime", "updatedTime"};
-            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-            SortFieldValidator.validateSortDirection(query.getSortDir());
+            SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
 
             // 排序與分頁建構
             Sort sort = Sort.by("asc".equalsIgnoreCase(query.getNormalizedSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC, query.getSortBy());

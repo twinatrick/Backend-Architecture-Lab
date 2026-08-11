@@ -10,7 +10,7 @@ import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Mapper.CompanyMapper;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
-import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -29,6 +29,11 @@ import java.util.UUID;
 
 @Service
 public class CompanyService implements ICompanyService {
+
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "name", "description", "lastScrapedAt",
+            "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
 
     @Autowired
     private TransactionExecutor transactionExecutor;
@@ -137,13 +142,7 @@ public class CompanyService implements ICompanyService {
     @Cacheable(value = "companies", key = "'search:' + #query.toString()", sync = true)
     public PageResult<CompanyVo> searchCompanies(CompanySearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
-            String[] allowedSortFields = {
-                "id", "name", "description", "lastScrapedAt",
-                "createdBy", "updatedBy", "createdTime", "updatedTime"
-            };
-
-            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-            SortFieldValidator.validateSortDirection(query.getSortDir());
+            SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
 
             Page<Company> companyPage = companyDataAccess.searchCompanies(query);
 

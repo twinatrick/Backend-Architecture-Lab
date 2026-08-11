@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
-import com.example.BackendArchitectureLab.Service.IProjectService;
+import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
@@ -23,7 +23,7 @@ import java.util.UUID;
 @ApiControllerTag(name = "Project Management", description = "專案管理（管理層）相關 API")
 public class ProjectManagementController {
     @Autowired
-    private IProjectService projectService;
+    private IProjectUserBindingService projectUserBindingService;
     @Autowired
     private ISkillService skillService;
 
@@ -43,7 +43,7 @@ public class ProjectManagementController {
             description = "取得專案所有成員在此專案中的技能等級綁定，供編輯專案時回填既有資料"
     )
     public ResponseType<List<ProjectMemberSkillVo>> getProjectMemberSkills(@PathVariable UUID projectId) {
-        List<ProjectMemberSkillVo> members = projectService.getProjectMemberSkills(projectId);
+        List<ProjectMemberSkillVo> members = projectUserBindingService.getProjectMemberSkills(projectId);
         return ResponseType.Success(members, "專案成員技能查詢成功");
     }
 }

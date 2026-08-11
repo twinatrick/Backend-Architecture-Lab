@@ -17,7 +17,7 @@ import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserSkill;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
-import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IProjectSkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
@@ -53,6 +53,13 @@ import java.util.stream.Collectors;
 
 @Service
 public class SkillService implements ISkillService {
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "name", "description", "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
+    private static final SearchSortPolicy SKILL_LEVEL_SEARCH_POLICY = new SearchSortPolicy(
+            "id", "levelValue", "title", "description", "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
+
     @Autowired
     private ISkillDataAccess skillDataAccess;
     @Autowired
@@ -561,9 +568,8 @@ public class SkillService implements ISkillService {
     @Transactional(readOnly = true)
     @Cacheable(value = "skills", key = "'search:' + #query.toString()", sync = true)
     public PageResult<SkillVo> searchSkills(SkillSearchQuery query) {
-        // 驗證排序欄位
-        Set<String> validSortFields = Set.of("id", "name", "description", "createdBy", "updatedBy", "createdTime", "updatedTime");
-        SortFieldValidator.validate(query.getSortBy(), query.getSortDir(), validSortFields);
+        // 驗證排序欄位與方向
+        SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
         
         // 執行分頁查詢
         Page<Skill> page = skillDataAccess.searchSkills(query);
@@ -636,9 +642,8 @@ public class SkillService implements ISkillService {
     @Transactional(readOnly = true)
     @Cacheable(value = "currentUserSkills", key = "'currentsearch:' + #currentUserId + ':' + #query.toString()", sync = true)
     public PageResult<CurrentUserSkillVo> searchCurrentUserSkillsCache(String currentUserId, SkillSearchQuery query) {
-        // 驗證排序欄位
-        Set<String> validSortFields = Set.of("id", "name", "description", "createdBy", "updatedBy", "createdTime", "updatedTime");
-        SortFieldValidator.validate(query.getSortBy(), query.getSortDir(), validSortFields);
+        // 驗證排序欄位與方向
+        SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
         
         // 先取得所有當前使用者技能（已合併）
         List<CurrentUserSkillVo> allSkills = getCurrentUserSkills();
@@ -733,9 +738,8 @@ public class SkillService implements ISkillService {
     @Transactional(readOnly = true)
     @Cacheable(value = "skills", key = "'levelsearch:' + #query.toString()", sync = true)
     public PageResult<SkillLevelVo> searchSkillLevels(SkillLevelSearchQuery query) {
-        // 驗證排序欄位
-        Set<String> validSortFields = Set.of("id", "levelValue", "title", "description", "createdBy", "updatedBy", "createdTime", "updatedTime");
-        SortFieldValidator.validate(query.getSortBy(), query.getSortDir(), validSortFields);
+        // 驗證排序欄位與方向
+        SKILL_LEVEL_SEARCH_POLICY.validate(query.getSortBy(), query.getSortDir());
         
         // 執行分頁查詢
         Page<SkillLevel> page = skillLevelDataAccess.searchSkillLevels(query);

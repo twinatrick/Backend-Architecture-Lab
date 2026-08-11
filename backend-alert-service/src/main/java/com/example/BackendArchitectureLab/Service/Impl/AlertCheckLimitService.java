@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
-import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.DataAccess.IAlertCheckLimitDataAccess;
 import com.example.BackendArchitectureLab.Mapper.AlertCheckLimitMapper;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
@@ -16,13 +16,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
 @Service
 public class AlertCheckLimitService implements IAlertCheckLimitService {
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "tableName", "columnName", "limitValue",
+            "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
+
     @Autowired
     private TransactionExecutor transactionExecutor;
 
@@ -88,9 +92,8 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     
     @Override
     public PageResult<AlertCheckLimitVo> searchAlertCheckLimits(AlertCheckLimitSearchQuery query) {
-        // 驗證排序欄位
-        Set<String> validSortFields = Set.of("id", "tableName", "columnName", "limitValue", "createdBy", "updatedBy", "createdTime", "updatedTime");
-        SortFieldValidator.validate(query.getSortBy(), query.getSortDir(), validSortFields);
+        // 驗證排序欄位與方向
+        SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
         
         // 執行分頁查詢
         Page<AlertCheckLimit> page = alertCheckLimitDataAccess.searchAlertCheckLimits(query);

@@ -3,7 +3,8 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import com.example.BackendArchitectureLab.Service.IFunctionService;
+import com.example.BackendArchitectureLab.Service.IFunctionCommandService;
+import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +36,10 @@ class InitAndCheckServiceTest {
     private IUserService userService;
 
     @Mock
-    private IFunctionService functionService;
+    private IFunctionQueryService functionQueryService;
+
+    @Mock
+    private IFunctionCommandService functionCommandService;
 
     @InjectMocks
     private InitAndCheckService initAndCheckService;
@@ -86,20 +90,19 @@ class InitAndCheckServiceTest {
         when(roleService.getRoleByName("admin")).thenReturn(adminRole);
         when(roleService.getRoleByName("user")).thenReturn(userRole);
         when(userService.getUserByEmail("admin")).thenReturn(List.of(adminUser));
-        when(functionService.getFunctionByName(anyString())).thenReturn(null);
-        when(functionService.getFunctionByNameAndParent(anyString(), anyString())).thenReturn(null);
-        when(functionService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
+        when(functionQueryService.getFunctionByPath(anyString(), anyString(), anyString())).thenReturn(null);
+        when(functionCommandService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
             FunctionVo f = invocation.getArgument(0);
             f.setId(UUID.randomUUID().toString());
             return f;
         });
-        when(functionService.getFunction()).thenReturn(List.of(rootFunction, childFunction, leafFunction));
+        when(functionQueryService.getFunction()).thenReturn(List.of(rootFunction, childFunction, leafFunction));
         doNothing().when(roleService).roleBindFunction(anyString(), anyList());
 
         initAndCheckService.initAndCheck();
 
         verify(roleService, times(1)).getRole();
-        verify(functionService, atLeastOnce()).getFunction();
+        verify(functionQueryService, atLeastOnce()).getFunction();
     }
 
     // ==================== checkRole ====================
@@ -193,57 +196,45 @@ class InitAndCheckServiceTest {
     @Test
     @DisplayName("Should return true when all three levels exist")
     void testCheckIsExist_AllExist() {
-        when(functionService.getFunctionByName("System")).thenReturn(rootFunction);
-        when(functionService.getFunctionByNameAndParent("User", rootFunction.getId())).thenReturn(childFunction);
-        when(functionService.getFunctionByNameAndParent("View", childFunction.getId())).thenReturn(leafFunction);
+        when(functionQueryService.getFunctionByPath("System", "User", "View")).thenReturn(leafFunction);
 
         boolean result = initAndCheckService.checkIsExist("System", "User", "View");
 
         assertTrue(result);
-        verify(functionService).getFunctionByName("System");
-        verify(functionService).getFunctionByNameAndParent("User", rootFunction.getId());
-        verify(functionService).getFunctionByNameAndParent("View", childFunction.getId());
+        verify(functionQueryService).getFunctionByPath("System", "User", "View");
     }
 
     @Test
     @DisplayName("Should return false when first level is missing")
     void testCheckIsExist_FirstLevelMissing() {
-        when(functionService.getFunctionByName("System")).thenReturn(null);
+        when(functionQueryService.getFunctionByPath("System", "User", "View")).thenReturn(null);
 
         boolean result = initAndCheckService.checkIsExist("System", "User", "View");
 
         assertFalse(result);
-        verify(functionService).getFunctionByName("System");
-        verify(functionService, never()).getFunctionByNameAndParent(anyString(), anyString());
+        verify(functionQueryService).getFunctionByPath("System", "User", "View");
     }
 
     @Test
     @DisplayName("Should return false when second level is missing")
     void testCheckIsExist_SecondLevelMissing() {
-        when(functionService.getFunctionByName("System")).thenReturn(rootFunction);
-        when(functionService.getFunctionByNameAndParent("User", rootFunction.getId())).thenReturn(null);
+        when(functionQueryService.getFunctionByPath("System", "User", "View")).thenReturn(null);
 
         boolean result = initAndCheckService.checkIsExist("System", "User", "View");
 
         assertFalse(result);
-        verify(functionService).getFunctionByName("System");
-        verify(functionService).getFunctionByNameAndParent("User", rootFunction.getId());
-        verify(functionService, never()).getFunctionByNameAndParent(eq("View"), anyString());
+        verify(functionQueryService).getFunctionByPath("System", "User", "View");
     }
 
     @Test
     @DisplayName("Should return false when third level is missing")
     void testCheckIsExist_ThirdLevelMissing() {
-        when(functionService.getFunctionByName("System")).thenReturn(rootFunction);
-        when(functionService.getFunctionByNameAndParent("User", rootFunction.getId())).thenReturn(childFunction);
-        when(functionService.getFunctionByNameAndParent("View", childFunction.getId())).thenReturn(null);
+        when(functionQueryService.getFunctionByPath("System", "User", "View")).thenReturn(null);
 
         boolean result = initAndCheckService.checkIsExist("System", "User", "View");
 
         assertFalse(result);
-        verify(functionService).getFunctionByName("System");
-        verify(functionService).getFunctionByNameAndParent("User", rootFunction.getId());
-        verify(functionService).getFunctionByNameAndParent("View", childFunction.getId());
+        verify(functionQueryService).getFunctionByPath("System", "User", "View");
     }
 
     // ==================== checkFunctionBindDefaultRole ====================
@@ -251,9 +242,8 @@ class InitAndCheckServiceTest {
     @Test
     @DisplayName("Should insert missing functions and bind leaves to admin role")
     void testCheckFunctionBindDefaultRole_InsertAndBind() {
-        when(functionService.getFunctionByName(anyString())).thenReturn(null);
-        when(functionService.getFunctionByNameAndParent(anyString(), anyString())).thenReturn(null);
-        when(functionService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
+        when(functionQueryService.getFunctionByPath(anyString(), anyString(), anyString())).thenReturn(null);
+        when(functionCommandService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
             FunctionVo f = invocation.getArgument(0);
             f.setId(UUID.randomUUID().toString());
             return f;
@@ -274,27 +264,26 @@ class InitAndCheckServiceTest {
         functionList.add(f1);
         functionList.add(f2);
         functionList.add(f3);
-        when(functionService.getFunction()).thenReturn(functionList);
+        when(functionQueryService.getFunction()).thenReturn(functionList);
         when(roleService.getRoleByName("admin")).thenReturn(adminRole);
         doNothing().when(roleService).roleBindFunction(anyString(), anyList());
 
         initAndCheckService.checkFunctionBindDefaultRole();
 
-        verify(functionService, atLeastOnce()).addFunction(any(FunctionVo.class));
+        verify(functionCommandService, atLeastOnce()).addFunction(any(FunctionVo.class));
         verify(roleService).roleBindFunction(eq(adminRole.getId().toString()), anyList());
     }
 
     @Test
     @DisplayName("Should skip binding when admin role is null")
     void testCheckFunctionBindDefaultRole_NullAdminRole() {
-        when(functionService.getFunctionByName(anyString())).thenReturn(null);
-        when(functionService.getFunctionByNameAndParent(anyString(), anyString())).thenReturn(null);
-        when(functionService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
+        when(functionQueryService.getFunctionByPath(anyString(), anyString(), anyString())).thenReturn(null);
+        when(functionCommandService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
             FunctionVo f = invocation.getArgument(0);
             f.setId(UUID.randomUUID().toString());
             return f;
         });
-        when(functionService.getFunction()).thenReturn(List.of());
+        when(functionQueryService.getFunction()).thenReturn(List.of());
         when(roleService.getRoleByName("admin")).thenReturn(null);
 
         initAndCheckService.checkFunctionBindDefaultRole();
@@ -305,11 +294,8 @@ class InitAndCheckServiceTest {
     @Test
     @DisplayName("Should not re-insert functions that already exist")
     void testCheckFunctionBindDefaultRole_AllExist() {
-        when(functionService.getFunctionByName("System")).thenReturn(rootFunction);
-        when(functionService.getFunctionByNameAndParent("User", rootFunction.getId())).thenReturn(childFunction);
-        when(functionService.getFunctionByNameAndParent("View", childFunction.getId())).thenReturn(leafFunction);
-        when(functionService.getFunctionByNameAndParent(eq("RolePermission"), anyString())).thenReturn(null);
-        when(functionService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
+        when(functionQueryService.getFunctionByPath(anyString(), anyString(), anyString())).thenReturn(null);
+        when(functionCommandService.addFunction(any(FunctionVo.class))).thenAnswer(invocation -> {
             FunctionVo f = invocation.getArgument(0);
             f.setId(UUID.randomUUID().toString());
             return f;
@@ -330,7 +316,7 @@ class InitAndCheckServiceTest {
         functionList.add(sysFunc);
         functionList.add(userFunc);
         functionList.add(viewFunc);
-        when(functionService.getFunction()).thenReturn(functionList);
+        when(functionQueryService.getFunction()).thenReturn(functionList);
         when(roleService.getRoleByName("admin")).thenReturn(adminRole);
 
         initAndCheckService.checkFunctionBindDefaultRole();
@@ -345,8 +331,8 @@ class InitAndCheckServiceTest {
     void testInsertFunctionByList_EmptyList() {
         initAndCheckService.insertFunctionByList(new ArrayList<>(), "");
 
-        verify(functionService, never()).getFunctionByNameAndParent(anyString(), anyString());
-        verify(functionService, never()).addFunction(any());
+        verify(functionQueryService, never()).getFunctionByNameAndParent(anyString(), anyString());
+        verify(functionCommandService, never()).addFunction(any());
     }
 
     @Test
@@ -354,10 +340,10 @@ class InitAndCheckServiceTest {
     void testInsertFunctionByList_CreateAndRecurse() {
         List<String> functionList = List.of("System", "User", "View");
 
-        when(functionService.getFunctionByNameAndParent("System", "")).thenReturn(null);
-        when(functionService.getFunctionByNameAndParent("User", "new-id")).thenReturn(null);
-        when(functionService.getFunctionByNameAndParent("View", "child-id")).thenReturn(null);
-        when(functionService.addFunction(any(FunctionVo.class)))
+        when(functionQueryService.getFunctionByNameAndParent("System", "")).thenReturn(null);
+        when(functionQueryService.getFunctionByNameAndParent("User", "new-id")).thenReturn(null);
+        when(functionQueryService.getFunctionByNameAndParent("View", "child-id")).thenReturn(null);
+        when(functionCommandService.addFunction(any(FunctionVo.class)))
                 .thenAnswer(invocation -> {
                     FunctionVo f = invocation.getArgument(0);
                     f.setId("new-id");
@@ -376,7 +362,7 @@ class InitAndCheckServiceTest {
 
         initAndCheckService.insertFunctionByList(functionList, "");
 
-        verify(functionService, times(3)).addFunction(any(FunctionVo.class));
+        verify(functionCommandService, times(3)).addFunction(any(FunctionVo.class));
     }
 
     @Test
@@ -384,19 +370,19 @@ class InitAndCheckServiceTest {
     void testInsertFunctionByList_ReuseExisting() {
         List<String> functionList = List.of("System", "User", "View");
 
-        when(functionService.getFunctionByNameAndParent("System", "")).thenReturn(rootFunction);
-        when(functionService.getFunctionByNameAndParent("User", rootFunction.getId())).thenReturn(childFunction);
-        when(functionService.getFunctionByNameAndParent("View", childFunction.getId())).thenReturn(null);
+        when(functionQueryService.getFunctionByNameAndParent("System", "")).thenReturn(rootFunction);
+        when(functionQueryService.getFunctionByNameAndParent("User", rootFunction.getId())).thenReturn(childFunction);
+        when(functionQueryService.getFunctionByNameAndParent("View", childFunction.getId())).thenReturn(null);
         FunctionVo createdLeaf = new FunctionVo();
         createdLeaf.setId("leaf-id");
         createdLeaf.setName("View");
         createdLeaf.setParent(childFunction.getId());
-        when(functionService.addFunction(argThat(f -> "View".equals(f.getName())))).thenReturn(createdLeaf);
+        when(functionCommandService.addFunction(argThat(f -> "View".equals(f.getName())))).thenReturn(createdLeaf);
 
         initAndCheckService.insertFunctionByList(functionList, "");
 
-        verify(functionService, times(1)).addFunction(any(FunctionVo.class));
-        verify(functionService).getFunctionByNameAndParent("User", rootFunction.getId());
-        verify(functionService).getFunctionByNameAndParent("View", childFunction.getId());
+        verify(functionCommandService, times(1)).addFunction(any(FunctionVo.class));
+        verify(functionQueryService).getFunctionByNameAndParent("User", rootFunction.getId());
+        verify(functionQueryService).getFunctionByNameAndParent("View", childFunction.getId());
     }
 }

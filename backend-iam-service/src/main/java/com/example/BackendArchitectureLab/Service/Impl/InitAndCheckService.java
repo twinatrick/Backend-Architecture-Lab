@@ -20,7 +20,10 @@ public class InitAndCheckService implements IInitAndCheckService {
     private IUserService userService;
 
     @Autowired
-    private IFunctionService functionService;
+    private IFunctionQueryService functionQueryService;
+
+    @Autowired
+    private IFunctionCommandService functionCommandService;
 
     @Override
     public void initAndCheck() {
@@ -67,20 +70,7 @@ public class InitAndCheckService implements IInitAndCheckService {
 
     @Override
     public boolean checkIsExist(String oneLayer, String twoLayer, String threeLayer) {
-        FunctionVo one= functionService.getFunctionByName(oneLayer);
-        if (one == null) {
-            return false;
-        }
-        FunctionVo two = functionService.getFunctionByNameAndParent(twoLayer, one.getId());
-
-        if (two == null) {
-            return false;
-        }
-        FunctionVo three = functionService.getFunctionByNameAndParent(threeLayer, two.getId());
-        if (three == null) {
-            return false;
-        }
-        return true;
+        return functionQueryService.getFunctionByPath(oneLayer, twoLayer, threeLayer) != null;
     }
 
     @Override
@@ -131,7 +121,7 @@ public class InitAndCheckService implements IInitAndCheckService {
         }
 
 
-        List<FunctionVo> functionList = functionService.getFunction();
+        List<FunctionVo> functionList = functionQueryService.getFunction();
         RoleOutVo role = roleService.getRoleByName("admin");
         if (role != null) {
             var parentIds = functionList.stream()
@@ -150,14 +140,14 @@ public class InitAndCheckService implements IInitAndCheckService {
         if (functionList.isEmpty()) {
             return;
         }
-        FunctionVo sameFunction = functionService.getFunctionByNameAndParent(functionList.getFirst(), parent);
+        FunctionVo sameFunction = functionQueryService.getFunctionByNameAndParent(functionList.getFirst(), parent);
         if (sameFunction != null) {
             insertFunctionByList(functionList.subList(1, functionList.size()), sameFunction.getId());
         }else {
             FunctionVo f = new FunctionVo();
             f.setName(functionList.getFirst());
             f.setParent(parent);
-            f = functionService.addFunction(f);
+            f = functionCommandService.addFunction(f);
             insertFunctionByList(functionList.subList(1, functionList.size()), f.getId());
         }
 

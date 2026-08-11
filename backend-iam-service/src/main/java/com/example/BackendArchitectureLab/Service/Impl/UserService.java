@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
-import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
 import com.example.BackendArchitectureLab.Entity.User;
@@ -29,6 +29,11 @@ import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 @Service
 public class UserService implements IUserService {
 
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "name", "email", "phone", "disabled",
+            "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
+
     @Autowired
     private TransactionExecutor transactionExecutor;
 
@@ -48,9 +53,7 @@ public class UserService implements IUserService {
     @Override
     public UserVo createUser(UserVo userVo) {
         User user = userMapper.toEntity(userVo);
-        if (user.getPassword() != null && !user.getPassword().startsWith("{") && !user.getPassword().startsWith("$2a$") && !user.getPassword().startsWith("$2b$") && !user.getPassword().startsWith("$2y$")) {
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
-        }
+        encodePasswordIfNecessary(user);
         userDataAccess.save(user);
         return userMapper.toVo(user);
     }
@@ -98,9 +101,7 @@ public class UserService implements IUserService {
     @Override
     public UserVo saveUser(UserVo userVo) {
         User user = userMapper.toEntity(userVo);
-        if (user.getPassword() != null && !user.getPassword().startsWith("{") && !user.getPassword().startsWith("$2a$") && !user.getPassword().startsWith("$2b$") && !user.getPassword().startsWith("$2y$")) {
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
-        }
+        encodePasswordIfNecessary(user);
         userDataAccess.save(user);
         return userMapper.toVo(user);
     }
@@ -115,7 +116,8 @@ public class UserService implements IUserService {
         if(userVo.getId() == null|| userVo.getId().isEmpty()){
             User user = new User();
             user.setEmail(userVo.getEmail());
-            user.setPassword(passwordEncoder.encode(userVo.getPassword()));
+            user.setPassword(userVo.getPassword());
+            encodePasswordIfNecessary(user);
             user.setDisabled(userVo.isDisabled());
             userDataAccess.save(user);
             roleService.userBindRole(user.getId().toString(), userVo.getRoleArr());
@@ -125,8 +127,9 @@ public class UserService implements IUserService {
                 () -> new IllegalArgumentException("User not found")
         );
         u.setDisabled(userVo.isDisabled());
-        if (userVo.getPassword() != null && !userVo.getPassword().startsWith("{") && !userVo.getPassword().startsWith("$2a$") && !userVo.getPassword().startsWith("$2b$") && !userVo.getPassword().startsWith("$2y$")) {
-            u.setPassword(passwordEncoder.encode(userVo.getPassword()));
+        if (userVo.getPassword() != null) {
+            u.setPassword(userVo.getPassword());
+            encodePasswordIfNecessary(u);
         }
         userDataAccess.save(u);
         roleService.userBindRole(u.getId().toString(), userVo.getRoleArr());
@@ -159,19 +162,19 @@ public class UserService implements IUserService {
     private UUID mapUuid(String id) {
         return id == null || id.isBlank() ? null : UUID.fromString(id);
     }
+
+    private void encodePasswordIfNecessary(User user) {
+        String password = user.getPassword();
+        if (password != null && !password.startsWith("{") && !password.startsWith("$2a$") && !password.startsWith("$2b$") && !password.startsWith("$2y$")) {
+            user.setPassword(passwordEncoder.encode(password));
+        }
+    }
     
     @Override
     @Cacheable(value = "users", key = "'search:' + #query.toString()", sync = true)
     public PageResult<UserVo> searchUsers(UserSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
-            String[] allowedSortFields = {
-                "id", "name", "email", "phone", "disabled", 
-                "createdBy", "updatedBy", "createdTime", "updatedTime"
-            };
-            
-            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-            
-            SortFieldValidator.validateSortDirection(query.getSortDir());
+            SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
             
             Page<User> userPage = userDataAccess.searchUsers(query);
             

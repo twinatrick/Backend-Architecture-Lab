@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SkillBindingsRebindRequest;
-import com.example.BackendArchitectureLab.Service.IProjectService;
+import com.example.BackendArchitectureLab.Service.IProjectSkillService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.SkillLevelBindingMapper;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
@@ -32,7 +32,7 @@ public class UserBindingController {
     @Autowired
     private ISkillService skillService;
     @Autowired
-    private IProjectService projectService;
+    private IProjectSkillService projectSkillService;
     @Autowired
     private SecurityUtil securityUtil;
 
@@ -56,7 +56,7 @@ public class UserBindingController {
             @Valid @RequestBody SkillBindingsRebindRequest request) {
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("User {} rebinding project {} with {} skill bindings", securityUtil.requireCurrentUserId(), projectId, bindingCount);
-        projectService.rebindPersonalProjectSkills(projectId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
+        projectSkillService.rebindPersonalProjectSkills(projectId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
         log.info("User {} rebound project {} skills successfully", securityUtil.requireCurrentUserId(), projectId);
         return ResponseType.Success("當前使用者專案技能重新綁定成功");
     }

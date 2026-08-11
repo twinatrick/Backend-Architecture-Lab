@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Service.IFunctionService;
+import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
@@ -30,7 +30,7 @@ public class RoleController {
     @Autowired
     private IRoleService roleService;
     @Autowired
-    private IFunctionService functionService;
+    private IFunctionQueryService functionQueryService;
     @Autowired
     private IUserService userService;
 
@@ -93,7 +93,7 @@ public class RoleController {
     @ApiOperationBadRequest(summary = "功能綁定角色", description = "指派角色給一筆功能。")
     public ResponseType<FunctionVo> functionBindRole(@RequestBody PermissionVo permissionVo) {
         roleService.functionBindRole(permissionVo.getFunction(), permissionVo.getRoleList());
-        return ResponseType.Success(functionService.getFunctionById(permissionVo.getFunction()), "功能綁定角色成功");
+        return ResponseType.Success(functionQueryService.getFunctionById(permissionVo.getFunction()), "功能綁定角色成功");
     }
 
     @PostMapping("/roleBindUser")
@@ -147,7 +147,7 @@ public class RoleController {
     @ApiOperationBadRequest(summary = "功能解除綁定角色", description = "將角色從功能中移除。")
     public ResponseType<FunctionVo> functionUnbindRole(@RequestBody PermissionVo permissionVo) {
         roleService.functionUnbindRole(permissionVo.getFunction(), permissionVo.getRoleList());
-        return ResponseType.Success(functionService.getFunctionById(permissionVo.getFunction()), "功能解除綁定角色成功");
+        return ResponseType.Success(functionQueryService.getFunctionById(permissionVo.getFunction()), "功能解除綁定角色成功");
     }
 
     @PostMapping("/getFunctionByRole")

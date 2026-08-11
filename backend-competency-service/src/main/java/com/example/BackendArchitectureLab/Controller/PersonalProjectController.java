@@ -4,7 +4,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
-import com.example.BackendArchitectureLab.Service.IProjectService;
+import com.example.BackendArchitectureLab.Service.IProjectCommandService;
+import com.example.BackendArchitectureLab.Service.IProjectSkillService;
 import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Vo.PersonalProjectSkillBindRequest;
 import com.example.BackendArchitectureLab.Vo.PersonalProjectSkillLevelRequest;
@@ -30,13 +31,15 @@ import java.util.UUID;
 @ApiControllerTag(name = "Personal Projects", description = "個人專案管理相關 API")
 public class PersonalProjectController {
     @Autowired
-    private IProjectService projectService;
+    private IProjectCommandService projectCommandService;
+    @Autowired
+    private IProjectSkillService projectSkillService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "新增個人專案", description = "新增個人專案，自動綁定當前使用者")
     public ResponseType<ProjectVo> addPersonalProject(@Valid @RequestBody PersonalProjectRequest request) {
-        ProjectVo projectVo = projectService.addPersonalProject(request);
+        ProjectVo projectVo = projectCommandService.addPersonalProject(request);
         return ResponseType.Success(projectVo, "個人專案新增成功");
     }
 
@@ -46,7 +49,7 @@ public class PersonalProjectController {
     public ResponseType<String> updatePersonalProject(
             @PathVariable UUID projectId,
             @Valid @RequestBody PersonalProjectRequest request) {
-        projectService.updatePersonalProject(projectId, request);
+        projectCommandService.updatePersonalProject(projectId, request);
         return ResponseType.Success("個人專案更新成功");
     }
 
@@ -54,7 +57,7 @@ public class PersonalProjectController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "刪除個人專案", description = "刪除個人專案，僅限專屬。")
     public ResponseType<String> deletePersonalProject(@PathVariable UUID projectId) {
-        projectService.deletePersonalProject(projectId);
+        projectCommandService.deletePersonalProject(projectId);
         return ResponseType.Success("個人專案刪除成功");
     }
 
@@ -62,7 +65,7 @@ public class PersonalProjectController {
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得個人專案技能", description = "獲取個人專屬的專案綁定的所有技能與等級詳細資訊，會驗證當前使用者權限。")
     public ResponseType<List<ProjectSkillVo>> getPersonalProjectSkills(@PathVariable UUID projectId) {
-        List<ProjectSkillVo> skills = projectService.getPersonalProjectSkills(projectId);
+        List<ProjectSkillVo> skills = projectSkillService.getPersonalProjectSkills(projectId);
         return ResponseType.Success(skills, "個人專案技能查詢成功");
     }
 
@@ -72,7 +75,7 @@ public class PersonalProjectController {
     public ResponseType<String> bindPersonalProjectSkill(
             @PathVariable UUID projectId,
             @Valid @RequestBody PersonalProjectSkillBindRequest request) {
-        projectService.bindPersonalProjectSkill(
+        projectSkillService.bindPersonalProjectSkill(
                 projectId,
                 UUID.fromString(request.getSkillId()),
                 UUID.fromString(request.getSkillLevelId())
@@ -87,7 +90,7 @@ public class PersonalProjectController {
             @PathVariable UUID projectId,
             @PathVariable UUID skillId,
             @Valid @RequestBody PersonalProjectSkillLevelRequest request) {
-        projectService.updatePersonalProjectSkillLevel(projectId, skillId, UUID.fromString(request.getSkillLevelId()));
+        projectSkillService.updatePersonalProjectSkillLevel(projectId, skillId, UUID.fromString(request.getSkillLevelId()));
         return ResponseType.Success("個人專案技能等級更新成功");
     }
 
@@ -97,7 +100,7 @@ public class PersonalProjectController {
     public ResponseType<String> unbindPersonalProjectSkill(
             @PathVariable UUID projectId,
             @PathVariable UUID skillId) {
-        projectService.unbindPersonalProjectSkill(projectId, skillId);
+        projectSkillService.unbindPersonalProjectSkill(projectId, skillId);
         return ResponseType.Success("個人專案技能解除綁定成功");
     }
 }

@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
-import com.example.BackendArchitectureLab.Util.SortFieldValidator;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.DataAccess.*;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.RoleMapper;
@@ -43,6 +43,11 @@ import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
 @Service
 public class RoleService implements IRoleService {
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "name", "description", "permissions",
+            "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
+
     @Autowired
     private TransactionExecutor transactionExecutor;
 
@@ -579,17 +584,8 @@ public class RoleService implements IRoleService {
     @Cacheable(value = "roles", key = "'search:' + #query.toString()", sync = true)
     public PageResult<RoleOutVo> searchRoles(RoleSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
-            // 定義允許的排序欄位
-            String[] allowedSortFields = {
-                "id", "name", "description", "permissions",
-                "createdBy", "updatedBy", "createdTime", "updatedTime"
-            };
-            
-            // 驗證排序欄位
-            SortFieldValidator.validateSortField(query.getSortBy(), allowedSortFields);
-            
-            // 驗證排序方向
-            SortFieldValidator.validateSortDirection(query.getSortDir());
+            // 驗證排序欄位與方向
+            SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
             
             // 執行分頁查詢
             Page<Role> rolePage = roleDataAccess.searchRoles(query);
