@@ -1,70 +1,54 @@
 import logging
 import os
+import tempfile
 import time
 
-import requests
-import sherpa_onnx
-import soundfile as sf
-
-from config import settings
-from utils.file_adapter import download_from_minio
+from services.fallback_tts_engine import FallbackTtsEngine
+from services.gpt_sovits_client import GptSovitsClient
+from services.tts_exceptions import GptSovitsError
+from services.tts_exceptions import TtsTimeoutError
+from services.voice_sample_provider import VoiceSampleProvider
 
 logger = logging.getLogger(__name__)
 
 
-def _text_to_sound_fallback(text: str, save_path: str) -> bytes:
-    config = sherpa_onnx.OfflineTtsConfig(
-        model=sherpa_onnx.OfflineTtsModelConfig(
-            vits=sherpa_onnx.OfflineTtsVitsModelConfig(
-                model=os.path.join(settings.tts_model_dir, "breeze2-vits.onnx"),
-                lexicon=os.path.join(settings.tts_model_dir, "lexicon.txt"),
-                tokens=os.path.join(settings.tts_model_dir, "tokens.txt"),
-            ),
-            provider="cpu",
-            num_threads=1,
-            debug=False,
-        ),
-        max_num_sentences=1,
-    )
-    tts = sherpa_onnx.OfflineTts(config)
-    audio = tts.generate(text, sid=0, speed=1.0)
-    sf.write(save_path, audio.samples, audio.sample_rate)
-    with open(save_path, "rb") as f:
-        return f.read()
+class TtsService:
+    """TTS 編排服務：參考音檔解析 → GptSoVits 合成 → 失敗時本地備援。"""
 
+    def __init__(self) -> None:
+        self.gpt_sovits = GptSovitsClient()
+        self.fallback_engine = FallbackTtsEngine()
+        self.voice_sample_provider = VoiceSampleProvider()
 
-def text_to_sound(
-    text: str,
-    language: str,
-    voice_sample_key: str | None = None,
-    voice_sample_text: str | None = None,
-    voice_sample_lang: str = "zh",
-) -> bytes:
-    payload = {
-        "text": text,
-        "text_lang": language,
-        "text_split_method": "cut5",
-    }
+    def text_to_sound(
+        self,
+        text: str,
+        language: str,
+        voice_sample_key: str | None = None,
+        voice_sample_text: str | None = None,
+        voice_sample_lang: str = "zh",
+    ) -> bytes:
+        """合成語音並回傳 WAV bytes。
 
-    ref_key = voice_sample_key or settings.gpt_sovit_ref_audio_minio_key
-    if ref_key:
+        僅 GptSoVits 逾時或外部服務錯誤會觸發本地備援；
+        其他例外（程式或設定錯誤）直接向上拋出，不隱藏問題。
+        """
+        ref_payload = self.voice_sample_provider.resolve(
+            voice_sample_key, voice_sample_text, voice_sample_lang
+        )
+
         try:
-            ref_path = download_from_minio(ref_key)
-            payload["ref_audio_path"] = ref_path
-            if voice_sample_text:
-                payload["prompt_text"] = voice_sample_text
-                payload["prompt_lang"] = voice_sample_lang
-            else:
-                payload["prompt_text"] = settings.gpt_sovit_prompt_text
-                payload["prompt_lang"] = settings.gpt_sovit_prompt_lang
-        except Exception as exc:
-            # 參考音檔下載失敗時退回純文字合成，不中斷流程
-            logger.warning("[TTS] 參考音檔下載失敗，改以無參考音檔方式合成: %s", exc)
+            return self.gpt_sovits.synthesize(text, language, ref_payload)
+        except (TtsTimeoutError, GptSovitsError) as exc:
+            logger.warning("[TTS] GptSoVits 合成失敗，改用本地備援: %s", exc)
+            tmp_path = os.path.join(
+                tempfile.gettempdir(), f"tts_fallback_{int(time.time() * 1000)}.wav"
+            )
+            try:
+                return self.fallback_engine.synthesize(text, tmp_path)
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
-    try:
-        response = requests.post(settings.gpt_sovit_url, json=payload, timeout=60)
-        response.raise_for_status()
-        return response.content
-    except Exception:
-        tmp_path = f"tmp_tts_{int(time.time())}.wav"
-        return _text_to_sound_fallback(text, tmp_path)
+
+tts_service = TtsService()

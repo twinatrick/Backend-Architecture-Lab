@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
 import com.example.BackendArchitectureLab.Service.IApiFetcher;
-import com.example.BackendArchitectureLab.Service.IAquarkDataService;
+import com.example.BackendArchitectureLab.Service.IAquarkDataCommandService;
 import com.example.BackendArchitectureLab.Service.ICheckApiService;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.RowData;
@@ -28,7 +28,7 @@ public class CheckApiService implements ICheckApiService {
     @Autowired
     private IAlarmService alarmService;
     @Autowired
-    private IAquarkDataService aquarkDataService;
+    private IAquarkDataCommandService aquarkDataCommandService;
     @Autowired
     private IAlertCheckLimitService alertCheckLimitService;
 
@@ -56,7 +56,7 @@ public class CheckApiService implements ICheckApiService {
         }
         List<AlarmMessage> alarmMessages = new ArrayList<>();
         for (AquarkDataRaw data : aquarkDataRawList) {
-            AquarkDataRaw aquarkData = aquarkDataService.insertAquarkData(data);
+            AquarkDataRaw aquarkData = aquarkDataCommandService.insertAquarkData(data);
             alarmMessages.addAll(checkValue(aquarkData)) ;
         }
         if (!alarmMessages.isEmpty()){

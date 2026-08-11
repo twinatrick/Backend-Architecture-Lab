@@ -14,18 +14,4 @@ public interface AquarkDataRepository extends JpaRepository<AquarkData, UUID> {
     List<AquarkData> findAquarkDataByStation_idAndTrans_time(
             String station_id, Date trans_time);
 
-
-    @Query("from AquarkData " +
-            "where (station_id = ?1 OR ?1 is null) " +
-            "and (CSQ = ?2 OR ?2 is null ) " +
-            "and (isPeak =?3 Or ?3 is null) " +
-            "and (isPeak =?3 Or ?3 is null) " +
-            "and (isPeak =?3 Or ?3 is null) " +
-            "and (isPeak =?3 Or ?3 is null) " +
-            "and (isPeak =?3 Or ?3 is null) " +
-            "and (isPeak =?3 Or ?3 is null) " +
-            "and (isPeak =?3 Or ?3 is null) " +
-            "")
-    List<AquarkData>getAquarkDataQueryAllColumn();
-
 }

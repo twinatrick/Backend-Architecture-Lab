@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
-import com.example.BackendArchitectureLab.Service.IAquarkDataService;
+import com.example.BackendArchitectureLab.Service.IAquarkDataQueryService;
 import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
@@ -21,7 +21,7 @@ import java.util.List;
 @ApiControllerTag(name = "AquarkData", description = "Aquark 資料查詢相關 API")
 public class AquarkDataController {
     @Autowired
-    private IAquarkDataService aquarkDataService;
+    private IAquarkDataQueryService aquarkDataQueryService;
 
     @PostMapping("/getData")
     @RequirePermission("View")
@@ -29,20 +29,20 @@ public class AquarkDataController {
     public ResponseType<List<AquarkDataRaw>> getData(@RequestBody List<CriteriaAPIFilter> fillterList) {
 
 
-        return new ResponseType<>(aquarkDataService.getAquarkDataWithFilter(fillterList));
+        return new ResponseType<>(aquarkDataQueryService.getAquarkDataWithFilter(fillterList));
     }
 
     @GetMapping("/getColumnNameList")
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得欄位名稱", description = "取得可用的 Aquark 資料欄位名稱。")
     public ResponseType<List<String>> getColumnNameList() {
-        return new ResponseType<>(aquarkDataService.getColumnNameList());
+        return new ResponseType<>(aquarkDataQueryService.getColumnNameList());
     }
 
     @Ignore
     @PostMapping("/getAverage")
     @ApiOperationBadRequest(summary = "取得 Aquark 平均資料", description = "取得時間區間內 Aquark 資料的平均值。")
     public ResponseType<List<AverageAquark>> getAverage(@RequestBody TimeRange time) {
-        return new ResponseType<>(aquarkDataService.getAverageAquark(time.getStart(), time.getEnd()));
+        return new ResponseType<>(aquarkDataQueryService.getAverageAquark(time.getStart(), time.getEnd()));
     }
 }

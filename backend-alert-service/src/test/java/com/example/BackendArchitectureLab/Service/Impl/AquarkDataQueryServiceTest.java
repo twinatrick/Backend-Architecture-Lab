@@ -1,16 +1,15 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Service.Impl.AquarkDataService;
 import com.example.BackendArchitectureLab.DataAccess.IAquarkDataDataAccess;
-import com.example.BackendArchitectureLab.Mapper.AquarkDataMapper;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
+import com.example.BackendArchitectureLab.Mapper.AquarkDataMapper;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
+import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,18 +25,15 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
-import com.example.BackendArchitectureLab.Util.TransactionExecutor;
-
 /**
- * Unit tests for AquarkDataService.
+ * Unit tests for AquarkDataQueryService.
  * Uses Mockito to mock DataAccess dependencies.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class AquarkDataServiceTest {
+class AquarkDataQueryServiceTest {
 
     @Mock
     private TransactionExecutor transactionExecutor;
@@ -49,7 +45,7 @@ class AquarkDataServiceTest {
     private AquarkDataMapper aquarkDataMapper;
 
     @InjectMocks
-    private AquarkDataService aquarkDataService;
+    private AquarkDataQueryService aquarkDataQueryService;
 
     private Date baseDate;
 
@@ -122,7 +118,7 @@ class AquarkDataServiceTest {
         AquarkData data = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 12f, 50f, 24f, 1f, 2f, true);
         when(aquarkDataDataAccess.findAll()).thenReturn(List.of(data));
 
-        List<AquarkDataRaw> result = aquarkDataService.getAquarkData();
+        List<AquarkDataRaw> result = aquarkDataQueryService.getAquarkData();
 
         assertEquals(1, result.size());
         assertEquals("S1", result.get(0).getStation_id());
@@ -135,7 +131,7 @@ class AquarkDataServiceTest {
         AquarkData data = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 10f, 30f, 20f, 1f, 2f, false);
         when(aquarkDataDataAccess.findAll()).thenReturn(List.of(data));
 
-        List<AquarkDataRaw> result = aquarkDataService.getAquarkDataWithFilter(List.of());
+        List<AquarkDataRaw> result = aquarkDataQueryService.getAquarkDataWithFilter(List.of());
 
         assertEquals(1, result.size());
         verify(aquarkDataDataAccess, times(1)).findAll();
@@ -153,7 +149,7 @@ class AquarkDataServiceTest {
 
         when(aquarkDataDataAccess.findByCriteria(List.of(filter))).thenReturn(List.of(data));
 
-        List<AquarkDataRaw> result = aquarkDataService.getAquarkDataWithFilter(List.of(filter));
+        List<AquarkDataRaw> result = aquarkDataQueryService.getAquarkDataWithFilter(List.of(filter));
 
         assertEquals(1, result.size());
         assertEquals("S2", result.get(0).getStation_id());
@@ -162,7 +158,7 @@ class AquarkDataServiceTest {
 
     @Test
     void testGetColumnNameList_IncludesKeyFields() {
-        List<String> columns = aquarkDataService.getColumnNameList();
+        List<String> columns = aquarkDataQueryService.getColumnNameList();
 
         assertTrue(columns.contains("id"));
         assertTrue(columns.contains("station_id"));
@@ -173,7 +169,7 @@ class AquarkDataServiceTest {
     void testGetAquarkData_NullStationOrTime() {
         AquarkDataRaw data = new AquarkDataRaw();
 
-        assertNull(aquarkDataService.getAquarkData(data));
+        assertNull(aquarkDataQueryService.getAquarkData(data));
         verify(aquarkDataDataAccess, never()).findByStationIdAndTransTime(any(), any());
     }
 
@@ -183,7 +179,7 @@ class AquarkDataServiceTest {
         when(aquarkDataDataAccess.findByStationIdAndTransTime("S1", baseDate)).thenReturn(List.of(data));
 
         AquarkDataRaw input = aquarkDataMapper.toVo(data);
-        AquarkDataRaw result = aquarkDataService.getAquarkData(input);
+        AquarkDataRaw result = aquarkDataQueryService.getAquarkData(input);
 
         assertNotNull(result);
         assertEquals("S1", result.getStation_id());
@@ -196,68 +192,9 @@ class AquarkDataServiceTest {
         data.setTrans_time(baseDate);
         when(aquarkDataDataAccess.findByStationIdAndTransTime("S1", baseDate)).thenReturn(List.of());
 
-        AquarkDataRaw result = aquarkDataService.getAquarkData(data);
+        AquarkDataRaw result = aquarkDataQueryService.getAquarkData(data);
 
         assertNull(result);
-    }
-
-    @Test
-    void testInsertAquarkDataList() {
-        List<AquarkDataRaw> list = List.of(aquarkDataMapper.toVo(buildAquarkData(UUID.randomUUID(), "S1", baseDate, 10f, 20f, 30f, 1f, 2f, false)));
-
-        boolean result = aquarkDataService.insertAquarkData(list);
-
-        assertTrue(result);
-        verify(aquarkDataDataAccess, times(1)).saveAll(anyList());
-    }
-
-    @Test
-    void testUpdateAquarkData() {
-        AquarkData data = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 10f, 20f, 30f, 1f, 2f, false);
-        when(aquarkDataDataAccess.save(any(AquarkData.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        AquarkDataRaw result = aquarkDataService.updateAquarkData(aquarkDataMapper.toVo(data));
-
-        assertEquals(data.getStation_id(), result.getStation_id());
-        verify(aquarkDataDataAccess, times(1)).save(any(AquarkData.class));
-    }
-
-    @Test
-    void testInsertAquarkData_NewData() {
-        AquarkData data = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 10f, 20f, 30f, 1f, -2.5f, false);
-        when(aquarkDataDataAccess.findByStationIdAndTransTime("S1", baseDate)).thenReturn(List.of());
-        when(aquarkDataDataAccess.save(any(AquarkData.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        AquarkDataRaw result = aquarkDataService.insertAquarkData(aquarkDataMapper.toVo(data));
-
-        assertNotNull(result);
-        assertEquals(2.5f, result.getWaterSpeedAquark());
-        verify(aquarkDataDataAccess, times(1)).save(any(AquarkData.class));
-    }
-
-    @Test
-    void testInsertAquarkData_ExistingData() {
-        AquarkData existing = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 5f, 10f, 15f, 1f, 1f, false);
-        AquarkData incoming = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 20f, 30f, 40f, 2f, -3f, true);
-        incoming.setCSQ("CSQ-NEW");
-        when(aquarkDataDataAccess.findByStationIdAndTransTime("S1", baseDate)).thenReturn(List.of(existing));
-        when(aquarkDataDataAccess.save(any(AquarkData.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        AquarkDataRaw result = aquarkDataService.insertAquarkData(aquarkDataMapper.toVo(incoming));
-
-        ArgumentCaptor<AquarkData> captor = ArgumentCaptor.forClass(AquarkData.class);
-        verify(aquarkDataDataAccess).save(captor.capture());
-        AquarkData saved = captor.getValue();
-
-        assertEquals(existing.getId(), saved.getId());
-        assertEquals("CSQ-NEW", saved.getCSQ());
-        assertEquals(20f, saved.getRain_d());
-        assertEquals(30f, saved.getMoisture());
-        assertEquals(40f, saved.getTemperature());
-        assertEquals(2f, saved.getEcho());
-        assertEquals(3f, saved.getWaterSpeedAquark());
-        assertTrue(saved.isPeak());
-        assertEquals(saved.getStation_id(), result.getStation_id());
     }
 
     @Test
@@ -272,7 +209,7 @@ class AquarkDataServiceTest {
 
         when(aquarkDataDataAccess.findByCriteria(any())).thenReturn(List.of(s1a, s1b, s2a));
 
-        List<AverageAquark> result = aquarkDataService.getAverageAquark(addHours(baseDate, -1), addHours(baseDate, 10));
+        List<AverageAquark> result = aquarkDataQueryService.getAverageAquark(addHours(baseDate, -1), addHours(baseDate, 10));
 
         assertEquals(2, result.size());
 

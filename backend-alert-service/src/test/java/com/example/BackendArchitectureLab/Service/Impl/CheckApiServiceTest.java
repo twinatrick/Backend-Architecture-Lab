@@ -8,7 +8,7 @@ import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
 import com.example.BackendArchitectureLab.Service.IApiFetcher;
-import com.example.BackendArchitectureLab.Service.IAquarkDataService;
+import com.example.BackendArchitectureLab.Service.IAquarkDataCommandService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,7 +44,7 @@ class CheckApiServiceTest {
     private IAlarmService alarmService;
 
     @Mock
-    private IAquarkDataService aquarkDataService;
+    private IAquarkDataCommandService aquarkDataCommandService;
 
     @Mock
     private IAlertCheckLimitService alertCheckLimitService;
@@ -203,7 +203,7 @@ class CheckApiServiceTest {
 
         when(apiFetcher.get(anyString())).thenReturn(jsonResponse);
         when(objectMapper.readValue(jsonResponse, AquarkApiReturnVo.class)).thenReturn(returnVo);
-        when(aquarkDataService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
+        when(aquarkDataCommandService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
         when(alertCheckLimitService.getLimit("aquark_data", "v1")).thenReturn(createLimitVo(10.0));
         when(alertCheckLimitService.getLimit("aquark_data", "v2")).thenReturn(createLimitVo(10.0));
         when(alertCheckLimitService.getLimit("aquark_data", "v3")).thenReturn(createLimitVo(10.0));
@@ -237,7 +237,7 @@ class CheckApiServiceTest {
 
         when(apiFetcher.get(anyString())).thenReturn(jsonResponse);
         when(objectMapper.readValue(jsonResponse, AquarkApiReturnVo.class)).thenReturn(returnVo);
-        when(aquarkDataService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
+        when(aquarkDataCommandService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
         when(alertCheckLimitService.getLimit("aquark_data", "v1")).thenReturn(createLimitVo(10.0));
         when(alertCheckLimitService.getLimit("aquark_data", "v2")).thenReturn(createLimitVo(10.0));
         when(alertCheckLimitService.getLimit("aquark_data", "v3")).thenReturn(createLimitVo(10.0));
@@ -278,7 +278,7 @@ class CheckApiServiceTest {
 
         when(apiFetcher.get(anyString())).thenReturn(jsonResponse);
         when(objectMapper.readValue(jsonResponse, AquarkApiReturnVo.class)).thenReturn(returnVo);
-        when(aquarkDataService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
+        when(aquarkDataCommandService.insertAquarkData(any(AquarkDataRaw.class))).thenReturn(savedData);
         when(alertCheckLimitService.getLimit(anyString(), anyString())).thenReturn(createLimitVo(100.0));
 
         checkApiService.getAquarkApiData();
