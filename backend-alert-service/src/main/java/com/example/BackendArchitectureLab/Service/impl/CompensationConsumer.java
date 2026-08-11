@@ -25,7 +25,7 @@ public class CompensationConsumer {
         log.warn("Executing compensation for transaction {} action {}",
                 event.getTransactionId(), event.getAction());
 
-        if (CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name().equals(event.getAction())) {
+        if (CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.equals(event.getAction())) {
             compensateProjectMemberSkillsRebind(event);
         } else {
             log.warn("Unknown compensation action: {}", event.getAction());

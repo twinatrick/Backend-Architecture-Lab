@@ -29,7 +29,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
         event.setStatus(CompensationStatus.COMPENSATED);
         event.setBeforeState(Map.of("key1", "value1"));
         event.setAfterState(Map.of("key2", "value2"));
@@ -43,7 +43,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("unknown-service");
-        event.setAction("UNKNOWN_ACTION");
+        event.setAction(null);
         event.setStatus(CompensationStatus.COMPENSATED);
         event.setTimestamp(Instant.now());
 
@@ -55,7 +55,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
         event.setStatus(CompensationStatus.COMMITTED);
         event.setTimestamp(Instant.now());
 
@@ -67,7 +67,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
         event.setStatus(CompensationStatus.SAVE_POINT);
         event.setTimestamp(Instant.now());
 
@@ -79,7 +79,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
         event.setStatus(CompensationStatus.FAILED);
         event.setTimestamp(Instant.now());
 
@@ -91,7 +91,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent();
         event.setTransactionId(UUID.randomUUID());
         event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
+        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
         event.setStatus(null);
         event.setTimestamp(Instant.now());
 
@@ -115,7 +115,7 @@ class CompensationConsumerTest {
         CompensationEvent event = new CompensationEvent(
                 UUID.randomUUID(),
                 "project-service",
-                CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name(),
+                CompensationAction.PROJECT_MEMBER_SKILLS_REBIND,
                 CompensationStatus.COMPENSATED,
                 Map.of("role", "admin"),
                 Map.of("role", "user"),

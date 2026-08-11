@@ -14,7 +14,7 @@ import java.util.UUID;
 public class CompensationEvent {
     private UUID transactionId;
     private String serviceName;
-    private String action;
+    private CompensationAction action;
     private String status;
     private Map<String, Object> beforeState;
     private Map<String, Object> afterState;

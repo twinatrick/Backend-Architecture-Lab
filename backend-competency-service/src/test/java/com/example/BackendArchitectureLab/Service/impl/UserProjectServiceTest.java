@@ -51,6 +51,15 @@ class UserProjectServiceTest {
         userId = UUID.randomUUID();
         projectId1 = UUID.randomUUID();
         projectId2 = UUID.randomUUID();
+
+        // Inject self reference
+        try {
+            java.lang.reflect.Field selfField = UserProjectService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(userProjectService, userProjectService);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not inject self into UserProjectService", e);
+        }
     }
 
     private UserProject userProject(UUID projectId) {
