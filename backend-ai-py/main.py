@@ -1,3 +1,4 @@
+import logging
 import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -11,10 +12,17 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+try:
+    from nacos import NacosClient
+except ImportError:
+    NacosClient = None
+
 from config import settings
 from routers import chat
 from routers import stt
 from routers import tts
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -56,22 +64,22 @@ async def _warmup_ollama():
                     "stream": False,
                 },
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("[Ollama] 暖機請求失敗，稍後正式呼叫時再重試: %s", exc)
 
 
 _nacos_service = None
 
 
 def _get_local_ip() -> str:
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(("10.254.254.254", 1))
-        ip = s.getsockname()[0]
-    except Exception:
+        sock.connect(("10.254.254.254", 1))
+        ip = sock.getsockname()[0]
+    except OSError:
         ip = "127.0.0.1"
     finally:
-        s.close()
+        sock.close()
     return ip
 
 
@@ -80,8 +88,9 @@ def _nacos_register():
     if not settings.nacos_server_addr:
         return
     try:
-        from nacos import NacosClient
-
+        if NacosClient is None:
+            logger.warning("[nacos] NacosClient 不可用，跳過服務註冊")
+            return
         client = NacosClient(settings.nacos_server_addr, namespace=settings.nacos_namespace)
         ip = _get_local_ip()
         client.add_naming_instance(
@@ -98,11 +107,11 @@ def _nacos_register():
                 time.sleep(5)
                 try:
                     client.send_heartbeat(settings.service_name, ip, settings.server_port)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("[nacos] heartbeat 失敗: %s", exc)
 
-        t = threading.Thread(target=_heartbeat, daemon=True)
-        t.start()
+        heartbeat_thread = threading.Thread(target=_heartbeat, daemon=True)
+        heartbeat_thread.start()
     except Exception as e:
         print(f"[nacos] register failed: {e}")
 

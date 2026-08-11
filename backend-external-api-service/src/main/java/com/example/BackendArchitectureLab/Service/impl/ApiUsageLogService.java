@@ -17,7 +17,7 @@ import java.util.Map;
 public class ApiUsageLogService implements IApiUsageLogService {
 
     @Autowired
-    private IApiUsageLogDataAccess apiUsageLogRepository;
+    private IApiUsageLogDataAccess apiUsageLogDataAccess;
 
     @Autowired
     private ApiUsageLogMapper apiUsageLogMapper;
@@ -26,9 +26,9 @@ public class ApiUsageLogService implements IApiUsageLogService {
     public List<ApiUsageLogVo> findByRange(Date start, Date end, String service) {
         List<ApiUsageLog> logs;
         if (service != null) {
-            logs = apiUsageLogRepository.findByServiceAndCreatedTimeBetween(service, start, end);
+            logs = apiUsageLogDataAccess.findByServiceAndCreatedTimeBetween(service, start, end);
         } else {
-            logs = apiUsageLogRepository.findByCreatedTimeBetween(start, end);
+            logs = apiUsageLogDataAccess.findByCreatedTimeBetween(start, end);
         }
         return logs.stream().map(apiUsageLogMapper::toVo).toList();
     }
@@ -37,9 +37,9 @@ public class ApiUsageLogService implements IApiUsageLogService {
     public Map<String, Object> getSummary(Date start, Date end, String service) {
         List<ApiUsageLog> logs;
         if (service != null) {
-            logs = apiUsageLogRepository.findByServiceAndCreatedTimeBetween(service, start, end);
+            logs = apiUsageLogDataAccess.findByServiceAndCreatedTimeBetween(service, start, end);
         } else {
-            logs = apiUsageLogRepository.findByCreatedTimeBetween(start, end);
+            logs = apiUsageLogDataAccess.findByCreatedTimeBetween(start, end);
         }
 
         long totalCalls = logs.size();

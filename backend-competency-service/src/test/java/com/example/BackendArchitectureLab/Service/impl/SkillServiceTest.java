@@ -1522,6 +1522,7 @@ class SkillServiceTest {
         when(skillDataAccess.exists(any())).thenReturn(false);
         when(skillDataAccess.save(newSkill)).thenReturn(testSkill);
         when(skillDataAccess.findById(testSkill.getId())).thenReturn(Optional.of(testSkill));
+        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
         when(skillLevelDataAccess.findById(invalidLevelId)).thenReturn(Optional.empty());
         
         // Act & Assert

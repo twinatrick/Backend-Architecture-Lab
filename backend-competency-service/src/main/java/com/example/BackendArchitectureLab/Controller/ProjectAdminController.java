@@ -30,7 +30,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/project/admin/bindings")
 @RequirePermission(layer = "ProjectManagement")
-@ApiControllerTag(name = "Project Admin", description = "Backend API endpoints - Project admin binding management")
+@ApiControllerTag(name = "Project Admin", description = "專案管理員綁定管理相關 API")
 public class ProjectAdminController {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectAdminController.class);
@@ -43,8 +43,8 @@ public class ProjectAdminController {
     private ISkillService skillService;
 
     @PostMapping("/user-project/rebind")
-    @RequirePermission("EditAll")
-    @ApiOperationBadRequest(summary = "Rebind user projects", description = "Rebind all user-project relations with diff strategy")
+    @RequirePermission("Edit")
+    @ApiOperationBadRequest(summary = "重新綁定使用者專案", description = "以 diff 策略重新綁定所有使用者-專案關聯。")
     public ResponseType<String> rebindUserProjects(@Valid @RequestBody UserProjectRebindRequest request) {
         UUID userId = parseUuid(request.getUserId(), "userId");
         List<UUID> projectIds = request.getProjectIds() == null
@@ -53,37 +53,37 @@ public class ProjectAdminController {
         log.info("Admin rebinding user {} to {} projects", userId, projectIds.size());
         userProjectService.rebindUserProjects(userId, projectIds);
         log.info("Admin rebound user {} projects successfully", userId);
-        return ResponseType.Success("User projects rebound successfully");
+        return ResponseType.Success("使用者專案重新綁定成功");
     }
 
     @PostMapping("/user-skill/rebind")
-    @RequirePermission("EditAll")
-    @ApiOperationBadRequest(summary = "Rebind user skills", description = "Rebind all user-skill relations with level diff strategy")
+    @RequirePermission("Edit")
+    @ApiOperationBadRequest(summary = "重新綁定使用者技能", description = "以等級 diff 策略重新綁定所有使用者-技能關聯。")
     public ResponseType<String> rebindUserSkills(@Valid @RequestBody UserSkillRebindRequest request) {
         UUID userId = parseUuid(request.getUserId(), "userId");
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("Admin rebinding user {} with {} skill bindings", userId, bindingCount);
         skillService.rebindUserSkills(userId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
         log.info("Admin rebound user {} skills successfully", userId);
-        return ResponseType.Success("User skills rebound successfully");
+        return ResponseType.Success("使用者技能重新綁定成功");
     }
 
     @PostMapping("/project-skill/rebind")
-    @RequirePermission("EditAll")
-    @ApiOperationBadRequest(summary = "Rebind project skills", description = "Rebind all project-skill relations with level diff strategy")
+    @RequirePermission("Edit")
+    @ApiOperationBadRequest(summary = "重新綁定專案技能", description = "以等級 diff 策略重新綁定所有專案-技能關聯。")
     public ResponseType<String> rebindProjectSkills(@Valid @RequestBody ProjectSkillRebindRequest request) {
         UUID projectId = parseUuid(request.getProjectId(), "projectId");
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("Admin rebinding project {} with {} skill bindings", projectId, bindingCount);
         projectService.rebindProjectSkills(projectId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
         log.info("Admin rebound project {} skills successfully", projectId);
-        return ResponseType.Success("Project skills rebound successfully");
+        return ResponseType.Success("專案技能重新綁定成功");
     }
 
     @PostMapping("/project-members-skills/rebind")
-    @RequirePermission("EditAll")
+    @RequirePermission("Edit")
     @ApiOperationBadRequest(
-            summary = "Rebind project member skills",
+            summary = "重新綁定專案成員技能",
             description = "完整覆蓋式綁定專案成員技能。使用者必須已是專案成員（user_project 存在），否則拋出異常。"
     )
     public ResponseType<String> rebindProjectMemberSkills(@Valid @RequestBody ProjectMemberSkillsRebindRequest request) {
@@ -105,7 +105,7 @@ public class ProjectAdminController {
 
         projectService.rebindProjectMemberSkills(projectId, memberSkillsMap);
         log.info("Admin rebound project {} member skills successfully", projectId);
-        return ResponseType.Success("Project member skills rebound successfully");
+        return ResponseType.Success("專案成員技能重新綁定成功");
     }
 
     private static UUID parseUuid(String value, String fieldName) {

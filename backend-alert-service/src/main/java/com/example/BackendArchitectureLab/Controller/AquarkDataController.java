@@ -18,14 +18,14 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/aquarkData")
-@ApiControllerTag(name = "AquarkData", description = "Backend API endpoints - Aquark data queries")
+@ApiControllerTag(name = "AquarkData", description = "Aquark 資料查詢相關 API")
 public class AquarkDataController {
     @Autowired
     private IAquarkDataService aquarkDataService;
 
     @PostMapping("/getData")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "Get aquark data", description = "Returns aquark data filtered by criteria.")
+    @ApiOperationBadRequest(summary = "取得 Aquark 資料", description = "依條件取得 Aquark 資料。")
     public ResponseType<List<AquarkDataRaw>> getData(@RequestBody List<CriteriaAPIFilter> fillterList) {
 
 
@@ -34,14 +34,14 @@ public class AquarkDataController {
 
     @GetMapping("/getColumnNameList")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Get column names", description = "Returns available aquark data column names.")
+    @ApiOperationOk(summary = "取得欄位名稱", description = "取得可用的 Aquark 資料欄位名稱。")
     public ResponseType<List<String>> getColumnNameList() {
         return new ResponseType<>(aquarkDataService.getColumnNameList());
     }
 
     @Ignore
     @PostMapping("/getAverage")
-    @ApiOperationBadRequest(summary = "Get average aquark data", description = "Returns averaged aquark data within a time range.")
+    @ApiOperationBadRequest(summary = "取得 Aquark 平均資料", description = "取得時間區間內 Aquark 資料的平均值。")
     public ResponseType<List<AverageAquark>> getAverage(@RequestBody TimeRange time) {
         return new ResponseType<>(aquarkDataService.getAverageAquark(time.getStart(), time.getEnd()));
     }

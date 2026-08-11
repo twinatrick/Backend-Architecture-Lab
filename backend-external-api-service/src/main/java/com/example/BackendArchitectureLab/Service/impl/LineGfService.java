@@ -58,7 +58,7 @@ public class LineGfService implements ILineGfService {
     private IUsageTrackService usageTrackService;
 
     @Autowired
-    private ILineGfSessionDataAccess sessionRepository;
+    private ILineGfSessionDataAccess sessionDataAccess;
 
     @Autowired
     private GfSessionMapper gfSessionMapper;
@@ -76,7 +76,7 @@ public class LineGfService implements ILineGfService {
             return;
         }
 
-        Optional<LineGfSession> sessionOpt = sessionRepository.findByUserId(userId);
+        Optional<LineGfSession> sessionOpt = sessionDataAccess.findByUserId(userId);
         if (sessionOpt.isEmpty()) return;
         LineGfSession session = sessionOpt.get();
 
@@ -84,7 +84,7 @@ public class LineGfService implements ILineGfService {
             session.setPrompt(text);
             session.setPendingPrompt(false);
             session.setConversationHistory(null);
-            sessionRepository.save(session);
+            sessionDataAccess.save(session);
             replyText(replyToken, "✅ 已設定提示詞");
             return;
         }
@@ -110,10 +110,10 @@ public class LineGfService implements ILineGfService {
         } else if (text.startsWith("#提示詞 ")) {
             setPrompt(replyToken, userId, text.substring(4).trim());
         } else if ("#提示詞".equals(text)) {
-            LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+            LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
             session.setUserId(userId);
             session.setPendingPrompt(true);
-            sessionRepository.save(session);
+            sessionDataAccess.save(session);
             replyText(replyToken, "請輸入提示詞內容，直接傳送即可：");
         } else if (text.startsWith("#女友名稱 ")) {
             setGfName(replyToken, userId, text.substring(5).trim());
@@ -133,59 +133,59 @@ public class LineGfService implements ILineGfService {
             replyText(replyToken, "❌ 不支援的語言。目前僅支援: zh (繁中), ja (日文), en (英文)");
             return;
         }
-        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setLanguage(lang);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         replyText(replyToken, "✅ 已將女友語言設定為：" + lang);
     }
 
     private void toggleGf(String replyToken, String userId, boolean enable) {
-        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setActive(enable);
         if (enable && session.getPrompt() == null) {
             session.setPrompt("你是一個可愛的女朋友，用溫柔關心的語氣回覆");
         }
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         replyText(replyToken, enable ? "✅ 已啟用女友對話模式" : "❌ 已關閉女友對話模式");
     }
 
     private void setVoiceEnabled(String replyToken, String userId, boolean enable) {
-        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setVoiceEnabled(enable);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         replyText(replyToken, enable ? "✅ 已啟用語音回覆（文字回覆）" : "❌ 已關閉語音回覆");
     }
 
     private void setPrompt(String replyToken, String userId, String prompt) {
-        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setPrompt(prompt);
         session.setConversationHistory(null);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         replyText(replyToken, "✅ 已設定提示詞");
     }
 
     private void setGfName(String replyToken, String userId, String gfName) {
-        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setGfName(gfName);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         replyText(replyToken, "✅ 已設定女友名稱：" + gfName);
     }
 
     private void setGfAvatar(String replyToken, String userId, String gfAvatarUrl) {
-        LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+        LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setGfAvatarUrl(gfAvatarUrl);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         replyText(replyToken, "✅ 已設定女友頭像（LINE 僅記錄，無法實際更改顯示圖片）");
     }
 
     private void showStatus(String replyToken, String userId) {
-        Optional<LineGfSession> opt = sessionRepository.findByUserId(userId);
+        Optional<LineGfSession> opt = sessionDataAccess.findByUserId(userId);
         if (opt.isEmpty()) {
             replyText(replyToken, "❌ 尚未設定女友對話模式\n請輸入 #啟用女友 開始使用");
             return;
@@ -262,7 +262,7 @@ public class LineGfService implements ILineGfService {
         } catch (Exception e) {
             session.setConversationHistory(null);
         }
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
 
         // boolean voiceEnable = Boolean.TRUE.equals(session.getVoiceEnabled());
         boolean voiceEnable = false; // 暫時全面關閉 LINE 語音回復（TTS 發送），避開免費版 ngrok 攔截警告。未來只需將此行改回即可一秒還原。
@@ -317,7 +317,7 @@ public class LineGfService implements ILineGfService {
             byte[] audioBytes = content.getStream().readAllBytes();
             content.close();
 
-            LineGfSession session = sessionRepository.findByUserId(userId).orElse(new LineGfSession());
+            LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
             String lang = session.getLanguage() != null ? session.getLanguage() : "zh";
 
             // 呼叫共用高階處理

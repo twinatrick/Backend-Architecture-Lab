@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.Vo.AudioRecognizeVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ILearnService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
-import io.swagger.v3.oas.annotations.Operation;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +27,7 @@ public class SttController {
     private boolean sensevoiceEnabled;
 
     @PostMapping(value = "/whisper", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "以 Whisper 引擎語音辨識", description = "固定以 Whisper 進行語音辨識與拼音轉換。")
+    @ApiOperationBadRequest(summary = "以 Whisper 引擎語音辨識", description = "固定以 Whisper 進行語音辨識與拼音轉換。")
     public ResponseType<AudioRecognizeVo> recognizeWithWhisper(
             @Parameter(description = "音訊檔案", required = true) @RequestParam("file") MultipartFile file,
             @Parameter(description = "目標語言，如 zh (繁體中文) 或 ja (日文)") @RequestParam(value = "language", defaultValue = "zh") String language,
@@ -44,7 +44,7 @@ public class SttController {
     }
 
     @PostMapping(value = "/sensevoice", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "以 SenseVoice 引擎語音辨識", description = "固定以 SenseVoice 進行語音辨識與拼音轉換。")
+    @ApiOperationBadRequest(summary = "以 SenseVoice 引擎語音辨識", description = "固定以 SenseVoice 進行語音辨識與拼音轉換。")
     public ResponseType<AudioRecognizeVo> recognizeWithSenseVoice(
             @Parameter(description = "音訊檔案", required = true) @RequestParam("file") MultipartFile file,
             @Parameter(description = "目標語言，如 zh (繁體中文) 或 ja (日文)") @RequestParam(value = "language", defaultValue = "zh") String language,

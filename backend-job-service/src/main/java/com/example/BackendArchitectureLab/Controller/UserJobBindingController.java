@@ -22,7 +22,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/user/bindings/job")
-@ApiControllerTag(name = "User Job Bindings", description = "Backend API endpoints - User job binding self-service")
+@ApiControllerTag(name = "User Job Bindings", description = "使用者職缺綁定自助服務相關 API")
 public class UserJobBindingController {
 
     private static final Logger log = LoggerFactory.getLogger(UserJobBindingController.class);

@@ -43,3 +43,12 @@
 
 - 使用 `try-except` 捕捉具體例外，禁止裸 `except:`。
 - 對外呼叫失敗時應有 fallback 或明確錯誤訊息輸出，不得靜默吞掉例外。
+- **禁止 `except ...: pass`（靜默吞例外）**：捕捉例外後必須至少記錄一筆 `logging.warning(...)`（含例外內容），再決定是否繼續執行。
+- **可選依賴（Optional Dependency）載入模式**：若某套件為可選依賴（如 Nacos 套件），禁止在函數內 import；應於**模組頂部**以 `try` / `except ImportError` 載入並設為 `None`，使用處再檢查是否為 `None`：
+
+```python
+try:
+    from nacos import NacosClient
+except ImportError:
+    NacosClient = None
+```

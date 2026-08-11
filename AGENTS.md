@@ -45,12 +45,8 @@
   - Controller 只與 Service 介面及 Vo 型別互動，Controller 程式碼中不得出現 Entity 型別
 - **Entity 使用規範 (重要)**:
   - Entity 僅在 Repository、DataAccess 及 Service Impl（經 Mapper 轉換後）中使用，**嚴禁**傳遞至 Controller 層或作為 API 回傳型別
-- **微服務分類使用規則**: **絕對必須遵守** `微服務分類使用規則.md` 中的所有架構規範，特別是模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager 等規則。
-- **Python 語法規則 (backend-ai-py)**: **絕對必須遵守** `backend-ai-py/PYTHON_RULES.md` 中的語法規範，重點包含：
-  - **import 一律置於檔案最頂端**，嚴禁函數內 import（標準函式庫 → 第三方 → 本專案模組，依序排列）
-  - 檔案單一職責：超過約 300 行需拆分成獨立模組（如 `services/` 下按 SenseVoice、Whisper、語者分離、排版職責拆分）
-  - 命名慣例：函數/變數 `snake_case`、類別 `PascalCase`、私有函數前綴 `_`、4 空格縮排、型別註釋、註解使用繁體中文
-- **Controller API 註記規則**: **必須遵守** `Controller API 註記規則.md`；Controller 的 OpenAPI 文件註記一律使用 `Annotation/OpenApi` 標準註記（`ApiControllerTag`、`ApiOperationOk`、`ApiOperationAuth`、`ApiOperationBadRequest`），嚴禁直接使用 `io.swagger.v3.oas.annotations.Operation`。
+- **開發規範 (唯一規則文件)**: **絕對必須遵守** `開發規範.md`（此為唯一規則來源，合併自微服務分類/Permission/Controller 註記/Python 規則，原文於 `docs/archive/`）。重點包含：模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager、三層權限設計（`@RequirePermission`）、Controller OpenAPI 標準註記（`Annotation/OpenApi`）、Python 語法規範（import 置頂/禁止單字母變數/禁止 `except: pass`）。
+- **範例一律使用完整套件路徑**: 文件或說明中引用程式碼位置時，一律寫完整套件路徑（如 `com.example.BackendArchitectureLab.Service.impl.RoleService`），嚴禁寫縮寫路徑（如 `RoleService.java`）。
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。

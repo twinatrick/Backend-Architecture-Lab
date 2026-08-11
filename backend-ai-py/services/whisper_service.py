@@ -1,5 +1,6 @@
 import ctypes
 import importlib.util
+import logging
 import os
 import sys
 
@@ -9,6 +10,8 @@ from config import settings
 from services.common import _is_mock
 from services.formatter_service import _format_diarized
 from services.formatter_service import _format_plain
+
+logger = logging.getLogger(__name__)
 
 _whisper_model = None
 
@@ -51,8 +54,9 @@ def _register_whisper_dll_dirs() -> None:
         try:
             os.add_dll_directory(d)
             registered.append(d)
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as exc:
+            # 單一目錄註冊失敗不影響其他目錄，僅記錄
+            logger.warning("[Whisper] DLL 目錄註冊失敗 %s: %s", d, exc)
 
     # 預先載入 CUDA runtime 相關 DLL 進進程，避免 ctranslate2 延遲載入失敗
     if registered:
@@ -68,8 +72,9 @@ def _register_whisper_dll_dirs() -> None:
         for name in preload_names:
             try:
                 ctypes.WinDLL(name)
-            except OSError:
-                pass
+            except OSError as exc:
+                # 單一 CUDA 動態程式庫未安裝屬正常情況，記錄後繼續嘗試其餘 DLL
+                logger.warning("[Whisper] 預載 CUDA DLL 失敗 %s: %s", name, exc)
 
 
 def _get_whisper_model():

@@ -17,39 +17,39 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/skill")
-@ApiControllerTag(name = "Skills", description = "Backend API endpoints - Skill management")
+@ApiControllerTag(name = "Skills", description = "技能管理相關 API")
 public class SkillController {
     @Autowired
     private ISkillService skillService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Add skill", description = "Creates a new skill.")
+    @ApiOperationBadRequest(summary = "新增技能", description = "建立新的技能。")
     public ResponseType<SkillVo> addSkill(@RequestBody SkillVo skill) {
-        return ResponseType.Success(skillService.addSkill(skill), "Skill added successfully");
+        return ResponseType.Success(skillService.addSkill(skill), "技能新增成功");
     }
 
     @GetMapping("/get")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "Get skills", description = "Returns all skills.")
+    @ApiOperationOk(summary = "取得技能列表", description = "回傳所有技能。")
     public ResponseType<List<SkillVo>> getSkill() {
-        return ResponseType.Success(skillService.getSkill(), "Skills fetched successfully");
+        return ResponseType.Success(skillService.getSkill(), "技能查詢成功");
     }
 
     @PostMapping("/update")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Update skill", description = "Updates an existing skill.")
+    @ApiOperationBadRequest(summary = "更新技能", description = "更新一筆既有的技能。")
     public ResponseType<String> updateSkill(@RequestBody SkillVo skill) {
         skillService.updateSkill(skill);
-        return ResponseType.Success("Skill updated successfully");
+        return ResponseType.Success("技能更新成功");
     }
 
     @PostMapping("/delete")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "Delete skill", description = "Deletes a skill.")
+    @ApiOperationBadRequest(summary = "刪除技能", description = "刪除一筆技能。")
     public ResponseType<String> deleteSkill(@RequestBody SkillVo skill) {
         skillService.deleteSkill(skill);
-        return ResponseType.Success("Skill deleted successfully");
+        return ResponseType.Success("技能刪除成功");
     }
 
     @PostMapping("/search")

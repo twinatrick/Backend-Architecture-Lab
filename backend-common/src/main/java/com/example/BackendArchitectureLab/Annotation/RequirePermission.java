@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
 /**
  * 權限需求註解。三層權限路徑 = {微服務層, 資源層(第二層), 動作層(第三層)}。
  * <ul>
- *   <li>value()：動作（第三層），如 "View" / "Edit" / "EditAll"。</li>
+ *   <li>value()：動作（第三層），如 "View" / "Edit"（個人語義變體如 "PersonalEdit" / "EditAll" 已禁止）。</li>
  *   <li>layer()：第二層覆寫（僅類別層使用）。預設由 Controller 類名去除「Controller」後綴產生；
  *       當類別上明列 layer() 時，底下方法的第二層一律吃此值，可再被方法級 layer() 覆寫。</li>
  * </ul>

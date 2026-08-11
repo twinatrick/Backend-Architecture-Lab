@@ -1,18 +1,21 @@
 import json
+import logging
 
 import opencc
 
 from config import settings
 from services.common import _is_mock
 
+logger = logging.getLogger(__name__)
+
 _opencc_converter = None
 
 
 def _seconds_to_mmss(seconds: float) -> str:
     """將秒數轉換為 MM:SS 格式字串"""
-    m = int(seconds) // 60
-    s = int(seconds) % 60
-    return f"{m:02d}:{s:02d}"
+    minutes = int(seconds) // 60
+    remaining_seconds = int(seconds) % 60
+    return f"{minutes:02d}:{remaining_seconds:02d}"
 
 
 def _parse_speaker_names() -> list:
@@ -58,8 +61,9 @@ def _align_segments_to_speakers(segments, diarization_result, speaker_names):
             try:
                 idx = unique_speakers_ordered.index(assigned_speaker)
                 speaker_label = speaker_names[idx] if idx < len(speaker_names) else assigned_speaker
-            except ValueError:
-                pass
+            except ValueError as exc:
+                # 語者名稱清單可能不完整，找不到時退回原始標籤
+                logger.warning("[STT] 語者名稱查無對應: %s", exc)
 
         aligned.append((speaker_label, seg.text.strip(), seg.start, seg.end))
 

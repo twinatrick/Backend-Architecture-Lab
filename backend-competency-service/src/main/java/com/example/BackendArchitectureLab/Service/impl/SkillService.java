@@ -76,18 +76,28 @@ public class SkillService implements ISkillService {
     @Autowired
     private UserServiceFeignClient userServiceFeignClient;
 
-    @Lazy
+@Lazy
     @Autowired
-    private ISkillService self;
+    private SkillService self;
 
-    @Transactional
     @Override
-    @Caching(put = {
-        @CachePut(value = "skills", key = "#result.id")
-    }, evict = {
-        @CacheEvict(value = "skills", key = "'all'")
-    })
     public SkillVo addSkill(SkillVo skillVo) {
+        if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
+            validateUsersExist(skillVo.getUserIds().stream().map(UUID::fromString).toList());
+        }
+        return self.doAddSkill(skillVo);
+    }
+
+    /**
+     * 交易內新增技能（由 addSkill 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
+    @Caching(put = {
+            @CachePut(value = "skills", key = "#result.id")
+    }, evict = {
+            @CacheEvict(value = "skills", key = "'all'")
+    })
+    public SkillVo doAddSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
         if (skill.getId() != null) {
             throw new IllegalArgumentException("Key must be null");
@@ -109,14 +119,24 @@ public class SkillService implements ISkillService {
         return skillMapper.toVo(savedSkill);
     }
 
-    @Transactional
     @Override
-    @Caching(put = {
-        @CachePut(value = "skills", key = "#skillVo.id")
-    }, evict = {
-        @CacheEvict(value = "skills", key = "'all'")
-    })
     public void updateSkill(SkillVo skillVo) {
+        if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
+            validateUsersExist(skillVo.getUserIds().stream().map(UUID::fromString).toList());
+        }
+        self.doUpdateSkill(skillVo);
+    }
+
+    /**
+     * 交易內更新技能（由 updateSkill 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
+    @Caching(put = {
+            @CachePut(value = "skills", key = "#skillVo.id")
+    }, evict = {
+            @CacheEvict(value = "skills", key = "'all'")
+    })
+    public void doUpdateSkill(SkillVo skillVo) {
         Skill skill = skillMapper.toEntity(skillVo);
         if (skill.getId() == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -176,13 +196,6 @@ public class SkillService implements ISkillService {
 
         // 綁定每個使用者
         for (UUID userId : targetUserIds) {
-            String userIdStr = userId.toString();
-            
-            // 驗證使用者是否存在
-            if (!userServiceFeignClient.existsUserById(userId)) {
-                throw new IllegalArgumentException("User not found: " + userIdStr);
-            }
-            
             // 檢查是否已存在綁定
             if (!userSkillDataAccess.existsByUserIdAndSkillId(userId, skillId)) {
                 UserSkill userSkill = new UserSkill();
@@ -190,6 +203,23 @@ public class SkillService implements ISkillService {
                 userSkill.setSkill(skill);
                 userSkill.setSkillLevel(skillLevel);
                 userSkillDataAccess.save(userSkill);
+            }
+        }
+    }
+
+    /**
+     * 在交易外驗證所有使用者存在（同步 Feign 呼叫不應占用資料庫交易）
+     *
+     * @param userIds 要驗證的使用者 ID 集合
+     * @throws IllegalArgumentException 當任一使用者不存在時拋出
+     */
+    private void validateUsersExist(List<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        for (UUID userId : userIds) {
+            if (!userServiceFeignClient.existsUserById(userId)) {
+                throw new IllegalArgumentException("User not found");
             }
         }
     }
@@ -309,7 +339,6 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    @Transactional
     public void bindUserSkill(String userId, String skillId, String skillLevelId) {
         UUID userUuid = mapUuid(userId);
         UUID skillUuid = mapUuid(skillId);
@@ -318,9 +347,15 @@ public class SkillService implements ISkillService {
             throw new IllegalArgumentException("Key must not be null");
         }
 
-        if (!userServiceFeignClient.existsUserById(userUuid)) {
-            throw new IllegalArgumentException("User not found");
-        }
+        validateUsersExist(List.of(userUuid));
+        self.doBindUserSkill(userUuid, skillUuid, skillLevelUuid);
+    }
+
+    /**
+     * 交易內綁定單一技能（由 bindUserSkill 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
+    public void doBindUserSkill(UUID userUuid, UUID skillUuid, UUID skillLevelUuid) {
         Skill skill = skillDataAccess.findById(skillUuid)
                 .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
         SkillLevel skillLevel = skillLevelDataAccess.findById(skillLevelUuid)
@@ -339,20 +374,24 @@ public class SkillService implements ISkillService {
         });
         target.put(skillUuid, skillLevelUuid);
 
-        rebindUserSkills(userUuid, target);
+        self.doRebindUserSkills(userUuid, target);
     }
 
-    @Transactional
     @Override
     public void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping) {
         if (userId == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
 
-        if (!userServiceFeignClient.existsUserById(userId)) {
-            throw new IllegalArgumentException("User not found");
-        }
+        validateUsersExist(List.of(userId));
+        self.doRebindUserSkills(userId, skillLevelMapping);
+    }
 
+    /**
+     * 交易內重新綁定使用者技能（由 rebindUserSkills 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
+    public void doRebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping) {
         Map<UUID, UUID> targetMap = normalizeSkillLevelMapping(skillLevelMapping);
         validateSkillLevelMapping(targetMap);
 

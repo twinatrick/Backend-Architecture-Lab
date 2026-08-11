@@ -90,24 +90,22 @@ public class InitAndCheckService implements IInitAndCheckService {
                 List.of("Iam", "User", "View"),
                 List.of("Iam", "User", "Create"),
                 List.of("Iam", "User", "Edit"),
-                List.of("Iam", "RolePermission", "View"),
                 List.of("Iam", "Role", "View"),
                 List.of("Iam", "Role", "Edit"),
                 List.of("Iam", "Function", "View"),
                 List.of("Iam", "Function", "Edit"),
                 // Competency
-                List.of("Competency", "SkillManagement", "View"),
                 List.of("Competency", "Skill", "View"),
                 List.of("Competency", "Skill", "Edit"),
                 List.of("Competency", "SkillLevel", "View"),
                 List.of("Competency", "SkillLevel", "Edit"),
                 List.of("Competency", "PersonalSkill", "Edit"),
+                List.of("Competency", "PersonalProject", "View"),
+                List.of("Competency", "PersonalProject", "Edit"),
                 List.of("Competency", "ProjectManagement", "View"),
                 List.of("Competency", "ProjectManagement", "Edit"),
-                List.of("Competency", "ProjectManagement", "EditAll"),
                 List.of("Competency", "Project", "View"),
                 List.of("Competency", "Project", "Edit"),
-                List.of("Competency", "Project", "PersonalEdit"),
                 // Job
                 List.of("Job", "Company", "View"),
                 List.of("Job", "Company", "Edit"),
@@ -118,10 +116,8 @@ public class InitAndCheckService implements IInitAndCheckService {
                 List.of("Job", "UserJobLink", "Edit"),
                 // Alert
                 List.of("Alert", "AquarkData", "View"),
-                List.of("Alert", "AquarkDataAvg", "View"),
                 List.of("Alert", "AlertLimit", "View"),
                 List.of("Alert", "AlertLimit", "Edit"),
-                List.of("Alert", "LimitSetting", "View"),
                 // ExternalApi
                 List.of("ExternalApi", "VoiceUpload", "View"),
                 List.of("ExternalApi", "VoiceUpload", "Edit")
