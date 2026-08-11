@@ -27,11 +27,14 @@ torchaudio==2.5.1+cu121
 pyannote.audio==3.1.1
 numpy==1.26.4
 soundfile==0.14.0
-huggingface_hub==1.26.0
+huggingface_hub==0.26.3
 ```
 
 > **重要**：`numpy` 必須鎖定為 1.x（`1.26.4`）。若 pip 自動安裝 NumPy 2.x，
 > 會導致 `pyannote.audio` 與 `torch` 相依性衝突。
+> `huggingface_hub` 必須鎖定 0.x（`0.26.3`）：`pyannote.audio 3.1.1` 仍使用
+> 已於 1.x 移除的 `use_auth_token` 參數，升級至 1.x 會導致 pipeline 載入失敗
+> （`TypeError: hf_hub_download() got an unexpected keyword argument use_auth_token`）。
 
 ## 建立環境步驟
 

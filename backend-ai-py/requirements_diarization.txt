@@ -13,4 +13,6 @@ pyannote.audio==3.1.1
 # 相依性鎖定（numpy 必須為 1.x，避免與 PyTorch/PyAnnote 衝突）
 numpy==1.26.4
 soundfile==0.14.0
-huggingface_hub==1.26.0
+# huggingface_hub 必須為 0.x：pyannote.audio 3.1.1 仍使用 use_auth_token，
+# 1.x 已移除該參數，會導致 pipeline 載入失敗（TypeError: unexpected keyword argument）
+huggingface_hub==0.26.3
