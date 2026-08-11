@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.IUserProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +25,11 @@ public class UserProjectService implements IUserProjectService {
     private IProjectDataAccess projectDataAccess;
     @Autowired
     private UserServiceFeignClient userServiceFeignClient;
+    @Autowired
+    @Lazy
+    private UserProjectService self;
 
     @Override
-    @Transactional
     public void rebindUserProjects(UUID userId, List<UUID> projectIds) {
         if (userId == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -37,6 +40,14 @@ public class UserProjectService implements IUserProjectService {
             throw new IllegalArgumentException("User not found");
         }
 
+        self.doRebindUserProjects(userId, projectIds);
+    }
+
+    /**
+     * 交易內重新綁定使用者專案（由 rebindUserProjects 在交易外的 Feign 驗證後呼叫）
+     */
+    @Transactional
+    public void doRebindUserProjects(UUID userId, List<UUID> projectIds) {
         Set<UUID> targetProjectIds = projectIds == null
                 ? Set.of()
                 : projectIds.stream()
