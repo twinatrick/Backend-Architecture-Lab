@@ -645,19 +645,19 @@ void deleteLimitEntity(AlertCheckLimit entity);
 | 檔案 | 說明 |
 |------|------|
 | `Service/IBloomFilterService.java` | 布隆過濾器服務介面 |
-| `Service/impl/BloomFilterService.java` | 布隆過濾器實作（Redisson RBloomFilter） |
+| `Service/Impl/BloomFilterService.java` | 布隆過濾器實作（Redisson RBloomFilter） |
 | `Config/BloomFilterInitializer.java` | 啟動時從 DB 填充過濾器 |
 | `Config/CachePenetrationProtectionCache.java` | 自訂 Cache 包裝（BF + Null Value + 統計發送） |
 | `Config/CachePenetrationProtectionCacheManager.java` | 自訂 CacheManager |
 | `Config/NullValueTtlProperties.java` | 空值 TTL 配置屬性 |
 | `Util/NullValue.java` | 可序列化的空值佔位 POJO |
 | `Service/CacheStatsPublisher.java` | 快取統計發布者介面 |
-| `Service/impl/KafkaCacheStatsPublisher.java` | Kafka 實作，發送 hit/miss/bloom_rejects 事件 |
+| `Service/Impl/KafkaCacheStatsPublisher.java` | Kafka 實作，發送 hit/miss/bloom_rejects 事件 |
 | `Vo/CacheStatsEvent.java` | 快取統計事件 Vo（cacheName, field） |
 | `../alert-service/.../Controller/CacheStatsController.java` | `GET /cache-stats` 查詢 API |
 | `../alert-service/.../Service/ICacheStatsService.java` | 統計查詢服務介面 |
-| `../alert-service/.../Service/impl/CacheStatsServiceImpl.java` | 統計查詢實作（讀取 Redis Hash） |
-| `../alert-service/.../Service/impl/CacheStatsConsumer.java` | Kafka Consumer，將事件聚合至 Redis Hash |
+| `../alert-service/.../Service/Impl/CacheStatsServiceImpl.java` | 統計查詢實作（讀取 Redis Hash） |
+| `../alert-service/.../Service/Impl/CacheStatsConsumer.java` | Kafka Consumer，將事件聚合至 Redis Hash |
 
 ---
 

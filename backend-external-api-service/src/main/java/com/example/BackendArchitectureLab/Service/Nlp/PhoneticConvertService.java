@@ -6,10 +6,12 @@ import net.sourceforge.pinyin4j.PinyinHelper;
 import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType;
 import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat;
 import net.sourceforge.pinyin4j.format.HanyuPinyinToneType;
+import net.sourceforge.pinyin4j.format.HanyuPinyinVCharType;
 import net.sourceforge.pinyin4j.format.exception.BadHanyuPinyinOutputFormatCombination;
 import com.rnkrsoft.bopomofo4j.Bopomofo4j;
 import org.springframework.stereotype.Service;
 
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +52,7 @@ public class PhoneticConvertService {
         format.setCaseType(HanyuPinyinCaseType.LOWERCASE);
         format.setToneType(HanyuPinyinToneType.WITH_TONE_MARK);
         // 使用 WITH_TONE_MARK 時，vCharType 必須設為 WITH_U_UNICODE
-        format.setVCharType(net.sourceforge.pinyin4j.format.HanyuPinyinVCharType.WITH_U_UNICODE);
+        format.setVCharType(HanyuPinyinVCharType.WITH_U_UNICODE);
 
         StringBuilder sb = new StringBuilder();
         for (char c : text.toCharArray()) {
@@ -78,7 +80,7 @@ public class PhoneticConvertService {
     }
 
     private String toRomaji(String text) {
-        text = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC);
+        text = Normalizer.normalize(text, Normalizer.Form.NFC);
         List<Token> tokens = kuromojiTokenizer.tokenize(text);
         StringBuilder sb = new StringBuilder();
         

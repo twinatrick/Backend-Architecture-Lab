@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Entity.JobPosting;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -16,5 +17,5 @@ public interface JobPostingRepository extends JpaRepository<JobPosting, UUID>, J
     List<UUID> findAllIds();
 
     @Query("SELECT jp FROM JobPosting jp WHERE jp.company.id = :companyId")
-    List<JobPosting> findByCompanyId(@org.springframework.data.repository.query.Param("companyId") UUID companyId);
+    List<JobPosting> findByCompanyId(@Param("companyId") UUID companyId);
 }

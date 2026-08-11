@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Repository.DiscordGfSessionRepository;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.ISttService;
+import com.example.BackendArchitectureLab.Service.Impl.TtsService;
 import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
@@ -360,7 +361,7 @@ public class DiscordGfListener extends ListenerAdapter {
                 String lang = session.getLanguage() != null ? session.getLanguage() : "zh";
 
                 // 套用動作過濾：只將純台詞傳送給語音合成，避免尷尬旁白讀出，且大幅加速合成
-                String speechText = com.example.BackendArchitectureLab.Service.impl.TtsService.filterActionsForTts(reply);
+                String speechText = TtsService.filterActionsForTts(reply);
                 if (speechText.isEmpty()) {
                     speechText = reply; // 如果全為動作描述，則回退使用原本的回覆
                 }

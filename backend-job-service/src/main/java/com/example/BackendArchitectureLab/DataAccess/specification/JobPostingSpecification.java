@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class JobPostingSpecification {
 
@@ -17,7 +18,7 @@ public class JobPostingSpecification {
             if (query.getTitle() != null && !query.getTitle().trim().isEmpty())
                 predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("title")), "%" + query.getTitle().toLowerCase() + "%"));
             if (query.getCompanyId() != null && !query.getCompanyId().trim().isEmpty())
-                predicates.add(criteriaBuilder.equal(root.get("company").get("id"), java.util.UUID.fromString(query.getCompanyId())));
+                predicates.add(criteriaBuilder.equal(root.get("company").get("id"), UUID.fromString(query.getCompanyId())));
             if (query.getCompanyName() != null && !query.getCompanyName().trim().isEmpty())
                 predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("company").get("name")), "%" + query.getCompanyName().toLowerCase() + "%"));
             if (query.getSalaryRange() != null && !query.getSalaryRange().trim().isEmpty())

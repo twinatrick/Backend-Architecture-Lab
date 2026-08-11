@@ -4,8 +4,10 @@ import com.example.BackendArchitectureLab.Entity.Function;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface FunctionRepository extends JpaRepository<Function, UUID>, JpaSpecificationExecutor<Function> {
@@ -26,5 +28,5 @@ public interface FunctionRepository extends JpaRepository<Function, UUID>, JpaSp
     List<UUID> findAllIds();
 
     @Query("SELECT f FROM Function f LEFT JOIN FETCH f.roleFunctions rf LEFT JOIN FETCH rf.role WHERE f.id = :id")
-    java.util.Optional<Function> findByIdWithRoleFunctions(@org.springframework.data.repository.query.Param("id") UUID id);
+    Optional<Function> findByIdWithRoleFunctions(@Param("id") UUID id);
 }

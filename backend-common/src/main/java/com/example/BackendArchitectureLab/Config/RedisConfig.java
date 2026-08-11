@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Config;
 import com.example.BackendArchitectureLab.DataAccess.IBloomFilterDataAccess;
 import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
-import com.example.BackendArchitectureLab.Service.impl.BloomFilterService;
+import com.example.BackendArchitectureLab.Service.Impl.BloomFilterService;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;

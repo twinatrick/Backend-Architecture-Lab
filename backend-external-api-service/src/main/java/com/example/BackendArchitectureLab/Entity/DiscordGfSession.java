@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,7 +14,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "discord_gf_session", uniqueConstraints = @jakarta.persistence.UniqueConstraint(columnNames = {"channel_id", "user_id"}))
+@Table(name = "discord_gf_session", uniqueConstraints = @UniqueConstraint(columnNames = {"channel_id", "user_id"}))
 public class DiscordGfSession extends BaseEntity {
 
     @Column(name = "guild_id", nullable = false)
