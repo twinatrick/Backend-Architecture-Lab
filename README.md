@@ -124,7 +124,7 @@
 
 **實作方式**：前端登入取得 JWT → 各服務收到請求後，業務服務透過 `PermissionCheckFeignClient` 呼叫 IAM 的 `/role/inner/validate`（`com.example.BackendArchitectureLab.Controller.PermissionInternalController`）驗證權限；IAM 自己則直接用本機 `Aop.LocalPermissionValidator`（避免自我 Feign 呼叫）。
 
-**權限模型**：三層結構 `{微服務}/{資源層}/{動作層}`，以 `@RequirePermission` 註記在 Controller 方法上（如 `@RequirePermission("Edit")`）。權限字典在 IAM 啟動時由 `com.example.BackendArchitectureLab.Service.impl.InitAndCheckService` 自動補建，即使開發中新增權限不註冊也會自動建立。
+**權限模型**：三層結構 `{微服務}/{資源層}/{動作層}`，以 `@RequirePermission` 註記在 Controller 方法上（如 `@RequirePermission("Edit")`）。權限字典在 IAM 啟動時由 `com.example.BackendArchitectureLab.Service.Impl.InitAndCheckService` 自動補建，即使開發中新增權限不註冊也會自動建立。
 
 ## 4. Kafka 非同步事件（3 大主題）
 

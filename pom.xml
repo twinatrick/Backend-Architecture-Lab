@@ -344,28 +344,28 @@
                             <exclude>com/example/BackendArchitectureLab/Security/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Annotation/**</exclude>
                             <exclude>com/example/BackendArchitectureLab/Util/*Mapper.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/BaseOpenAiService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/GeminiService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/ProjectService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/ChatService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/TtsService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/SttService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/UsageTrackService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/TtsRefAudioService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/LineGfService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/LineGfRichMenuService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/LineWebhookService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/LineDiaryService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/BotConfigService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/VoiceDiaryService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/ApiUsageLogService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/GitHubModelsService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/CompositeAiService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/LearnService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/DeepSeekService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/GroqService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/BaseOpenAiService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/GeminiService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/ProjectService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/ChatService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/TtsService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/SttService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/UsageTrackService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/TtsRefAudioService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/LineGfService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/LineGfRichMenuService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/LineWebhookService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/LineDiaryService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/BotConfigService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/VoiceDiaryService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/ApiUsageLogService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/GitHubModelsService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/CompositeAiService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/LearnService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/DeepSeekService.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/GroqService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/UsageTracker.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/impl/CacheStatsConsumer.class</exclude>
+                            <exclude>com/example/BackendArchitectureLab/Service/Impl/CacheStatsConsumer.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Discord/**</exclude>
                             <exclude>**/*Application.class</exclude>
                         </excludes>

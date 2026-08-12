@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,8 +29,8 @@ public class BotConfig extends BaseEntity {
     private String description;
 
     @Column(name = "cost_limit_daily")
-    private java.math.BigDecimal costLimitDaily;
+    private BigDecimal costLimitDaily;
 
     @Column(name = "cost_alert_at")
-    private java.math.BigDecimal costAlertAt;
+    private BigDecimal costAlertAt;
 }

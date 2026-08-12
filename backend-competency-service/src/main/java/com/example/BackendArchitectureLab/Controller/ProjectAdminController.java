@@ -6,7 +6,8 @@ import com.example.BackendArchitectureLab.Vo.ProjectSkillRebindRequest;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserProjectRebindRequest;
 import com.example.BackendArchitectureLab.Vo.UserSkillRebindRequest;
-import com.example.BackendArchitectureLab.Service.IProjectService;
+import com.example.BackendArchitectureLab.Service.IProjectSkillService;
+import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Service.IUserProjectService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.SkillLevelBindingMapper;
@@ -36,7 +37,9 @@ public class ProjectAdminController {
     private static final Logger log = LoggerFactory.getLogger(ProjectAdminController.class);
 
     @Autowired
-    private IProjectService projectService;
+    private IProjectSkillService projectSkillService;
+    @Autowired
+    private IProjectUserBindingService projectUserBindingService;
     @Autowired
     private IUserProjectService userProjectService;
     @Autowired
@@ -75,7 +78,7 @@ public class ProjectAdminController {
         UUID projectId = parseUuid(request.getProjectId(), "projectId");
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("Admin rebinding project {} with {} skill bindings", projectId, bindingCount);
-        projectService.rebindProjectSkills(projectId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
+        projectSkillService.rebindProjectSkills(projectId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));
         log.info("Admin rebound project {} skills successfully", projectId);
         return ResponseType.Success("專案技能重新綁定成功");
     }
@@ -103,7 +106,7 @@ public class ProjectAdminController {
             }
         }
 
-        projectService.rebindProjectMemberSkills(projectId, memberSkillsMap);
+        projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap);
         log.info("Admin rebound project {} member skills successfully", projectId);
         return ResponseType.Success("專案成員技能重新綁定成功");
     }

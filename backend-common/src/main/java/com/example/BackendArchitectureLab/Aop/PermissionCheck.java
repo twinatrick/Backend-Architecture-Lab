@@ -23,6 +23,7 @@ import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 
@@ -88,7 +89,7 @@ public class PermissionCheck {
         try {
             matched = localPermissionValidator.validate(email, module, layer, action);
         } catch (Exception e) {
-            Throwable cause = e instanceof java.lang.reflect.InvocationTargetException ? e.getCause() : e;
+            Throwable cause = e instanceof InvocationTargetException ? e.getCause() : e;
             if (cause instanceof FeignException fe) {
                 log.error("Permission check Feign call failed for user={}, path={}/{}/{}: status={}, message={}",
                         email, module, layer, action, fe.status(), fe.getMessage());

@@ -17,6 +17,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
+import java.util.concurrent.Callable;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -211,7 +212,7 @@ class CachePenetrationProtectionCacheTest {
     void getWithLoader_WhenBloomFilterSaysNo_ReturnsNullWithoutCallingLoader() throws Exception {
         when(stringRedisTemplate.hasKey(nullKey)).thenReturn(false);
         when(bloomFilterService.mightContain(cacheName, testKey)).thenReturn(false);
-        java.util.concurrent.Callable<String> loader = mock(java.util.concurrent.Callable.class);
+        Callable<String> loader = mock(Callable.class);
 
         Object result = cache.get(testKey, loader);
 
@@ -222,7 +223,7 @@ class CachePenetrationProtectionCacheTest {
     @Test
     void getWithLoader_WhenNullMarkerExists_ReturnsNullWithoutQuerying() throws Exception {
         when(stringRedisTemplate.hasKey(nullKey)).thenReturn(true);
-        java.util.concurrent.Callable<String> loader = mock(java.util.concurrent.Callable.class);
+        Callable<String> loader = mock(Callable.class);
 
         Object result = cache.get(testKey, loader);
 

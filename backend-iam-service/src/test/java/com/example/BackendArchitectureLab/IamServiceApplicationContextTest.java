@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab;
 
 import com.example.BackendArchitectureLab.Aop.DefaultPermissionValidator;
 import com.example.BackendArchitectureLab.Aop.LocalPermissionValidator;
-import com.example.BackendArchitectureLab.Service.impl.LocalPermissionValidatorImpl;
+import com.example.BackendArchitectureLab.Service.Impl.LocalPermissionValidatorImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RedissonClient;

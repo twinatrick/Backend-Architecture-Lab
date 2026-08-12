@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 import java.lang.reflect.Method;
@@ -22,7 +23,7 @@ class GatewaySecurityConfigTest {
     @DisplayName("Should declare @Bean for SecurityWebFilterChain")
     void testSecurityWebFilterChainBeanDeclaration() throws Exception {
         Method method = GatewaySecurityConfig.class.getDeclaredMethod("securityWebFilterChain",
-                org.springframework.security.config.web.server.ServerHttpSecurity.class);
+                ServerHttpSecurity.class);
         assertNotNull(method);
         assertTrue(method.isAnnotationPresent(Bean.class));
         assertEquals(SecurityWebFilterChain.class, method.getReturnType());

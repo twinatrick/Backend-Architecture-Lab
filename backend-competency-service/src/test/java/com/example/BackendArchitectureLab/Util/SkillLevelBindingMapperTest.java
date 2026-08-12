@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Vo.SkillLevelBindingItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,7 +50,7 @@ class SkillLevelBindingMapperTest {
     @Test
     @DisplayName("Should throw exception when binding item is null")
     void testToSkillLevelMap_NullItem() {
-        List<SkillLevelBindingItem> bindings = new java.util.ArrayList<>();
+        List<SkillLevelBindingItem> bindings = new ArrayList<>();
         bindings.add(null);
 
         assertThrows(IllegalArgumentException.class,

@@ -14,6 +14,7 @@ import org.jose4j.jwt.consumer.InvalidJwtException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -67,7 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (userDetailsService != null) {
                         userDetails = userDetailsService.loadUserByUsername(email);
                     } else {
-                        userDetails = new org.springframework.security.core.userdetails.User(email, "", List.of());
+                        userDetails = new User(email, "", List.of());
                     }
 
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

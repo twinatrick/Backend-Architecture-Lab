@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from services.tts_service import text_to_sound
+from services.tts_service import tts_service
 from utils.audio import convert_wav_to_m4a
 from utils.file_adapter import upload_to_minio
 
@@ -20,7 +20,7 @@ class TtsRequest(BaseModel):
 
 @router.post("/tts")
 async def tts_endpoint(body: TtsRequest):
-    audio_bytes = text_to_sound(
+    audio_bytes = tts_service.text_to_sound(
         body.text,
         body.language,
         body.voiceSampleKey,

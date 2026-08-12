@@ -45,8 +45,8 @@
   - Controller 只與 Service 介面及 Vo 型別互動，Controller 程式碼中不得出現 Entity 型別
 - **Entity 使用規範 (重要)**:
   - Entity 僅在 Repository、DataAccess 及 Service Impl（經 Mapper 轉換後）中使用，**嚴禁**傳遞至 Controller 層或作為 API 回傳型別
-- **開發規範 (唯一規則文件)**: **絕對必須遵守** `開發規範.md`（此為唯一規則來源，合併自微服務分類/Permission/Controller 註記/Python 規則，原文於 `docs/archive/`）。重點包含：模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager、三層權限設計（`@RequirePermission`）、Controller OpenAPI 標準註記（`Annotation/OpenApi`）、Python 語法規範（import 置頂/禁止單字母變數/禁止 `except: pass`）。
-- **範例一律使用完整套件路徑**: 文件或說明中引用程式碼位置時，一律寫完整套件路徑（如 `com.example.BackendArchitectureLab.Service.impl.RoleService`），嚴禁寫縮寫路徑（如 `RoleService.java`）。
+- **開發規範 (唯一規則文件)**: **絕對必須遵守** `開發規範.md`（此為唯一規則來源，合併自微服務分類/Permission/Controller 註記/Python 規則/程式碼品質標準（CodeReadview），原文於 `docs/archive/`）。重點包含：模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager、三層權限設計（`@RequirePermission`）、Controller OpenAPI 標準註記（`Annotation/OpenApi`）、Python 語法規範（import 置頂/禁止單字母變數/禁止 `except: pass`）、程式碼品質標準（SOLID/DRY/KISS/YAGNI/高內聚低耦合/Boy Scout Rule）。
+- **範例一律使用完整套件路徑**: 文件或說明中引用程式碼位置時，一律寫完整套件路徑（如 `com.example.BackendArchitectureLab.Service.Impl.RoleService`），嚴禁寫縮寫路徑（如 `RoleService.java`）。
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。
