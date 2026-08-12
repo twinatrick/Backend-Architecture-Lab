@@ -14,6 +14,7 @@ import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -58,7 +59,9 @@ public class KafkaCompensationConfig {
         ConcurrentKafkaListenerContainerFactory<String, CompensationEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(compensationConsumerFactory);
-        factory.setCommonErrorHandler(new DefaultErrorHandler());
+        // Consumer retry policy：FixedBackOff（1 秒間隔、最多 4 次退避 = 含首發共 5 次嘗試），
+        // 超過後交由 error handler 記錄失敗（無 DLT，事件依賴 Kafka offset 推進失敗交由人工/監控告警）
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 4L)));
         return factory;
     }
 }

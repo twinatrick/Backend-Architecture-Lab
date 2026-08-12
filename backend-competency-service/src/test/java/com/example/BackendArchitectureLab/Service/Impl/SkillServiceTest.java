@@ -11,7 +11,7 @@ import com.example.BackendArchitectureLab.Entity.*;
 import com.example.BackendArchitectureLab.Service.Impl.SkillService;
 import com.example.BackendArchitectureLab.DataAccess.*;
 import com.example.BackendArchitectureLab.Exception.AppException;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import org.springframework.cache.CacheManager;
@@ -55,7 +55,7 @@ class SkillServiceTest {
     @Mock
     private SkillMapper skillMapper;
     @Mock
-    private UserServiceFeignClient userServiceFeignClient;
+    private IUserGateway userGateway;
     @Mock
     private SecurityUtil securityUtil;
     @Mock
@@ -131,7 +131,7 @@ class SkillServiceTest {
         level.setId(levelId);
         level.setSkill(skill);
 
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
         when(userSkillDataAccess.existsByUserIdAndSkillId(userId, skillId)).thenReturn(false);
@@ -844,7 +844,7 @@ class SkillServiceTest {
         UUID skillId = UUID.randomUUID();
         UUID levelId = UUID.randomUUID();
 
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(false);
+        when(userGateway.existsUserById(userId)).thenReturn(false);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
                 skillService.bindUserSkill(userId.toString(), skillId.toString(), levelId.toString())
@@ -858,7 +858,7 @@ class SkillServiceTest {
         UUID skillId = UUID.randomUUID();
         UUID levelId = UUID.randomUUID();
 
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
@@ -876,7 +876,7 @@ class SkillServiceTest {
         Skill skill = new Skill();
         skill.setId(skillId);
 
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.empty());
 
@@ -898,7 +898,7 @@ class SkillServiceTest {
         level.setId(levelId);
         level.setSkill(skill);
 
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
         when(userSkillDataAccess.existsByUserIdAndSkillId(userId, skillId)).thenReturn(true);
@@ -1428,8 +1428,8 @@ class SkillServiceTest {
         when(skillDataAccess.exists(any())).thenReturn(false);
         when(skillDataAccess.save(newSkill)).thenReturn(testSkill);
         when(skillDataAccess.findById(testSkill.getId())).thenReturn(Optional.of(testSkill));
-        when(userServiceFeignClient.existsUserById(userId1)).thenReturn(true);
-        when(userServiceFeignClient.existsUserById(userId2)).thenReturn(true);
+        when(userGateway.existsUserById(userId1)).thenReturn(true);
+        when(userGateway.existsUserById(userId2)).thenReturn(true);
         when(skillLevelDataAccess.findById(testSkillLevel.getId())).thenReturn(Optional.of(testSkillLevel));
         when(userSkillDataAccess.existsByUserIdAndSkillId(userId1, testSkill.getId())).thenReturn(false);
         when(userSkillDataAccess.existsByUserIdAndSkillId(userId2, testSkill.getId())).thenReturn(false);
@@ -1462,7 +1462,7 @@ class SkillServiceTest {
         when(skillDataAccess.exists(any())).thenReturn(false);
         when(skillDataAccess.save(newSkill)).thenReturn(testSkill);
         when(skillDataAccess.findById(testSkill.getId())).thenReturn(Optional.of(testSkill));
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(testSkill.getId())).thenReturn(List.of(testSkillLevel));
         when(userSkillDataAccess.existsByUserIdAndSkillId(userId, testSkill.getId())).thenReturn(false);
         when(skillMapper.toVo(testSkill)).thenReturn(skillVo);
@@ -1493,7 +1493,7 @@ class SkillServiceTest {
         when(skillDataAccess.exists(any())).thenReturn(false);
         when(skillDataAccess.save(newSkill)).thenReturn(testSkill);
         when(skillDataAccess.findById(testSkill.getId())).thenReturn(Optional.of(testSkill));
-        when(userServiceFeignClient.existsUserById(invalidUserId)).thenReturn(false);
+        when(userGateway.existsUserById(invalidUserId)).thenReturn(false);
         when(skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(testSkill.getId())).thenReturn(List.of(testSkillLevel));
 
         // Act & Assert
@@ -1523,7 +1523,7 @@ class SkillServiceTest {
         when(skillDataAccess.exists(any())).thenReturn(false);
         when(skillDataAccess.save(newSkill)).thenReturn(testSkill);
         when(skillDataAccess.findById(testSkill.getId())).thenReturn(Optional.of(testSkill));
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(skillLevelDataAccess.findById(invalidLevelId)).thenReturn(Optional.empty());
         
         // Act & Assert
@@ -1552,7 +1552,7 @@ class SkillServiceTest {
         when(skillMapper.toEntity(skillVo)).thenReturn(testSkill);
         when(userSkillDataAccess.findBySkillId(testSkillId)).thenReturn(List.of(existingBinding));
         when(skillDataAccess.findById(testSkillId)).thenReturn(Optional.of(testSkill));
-        when(userServiceFeignClient.existsUserById(userId2)).thenReturn(true);
+        when(userGateway.existsUserById(userId2)).thenReturn(true);
         when(skillLevelDataAccess.findById(testSkillLevel.getId())).thenReturn(Optional.of(testSkillLevel));
         when(userSkillDataAccess.existsByUserIdAndSkillId(userId2, testSkillId)).thenReturn(false);
         

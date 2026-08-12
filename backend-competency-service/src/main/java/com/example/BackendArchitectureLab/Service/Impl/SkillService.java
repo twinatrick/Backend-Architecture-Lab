@@ -24,8 +24,8 @@ import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserSkillDataAccess;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
+import com.example.BackendArchitectureLab.Service.IUserGateway;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -81,7 +81,7 @@ public class SkillService implements ISkillService {
     @Autowired
     private SecurityUtil securityUtil;
     @Autowired
-    private UserServiceFeignClient userServiceFeignClient;
+    private IUserGateway userGateway;
 
 @Lazy
     @Autowired
@@ -225,7 +225,7 @@ public class SkillService implements ISkillService {
             return;
         }
         for (UUID userId : userIds) {
-            if (!userServiceFeignClient.existsUserById(userId)) {
+            if (!userGateway.existsUserById(userId)) {
                 throw new IllegalArgumentException("User not found");
             }
         }
@@ -752,7 +752,6 @@ public class SkillService implements ISkillService {
         return PageResult.of(page, content);
     }
     
-    @SuppressWarnings("unchecked")
     private <T extends Comparable<T>> int compareNullable(T o1, T o2) {
         if (o1 == null && o2 == null) return 0;
         if (o1 == null) return -1;
