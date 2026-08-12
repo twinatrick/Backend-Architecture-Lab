@@ -1,14 +1,19 @@
 from config import settings
 from services.speaker_aligner import SpeakerAligner
 from services.traditional_chinese_converter import TraditionalChineseConverter
+from services.traditional_chinese_converter import traditional_chinese_converter
 
 
 class TranscriptFormatter:
     """轉錄排版器：負責語者分離對話框格式與純文字／時間戳記格式輸出。"""
 
-    def __init__(self) -> None:
-        self.aligner = SpeakerAligner()
-        self.converter = TraditionalChineseConverter()
+    def __init__(
+        self,
+        aligner: SpeakerAligner | None = None,
+        converter: TraditionalChineseConverter | None = None,
+    ) -> None:
+        self.aligner = aligner if aligner is not None else SpeakerAligner()
+        self.converter = converter if converter is not None else traditional_chinese_converter
 
     @staticmethod
     def _seconds_to_mmss(seconds: float) -> str:

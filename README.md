@@ -133,7 +133,7 @@
 Kafka 用於解耦跨服務事件，目前有三大主題（Broker 位址由 KafkaConfig 自動依環境判斷，本機 `localhost:9092`、Docker 內 `kafka:9092`）：
 
 - `socketSend`：告警即時推送。`AlarmKafkaPublisher`（alert）發佈 → `KafkaConsumerService` 接收 → WebSocket 推給前端
-- `transaction-compensation`：分散式事務補償。`CompensationPublisherImpl`（common）發佈 → `CompensationConsumer`（alert）處理，`CompensationEvent` 含 transactionId/action/status，支援 COMMITTED / COMPENSATED / SAVE_POINT / FAILED 狀態；目前由 `ProjectUserBindingService.rebindProjectMemberSkills`（competency）產生事件
+- `transaction-compensation`：分散式事務補償（Transactional Outbox 模式）。`ProjectUserBindingService.rebindProjectMemberSkills`（competency）先將事件寫入 `compensation_outbox_event` 表（與業務交易同 commit，rollback 時一併消失），由 `CompensationOutboxServiceImpl` 排程（預設每 5 秒）批次經 `CompensationPublisherImpl` 發佈 → `CompensationConsumer`（alert）以 `eventId` 冪等去重處理；`CompensationEvent` 含 transactionId/eventId/eventVersion/action/status；狀態機：`TRANSACTION_STARTED` → `COMMITTED` / `FAILED`，補償流程預留 `COMPENSATION_REQUIRED` → `COMPENSATED` / `COMPENSATION_FAILED`
 - `cache-stats`：快取命中統計。`KafkaCacheStatsPublisher` 發佈 → alert-service 的 `CacheStatsController` 暴露查詢
 
 消費者群組預設 `myGroup`（`KafkaConfig`），補償事件另用硬編碼 `compensation-group`（`KafkaCompensationConfig`）；採 at-least-once 語意；容器設有 `DefaultErrorHandler` 處理失敗批次。
@@ -721,10 +721,29 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 | 主題 | 誰發佈 | 誰消費 | 目的 |
 |------|--------|--------|------|
 | `socketSend` | `AlarmKafkaPublisher`（alert）| `KafkaConsumerService` | 告警即時推送到 WebSocket |
-| `transaction-compensation` | `CompensationPublisherImpl`（common，由 `ProjectUserBindingService.rebindProjectMemberSkills` 觸發） | `CompensationConsumer`（alert） | 分散式事務補償（含 transactionId/action/status） |
+| `transaction-compensation` | `CompensationOutboxServiceImpl`（competency，由 `ProjectUserBindingService.rebindProjectMemberSkills` 觸發寫入 Outbox）→ `CompensationPublisherImpl`（common） | `CompensationConsumer`（alert） | 分散式事務補償（Outbox + eventId 冪等 + eventVersion 版本化） |
 | `cache-stats` | `KafkaCacheStatsPublisher`（common） | `CacheStatsConsumer`（alert） | 快取命中/Bloom 阻擋統計聚合至 Redis Hash，供 `/cache-stats` 查詢 |
 
 消費者群組預設 `myGroup`（`KafkaConfig`），補償事件另用 `compensation-group`（`KafkaCompensationConfig`）；執行時依環境自動解析 Broker（本機 `localhost:9092`、Docker 內 `kafka:9092`）。
+
+**分散式交易補償（Transactional Outbox）**：
+
+```
+rebindProjectMemberSkills (competency)
+  ├─ 產生 transactionId + 狀態摘要
+  ├─ validateUsersExist（交易外 Feign 驗證）
+  ├─ doRebindProjectMemberSkills（@Transactional）
+  │   ├─ 寫入業務資料 + enqueue TRANSACTION_STARTED（同交易 commit；rollback 則消失）
+  │   └─ commit
+  ├─ enqueue COMMITTED（成功）/ enqueue FAILED + errorMessage（失敗，REQUIRES_NEW）
+  └─ CompensationOutboxServiceImpl @Scheduled（5 秒）→ 批次發佈待送事件 → CompensationPublisherImpl（async，失敗僅記錄）
+       └─ CompensationConsumer (alert)：eventId 已處理 → 跳過；否則記錄 compensation_event_log → 依 status 執行
+```
+
+- **可靠性**：事件與業務交易同 commit（Outbox），Kafka 發送失敗不影響業務，事件保留於 Outbox 表重試/查核，杜絕「DB 已提交但事件遺失」
+- **冪等**：每個事件帶唯一 `eventId`，消費端以 `compensation_event_log` 去重（at-least-once 語意下不重複執行）
+- **版本化**：`eventVersion` 標記事件 schema 版本（目前 1），供未來欄位演進相容
+- **狀態機**：`TRANSACTION_STARTED → COMMITTED / FAILED`；補償流程（`COMPENSATION_REQUIRED` → `COMPENSATED` / `COMPENSATION_FAILED`）為後續導入預留
 
 ### Spring Security 認證攔截
 

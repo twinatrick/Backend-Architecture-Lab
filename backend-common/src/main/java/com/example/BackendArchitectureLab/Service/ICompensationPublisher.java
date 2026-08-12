@@ -14,7 +14,7 @@ public interface ICompensationPublisher {
 
     void publish(CompensationEvent event);
 
-    void publishSavePoint(UUID transactionId, CompensationAction action, Map<String, Object> state);
+    void publishTransactionStarted(UUID transactionId, CompensationAction action, Map<String, Object> state);
 
     void publishCommitted(UUID transactionId, CompensationAction action, Map<String, Object> state);
 

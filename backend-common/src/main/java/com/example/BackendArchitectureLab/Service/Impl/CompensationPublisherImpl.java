@@ -27,6 +27,7 @@ import java.util.UUID;
 public class CompensationPublisherImpl implements ICompensationPublisher {
 
     private static final String TOPIC = "transaction-compensation";
+    private static final int EVENT_VERSION = 1;
 
     @Value("${spring.application.name:unknown-service}")
     private String serviceName;
@@ -37,35 +38,75 @@ public class CompensationPublisherImpl implements ICompensationPublisher {
     @Override
     public void publish(CompensationEvent event) {
         try {
-            compensationKafkaTemplate.send(TOPIC, event.getTransactionId().toString(), event);
-            log.debug("補償事件已發佈: transactionId={}, action={}, status={}",
-                    event.getTransactionId(), event.getAction(), event.getStatus());
+            compensationKafkaTemplate.send(TOPIC, event.getTransactionId().toString(), event)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("補償事件非同步發佈失敗: transactionId={}, action={}, status={}, cause={}",
+                                    event.getTransactionId(), event.getAction(), event.getStatus(), ex.toString());
+                        } else {
+                            log.debug("補償事件已發佈: transactionId={}, action={}, status={}",
+                                    event.getTransactionId(), event.getAction(), event.getStatus());
+                        }
+                    });
         } catch (Exception e) {
-            log.warn("補償事件發佈失敗: {}", e.toString());
+            log.warn("補償事件發佈失敗(同步): transactionId={}, cause={}", event.getTransactionId(), e.toString());
         }
     }
 
     @Override
-    public void publishSavePoint(UUID transactionId, CompensationAction action, Map<String, Object> state) {
-        publish(new CompensationEvent(transactionId, serviceName, action,
-                CompensationStatus.SAVE_POINT, state, null, null, Instant.now()));
+    public void publishTransactionStarted(UUID transactionId, CompensationAction action, Map<String, Object> state) {
+        publish(CompensationEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventVersion(EVENT_VERSION)
+                .transactionId(transactionId)
+                .serviceName(serviceName)
+                .action(action)
+                .status(CompensationStatus.TRANSACTION_STARTED)
+                .beforeState(state)
+                .timestamp(Instant.now())
+                .build());
     }
 
     @Override
     public void publishCommitted(UUID transactionId, CompensationAction action, Map<String, Object> state) {
-        publish(new CompensationEvent(transactionId, serviceName, action,
-                CompensationStatus.COMMITTED, state, null, null, Instant.now()));
+        publish(CompensationEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventVersion(EVENT_VERSION)
+                .transactionId(transactionId)
+                .serviceName(serviceName)
+                .action(action)
+                .status(CompensationStatus.COMMITTED)
+                .beforeState(state)
+                .timestamp(Instant.now())
+                .build());
     }
 
     @Override
     public void publishFailed(UUID transactionId, CompensationAction action, Map<String, Object> state, String errorMessage) {
-        publish(new CompensationEvent(transactionId, serviceName, action,
-                CompensationStatus.FAILED, state, null, errorMessage, Instant.now()));
+        publish(CompensationEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventVersion(EVENT_VERSION)
+                .transactionId(transactionId)
+                .serviceName(serviceName)
+                .action(action)
+                .status(CompensationStatus.FAILED)
+                .beforeState(state)
+                .errorMessage(errorMessage)
+                .timestamp(Instant.now())
+                .build());
     }
 
     @Override
     public void publishCompensated(UUID transactionId, CompensationAction action, Map<String, Object> state) {
-        publish(new CompensationEvent(transactionId, serviceName, action,
-                CompensationStatus.COMPENSATED, state, null, null, Instant.now()));
+        publish(CompensationEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventVersion(EVENT_VERSION)
+                .transactionId(transactionId)
+                .serviceName(serviceName)
+                .action(action)
+                .status(CompensationStatus.COMPENSATED)
+                .beforeState(state)
+                .timestamp(Instant.now())
+                .build());
     }
 }

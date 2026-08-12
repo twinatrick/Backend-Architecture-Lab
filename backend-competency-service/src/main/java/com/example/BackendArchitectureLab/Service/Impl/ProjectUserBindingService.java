@@ -11,7 +11,7 @@ import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
-import com.example.BackendArchitectureLab.Service.ICompensationPublisher;
+import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
@@ -55,7 +55,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     private IUserGateway userGateway;
 
     @Autowired
-    private ICompensationPublisher compensationPublisher;
+    private ICompensationOutboxService compensationOutboxService;
 
     @Autowired
     @Lazy
@@ -131,18 +131,18 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             memberSkillsMap = Map.of();
         }
 
-        // 交易補償：先發佈 SavePoint（紀錄交易意圖與狀態摘要）
+        // 交易補償（Outbox 模式）：記錄交易意圖與狀態摘要，
+        // TRANSACTION_STARTED 與業務交易同 commit，事件由排程批次發送至 Kafka
         UUID transactionId = UUID.randomUUID();
         Map<String, Object> state = buildStateSnapshot(projectId, memberSkillsMap);
-        compensationPublisher.publishSavePoint(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
         try {
             // 交易外的 Feign 驗證（使用者存在性）
             validateUsersExist(memberSkillsMap.keySet());
-            self.doRebindProjectMemberSkills(projectId, memberSkillsMap);
-            compensationPublisher.publishCommitted(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
+            self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId, state);
+            compensationOutboxService.enqueueCommitted(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
         } catch (Exception e) {
-            // 失敗時發佈 FAILED（@Transactional 已負責 rollback，供消費端追蹤）
-            compensationPublisher.publishFailed(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state, e.getMessage());
+            // 失敗時寫入 FAILED（@Transactional 已負責 rollback，供消費端追蹤）
+            compensationOutboxService.enqueueFailed(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state, e.getMessage());
             throw e;
         }
     }
@@ -160,10 +160,20 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
 
     /**
      * 交易內重新綁定成員技能（由 rebindProjectMemberSkills 在交易外的 Feign 驗證後呼叫）
+     *
+     * @param projectId 專案 ID
+     * @param memberSkillsMap 成員技能等級對應
+     * @param transactionId 補償交易 ID
+     * @param state 補償事件狀態摘要
      */
     @Transactional
     @CacheEvict(value = "projectSkills", key = "#projectId")
-    public void doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap) {
+    public void doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
+                                             UUID transactionId, Map<String, Object> state) {
+        // TRANSACTION_STARTED 與業務交易同 commit（rollback 時一併消失）
+        compensationOutboxService.enqueueTransactionStarted(
+                transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
+
         // 驗證專案存在
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));

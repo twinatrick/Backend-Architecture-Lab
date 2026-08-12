@@ -11,7 +11,7 @@ import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
-import com.example.BackendArchitectureLab.Service.ICompensationPublisher;
+import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
@@ -56,7 +56,7 @@ class ProjectUserBindingServiceTest {
     @Mock
     private IUserGateway userGateway;
     @Mock
-    private ICompensationPublisher compensationPublisher;
+    private ICompensationOutboxService compensationOutboxService;
 
     @InjectMocks
     private ProjectUserBindingService projectUserBindingService;
@@ -306,9 +306,9 @@ class ProjectUserBindingServiceTest {
 
         ArgumentCaptor<Map<String, Object>> stateCaptor = ArgumentCaptor.forClass(Map.class);
         ArgumentCaptor<UUID> txCaptor = ArgumentCaptor.forClass(UUID.class);
-        verify(compensationPublisher).publishSavePoint(txCaptor.capture(),
+        verify(compensationOutboxService).enqueueTransactionStarted(txCaptor.capture(),
                 eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), stateCaptor.capture());
-        verify(compensationPublisher).publishCommitted(any(UUID.class),
+        verify(compensationOutboxService).enqueueCommitted(any(UUID.class),
                 eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
         assertEquals(projectId.toString(), stateCaptor.getValue().get("projectId"));
         assertEquals(1, stateCaptor.getValue().get("memberCount"));
@@ -327,9 +327,7 @@ class ProjectUserBindingServiceTest {
                 () -> projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap));
         assertEquals("User not found: " + userId, exception.getMessage());
 
-        verify(compensationPublisher).publishSavePoint(any(UUID.class),
-                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
-        verify(compensationPublisher).publishFailed(any(UUID.class),
+        verify(compensationOutboxService).enqueueFailed(any(UUID.class),
                 eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(), eq("User not found: " + userId));
     }
 
@@ -353,9 +351,9 @@ class ProjectUserBindingServiceTest {
                 () -> projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap));
         assertTrue(exception.getMessage().contains("is not a member"));
 
-        verify(compensationPublisher).publishSavePoint(any(UUID.class),
+        verify(compensationOutboxService).enqueueTransactionStarted(any(UUID.class),
                 eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
-        verify(compensationPublisher).publishFailed(any(UUID.class),
+        verify(compensationOutboxService).enqueueFailed(any(UUID.class),
                 eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(),
                 eq("User " + userId + " is not a member of project " + projectId));
     }
@@ -408,7 +406,7 @@ class ProjectUserBindingServiceTest {
         when(userProjectSkillDataAccess.findByProjectId(projectId))
                 .thenReturn(List.of(existingBinding, existingUser2));
 
-        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of());
 
         verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId1, projectId, skillId2);
         verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId2, projectId, skillId1);
@@ -451,7 +449,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId2)).thenReturn(Optional.of(level2));
         when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of(existingBinding));
 
-        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of());
 
         verify(userProjectSkillDataAccess).save(existingBinding);
         assertEquals(level2, existingBinding.getSkillLevel());
@@ -470,7 +468,7 @@ class ProjectUserBindingServiceTest {
         when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(false);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertTrue(exception.getMessage().contains("is not a member"));
     }
 
@@ -490,7 +488,7 @@ class ProjectUserBindingServiceTest {
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertEquals("Skill not found: " + skillId, exception.getMessage());
     }
 
@@ -513,7 +511,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertEquals("Skill level not found: " + levelId, exception.getMessage());
     }
 
@@ -542,7 +540,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertEquals("Skill level does not belong to skill", exception.getMessage());
     }
 }
