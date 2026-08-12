@@ -4,13 +4,19 @@ from contextlib import ExitStack
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+
 # 先行於替換外部相依套件，避免 CI 環境未安裝或載入成本過高
+class _FakeMinioError(Exception):
+    """測試用 MinIO 錯誤型別替身（取代真實 minio.error.MinioError）。"""
+
+
 sys.modules["uvicorn"] = MagicMock()
 sys.modules["sherpa_onnx"] = MagicMock()
 sys.modules["soundfile"] = MagicMock()
 sys.modules["av"] = MagicMock()
 sys.modules["faster_whisper"] = MagicMock()
 sys.modules["minio"] = MagicMock()
+sys.modules["minio.error"] = MagicMock(MinioError=_FakeMinioError)
 
 from fastapi.testclient import TestClient  # noqa: E402
 

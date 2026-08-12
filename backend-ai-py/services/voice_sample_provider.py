@@ -1,5 +1,7 @@
 import logging
 
+from minio.error import MinioError
+
 from config import settings
 from utils.file_adapter import download_from_minio
 
@@ -26,7 +28,7 @@ class VoiceSampleProvider:
 
         try:
             ref_path = download_from_minio(ref_key)
-        except Exception as exc:
+        except (MinioError, OSError) as exc:
             # MinIO 連線或存取失敗屬外部服務錯誤，允許退回純文字合成
             logger.warning("[TTS] 參考音檔下載失敗，改以無參考音檔方式合成: %s", exc)
             return {}

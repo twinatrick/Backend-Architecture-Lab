@@ -473,7 +473,7 @@ public class SkillService implements ISkillService {
         });
         target.put(skillUuid, skillLevelUuid);
 
-        rebindProjectSkills(projectUuid, target);
+        self.rebindProjectSkills(projectUuid, target);
     }
 
     @Transactional

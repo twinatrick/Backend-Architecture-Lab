@@ -20,7 +20,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -66,6 +68,15 @@ class ProjectSkillServiceTest {
 
         testProject = new Project();
         testProject.setId(UUID.randomUUID());
+
+        // Inject self reference（自我代理：交易外驗證後呼叫自身交易方法）
+        try {
+            Field selfField = ProjectSkillService.class.getDeclaredField("self");
+            selfField.setAccessible(true);
+            selfField.set(projectSkillService, projectSkillService);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not inject self into ProjectSkillService", e);
+        }
     }
 
     private void setupSecurityContext(UUID userId) {
@@ -165,5 +176,37 @@ class ProjectSkillServiceTest {
         projectSkillService.unbindPersonalProjectSkill(projectId, skillId);
 
         verify(projectSkillDataAccess).deleteByProjectIdAndSkillId(projectId, skillId);
+    }
+
+    @Test
+    void rebindPersonalProjectSkills_shouldDelegateToRebindProjectSkills() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+
+        setupSecurityContext(userId);
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+
+        UserSkill userSkill = new UserSkill();
+        Skill visibleSkill = new Skill();
+        visibleSkill.setId(skillId);
+        userSkill.setSkill(visibleSkill);
+        when(userSkillDataAccess.findByUserId(userId)).thenReturn(List.of(userSkill));
+        when(userProjectDataAccess.findByUserId(userId)).thenReturn(List.of());
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(testProject));
+        when(projectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of());
+
+        SkillLevel level = new SkillLevel();
+        level.setId(levelId);
+        level.setSkill(visibleSkill);
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(visibleSkill));
+
+        Map<UUID, UUID> mapping = Map.of(skillId, levelId);
+        projectSkillService.rebindPersonalProjectSkills(projectId, mapping);
+
+        verify(projectSkillDataAccess).save(any(ProjectSkill.class));
     }
 }

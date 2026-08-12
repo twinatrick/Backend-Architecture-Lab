@@ -19,6 +19,7 @@ import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +53,9 @@ public class ProjectSkillService implements IProjectSkillService {
     private ISkillDataAccess skillDataAccess;
     @Autowired
     private SecurityUtil securityUtil;
+    @Autowired
+    @Lazy
+    private ProjectSkillService self;
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
@@ -230,7 +234,7 @@ public class ProjectSkillService implements IProjectSkillService {
             ensureSkillVisibleToCurrentUser(skillId, currentUserId);
         }
 
-        rebindProjectSkills(projectId, targetMap);
+        self.rebindProjectSkills(projectId, targetMap);
     }
 
     @Override

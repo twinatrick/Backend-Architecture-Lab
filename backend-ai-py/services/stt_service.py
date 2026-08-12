@@ -1,3 +1,4 @@
+import logging
 import os
 
 from config import settings
@@ -5,10 +6,12 @@ from services.audio_converter import AudioConverter
 from services.audio_storage import AudioStorage
 from services.stt_engine import SttEngine
 
+logger = logging.getLogger(__name__)
+
 
 def sound_to_text(file_path: str, language: str, provider: str = "") -> str:
-    """將音訊檔案轉換為文字（相容入口，實際委託 SttEngine）。"""
-    return SttEngine().transcribe(file_path, language, provider)
+    """將音訊檔案轉換為文字（相容入口，委託 SttService 共用引擎）。"""
+    return stt_service.engine.transcribe(file_path, language, provider)
 
 
 class SttService:
@@ -51,8 +54,9 @@ class SttService:
             if p and os.path.exists(p):
                 try:
                     os.remove(p)
-                except Exception as e:
-                    print(f"Failed to remove temp file {p}: {e}")
+                except OSError as exc:
+                    # 暫存檔清理失敗不影響辨識結果，僅記錄供排查
+                    logger.warning("[STT] 暫存檔清理失敗 %s: %s", p, exc)
 
 
 stt_service = SttService()

@@ -6,13 +6,19 @@ from unittest.mock import patch
 import pytest
 import requests
 
+
 # 先行於替換外部相依套件，避免 CI 環境未安裝或載入成本過高
+class _FakeMinioError(Exception):
+    """測試用 MinIO 錯誤型別替身（取代真實 minio.error.MinioError）。"""
+
+
 sys.modules["uvicorn"] = MagicMock()
 sys.modules["sherpa_onnx"] = MagicMock()
 sys.modules["soundfile"] = MagicMock()
 sys.modules["av"] = MagicMock()
 sys.modules["faster_whisper"] = MagicMock()
 sys.modules["minio"] = MagicMock()
+sys.modules["minio.error"] = MagicMock(MinioError=_FakeMinioError)
 
 # 確保 backend-ai-py 目錄在 Python 搜尋路徑中
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -59,15 +65,29 @@ def test_gpt_sovits_http_error_raises_gpt_sovits_error():
 def test_voice_sample_download_failure_returns_empty_payload():
     with patch(
         "services.voice_sample_provider.download_from_minio",
-        side_effect=RuntimeError("minio down"),
+        side_effect=OSError("minio down"),
     ):
         provider = VoiceSampleProvider()
         assert provider.resolve("ref/x.wav", None, "zh") == {}
 
 
+def test_voice_sample_resolve_propagates_programming_error():
+    with patch(
+        "services.voice_sample_provider.download_from_minio",
+        side_effect=ValueError("bad ref key"),
+    ):
+        provider = VoiceSampleProvider()
+        with pytest.raises(ValueError):
+            provider.resolve("ref/x.wav", None, "zh")
+
+
 def test_tts_service_falls_back_on_timeout():
     service = TtsService()
     with (
+        patch(
+            "services.voice_sample_provider.download_from_minio",
+            return_value="/tmp/ref.wav",
+        ),
         patch.object(
             service.gpt_sovits, "synthesize", side_effect=TtsTimeoutError("timeout")
         ),
@@ -84,6 +104,10 @@ def test_tts_service_falls_back_on_timeout():
 def test_tts_service_falls_back_on_external_service_error():
     service = TtsService()
     with (
+        patch(
+            "services.voice_sample_provider.download_from_minio",
+            return_value="/tmp/ref.wav",
+        ),
         patch.object(
             service.gpt_sovits, "synthesize", side_effect=GptSovitsError("boom")
         ),
@@ -100,6 +124,10 @@ def test_tts_service_falls_back_on_external_service_error():
 def test_tts_service_propagates_unknown_error_without_fallback():
     service = TtsService()
     with (
+        patch(
+            "services.voice_sample_provider.download_from_minio",
+            return_value="/tmp/ref.wav",
+        ),
         patch.object(service.gpt_sovits, "synthesize", side_effect=ValueError("bad config")),
         patch.object(
             service.fallback_engine, "synthesize", return_value=b"FALLBACK"
@@ -124,7 +152,7 @@ def test_tts_service_fallback_cleans_temp_file():
     with (
         patch(
             "services.voice_sample_provider.download_from_minio",
-            side_effect=RuntimeError("minio down"),
+            side_effect=OSError("minio down"),
         ),
         patch.object(
             service.gpt_sovits, "synthesize", side_effect=GptSovitsError("boom")
@@ -135,3 +163,17 @@ def test_tts_service_fallback_cleans_temp_file():
 
     assert len(written_paths) == 1
     assert not os.path.exists(written_paths[0])
+
+
+def test_cleanup_oserror_does_not_raise():
+    import tempfile
+
+    from services.stt_service import SttService
+
+    tmp_file = tempfile.NamedTemporaryFile(delete=False)
+    tmp_file.close()
+
+    with patch("os.remove", side_effect=OSError("permission denied")):
+        SttService._cleanup([tmp_file.name])
+
+    os.remove(tmp_file.name)
