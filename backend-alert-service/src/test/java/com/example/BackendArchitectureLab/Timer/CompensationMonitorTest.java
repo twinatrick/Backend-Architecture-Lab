@@ -48,14 +48,14 @@ class CompensationMonitorTest {
     }
 
     @Test
-    void monitorFailedEvents_shouldLogError_whenFailedEventsExist() {
-        CompensationEventLog failedLog = new CompensationEventLog();
-        failedLog.setEventId(UUID.randomUUID());
-        failedLog.setTransactionId(UUID.randomUUID());
-        failedLog.setStatus(CompensationEventLogStatus.FAILED);
-        failedLog.setAttemptCount(3);
-        failedLog.setLastError("Kafka 連線失敗");
-        when(eventLogRepository.findByStatus(CompensationEventLogStatus.FAILED)).thenReturn(List.of(failedLog));
+    void monitorFailedEvents_shouldLogError_whenDeadEventsExist() {
+        CompensationEventLog deadLog = new CompensationEventLog();
+        deadLog.setEventId(UUID.randomUUID());
+        deadLog.setTransactionId(UUID.randomUUID());
+        deadLog.setStatus(CompensationEventLogStatus.DEAD);
+        deadLog.setAttemptCount(5);
+        deadLog.setLastError("Kafka 連線失敗");
+        when(eventLogRepository.findByStatus(CompensationEventLogStatus.DEAD)).thenReturn(List.of(deadLog));
 
         compensationMonitor.monitorFailedEvents();
 
@@ -63,14 +63,14 @@ class CompensationMonitorTest {
                 .filter(event -> event.getLevel().toString().equals("ERROR"))
                 .toList();
         assertEquals(1, errorLogs.size());
-        assertTrue(errorLogs.get(0).getFormattedMessage().contains(failedLog.getEventId().toString()));
-        assertTrue(errorLogs.get(0).getFormattedMessage().contains("attemptCount=3"));
+        assertTrue(errorLogs.get(0).getFormattedMessage().contains(deadLog.getEventId().toString()));
+        assertTrue(errorLogs.get(0).getFormattedMessage().contains("attemptCount=5"));
         assertTrue(errorLogs.get(0).getFormattedMessage().contains("Kafka 連線失敗"));
     }
 
     @Test
-    void monitorFailedEvents_shouldNotLog_whenNoFailedEvents() {
-        when(eventLogRepository.findByStatus(CompensationEventLogStatus.FAILED)).thenReturn(List.of());
+    void monitorFailedEvents_shouldNotLog_whenNoDeadEvents() {
+        when(eventLogRepository.findByStatus(CompensationEventLogStatus.DEAD)).thenReturn(List.of());
 
         compensationMonitor.monitorFailedEvents();
 

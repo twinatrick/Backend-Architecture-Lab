@@ -55,13 +55,24 @@ public class KafkaCompensationConfig {
 
     @Bean(name = "compensationKafkaListenerContainerFactory")
     public ConcurrentKafkaListenerContainerFactory<String, CompensationEvent> compensationKafkaListenerContainerFactory(
-            ConsumerFactory<String, CompensationEvent> compensationConsumerFactory) {
+            ConsumerFactory<String, CompensationEvent> compensationConsumerFactory,
+            KafkaTemplate<String, CompensationEvent> compensationKafkaTemplate) {
         ConcurrentKafkaListenerContainerFactory<String, CompensationEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(compensationConsumerFactory);
         // Consumer retry policy：FixedBackOff（1 秒間隔、最多 4 次退避 = 含首發共 5 次嘗試），
-        // 超過後交由 error handler 記錄失敗（無 DLT，事件依賴 Kafka offset 推進失敗交由人工/監控告警）
-        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 4L)));
+        // 超過後交由 DeadLetterPublishingRecoverer 轉發至 DLT 主題，並自動 commit offset 避免阻塞正常消費。
+        // Permanent 錯誤（無法靠重試復原）不重試：Unsupported event version、Unsupported action、
+        // eventId null（契約違反）——直接交由 DLT。
+        org.springframework.kafka.listener.DeadLetterPublishingRecoverer recoverer =
+                new org.springframework.kafka.listener.DeadLetterPublishingRecoverer(compensationKafkaTemplate);
+
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 4L));
+        errorHandler.addNotRetryableExceptions(
+                com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException.class,
+                com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException.class,
+                IllegalArgumentException.class);
+        factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
 }

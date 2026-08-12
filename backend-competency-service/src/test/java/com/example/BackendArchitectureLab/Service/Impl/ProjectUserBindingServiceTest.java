@@ -584,4 +584,68 @@ class ProjectUserBindingServiceTest {
                 () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertEquals("Skill level does not belong to skill", exception.getMessage());
     }
+
+    @Test
+    void testRestoreMemberSkills() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+
+        Project project = new Project();
+        project.setId(projectId);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        SkillLevel level = new SkillLevel();
+        level.setId(levelId);
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+
+        Map<String, String> bindingMap = Map.of(
+                "userId", userId.toString(),
+                "skillId", skillId.toString(),
+                "levelId", levelId.toString()
+        );
+
+        projectUserBindingService.restoreMemberSkills(projectId, List.of(bindingMap));
+
+        verify(userProjectSkillDataAccess).deleteByProjectId(projectId);
+        verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
+    }
+
+    @Test
+    void testRebindSkillsWithSimulatedExternalFailure() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        SkillLevel level = new SkillLevel();
+        level.setId(levelId);
+        level.setSkill(skill);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId));
+
+        when(userGateway.existsUserById(userId)).thenReturn(true);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of());
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap));
+        assertEquals("Simulated external partner sync failed after DB commit", exception.getMessage());
+
+        verify(compensationOutboxService).enqueueTransactionStarted(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
+        verify(compensationOutboxService).enqueueFailureAndCompensationRequired(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(),
+                eq("Simulated external partner sync failed after DB commit"));
+    }
 }

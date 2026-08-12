@@ -139,6 +139,13 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             // 交易外的 Feign 驗證（使用者存在性）
             validateUsersExist(memberSkillsMap.keySet());
             self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId, state);
+
+            // 模擬外部系統同步（無法自動 rollback 事務）
+            // 在測試中若傳入包含 00000000-0000-0000-0000-000000000000 UUID，則拋出異常模擬同步失敗，觸發補償機制！
+            boolean triggerFailure = memberSkillsMap.containsKey(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+            if (triggerFailure) {
+                throw new RuntimeException("Simulated external partner sync failed after DB commit");
+            }
         } catch (Exception e) {
             // 失敗時（@Transactional 已負責 rollback）：同一 REQUIRES_NEW 交易內寫入
             // FAILED（失敗事實）與 COMPENSATION_REQUIRED（補償請求閉環），確保兩者同 commit
@@ -149,13 +156,25 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     }
 
     /**
-     * 建立補償事件的狀態摘要（僅含數值摘要，不序列化 Entity）
+     * 建立補償事件的狀態摘要（含數值摘要與還原所需的歷史 bindings 明細）
      */
     private Map<String, Object> buildStateSnapshot(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap) {
         Map<String, Object> state = new HashMap<>();
         state.put("projectId", projectId.toString());
         state.put("memberCount", memberSkillsMap.size());
         state.put("skillsCount", memberSkillsMap.values().stream().mapToInt(Map::size).sum());
+
+        // 額外讀取目前的 user_project_skill 綁定，作為歷史 before-state 保存！
+        List<UserProjectSkill> existingBindings = userProjectSkillDataAccess.findByProjectId(projectId);
+        List<Map<String, String>> bindingsList = existingBindings.stream().map(b -> {
+            Map<String, String> m = new HashMap<>();
+            m.put("userId", b.getUserId().toString());
+            m.put("skillId", b.getSkill().getId().toString());
+            m.put("levelId", b.getSkillLevel().getId().toString());
+            return m;
+        }).collect(Collectors.toList());
+        state.put("bindings", bindingsList);
+
         return state;
     }
 
@@ -317,5 +336,36 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             vo.setLevelValue(level.getLevelValue());
         }
         return vo;
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    public void restoreMemberSkills(UUID projectId, List<Map<String, String>> bindings) {
+        // 1. 刪除該專案目前的技能綁定
+        userProjectSkillDataAccess.deleteByProjectId(projectId);
+
+        // 2. 還原
+        if (bindings != null) {
+            for (Map<String, String> b : bindings) {
+                UUID userId = UUID.fromString(b.get("userId"));
+                UUID skillId = UUID.fromString(b.get("skillId"));
+                UUID levelId = UUID.fromString(b.get("levelId"));
+
+                Project project = projectDataAccess.findById(projectId)
+                        .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+                Skill skill = skillDataAccess.findById(skillId)
+                        .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
+                SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
+                        .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
+
+                UserProjectSkill binding = new UserProjectSkill();
+                binding.setUserId(userId);
+                binding.setProject(project);
+                binding.setSkill(skill);
+                binding.setSkillLevel(skillLevel);
+                userProjectSkillDataAccess.save(binding);
+            }
+        }
     }
 }

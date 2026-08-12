@@ -51,4 +51,12 @@ public interface IProjectUserBindingService {
      * @return 成員技能等級列表（含無技能綁定的成員，skills 為空陣列）
      */
     List<ProjectMemberSkillVo> getProjectMemberSkills(UUID projectId);
+
+    /**
+     * 補償還原專案成員技能綁定（全抹平重建強等冪模式）
+     *
+     * @param projectId 專案 ID
+     * @param bindings 歷史綁定 List 明細
+     */
+    void restoreMemberSkills(UUID projectId, List<Map<String, String>> bindings);
 }

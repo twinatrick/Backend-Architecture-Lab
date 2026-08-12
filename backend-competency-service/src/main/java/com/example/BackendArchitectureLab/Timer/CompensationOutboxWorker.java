@@ -15,12 +15,17 @@ import org.springframework.stereotype.Component;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
  * CompensationOutboxWorker - Outbox 發佈工作者（與寫入 Service 分離）。
  * 定期將尚未送達的事件批次發佈至 Kafka：先原子領取（PENDING/FAILED 到期或 PROCESSING 租約過期 → PROCESSING），
  * 等待 Kafka ACK 成功後才標記 SENT；失敗依指數退避安排下次重試，超過最大次數轉為 DEAD。
+ * claim 後以 id 重新讀取最新狀態（attemptCount 已由 claim 遞增），狀態轉換一律透過
+ * repository 的原子 UPDATE（markSent/markFailed/markDead，WHERE deliveryStatus = PROCESSING），
+ * 不直接 save 陳舊 entity，避免覆蓋其他實例寫入的最新狀態。
  * 所有重試/退避政策皆可由組態調整（compensation.outbox.*）。
  */
 @Slf4j
@@ -77,40 +82,47 @@ public class CompensationOutboxWorker {
             if (claimed == 0) {
                 continue;
             }
-            outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
-            outbox.setProcessingAt(now);
-            outbox.setAttemptCount(outbox.getAttemptCount() + 1);
+            // claim 後重新讀取最新狀態（attemptCount 已由 claim 原子遞增），避免使用陳舊資料
+            CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
+            if (fresh == null) {
+                continue;
+            }
             try {
-                CompensationEvent event = objectMapper.readValue(outbox.getPayload(), CompensationEvent.class);
+                CompensationEvent event = objectMapper.readValue(fresh.getPayload(), CompensationEvent.class);
                 compensationPublisher.publish(event).get(ackTimeoutSeconds, TimeUnit.SECONDS);
-                outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.SENT);
-                outbox.setSentAt(new Date());
-                outboxRepository.save(outbox);
+                outboxRepository.markSent(fresh.getId(),
+                        CompensationOutboxDeliveryStatus.SENT,
+                        CompensationOutboxDeliveryStatus.PROCESSING,
+                        new Date());
             } catch (Exception e) {
-                handleDeliveryFailure(outbox, e);
+                handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), e);
             }
         }
     }
 
     /**
-     * 投遞失敗處理：記錄錯誤；未達上限 → 回到 FAILED 並排下次重試；已達上限 → DEAD。
-     * attemptCount 於 claim 時遞增，此處直接以現值判斷。
+     * 投遞失敗處理：以原子 UPDATE 標記狀態；未達上限 → FAILED 並排下次重試；已達上限 → DEAD。
+     * attemptCount 於 claim 時遞增（fresh 為遞增後的值），此處直接以現值判斷。
      */
-    private void handleDeliveryFailure(CompensationOutboxEvent outbox, Exception e) {
-        int attempt = outbox.getAttemptCount();
-        outbox.setErrorMessage(truncate(e.getMessage()));
+    private void handleDeliveryFailure(UUID id, UUID eventId, int attempt, Exception e) {
+        String errorMessage = truncate(e.getMessage());
         if (attempt >= maxAttempts) {
-            outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.DEAD);
+            outboxRepository.markDead(id,
+                    CompensationOutboxDeliveryStatus.DEAD,
+                    CompensationOutboxDeliveryStatus.PROCESSING,
+                    errorMessage);
             log.error("Outbox 事件已達最大重試次數，轉為 DEAD: eventId={}, attempt={}, cause={}",
-                    outbox.getEventId(), attempt, e.toString());
+                    eventId, attempt, e.toString());
         } else {
-            outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.FAILED);
             long backoff = resolveBackoffSeconds(attempt);
-            outbox.setNextAttemptAt(new Date(System.currentTimeMillis() + backoff * 1000L));
+            outboxRepository.markFailed(id,
+                    CompensationOutboxDeliveryStatus.FAILED,
+                    CompensationOutboxDeliveryStatus.PROCESSING,
+                    errorMessage,
+                    new Date(System.currentTimeMillis() + backoff * 1000L));
             log.warn("Outbox 事件發佈失敗，排定重試: eventId={}, attempt={}, nextAttemptIn={}s, cause={}",
-                    outbox.getEventId(), attempt, backoff, e.toString());
+                    eventId, attempt, backoff, e.toString());
         }
-        outboxRepository.save(outbox);
     }
 
     private long resolveBackoffSeconds(int attempt) {

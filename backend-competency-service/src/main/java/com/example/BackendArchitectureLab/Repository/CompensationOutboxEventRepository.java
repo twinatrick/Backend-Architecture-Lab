@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,4 +69,51 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     List<CompensationOutboxEvent> findPendingDue(@Param("pendingStatuses") List<String> pendingStatuses,
                                                  @Param("processing") String processing,
                                                  Pageable pageable);
+
+    /**
+     * 原子標記已送達（僅 PROCESSING 狀態可轉換；SENT + 清除租約）。
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationOutboxEvent e
+            SET e.deliveryStatus = :sent, e.sentAt = :sentAt, e.leaseUntil = NULL
+            WHERE e.id = :id AND e.deliveryStatus = :processing
+            """)
+    int markSent(@Param("id") UUID id,
+                 @Param("sent") String sent,
+                 @Param("processing") String processing,
+                 @Param("sentAt") Date sentAt);
+
+    /**
+     * 原子標記失敗（僅 PROCESSING 狀態可轉換；FAILED + 記錄錯誤 + 排定下次重試 + 清除租約）。
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationOutboxEvent e
+            SET e.deliveryStatus = :failed, e.errorMessage = :errorMessage,
+                e.nextAttemptAt = :nextAttemptAt, e.leaseUntil = NULL
+            WHERE e.id = :id AND e.deliveryStatus = :processing
+            """)
+    int markFailed(@Param("id") UUID id,
+                   @Param("failed") String failed,
+                   @Param("processing") String processing,
+                   @Param("errorMessage") String errorMessage,
+                   @Param("nextAttemptAt") Date nextAttemptAt);
+
+    /**
+     * 原子標記死亡（僅 PROCESSING 狀態可轉換；DEAD + 記錄錯誤 + 清除租約）。
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationOutboxEvent e
+            SET e.deliveryStatus = :dead, e.errorMessage = :errorMessage, e.leaseUntil = NULL
+            WHERE e.id = :id AND e.deliveryStatus = :processing
+            """)
+    int markDead(@Param("id") UUID id,
+                 @Param("dead") String dead,
+                 @Param("processing") String processing,
+                 @Param("errorMessage") String errorMessage);
 }

@@ -9,6 +9,7 @@ public final class CompensationEventLogStatus {
     public static final String PROCESSING = "PROCESSING";
     public static final String PROCESSED = "PROCESSED";
     public static final String FAILED = "FAILED";
+    public static final String DEAD = "DEAD";
 
     private CompensationEventLogStatus() {
     }

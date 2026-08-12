@@ -49,4 +49,7 @@ public class CompensationEventLog extends BaseEntity {
 
     @Column(name = "processed_at")
     private Date processedAt;
+
+    @Column(name = "failed_at")
+    private Date failedAt;
 }

@@ -22,6 +22,11 @@ public interface CompensationEventLogRepository extends JpaRepository<Compensati
     List<CompensationEventLog> findByStatus(String status);
 
     /**
+     * 查詢指定時間之後失敗的滯留事件（僅掃描近期失敗，避免每輪全量掃描歷史 FAILED；LIMIT 20）。
+     */
+    List<CompensationEventLog> findTop20ByStatusAndFailedAtAfter(String status, Date failedAt);
+
+    /**
      * 原子重試領取（CAS）：僅當事件先前處理失敗（FAILED）時，才標記為 PROCESSING、更新租約並累計嘗試次數。
      * 回傳 1 表示取得處理權、0 表示他人正在重試或狀態不允許。
      */
