@@ -11,18 +11,24 @@ import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
+import com.example.BackendArchitectureLab.Service.IUserGateway;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +37,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -50,7 +57,9 @@ class ProjectUserBindingServiceTest {
     @Mock
     private CacheManager cacheManager;
     @Mock
-    private UserServiceFeignClient userServiceFeignClient;
+    private IUserGateway userGateway;
+    @Mock
+    private ICompensationOutboxService compensationOutboxService;
 
     @InjectMocks
     private ProjectUserBindingService projectUserBindingService;
@@ -206,13 +215,13 @@ class ProjectUserBindingServiceTest {
     void validateUsersExist_shouldReturn_whenEmptyOrNull() {
         projectUserBindingService.validateUsersExist(null);
         projectUserBindingService.validateUsersExist(Collections.emptyList());
-        verifyNoInteractions(userServiceFeignClient);
+        verifyNoInteractions(userGateway);
     }
 
     @Test
     void validateUsersExist_shouldThrow_whenUserNotFound() {
         UUID userId = UUID.randomUUID();
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(false);
+        when(userGateway.existsUserById(userId)).thenReturn(false);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> projectUserBindingService.validateUsersExist(List.of(userId)));
@@ -222,11 +231,11 @@ class ProjectUserBindingServiceTest {
     @Test
     void validateUsersExist_shouldPass_whenAllExist() {
         UUID userId = UUID.randomUUID();
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
 
         projectUserBindingService.validateUsersExist(List.of(userId));
 
-        verify(userServiceFeignClient).existsUserById(userId);
+        verify(userGateway).existsUserById(userId);
     }
 
     @Test
@@ -272,6 +281,100 @@ class ProjectUserBindingServiceTest {
         projectUserBindingService.rebindProjectMemberSkills(projectId, null);
 
         verify(projectDataAccess).findById(projectId);
+    }
+
+    @Test
+    void rebindProjectMemberSkills_shouldPublishSavePointAndCommitted_whenSuccess() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        SkillLevel level = new SkillLevel();
+        level.setId(levelId);
+        level.setSkill(skill);
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId));
+
+        when(userGateway.existsUserById(userId)).thenReturn(true);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of());
+
+        projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap);
+
+        ArgumentCaptor<Map<String, Object>> stateCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<UUID> txCaptor = ArgumentCaptor.forClass(UUID.class);
+        verify(compensationOutboxService).enqueueTransactionStarted(txCaptor.capture(),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), stateCaptor.capture());
+        verify(compensationOutboxService).enqueueCommitted(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
+        verify(compensationOutboxService, never()).enqueueFailed(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(), any());
+        assertEquals(projectId.toString(), stateCaptor.getValue().get("projectId"));
+        assertEquals(1, stateCaptor.getValue().get("memberCount"));
+        assertEquals(1, stateCaptor.getValue().get("skillsCount"));
+    }
+
+    @Test
+    void outboxEnqueue_shouldCommitCommittedWithinBusinessTransaction_butFailedRequiresNew() throws Exception {
+        Method enqueueCommitted = CompensationOutboxServiceImpl.class.getMethod("enqueueCommitted",
+                UUID.class, CompensationAction.class, Map.class);
+        assertNull(enqueueCommitted.getAnnotation(Transactional.class),
+                "enqueueCommitted 必須與業務交易同 commit（不得 REQUIRES_NEW）");
+
+        Method enqueueFailed = CompensationOutboxServiceImpl.class.getMethod("enqueueFailed",
+                UUID.class, CompensationAction.class, Map.class, String.class);
+        Transactional failedTx = enqueueFailed.getAnnotation(Transactional.class);
+        assertNotNull(failedTx, "enqueueFailed 需在 rollback 後以新交易寫入 FAILED");
+        assertEquals(Propagation.REQUIRES_NEW, failedTx.propagation());
+    }
+
+    @Test
+    void rebindProjectMemberSkills_shouldPublishFailed_whenUserValidationFails() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of());
+
+        when(userGateway.existsUserById(userId)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap));
+        assertEquals("User not found: " + userId, exception.getMessage());
+
+        verify(compensationOutboxService).enqueueFailed(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(), eq("User not found: " + userId));
+    }
+
+    @Test
+    void rebindProjectMemberSkills_shouldPublishFailed_whenRebindFails() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId));
+
+        when(userGateway.existsUserById(userId)).thenReturn(true);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap));
+        assertTrue(exception.getMessage().contains("is not a member"));
+
+        verify(compensationOutboxService).enqueueTransactionStarted(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
+        verify(compensationOutboxService).enqueueFailed(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(),
+                eq("User " + userId + " is not a member of project " + projectId));
     }
 
     @Test
@@ -322,7 +425,7 @@ class ProjectUserBindingServiceTest {
         when(userProjectSkillDataAccess.findByProjectId(projectId))
                 .thenReturn(List.of(existingBinding, existingUser2));
 
-        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of());
 
         verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId1, projectId, skillId2);
         verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId2, projectId, skillId1);
@@ -365,7 +468,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId2)).thenReturn(Optional.of(level2));
         when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of(existingBinding));
 
-        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of());
 
         verify(userProjectSkillDataAccess).save(existingBinding);
         assertEquals(level2, existingBinding.getSkillLevel());
@@ -384,7 +487,7 @@ class ProjectUserBindingServiceTest {
         when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(false);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertTrue(exception.getMessage().contains("is not a member"));
     }
 
@@ -404,7 +507,7 @@ class ProjectUserBindingServiceTest {
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertEquals("Skill not found: " + skillId, exception.getMessage());
     }
 
@@ -427,7 +530,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertEquals("Skill level not found: " + levelId, exception.getMessage());
     }
 
@@ -456,7 +559,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
         assertEquals("Skill level does not belong to skill", exception.getMessage());
     }
 }
