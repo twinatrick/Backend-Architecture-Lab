@@ -368,8 +368,8 @@ class ProjectUserBindingServiceTest {
                 () -> projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap));
         assertEquals("User not found: " + userId, exception.getMessage());
 
-        verify(compensationOutboxService).enqueueFailureAndCompensationRequired(any(UUID.class),
-                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(), eq("User not found: " + userId));
+        verify(compensationOutboxService, never()).enqueueFailureAndCompensationRequired(any(UUID.class),
+                any(CompensationAction.class), anyMap(), anyString());
     }
 
     @Test
@@ -394,9 +394,8 @@ class ProjectUserBindingServiceTest {
 
         verify(compensationOutboxService).enqueueTransactionStarted(any(UUID.class),
                 eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
-        verify(compensationOutboxService).enqueueFailureAndCompensationRequired(any(UUID.class),
-                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(),
-                eq("User " + userId + " is not a member of project " + projectId));
+        verify(compensationOutboxService, never()).enqueueFailureAndCompensationRequired(any(UUID.class),
+                any(CompensationAction.class), anyMap(), anyString());
     }
 
     @Test

@@ -131,15 +131,22 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             memberSkillsMap = Map.of();
         }
 
-        // 交易補償（Outbox 模式）：記錄交易意圖與狀態摘要，
-        // TRANSACTION_STARTED 與業務交易同 commit，事件由排程批次發送至 Kafka
+        // 1. 交易外的 Feign 驗證：若失敗直接拋出，不需寫入任何補償 Outbox
+        validateUsersExist(memberSkillsMap.keySet());
+
         UUID transactionId = UUID.randomUUID();
         Map<String, Object> state = buildStateSnapshot(projectId, memberSkillsMap);
-        try {
-            // 交易外的 Feign 驗證（使用者存在性）
-            validateUsersExist(memberSkillsMap.keySet());
-            self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId, state);
 
+        // 2. 執行本地資料庫事務
+        try {
+            self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId, state);
+        } catch (Exception e) {
+            // 本地事務執行失敗已由 Spring 負責 rollback，此處不需發送補償事件，直接拋出
+            throw e;
+        }
+
+        // 3. 本地事務成功 Commit 後，進行外部系統同步
+        try {
             // 模擬外部系統同步（無法自動 rollback 事務）
             // 在測試中若傳入包含 00000000-0000-0000-0000-000000000000 UUID，則拋出異常模擬同步失敗，觸發補償機制！
             boolean triggerFailure = memberSkillsMap.containsKey(UUID.fromString("00000000-0000-0000-0000-000000000000"));
@@ -147,8 +154,8 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
                 throw new RuntimeException("Simulated external partner sync failed after DB commit");
             }
         } catch (Exception e) {
-            // 失敗時（@Transactional 已負責 rollback）：同一 REQUIRES_NEW 交易內寫入
-            // FAILED（失敗事實）與 COMPENSATION_REQUIRED（補償請求閉環），確保兩者同 commit
+            // 僅在「本地已 commit 且外部同步失敗」時，才需要非同步補償
+            // 失敗時：同一 REQUIRES_NEW 交易內寫入 FAILED（失敗事實）與 COMPENSATION_REQUIRED（補償請求閉環），確保兩者同 commit
             compensationOutboxService.enqueueFailureAndCompensationRequired(
                     transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state, e.getMessage());
             throw e;
