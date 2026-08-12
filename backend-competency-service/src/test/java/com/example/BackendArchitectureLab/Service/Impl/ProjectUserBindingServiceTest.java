@@ -1,26 +1,38 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
+import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IProjectSkillDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
+import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
-import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
-import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
-import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
+import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProjectUserBindingServiceTest {
@@ -31,6 +43,14 @@ class ProjectUserBindingServiceTest {
     private IUserProjectDataAccess userProjectDataAccess;
     @Mock
     private IUserProjectSkillDataAccess userProjectSkillDataAccess;
+    @Mock
+    private ISkillDataAccess skillDataAccess;
+    @Mock
+    private ISkillLevelDataAccess skillLevelDataAccess;
+    @Mock
+    private CacheManager cacheManager;
+    @Mock
+    private UserServiceFeignClient userServiceFeignClient;
 
     @InjectMocks
     private ProjectUserBindingService projectUserBindingService;
@@ -45,6 +65,13 @@ class ProjectUserBindingServiceTest {
         } catch (Exception e) {
             throw new RuntimeException("Could not inject self into ProjectUserBindingService", e);
         }
+    }
+
+    @Test
+    void getProjectMemberSkills_shouldThrow_whenProjectIdNull() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.getProjectMemberSkills(null));
+        assertEquals("Project ID must not be null", exception.getMessage());
     }
 
     @Test
@@ -116,5 +143,320 @@ class ProjectUserBindingServiceTest {
         assertEquals(userId.toString(), result.get(0).getUserId());
         assertEquals("", result.get(0).getUserEmail());
         assertTrue(result.get(0).getSkills().isEmpty());
+    }
+
+    @Test
+    void getProjectMemberSkills_shouldReturnVoWithoutLevel_whenLevelNull() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+
+        UserProject userProject = new UserProject();
+        userProject.setUserId(userId);
+
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        skill.setName("Java");
+
+        UserProjectSkill binding = new UserProjectSkill();
+        binding.setUserId(userId);
+        binding.setSkill(skill);
+        binding.setSkillLevel(null);
+
+        when(projectDataAccess.existsById(projectId)).thenReturn(true);
+        when(userProjectDataAccess.findByProjectId(projectId)).thenReturn(List.of(userProject));
+        when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of(binding));
+
+        List<ProjectMemberSkillVo> result = projectUserBindingService.getProjectMemberSkills(projectId);
+
+        assertNull(result.get(0).getSkills().get(0).getSkillLevelId());
+        assertNull(result.get(0).getSkills().get(0).getLevelTitle());
+    }
+
+    @Test
+    void bindUsersToProject_shouldThrow_whenProjectNotFound() {
+        UUID projectId = UUID.randomUUID();
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.empty());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.bindUsersToProject(projectId, List.of(UUID.randomUUID().toString())));
+        assertEquals("Project not found", exception.getMessage());
+    }
+
+    @Test
+    void bindUsersToProject_shouldSaveOnlyMissingBindings() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+        UUID existingUserId = UUID.randomUUID();
+        UUID newUserId = UUID.randomUUID();
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(existingUserId, projectId)).thenReturn(true);
+        when(userProjectDataAccess.existsByUserIdAndProjectId(newUserId, projectId)).thenReturn(false);
+
+        projectUserBindingService.bindUsersToProject(
+                projectId, List.of(existingUserId.toString(), newUserId.toString()));
+
+        verify(userProjectDataAccess).save(any(UserProject.class));
+        verify(userProjectDataAccess, times(2)).existsByUserIdAndProjectId(any(UUID.class), eq(projectId));
+    }
+
+    @Test
+    void validateUsersExist_shouldReturn_whenEmptyOrNull() {
+        projectUserBindingService.validateUsersExist(null);
+        projectUserBindingService.validateUsersExist(Collections.emptyList());
+        verifyNoInteractions(userServiceFeignClient);
+    }
+
+    @Test
+    void validateUsersExist_shouldThrow_whenUserNotFound() {
+        UUID userId = UUID.randomUUID();
+        when(userServiceFeignClient.existsUserById(userId)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.validateUsersExist(List.of(userId)));
+        assertEquals("User not found: " + userId, exception.getMessage());
+    }
+
+    @Test
+    void validateUsersExist_shouldPass_whenAllExist() {
+        UUID userId = UUID.randomUUID();
+        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+
+        projectUserBindingService.validateUsersExist(List.of(userId));
+
+        verify(userServiceFeignClient).existsUserById(userId);
+    }
+
+    @Test
+    void evictUserProjectsCache_shouldReturn_whenNullUser() {
+        projectUserBindingService.evictUserProjectsCache(null);
+        verifyNoInteractions(cacheManager);
+    }
+
+    @Test
+    void evictUserProjectsCache_shouldReturn_whenCacheMissing() {
+        when(cacheManager.getCache("projects")).thenReturn(null);
+
+        projectUserBindingService.evictUserProjectsCache(UUID.randomUUID());
+    }
+
+    @Test
+    void evictUserProjectsCache_shouldEvictEntry() {
+        Cache cache = mock(Cache.class);
+        UUID userId = UUID.randomUUID();
+        when(cacheManager.getCache("projects")).thenReturn(cache);
+
+        projectUserBindingService.evictUserProjectsCache(userId);
+
+        verify(cache).evict("byuser:" + userId);
+    }
+
+    @Test
+    void rebindProjectMemberSkills_shouldThrow_whenProjectIdNull() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.rebindProjectMemberSkills(null, Map.of()));
+        assertEquals("Project ID must not be null", exception.getMessage());
+    }
+
+    @Test
+    void rebindProjectMemberSkills_shouldHandleNullMap() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of());
+
+        projectUserBindingService.rebindProjectMemberSkills(projectId, null);
+
+        verify(projectDataAccess).findById(projectId);
+    }
+
+    @Test
+    void doRebindProjectMemberSkills_shouldAddDeleteAndUpdate() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId1 = UUID.randomUUID();
+        UUID userId2 = UUID.randomUUID();
+        UUID skillId1 = UUID.randomUUID();
+        UUID skillId2 = UUID.randomUUID();
+        UUID levelId1 = UUID.randomUUID();
+        UUID levelId2 = UUID.randomUUID();
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        Skill skill1 = new Skill();
+        skill1.setId(skillId1);
+        skill1.setName("Java");
+        Skill skill2 = new Skill();
+        skill2.setId(skillId2);
+        skill2.setName("Python");
+
+        SkillLevel level1 = new SkillLevel();
+        level1.setId(levelId1);
+        level1.setSkill(skill1);
+        SkillLevel level2 = new SkillLevel();
+        level2.setId(levelId2);
+        level2.setSkill(skill2);
+
+        // 現有綁定：user1 綁 skill2（目標清單只有 skill1 → skill2 應刪除）
+        UserProjectSkill existingBinding = new UserProjectSkill();
+        existingBinding.setUserId(userId1);
+        existingBinding.setSkill(skill2);
+        existingBinding.setSkillLevel(level2);
+
+        // 現有綁定：user2 綁 skill1（user2 不在目標清單 → 全部刪除）
+        UserProjectSkill existingUser2 = new UserProjectSkill();
+        existingUser2.setUserId(userId2);
+        existingUser2.setSkill(skill1);
+        existingUser2.setSkillLevel(level1);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId1, Map.of(skillId1, levelId1));
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId1, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId1)).thenReturn(Optional.of(skill1));
+        when(skillLevelDataAccess.findById(levelId1)).thenReturn(Optional.of(level1));
+        when(userProjectSkillDataAccess.findByProjectId(projectId))
+                .thenReturn(List.of(existingBinding, existingUser2));
+
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+
+        verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId1, projectId, skillId2);
+        verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId2, projectId, skillId1);
+        verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
+    }
+
+    @Test
+    void doRebindProjectMemberSkills_shouldUpdateLevel_whenChanged() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId1 = UUID.randomUUID();
+        UUID levelId2 = UUID.randomUUID();
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        skill.setName("Java");
+
+        SkillLevel level1 = new SkillLevel();
+        level1.setId(levelId1);
+        level1.setSkill(skill);
+        SkillLevel level2 = new SkillLevel();
+        level2.setId(levelId2);
+        level2.setSkill(skill);
+
+        // 現有綁定：user 已綁 skill 於 level1，目標改為 level2 → 更新等級
+        UserProjectSkill existingBinding = new UserProjectSkill();
+        existingBinding.setUserId(userId);
+        existingBinding.setSkill(skill);
+        existingBinding.setSkillLevel(level1);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId2));
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId2)).thenReturn(Optional.of(level2));
+        when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of(existingBinding));
+
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+
+        verify(userProjectSkillDataAccess).save(existingBinding);
+        assertEquals(level2, existingBinding.getSkillLevel());
+    }
+
+    @Test
+    void doRebindProjectMemberSkills_shouldThrow_whenUserNotMember() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of());
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+        assertTrue(exception.getMessage().contains("is not a member"));
+    }
+
+    @Test
+    void doRebindProjectMemberSkills_shouldThrow_whenSkillNotFound() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId));
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.empty());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+        assertEquals("Skill not found: " + skillId, exception.getMessage());
+    }
+
+    @Test
+    void doRebindProjectMemberSkills_shouldThrow_whenLevelNotFound() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId));
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.empty());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+        assertEquals("Skill level not found: " + levelId, exception.getMessage());
+    }
+
+    @Test
+    void doRebindProjectMemberSkills_shouldThrow_whenLevelMismatch() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID otherSkillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        Skill otherSkill = new Skill();
+        otherSkill.setId(otherSkillId);
+        SkillLevel level = new SkillLevel();
+        level.setId(levelId);
+        level.setSkill(otherSkill);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId));
+
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap));
+        assertEquals("Skill level does not belong to skill", exception.getMessage());
     }
 }

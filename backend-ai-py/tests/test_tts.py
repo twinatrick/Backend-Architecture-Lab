@@ -88,9 +88,7 @@ def test_tts_service_falls_back_on_timeout():
             "services.voice_sample_provider.download_from_minio",
             return_value="/tmp/ref.wav",
         ),
-        patch.object(
-            service.gpt_sovits, "synthesize", side_effect=TtsTimeoutError("timeout")
-        ),
+        patch.object(service.gpt_sovits, "synthesize", side_effect=TtsTimeoutError("timeout")),
         patch.object(
             service.fallback_engine, "synthesize", return_value=b"FALLBACK"
         ) as mock_fallback,
@@ -108,9 +106,7 @@ def test_tts_service_falls_back_on_external_service_error():
             "services.voice_sample_provider.download_from_minio",
             return_value="/tmp/ref.wav",
         ),
-        patch.object(
-            service.gpt_sovits, "synthesize", side_effect=GptSovitsError("boom")
-        ),
+        patch.object(service.gpt_sovits, "synthesize", side_effect=GptSovitsError("boom")),
         patch.object(
             service.fallback_engine, "synthesize", return_value=b"FALLBACK"
         ) as mock_fallback,
@@ -154,9 +150,7 @@ def test_tts_service_fallback_cleans_temp_file():
             "services.voice_sample_provider.download_from_minio",
             side_effect=OSError("minio down"),
         ),
-        patch.object(
-            service.gpt_sovits, "synthesize", side_effect=GptSovitsError("boom")
-        ),
+        patch.object(service.gpt_sovits, "synthesize", side_effect=GptSovitsError("boom")),
         patch.object(service.fallback_engine, "synthesize", side_effect=_fake_synthesize),
     ):
         service.text_to_sound("你好", "zh")

@@ -47,9 +47,7 @@ def _patch_stt_flow():
             return_value="tmp/input-converted.wav",
         )
     )
-    stack.enter_context(
-        patch("services.stt_service.AudioConverter.get_duration", return_value=2.5)
-    )
+    stack.enter_context(patch("services.stt_service.AudioConverter.get_duration", return_value=2.5))
     return stack
 
 

@@ -22,9 +22,7 @@ class SttService:
         self.converter = AudioConverter()
         self.engine = SttEngine()
 
-    def transcribe_audio(
-        self, object_key: str, language: str = "zh", provider: str = ""
-    ) -> dict:
+    def transcribe_audio(self, object_key: str, language: str = "zh", provider: str = "") -> dict:
         """執行 STT 完整管線（下載 → 轉檔 → 辨識）並回傳回應資料。"""
         tmp_input = None
         wav_path = None

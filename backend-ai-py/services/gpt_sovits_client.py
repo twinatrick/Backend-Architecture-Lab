@@ -25,12 +25,8 @@ class GptSovitsClient:
             response = requests.post(settings.gpt_sovit_url, json=payload, timeout=60)
             response.raise_for_status()
         except requests.Timeout as exc:
-            raise TtsTimeoutError(
-                f"GptSoVits 請求逾時（60s）: {settings.gpt_sovit_url}"
-            ) from exc
+            raise TtsTimeoutError(f"GptSoVits 請求逾時（60s）: {settings.gpt_sovit_url}") from exc
         except requests.RequestException as exc:
-            raise GptSovitsError(
-                f"GptSoVits 呼叫失敗（{exc.__class__.__name__}）: {exc}"
-            ) from exc
+            raise GptSovitsError(f"GptSoVits 呼叫失敗（{exc.__class__.__name__}）: {exc}") from exc
 
         return response.content
