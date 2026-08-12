@@ -47,19 +47,20 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
     @Test
     void compensate_shouldNotThrow_andShouldCallFeign() {
         UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
         List<Map<String, String>> bindings = List.of(Map.of("userId", UUID.randomUUID().toString()));
         CompensationEvent event = CompensationEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .eventVersion(1)
                 .transactionId(UUID.randomUUID())
                 .serviceName("competency-service")
                 .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
                 .status(CompensationStatus.COMPENSATED)
-                .beforeState(Map.of("projectId", projectId.toString(), "bindings", bindings))
+                .beforeState(Map.of("projectId", projectId.toString(), "expectedLastUpdatedTime", 123456L, "bindings", bindings))
                 .timestamp(Instant.now())
                 .build();
 
         assertDoesNotThrow(() -> strategy.compensate(event));
-        verify(competencyServiceFeignClient).restoreProjectMemberSkills(eq(projectId), eq(bindings));
+        verify(competencyServiceFeignClient).restoreProjectMemberSkills(eq(projectId), eq(eventId.toString()), eq(123456L), eq(bindings));
     }
 }

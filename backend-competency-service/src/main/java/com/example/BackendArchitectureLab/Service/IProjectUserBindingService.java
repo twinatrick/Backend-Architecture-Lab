@@ -56,7 +56,9 @@ public interface IProjectUserBindingService {
      * 補償還原專案成員技能綁定（全抹平重建強等冪模式）
      *
      * @param projectId 專案 ID
+     * @param eventId 補償事件 ID，用於等冪去重
+     * @param expectedLastUpdatedTime 預期的專案最後更新時間戳，用於樂觀防禦
      * @param bindings 歷史綁定 List 明細
      */
-    void restoreMemberSkills(UUID projectId, List<Map<String, String>> bindings);
+    void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedLastUpdatedTime, List<Map<String, String>> bindings);
 }

@@ -55,7 +55,7 @@ class CompensationMonitorTest {
         deadLog.setStatus(CompensationEventLogStatus.DEAD);
         deadLog.setAttemptCount(5);
         deadLog.setLastError("Kafka 連線失敗");
-        when(eventLogRepository.findByStatus(CompensationEventLogStatus.DEAD)).thenReturn(List.of(deadLog));
+        when(eventLogRepository.findTop20ByStatusOrderByUpdatedTimeDesc(CompensationEventLogStatus.DEAD)).thenReturn(List.of(deadLog));
 
         compensationMonitor.monitorFailedEvents();
 
@@ -70,7 +70,7 @@ class CompensationMonitorTest {
 
     @Test
     void monitorFailedEvents_shouldNotLog_whenNoDeadEvents() {
-        when(eventLogRepository.findByStatus(CompensationEventLogStatus.DEAD)).thenReturn(List.of());
+        when(eventLogRepository.findTop20ByStatusOrderByUpdatedTimeDesc(CompensationEventLogStatus.DEAD)).thenReturn(List.of());
 
         compensationMonitor.monitorFailedEvents();
 

@@ -52,4 +52,7 @@ public class CompensationEventLog extends BaseEntity {
 
     @Column(name = "failed_at")
     private Date failedAt;
+
+    @Column(name = "last_alerted_at")
+    private Date lastAlertedAt;
 }

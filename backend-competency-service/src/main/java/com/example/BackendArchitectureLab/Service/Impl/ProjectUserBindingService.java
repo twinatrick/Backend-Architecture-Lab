@@ -58,6 +58,9 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     private ICompensationOutboxService compensationOutboxService;
 
     @Autowired
+    private com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository restoreLogRepository;
+
+    @Autowired
     @Lazy
     private ProjectUserBindingService self;
 
@@ -131,15 +134,15 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             memberSkillsMap = Map.of();
         }
 
-        // 1. 交易外的 Feign 驗證：若失敗直接拋出，不需寫入任何補償 Outbox
+        // 1. 交易外的 Feign 驗證：若失敗直接拋出，不需寫入 any 補償 Outbox
         validateUsersExist(memberSkillsMap.keySet());
 
         UUID transactionId = UUID.randomUUID();
-        Map<String, Object> state = buildStateSnapshot(projectId, memberSkillsMap);
+        Map<String, Object> state;
 
         // 2. 執行本地資料庫事務
         try {
-            self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId, state);
+            state = self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId);
         } catch (Exception e) {
             // 本地事務執行失敗已由 Spring 負責 rollback，此處不需發送補償事件，直接拋出
             throw e;
@@ -191,19 +194,27 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
      * @param projectId 專案 ID
      * @param memberSkillsMap 成員技能等級對應
      * @param transactionId 補償交易 ID
-     * @param state 補償事件狀態摘要
+     * @return 建立的一致性快照 state
      */
     @Transactional
     @CacheEvict(value = "projectSkills", key = "#projectId")
-    public void doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
-                                             UUID transactionId, Map<String, Object> state) {
-        // TRANSACTION_STARTED 與業務交易同 commit（rollback 時一併消失）
-        compensationOutboxService.enqueueTransactionStarted(
-                transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
-
+    public Map<String, Object> doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
+                                                            UUID transactionId) {
         // 驗證專案存在
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+
+        // Touch 專案的 updatedTime，以進行補償時的樂觀防護
+        project.setUpdatedTime(new java.util.Date());
+        projectDataAccess.save(project);
+
+        // 交易內建立 consistent snapshot
+        Map<String, Object> state = buildStateSnapshot(projectId, memberSkillsMap);
+        state.put("expectedLastUpdatedTime", project.getUpdatedTime().getTime());
+
+        // TRANSACTION_STARTED 與業務交易同 commit（rollback 時一併消失）
+        compensationOutboxService.enqueueTransactionStarted(
+                transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
 
         // 驗證所有使用者已綁定到該專案
         for (UUID userId : memberSkillsMap.keySet()) {
@@ -297,6 +308,8 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         // COMMITTED 與業務資料同交易 commit（rollback 時一併消失）；失敗則由 rebind 層以 REQUIRES_NEW 寫入 FAILED
         compensationOutboxService.enqueueCommitted(
                 transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
+
+        return state;
     }
 
     @Override
@@ -348,19 +361,40 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     @Override
     @Transactional
     @CacheEvict(value = "projectSkills", key = "#projectId")
-    public void restoreMemberSkills(UUID projectId, List<Map<String, String>> bindings) {
-        // 1. 刪除該專案目前的技能綁定
+    public void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedLastUpdatedTime, List<Map<String, String>> bindings) {
+        // 1. 應用級去重校驗 (Idempotency Guard)
+        if (restoreLogRepository.existsById(eventId)) {
+            org.slf4j.LoggerFactory.getLogger(ProjectUserBindingService.class)
+                    .info("Idempotency Guard: Compensation event {} already processed. Skipping.", eventId);
+            return;
+        }
+
+        // 2. 樂觀防禦比對 (Concurrency Timestamp Guard)
+        Project project = projectDataAccess.findById(projectId)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+
+        if (expectedLastUpdatedTime != null && project.getUpdatedTime() != null) {
+            long currentDbTime = project.getUpdatedTime().getTime();
+            if (currentDbTime != expectedLastUpdatedTime) {
+                org.slf4j.LoggerFactory.getLogger(ProjectUserBindingService.class)
+                        .error("COMPENSATION_CONFLICT: Project {} has been updated by another transaction after snapshot! " +
+                                "Current DB updatedTime = {}, Expected = {}", projectId, project.getUpdatedTime(), new java.util.Date(expectedLastUpdatedTime));
+                throw new com.example.BackendArchitectureLab.Exception.CompensationConflictException(
+                        "Conflict detected: project has newer modifications. Cannot perform unsafe restore."
+                );
+            }
+        }
+
+        // 3. 刪除該專案目前的技能綁定
         userProjectSkillDataAccess.deleteByProjectId(projectId);
 
-        // 2. 還原
+        // 4. 還原
         if (bindings != null) {
             for (Map<String, String> b : bindings) {
                 UUID userId = UUID.fromString(b.get("userId"));
                 UUID skillId = UUID.fromString(b.get("skillId"));
                 UUID levelId = UUID.fromString(b.get("levelId"));
 
-                Project project = projectDataAccess.findById(projectId)
-                        .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
                 Skill skill = skillDataAccess.findById(skillId)
                         .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
                 SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
@@ -374,5 +408,13 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
                 userProjectSkillDataAccess.save(binding);
             }
         }
+
+        // 5. 記錄去重日誌
+        com.example.BackendArchitectureLab.Entity.CompensationRestoreLog restoreLog = new com.example.BackendArchitectureLab.Entity.CompensationRestoreLog();
+        restoreLog.setEventId(eventId);
+        restoreLog.setProjectId(projectId);
+        restoreLog.setProcessedAt(new java.util.Date());
+        restoreLog.setStatus("SUCCESS");
+        restoreLogRepository.save(restoreLog);
     }
 }

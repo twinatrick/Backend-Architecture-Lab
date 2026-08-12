@@ -22,12 +22,16 @@ public class ProjectInternalController {
      * 補償還原專案成員技能綁定
      *
      * @param projectId 專案 ID
+     * @param eventId 補償事件 ID，用於等冪去重
+     * @param expectedLastUpdatedTime 預期的專案最後更新時間戳，用於樂觀防護，可為空
      * @param bindings 歷史綁定 List 明細
      */
     @PostMapping("/skills/restore")
     public void restoreProjectMemberSkills(
             @RequestParam("projectId") UUID projectId,
+            @RequestHeader("Idempotency-Key") String eventId,
+            @RequestParam(value = "expectedLastUpdatedTime", required = false) Long expectedLastUpdatedTime,
             @RequestBody List<Map<String, String>> bindings) {
-        projectUserBindingService.restoreMemberSkills(projectId, bindings);
+        projectUserBindingService.restoreMemberSkills(projectId, UUID.fromString(eventId), expectedLastUpdatedTime, bindings);
     }
 }

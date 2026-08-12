@@ -47,11 +47,17 @@ public class ProjectMemberSkillsRebindCompensationStrategy implements Compensati
         UUID projectId = UUID.fromString(projectIdStr);
         List<Map<String, String>> bindings = (List<Map<String, String>>) event.getBeforeState().get("bindings");
 
-        log.warn("Calling competency-service to restore project member skills for projectId={} to beforeState size={}",
-                projectId, bindings != null ? bindings.size() : 0);
+        Long expectedLastUpdatedTime = null;
+        Object updatedTimeObj = event.getBeforeState().get("expectedLastUpdatedTime");
+        if (updatedTimeObj instanceof Number) {
+            expectedLastUpdatedTime = ((Number) updatedTimeObj).longValue();
+        }
+
+        log.warn("Calling competency-service to restore project member skills for projectId={} with eventId={} and expectedTime={} to beforeState size={}",
+                projectId, event.getEventId(), expectedLastUpdatedTime, bindings != null ? bindings.size() : 0);
 
         if (competencyServiceFeignClient != null) {
-            competencyServiceFeignClient.restoreProjectMemberSkills(projectId, bindings);
+            competencyServiceFeignClient.restoreProjectMemberSkills(projectId, event.getEventId().toString(), expectedLastUpdatedTime, bindings);
             log.info("Successfully restored project member skills for projectId={}", projectId);
         } else {
             log.error("CompetencyServiceFeignClient is not available, unable to compensate!");

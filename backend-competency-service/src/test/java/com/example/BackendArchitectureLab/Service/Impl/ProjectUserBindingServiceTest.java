@@ -60,6 +60,8 @@ class ProjectUserBindingServiceTest {
     private IUserGateway userGateway;
     @Mock
     private ICompensationOutboxService compensationOutboxService;
+    @Mock
+    private com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository restoreLogRepository;
 
     @InjectMocks
     private ProjectUserBindingService projectUserBindingService;
@@ -446,7 +448,7 @@ class ProjectUserBindingServiceTest {
         when(userProjectSkillDataAccess.findByProjectId(projectId))
                 .thenReturn(List.of(existingBinding, existingUser2));
 
-        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of());
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID());
 
         verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId1, projectId, skillId2);
         verify(userProjectSkillDataAccess).deleteByUserIdAndProjectIdAndSkillId(userId2, projectId, skillId1);
@@ -489,7 +491,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId2)).thenReturn(Optional.of(level2));
         when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of(existingBinding));
 
-        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of());
+        projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID());
 
         verify(userProjectSkillDataAccess).save(existingBinding);
         assertEquals(level2, existingBinding.getSkillLevel());
@@ -508,7 +510,7 @@ class ProjectUserBindingServiceTest {
         when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(false);
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID()));
         assertTrue(exception.getMessage().contains("is not a member"));
     }
 
@@ -528,7 +530,7 @@ class ProjectUserBindingServiceTest {
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID()));
         assertEquals("Skill not found: " + skillId, exception.getMessage());
     }
 
@@ -551,7 +553,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID()));
         assertEquals("Skill level not found: " + levelId, exception.getMessage());
     }
 
@@ -580,7 +582,7 @@ class ProjectUserBindingServiceTest {
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID(), Map.of()));
+                () -> projectUserBindingService.doRebindProjectMemberSkills(projectId, memberSkillsMap, UUID.randomUUID()));
         assertEquals("Skill level does not belong to skill", exception.getMessage());
     }
 
@@ -598,6 +600,7 @@ class ProjectUserBindingServiceTest {
         SkillLevel level = new SkillLevel();
         level.setId(levelId);
 
+        when(restoreLogRepository.existsById(any(UUID.class))).thenReturn(false);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
@@ -608,10 +611,44 @@ class ProjectUserBindingServiceTest {
                 "levelId", levelId.toString()
         );
 
-        projectUserBindingService.restoreMemberSkills(projectId, List.of(bindingMap));
+        projectUserBindingService.restoreMemberSkills(projectId, UUID.randomUUID(), null, List.of(bindingMap));
 
         verify(userProjectSkillDataAccess).deleteByProjectId(projectId);
         verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
+        verify(restoreLogRepository).save(any(com.example.BackendArchitectureLab.Entity.CompensationRestoreLog.class));
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldSkip_whenAlreadyProcessed() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+
+        when(restoreLogRepository.existsById(eventId)).thenReturn(true);
+
+        projectUserBindingService.restoreMemberSkills(projectId, eventId, null, List.of());
+
+        verifyNoInteractions(projectDataAccess);
+        verifyNoInteractions(userProjectSkillDataAccess);
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldThrow_whenTimestampConflict() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        long expectedTime = 1000L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        // DB project updatedTime is 2000L
+        project.setUpdatedTime(new java.util.Date(2000L));
+
+        when(restoreLogRepository.existsById(eventId)).thenReturn(false);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+
+        assertThrows(com.example.BackendArchitectureLab.Exception.CompensationConflictException.class,
+                () -> projectUserBindingService.restoreMemberSkills(projectId, eventId, expectedTime, List.of()));
+
+        verify(userProjectSkillDataAccess, never()).deleteByProjectId(projectId);
     }
 
     @Test

@@ -28,14 +28,23 @@ public class CompensationMonitor {
     private long failedWindowMinutes;
 
     @Scheduled(fixedDelayString = "${compensation.monitor.interval-ms:60000}")
+    @org.springframework.transaction.annotation.Transactional
     public void monitorFailedEvents() {
-        // 1. 全量掃描已歸於死信（DEAD）的補償事件，進行 error 告警（無時間窗口）
+        // 1. 限制筆數掃描已歸於死信（DEAD）的補償事件（避免大表全表掃描），並實施一小時頻率控制
         List<CompensationEventLog> deadEvents =
-                eventLogRepository.findByStatus(CompensationEventLogStatus.DEAD);
+                eventLogRepository.findTop20ByStatusOrderByUpdatedTimeDesc(CompensationEventLogStatus.DEAD);
+
+        Date oneHourAgo = new Date(System.currentTimeMillis() - 3600_000L);
+
         for (CompensationEventLog eventLog : deadEvents) {
-            log.error("補償事件處理失敗且已隔離於死信（DEAD）: eventId={}, transactionId={}, attemptCount={}, lastError={}",
-                    eventLog.getEventId(), eventLog.getTransactionId(),
-                    eventLog.getAttemptCount(), eventLog.getLastError());
+            if (eventLog.getLastAlertedAt() == null || eventLog.getLastAlertedAt().before(oneHourAgo)) {
+                log.error("補償事件處理失敗且已隔離於死信（DEAD）: eventId={}, transactionId={}, attemptCount={}, lastError={}",
+                        eventLog.getEventId(), eventLog.getTransactionId(),
+                        eventLog.getAttemptCount(), eventLog.getLastError());
+
+                eventLog.setLastAlertedAt(new Date());
+                eventLogRepository.save(eventLog);
+            }
         }
 
         // 2. 僅掃描近期暫時失敗重試中（FAILED）的事件，僅作 info 記錄

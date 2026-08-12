@@ -22,6 +22,11 @@ public interface CompensationEventLogRepository extends JpaRepository<Compensati
     List<CompensationEventLog> findByStatus(String status);
 
     /**
+     * 依狀態查詢前 20 筆事件，依更新時間降序排列（避免 DEAD 事件全表掃描）。
+     */
+    List<CompensationEventLog> findTop20ByStatusOrderByUpdatedTimeDesc(String status);
+
+    /**
      * 查詢指定時間之後失敗的滯留事件（僅掃描近期失敗，避免每輪全量掃描歷史 FAILED；LIMIT 20）。
      */
     List<CompensationEventLog> findTop20ByStatusAndFailedAtAfter(String status, Date failedAt);
