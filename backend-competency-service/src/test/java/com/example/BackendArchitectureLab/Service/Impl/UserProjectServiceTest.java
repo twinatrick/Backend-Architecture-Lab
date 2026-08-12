@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.UserProject;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import com.example.BackendArchitectureLab.Service.IUserGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ class UserProjectServiceTest {
     @Mock
     private IProjectDataAccess projectDataAccess;
     @Mock
-    private UserServiceFeignClient userServiceFeignClient;
+    private IUserGateway userGateway;
 
     @InjectMocks
     private UserProjectService userProjectService;
@@ -76,7 +76,7 @@ class UserProjectServiceTest {
     @DisplayName("Should rebind user projects with diff strategy")
     void testRebindUserProjects_Success() {
         // Arrange
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(userProjectDataAccess.findByUserId(userId)).thenReturn(List.of(userProject(projectId1)));
         Project project2 = new Project();
         project2.setId(projectId2);
@@ -86,7 +86,7 @@ class UserProjectServiceTest {
         userProjectService.rebindUserProjects(userId, List.of(projectId1, projectId2));
 
         // Assert
-        verify(userServiceFeignClient).existsUserById(userId);
+        verify(userGateway).existsUserById(userId);
         verify(userProjectDataAccess, never()).deleteByUserIdAndProjectId(any(), any());
         verify(userProjectDataAccess).save(any(UserProject.class));
     }
@@ -104,7 +104,7 @@ class UserProjectServiceTest {
     @DisplayName("Should throw Exception when user not found")
     void testRebindUserProjects_UserNotFound() {
         // Arrange
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(false);
+        when(userGateway.existsUserById(userId)).thenReturn(false);
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
@@ -117,7 +117,7 @@ class UserProjectServiceTest {
     @DisplayName("Should delete all existing relations when target is empty")
     void testRebindUserProjects_EmptyProjectList() {
         // Arrange
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(userProjectDataAccess.findByUserId(userId)).thenReturn(List.of(userProject(projectId1)));
 
         // Act
@@ -132,7 +132,7 @@ class UserProjectServiceTest {
     @DisplayName("Should throw Exception when target project not found")
     void testRebindUserProjects_ProjectNotFound() {
         // Arrange
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(userProjectDataAccess.findByUserId(userId)).thenReturn(List.of());
         when(projectDataAccess.findById(projectId1)).thenReturn(Optional.empty());
 
@@ -146,7 +146,7 @@ class UserProjectServiceTest {
     @DisplayName("Should skip null project ids in target list")
     void testRebindUserProjects_SkipNullProjectIds() {
         // Arrange
-        when(userServiceFeignClient.existsUserById(userId)).thenReturn(true);
+        when(userGateway.existsUserById(userId)).thenReturn(true);
         when(userProjectDataAccess.findByUserId(userId)).thenReturn(List.of());
         Project project1Entity = new Project();
         project1Entity.setId(projectId1);

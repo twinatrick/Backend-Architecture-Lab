@@ -11,8 +11,10 @@ import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import com.example.BackendArchitectureLab.Service.ICompensationPublisher;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
+import com.example.BackendArchitectureLab.Service.IUserGateway;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.MemberSkillLevelVo;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +52,10 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     @Autowired
     private CacheManager cacheManager;
     @Autowired
-    private UserServiceFeignClient userServiceFeignClient;
+    private IUserGateway userGateway;
+
+    @Autowired
+    private ICompensationPublisher compensationPublisher;
 
     @Autowired
     @Lazy
@@ -95,7 +100,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             return;
         }
         for (UUID userId : userIds) {
-            if (!userServiceFeignClient.existsUserById(userId)) {
+            if (!userGateway.existsUserById(userId)) {
                 throw new IllegalArgumentException("User not found: " + userId);
             }
         }
@@ -126,9 +131,31 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             memberSkillsMap = Map.of();
         }
 
-        // 交易外的 Feign 驗證（使用者存在性）
-        validateUsersExist(memberSkillsMap.keySet());
-        self.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+        // 交易補償：先發佈 SavePoint（紀錄交易意圖與狀態摘要）
+        UUID transactionId = UUID.randomUUID();
+        Map<String, Object> state = buildStateSnapshot(projectId, memberSkillsMap);
+        compensationPublisher.publishSavePoint(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
+        try {
+            // 交易外的 Feign 驗證（使用者存在性）
+            validateUsersExist(memberSkillsMap.keySet());
+            self.doRebindProjectMemberSkills(projectId, memberSkillsMap);
+            compensationPublisher.publishCommitted(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
+        } catch (Exception e) {
+            // 失敗時發佈 FAILED（@Transactional 已負責 rollback，供消費端追蹤）
+            compensationPublisher.publishFailed(transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * 建立補償事件的狀態摘要（僅含數值摘要，不序列化 Entity）
+     */
+    private Map<String, Object> buildStateSnapshot(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap) {
+        Map<String, Object> state = new HashMap<>();
+        state.put("projectId", projectId.toString());
+        state.put("memberCount", memberSkillsMap.size());
+        state.put("skillsCount", memberSkillsMap.values().stream().mapToInt(Map::size).sum());
+        return state;
     }
 
     /**
