@@ -346,7 +346,6 @@
                             <exclude>com/example/BackendArchitectureLab/Util/*Mapper.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/BaseOpenAiService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/GeminiService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/Impl/ProjectService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/ChatService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/TtsService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/SttService.class</exclude>
@@ -364,7 +363,6 @@
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/LearnService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/DeepSeekService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/GroqService.class</exclude>
-                            <exclude>com/example/BackendArchitectureLab/Service/UsageTracker.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/CacheStatsConsumer.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Discord/**</exclude>
                             <exclude>**/*Application.class</exclude>
