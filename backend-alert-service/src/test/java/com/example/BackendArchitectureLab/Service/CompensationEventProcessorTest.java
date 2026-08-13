@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
+import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.Repository.CompensationEventLogRepository;
@@ -9,6 +10,8 @@ import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +58,9 @@ class CompensationEventProcessorTest {
         ReflectionTestUtils.setField(compensationEventProcessor, "compensationStrategies", List.of(strategy));
         ReflectionTestUtils.setField(compensationEventProcessor, "leaseSeconds", 300L);
         ReflectionTestUtils.setField(compensationEventProcessor, "maxAttempts", 5);
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        ReflectionTestUtils.setField(compensationEventProcessor, "objectMapper", mapper);
         when(eventLogRepository.saveAndFlush(any(CompensationEventLog.class)))
                 .thenAnswer(invocation -> copyLog(invocation.getArgument(0)));
         when(strategy.supports(any(CompensationAction.class))).thenReturn(true);
@@ -80,6 +86,8 @@ class CompensationEventProcessorTest {
         log.setTransactionId(UUID.randomUUID());
         log.setStatus(status);
         log.setAttemptCount(1);
+        log.setOwnerId("owner-" + UUID.randomUUID());
+        log.setFencingVersion(1L);
         return log;
     }
 
@@ -92,6 +100,9 @@ class CompensationEventProcessorTest {
         copy.setProcessingAt(source.getProcessingAt());
         copy.setLeaseUntil(source.getLeaseUntil());
         copy.setAttemptCount(source.getAttemptCount());
+        copy.setOwnerId(source.getOwnerId());
+        copy.setFencingVersion(source.getFencingVersion());
+        copy.setPayload(source.getPayload());
         return copy;
     }
 
@@ -104,7 +115,7 @@ class CompensationEventProcessorTest {
     void process_whenCompensationRequiredAndStrategySupports_shouldCompensateAndMarkProcessed() {
         compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED));
 
-        verify(strategy).compensate(any(CompensationEvent.class));
+        verify(strategy).compensate(any(CompensationEvent.class), anyString(), anyLong());
         ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
         verify(eventLogRepository).save(captor.capture());
         CompensationEventLog saved = captor.getValue();
@@ -121,7 +132,7 @@ class CompensationEventProcessorTest {
                 () -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
         assertTrue(exception.getMessage().contains("Unsupported compensation action"));
 
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
         verify(eventLogRepository, never()).saveAndFlush(any(CompensationEventLog.class));
         verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
     }
@@ -130,7 +141,7 @@ class CompensationEventProcessorTest {
     void process_whenCompensated_shouldMarkProcessedWithoutCompensating() {
         compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATED));
 
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
         ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
         verify(eventLogRepository).save(captor.capture());
         assertEquals(CompensationEventLogStatus.PROCESSED, captor.getValue().getStatus());
@@ -140,7 +151,7 @@ class CompensationEventProcessorTest {
     void process_whenStatusCommitted_shouldMarkProcessedWithoutCompensating() {
         compensationEventProcessor.process(newEvent(CompensationStatus.COMMITTED));
 
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
         ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
         verify(eventLogRepository).save(captor.capture());
         assertEquals(CompensationEventLogStatus.PROCESSED, captor.getValue().getStatus());
@@ -148,7 +159,7 @@ class CompensationEventProcessorTest {
 
     @Test
     void process_whenCompensationFails_shouldMarkFailedAndRethrow() {
-        doThrow(new RuntimeException("rollback failed")).when(strategy).compensate(any(CompensationEvent.class));
+        doThrow(new RuntimeException("rollback failed")).when(strategy).compensate(any(CompensationEvent.class), anyString(), anyLong());
 
         assertThrows(RuntimeException.class,
                 () -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
@@ -186,10 +197,10 @@ class CompensationEventProcessorTest {
 
         compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED));
 
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
         verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
-        verify(eventLogRepository, never()).retryClaim(any(), anyString(), anyString(), any(Date.class), any(Date.class));
-        verify(eventLogRepository, never()).reclaimLease(any(), anyString(), any(Date.class), any(Date.class), any(Date.class));
+        verify(eventLogRepository, never()).retryClaim(any(), anyString(), anyString(), anyString(), any(Date.class), any(Date.class));
+        verify(eventLogRepository, never()).reclaimLease(any(), anyString(), any(Date.class), anyString(), any(Date.class), any(Date.class));
     }
 
     @Test
@@ -201,11 +212,11 @@ class CompensationEventProcessorTest {
                 .thenReturn(Optional.of(failedLog))
                 .thenReturn(Optional.of(retriedLog));
         when(eventLogRepository.retryClaim(eq(eventId), eq(CompensationEventLogStatus.PROCESSING),
-                eq(CompensationEventLogStatus.FAILED), any(Date.class), any(Date.class))).thenReturn(1);
+                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
 
         compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED));
 
-        verify(strategy).compensate(any(CompensationEvent.class));
+        verify(strategy).compensate(any(CompensationEvent.class), anyString(), anyLong());
         ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
         verify(eventLogRepository).save(captor.capture());
         assertEquals(CompensationEventLogStatus.PROCESSED, captor.getValue().getStatus());
@@ -216,11 +227,11 @@ class CompensationEventProcessorTest {
         stubDuplicate();
         when(eventLogRepository.findByEventId(eventId)).thenReturn(Optional.of(newLog(CompensationEventLogStatus.FAILED)));
         when(eventLogRepository.retryClaim(eq(eventId), eq(CompensationEventLogStatus.PROCESSING),
-                eq(CompensationEventLogStatus.FAILED), any(Date.class), any(Date.class))).thenReturn(0);
+                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class))).thenReturn(0);
 
         compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED));
 
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
         verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
     }
 
@@ -234,8 +245,8 @@ class CompensationEventProcessorTest {
 
         compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED));
 
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
-        verify(eventLogRepository, never()).reclaimLease(any(), anyString(), any(Date.class), any(Date.class), any(Date.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
+        verify(eventLogRepository, never()).reclaimLease(any(), anyString(), any(Date.class), anyString(), any(Date.class), any(Date.class));
         verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
     }
 
@@ -251,13 +262,13 @@ class CompensationEventProcessorTest {
                 .thenReturn(Optional.of(expired))
                 .thenReturn(Optional.of(reclaimed));
         when(eventLogRepository.reclaimLease(eq(eventId), eq(CompensationEventLogStatus.PROCESSING),
-                any(Date.class), any(Date.class), any(Date.class))).thenReturn(1);
+                any(Date.class), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
 
         compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED));
 
         verify(eventLogRepository).reclaimLease(eq(eventId), eq(CompensationEventLogStatus.PROCESSING),
-                any(Date.class), any(Date.class), any(Date.class));
-        verify(strategy).compensate(any(CompensationEvent.class));
+                any(Date.class), anyString(), any(Date.class), any(Date.class));
+        verify(strategy).compensate(any(CompensationEvent.class), anyString(), anyLong());
         ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
         verify(eventLogRepository).save(captor.capture());
         assertEquals(CompensationEventLogStatus.PROCESSED, captor.getValue().getStatus());
@@ -274,7 +285,7 @@ class CompensationEventProcessorTest {
 
         verify(eventLogRepository, never()).saveAndFlush(any(CompensationEventLog.class));
         verify(eventLogRepository, never()).findByEventId(any(UUID.class));
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
     }
 
     @Test
@@ -286,7 +297,7 @@ class CompensationEventProcessorTest {
                 () -> compensationEventProcessor.process(event));
 
         assertTrue(exception.getMessage().contains("Unsupported event version: 2"));
-        verify(strategy, never()).compensate(any(CompensationEvent.class));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
         verify(eventLogRepository, never()).saveAndFlush(any(CompensationEventLog.class));
         verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
     }
@@ -301,12 +312,12 @@ class CompensationEventProcessorTest {
                 .thenReturn(Optional.of(newLog(CompensationEventLogStatus.PROCESSED)));
         compensationEventProcessor.process(event);
 
-        verify(strategy, times(1)).compensate(any(CompensationEvent.class));
+        verify(strategy, times(1)).compensate(any(CompensationEvent.class), anyString(), anyLong());
     }
 
     @Test
     void process_whenCompensationFailsRepeatedly_shouldMarkDeadAndNotRethrow() {
-        doThrow(new RuntimeException("compensate error")).when(strategy).compensate(any(CompensationEvent.class));
+        doThrow(new RuntimeException("compensate error")).when(strategy).compensate(any(CompensationEvent.class), anyString(), anyLong());
 
         CompensationEventLog entry = newLog(CompensationEventLogStatus.PROCESSING);
         entry.setAttemptCount(5);
@@ -320,5 +331,76 @@ class CompensationEventProcessorTest {
         assertEquals(CompensationEventLogStatus.DEAD, saved.getStatus());
         assertEquals("compensate error", saved.getLastError());
         assertNotNull(saved.getFailedAt());
+    }
+
+    @Test
+    void process_whenCompensationConflictNonRetryable_shouldMarkDeadAndRethrow() {
+        doThrow(new CompensationConflictException("conflict")).when(strategy)
+                .compensate(any(CompensationEvent.class), anyString(), anyLong());
+
+        CompensationEventLog entry = newLog(CompensationEventLogStatus.PROCESSING);
+        entry.setAttemptCount(1);
+        when(eventLogRepository.saveAndFlush(any(CompensationEventLog.class))).thenReturn(entry);
+
+        CompensationConflictException exception = assertThrows(CompensationConflictException.class,
+                () -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
+
+        assertEquals("conflict", exception.getMessage());
+        ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
+        verify(eventLogRepository).save(captor.capture());
+        assertEquals(CompensationEventLogStatus.DEAD, captor.getValue().getStatus());
+        assertEquals("conflict", captor.getValue().getLastError());
+    }
+
+    @Test
+    void process_whenIllegalArgumentNonRetryable_shouldMarkDeadAndRethrow() {
+        doThrow(new IllegalArgumentException("invalid beforeState")).when(strategy)
+                .compensate(any(CompensationEvent.class), anyString(), anyLong());
+
+        CompensationEventLog entry = newLog(CompensationEventLogStatus.PROCESSING);
+        entry.setAttemptCount(1);
+        when(eventLogRepository.saveAndFlush(any(CompensationEventLog.class))).thenReturn(entry);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
+
+        assertEquals("invalid beforeState", exception.getMessage());
+        ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
+        verify(eventLogRepository).save(captor.capture());
+        assertEquals(CompensationEventLogStatus.DEAD, captor.getValue().getStatus());
+    }
+
+    @Test
+    void claimEventLog_shouldSetFencingTokenAndPayload() {
+        CompensationEvent event = newEvent(CompensationStatus.COMPENSATION_REQUIRED);
+
+        compensationEventProcessor.process(event);
+
+        ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
+        verify(eventLogRepository).saveAndFlush(captor.capture());
+        CompensationEventLog claimed = captor.getValue();
+        assertNotNull(claimed.getOwnerId());
+        assertEquals(1L, claimed.getFencingVersion());
+        assertNotNull(claimed.getPayload());
+        assertTrue(claimed.getPayload().contains("\"eventId\""));
+    }
+
+    @Test
+    void processReclaimed_shouldDeserializePayloadAndProcess() throws Exception {
+        CompensationEvent event = newEvent(CompensationStatus.COMPENSATION_REQUIRED);
+        CompensationEventLog entry = newLog(CompensationEventLogStatus.PROCESSING);
+        entry.setAttemptCount(2);
+        entry.setOwnerId("owner-1");
+        entry.setFencingVersion(3L);
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        entry.setPayload(mapper.writeValueAsString(event));
+
+        compensationEventProcessor.processReclaimed(entry);
+
+        verify(strategy).compensate(any(CompensationEvent.class), eq("owner-1"), eq(3L));
+        ArgumentCaptor<CompensationEventLog> captor = ArgumentCaptor.forClass(CompensationEventLog.class);
+        verify(eventLogRepository).save(captor.capture());
+        assertEquals(CompensationEventLogStatus.PROCESSED, captor.getValue().getStatus());
     }
 }

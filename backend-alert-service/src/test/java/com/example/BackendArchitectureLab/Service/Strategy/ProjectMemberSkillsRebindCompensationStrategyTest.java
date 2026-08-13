@@ -48,6 +48,7 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
     void compensate_shouldNotThrow_andShouldCallFeign() {
         UUID projectId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
+        String ownerId = UUID.randomUUID().toString();
         List<Map<String, String>> bindings = List.of(Map.of("userId", UUID.randomUUID().toString()));
         CompensationEvent event = CompensationEvent.builder()
                 .eventId(eventId)
@@ -60,7 +61,44 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
                 .timestamp(Instant.now())
                 .build();
 
-        assertDoesNotThrow(() -> strategy.compensate(event));
-        verify(competencyServiceFeignClient).restoreProjectMemberSkills(eq(projectId), eq(eventId.toString()), eq(123456L), eq(bindings));
+        assertDoesNotThrow(() -> strategy.compensate(event, ownerId, 1L));
+        verify(competencyServiceFeignClient).restoreProjectMemberSkills(
+                eq(projectId), eq(eventId.toString()), eq(123456L), eq(ownerId), eq(1L), eq(bindings));
+    }
+
+    @Test
+    void compensate_shouldThrowIllegalArgument_whenBeforeStateNull() {
+        UUID eventId = UUID.randomUUID();
+        CompensationEvent event = CompensationEvent.builder()
+                .eventId(eventId)
+                .eventVersion(1)
+                .transactionId(UUID.randomUUID())
+                .serviceName("competency-service")
+                .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
+                .status(CompensationStatus.COMPENSATED)
+                .beforeState(null)
+                .timestamp(Instant.now())
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> strategy.compensate(event, "ownerId", 1L));
+        verify(competencyServiceFeignClient, never()).restoreProjectMemberSkills(any(), anyString(), any(), any(), any(), any());
+    }
+
+    @Test
+    void compensate_shouldThrowIllegalArgument_whenProjectIdMissing() {
+        UUID eventId = UUID.randomUUID();
+        CompensationEvent event = CompensationEvent.builder()
+                .eventId(eventId)
+                .eventVersion(1)
+                .transactionId(UUID.randomUUID())
+                .serviceName("competency-service")
+                .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
+                .status(CompensationStatus.COMPENSATED)
+                .beforeState(Map.of())
+                .timestamp(Instant.now())
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> strategy.compensate(event, "ownerId", 1L));
+        verify(competencyServiceFeignClient, never()).restoreProjectMemberSkills(any(), anyString(), any(), any(), any(), any());
     }
 }

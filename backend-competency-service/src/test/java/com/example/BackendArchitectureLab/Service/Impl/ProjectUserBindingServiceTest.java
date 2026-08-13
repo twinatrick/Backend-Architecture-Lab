@@ -28,13 +28,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,8 +42,11 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -602,6 +605,8 @@ class ProjectUserBindingServiceTest {
         UUID userId = UUID.randomUUID();
         UUID skillId = UUID.randomUUID();
         UUID levelId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
 
         Project project = new Project();
         project.setId(projectId);
@@ -614,9 +619,13 @@ class ProjectUserBindingServiceTest {
         CompensationRestoreLog claimLog = new CompensationRestoreLog();
         claimLog.setEventId(eventId);
         claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
 
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty(), Optional.of(claimLog));
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("SUCCESS"), any(Date.class), isNull())).thenReturn(1);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
@@ -627,13 +636,13 @@ class ProjectUserBindingServiceTest {
                 "levelId", levelId.toString()
         );
 
-        projectUserBindingService.restoreMemberSkills(projectId, eventId, 1L, List.of(bindingMap));
+        projectUserBindingService.restoreMemberSkills(projectId, eventId, 1L, ownerId, fencingVersion, List.of(bindingMap));
 
         verify(userProjectSkillDataAccess).deleteByProjectId(projectId);
         verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
-        verify(restoreLogRepository).save(claimLog);
+        verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("SUCCESS"), any(Date.class), isNull());
         verify(projectDataAccess).save(project);
-        assertEquals("SUCCESS", claimLog.getStatus());
     }
 
     @Test
@@ -646,7 +655,7 @@ class ProjectUserBindingServiceTest {
         successLog.setStatus("SUCCESS");
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(successLog));
 
-        projectUserBindingService.restoreMemberSkills(projectId, eventId, null, List.of());
+        projectUserBindingService.restoreMemberSkills(projectId, eventId, null, "owner-x", 1L, List.of());
 
         verifyNoInteractions(projectDataAccess);
         verifyNoInteractions(userProjectSkillDataAccess);
@@ -657,6 +666,8 @@ class ProjectUserBindingServiceTest {
         UUID projectId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         long expectedVersion = 1L;
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
 
         Project project = new Project();
         project.setId(projectId);
@@ -666,18 +677,22 @@ class ProjectUserBindingServiceTest {
         CompensationRestoreLog claimLog = new CompensationRestoreLog();
         claimLog.setEventId(eventId);
         claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
 
-        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty(), Optional.of(claimLog));
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString())).thenReturn(1);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
 
         assertThrows(CompensationConflictException.class,
-                () -> projectUserBindingService.restoreMemberSkills(projectId, eventId, expectedVersion, List.of()));
+                () -> projectUserBindingService.restoreMemberSkills(projectId, eventId, expectedVersion,
+                        ownerId, fencingVersion, List.of()));
 
         verify(userProjectSkillDataAccess, never()).deleteByProjectId(projectId);
-        verify(restoreLogRepository).save(claimLog);
-        assertEquals("FAILED", claimLog.getStatus());
-        assertNotNull(claimLog.getLastError());
+        verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString());
     }
 
     @Test
@@ -688,23 +703,58 @@ class ProjectUserBindingServiceTest {
         successLog.setStatus("SUCCESS");
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(successLog));
 
-        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID());
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L);
 
         assertFalse(claimed);
         verify(restoreLogRepository, never()).saveAndFlush(any(CompensationRestoreLog.class));
     }
 
     @Test
-    void testClaimRestoreEvent_shouldReturnFalse_whenConcurrentVersionConflict() {
+    void testClaimRestoreEvent_shouldReturnFalse_whenLeaseNotExpired() {
         UUID eventId = UUID.randomUUID();
         CompensationRestoreLog processingLog = new CompensationRestoreLog();
         processingLog.setEventId(eventId);
-        processingLog.setStatus("FAILED");
+        processingLog.setStatus("PROCESSING");
+        processingLog.setLeaseUntil(new Date(System.currentTimeMillis() + 60_000L));
+        processingLog.setFencingVersion(3L);
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(processingLog));
-        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
-                .thenThrow(new ObjectOptimisticLockingFailureException("concurrent update", processingLog));
 
-        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID());
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 4L);
+
+        assertFalse(claimed);
+        verify(restoreLogRepository, never()).saveAndFlush(any(CompensationRestoreLog.class));
+        verify(restoreLogRepository, never()).takeOverClaim(any(), anyString(), anyString(), any(Date.class),
+                any(Date.class), anyString(), anyLong());
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldReturnFalse_whenStaleFencingToken() {
+        UUID eventId = UUID.randomUUID();
+        CompensationRestoreLog processingLog = new CompensationRestoreLog();
+        processingLog.setEventId(eventId);
+        processingLog.setStatus("PROCESSING");
+        processingLog.setLeaseUntil(new Date(System.currentTimeMillis() - 60_000L));
+        processingLog.setFencingVersion(5L);
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(processingLog));
+
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 3L);
+
+        assertFalse(claimed);
+        verify(restoreLogRepository, never()).takeOverClaim(any(), anyString(), anyString(), any(Date.class),
+                any(Date.class), anyString(), anyLong());
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldReturnFalse_whenTakeOverRejected() {
+        UUID eventId = UUID.randomUUID();
+        CompensationRestoreLog failedLog = new CompensationRestoreLog();
+        failedLog.setEventId(eventId);
+        failedLog.setStatus("FAILED");
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(failedLog));
+        when(restoreLogRepository.takeOverClaim(any(), anyString(), anyString(), any(Date.class),
+                any(Date.class), anyString(), anyLong())).thenReturn(0);
+
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 3L);
 
         assertFalse(claimed);
     }
@@ -716,7 +766,7 @@ class ProjectUserBindingServiceTest {
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
-        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID());
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L);
 
         assertFalse(claimed);
     }
@@ -729,7 +779,7 @@ class ProjectUserBindingServiceTest {
                 .thenThrow(new RuntimeException("db connection lost"));
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID()));
+                () -> projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L));
 
         assertEquals("db connection lost", exception.getMessage());
     }

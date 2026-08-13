@@ -42,4 +42,13 @@ public class CompensationRestoreLog {
 
     @Column(name = "last_error", length = 1024)
     private String lastError;
+
+    @Column(name = "owner_id", nullable = false, length = 64)
+    private String ownerId;
+
+    @Column(name = "fencing_version")
+    private Long fencingVersion;
+
+    @Column(name = "lease_until")
+    private Date leaseUntil;
 }

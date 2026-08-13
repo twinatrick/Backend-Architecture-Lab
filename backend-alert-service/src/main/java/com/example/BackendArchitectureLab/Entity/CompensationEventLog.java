@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -55,4 +56,14 @@ public class CompensationEventLog extends BaseEntity {
 
     @Column(name = "last_alerted_at")
     private Date lastAlertedAt;
+
+    @Column(name = "owner_id", nullable = false, length = 64)
+    private String ownerId;
+
+    @Column(name = "fencing_version")
+    private Long fencingVersion;
+
+    @Lob
+    @Column(name = "payload")
+    private String payload;
 }

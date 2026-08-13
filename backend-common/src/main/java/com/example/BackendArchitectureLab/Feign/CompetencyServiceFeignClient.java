@@ -22,6 +22,8 @@ public interface CompetencyServiceFeignClient {
      * @param projectId 專案 ID
      * @param eventId 補償事件 ID，用於等冪去重防護
      * @param expectedVersion 快照時的專案樂觀鎖版本，用於並發守衛
+     * @param ownerId 目前認領此補償事件的處理者唯一識別碼（fencing token，供還原端驗證）
+     * @param fencingVersion 目前認領的代數（單調遞增，僅最新一代持有者能執行還原並標記結果）
      * @param bindings 歷史綁定 List 明細
      */
     @PostMapping("/project/inner/skills/restore")
@@ -29,5 +31,7 @@ public interface CompetencyServiceFeignClient {
             @RequestParam("projectId") UUID projectId,
             @RequestHeader("Idempotency-Key") String eventId,
             @RequestParam(value = "expectedVersion", required = false) Long expectedVersion,
+            @RequestHeader("X-Fencing-Owner") String ownerId,
+            @RequestHeader("X-Fencing-Version") Long fencingVersion,
             @RequestBody List<Map<String, String>> bindings);
 }

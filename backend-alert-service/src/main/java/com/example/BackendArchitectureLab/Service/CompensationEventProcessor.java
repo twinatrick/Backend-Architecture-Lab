@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
+import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.Repository.CompensationEventLogRepository;
@@ -8,6 +9,8 @@ import com.example.BackendArchitectureLab.Service.Strategy.CompensationStrategy;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * CompensationEventProcessor - 補償事件處理核心（由 {@code CompensationConsumer} 委派）。
@@ -24,9 +28,14 @@ import java.util.List;
  * 處理狀態 PROCESSING → PROCESSED / FAILED，FAILED 於下次送達時以 retryClaim CAS 重試，
  * PROCESSING 且租約過期（預設 300 秒）由其他實例以 reclaimLease 接手。
  * <p>
- * 注意：事件層級去重無法保證業務 side effect 的 exactly-once——租約過期時前一個實例可能仍在執行，
- * 補償可能被重複執行；`CompensationStrategy` 實作必須以 eventId 為冪等鍵自行設計冪等
- * （目前策略為 log-only 無副作用）。
+ * Fencing Token：每次認領會生成新的 ownerId 並使 fencingVersion 單調遞增，快照存於
+ * {@code compensation_event_log}，並於呼叫策略時原樣傳遞；下游還原端以此驗證
+ * 只有「最新一代」的持有者能真正執行還原並標記結果，避免舊租約持有者覆寫新結果。
+ * <p>
+ * 不可重試（permanent）例外（{@link UnsupportedEventVersionException}、
+ * {@link UnsupportedCompensationActionException}、{@link CompensationConflictException}、
+ * {@link IllegalArgumentException}）會直接標記 DEAD 後向外 rethrow，由 Kafka 錯誤處理器
+ * 轉發至 DLT 供人工介入，不進行無意義的重試。
  */
 @Slf4j
 @Service
@@ -40,6 +49,9 @@ public class CompensationEventProcessor {
 
     @Autowired
     private List<CompensationStrategy> compensationStrategies;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Value("${compensation.consumer.lease-seconds:300}")
     private long leaseSeconds;
@@ -92,13 +104,43 @@ public class CompensationEventProcessor {
         entry.setTransactionId(event.getTransactionId());
         entry.setStatus(CompensationEventLogStatus.PROCESSING);
         entry.setAttemptCount(1);
+        entry.setOwnerId(UUID.randomUUID().toString());
+        entry.setFencingVersion(1L);
         entry.setReceivedAt(now);
         entry.setProcessingAt(now);
         entry.setLeaseUntil(new Date(now.getTime() + leaseSeconds * 1000L));
+        entry.setPayload(serialize(event));
         try {
             return eventLogRepository.saveAndFlush(entry);
         } catch (DataIntegrityViolationException e) {
             return null;
+        }
+    }
+
+    /**
+     * 處理過期租約回收的滯留事件：由 {@code CompensationLeaseReclaimer} 在 CAS 重新認領並刷新
+     * ownerId/fencingVersion 後呼叫本方法。事件內容自 stored payload 反序列化，且不再重新 claim。
+     */
+    public void processReclaimed(CompensationEventLog entry) {
+        CompensationEvent event = deserialize(entry.getPayload());
+        log.info("Processing reclaimed compensation event after lease expiry: eventId={}, attempt={}",
+                event.getEventId(), entry.getAttemptCount());
+        processEntry(entry, event);
+    }
+
+    private String serialize(CompensationEvent event) {
+        try {
+            return objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to serialize compensation event payload: " + event.getEventId(), e);
+        }
+    }
+
+    private CompensationEvent deserialize(String payload) {
+        try {
+            return objectMapper.readValue(payload, CompensationEvent.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize compensation event payload: " + payload, e);
         }
     }
 
@@ -125,6 +167,7 @@ public class CompensationEventProcessor {
                 event.getEventId(),
                 CompensationEventLogStatus.PROCESSING,
                 CompensationEventLogStatus.FAILED,
+                UUID.randomUUID().toString(),
                 now,
                 new Date(now.getTime() + leaseSeconds * 1000L));
         if (claimed == 1) {
@@ -154,6 +197,7 @@ public class CompensationEventProcessor {
                 event.getEventId(),
                 CompensationEventLogStatus.PROCESSING,
                 now,
+                UUID.randomUUID().toString(),
                 now,
                 new Date(now.getTime() + leaseSeconds * 1000L));
         if (reclaimed == 1) {
@@ -181,12 +225,17 @@ public class CompensationEventProcessor {
                 markProcessed(entry);
                 return;
             }
-            log.warn("Executing compensation for transaction {} action {}",
-                    event.getTransactionId(), event.getAction());
-            executeCompensation(event);
+            log.warn("Executing compensation for transaction {} action {} with owner {} fence {}",
+                    event.getTransactionId(), event.getAction(), entry.getOwnerId(), entry.getFencingVersion());
+            executeCompensation(event, entry.getOwnerId(), entry.getFencingVersion());
             markProcessed(entry);
         } catch (Exception e) {
-            if (entry.getAttemptCount() >= maxAttempts) {
+            if (isNonRetryable(e)) {
+                log.error("Compensation failed with non-retryable error. Quarantine in DEAD status: eventId={}",
+                        event.getEventId(), e);
+                markDead(entry, e.getMessage());
+                throw e; // 仍 rethrow：讓 Kafka 錯誤處理器識別為 non-retryable，直接轉發 DLT
+            } else if (entry.getAttemptCount() >= maxAttempts) {
                 log.error("Compensation failed and reached max attempts ({}). Quarantine in DEAD status: eventId={}",
                         maxAttempts, event.getEventId(), e);
                 markDead(entry, e.getMessage());
@@ -200,14 +249,25 @@ public class CompensationEventProcessor {
         }
     }
 
-    private void executeCompensation(CompensationEvent event) {
+    private void executeCompensation(CompensationEvent event, String ownerId, Long fencingVersion) {
         for (CompensationStrategy strategy : compensationStrategies) {
             if (strategy.supports(event.getAction())) {
-                strategy.compensate(event);
+                strategy.compensate(event, ownerId, fencingVersion);
                 return;
             }
         }
         throw new UnsupportedCompensationActionException("Unsupported compensation action: " + event.getAction());
+    }
+
+    /**
+     * 判斷是否為不可重試的永久錯誤：契約不相容（版本 / 未知 action / 缺失必要狀態）與永久性業務衝突。
+     * 這類錯誤重試亦不會成功，Kafka 端已設定為 non-retryable 並轉發 DLT。
+     */
+    private boolean isNonRetryable(Throwable e) {
+        return e instanceof UnsupportedEventVersionException
+                || e instanceof UnsupportedCompensationActionException
+                || e instanceof CompensationConflictException
+                || e instanceof IllegalArgumentException;
     }
 
     private void markProcessed(CompensationEventLog entry) {
