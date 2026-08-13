@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -34,4 +35,11 @@ public class CompensationRestoreLog {
 
     @Column(name = "status", nullable = false, length = 32)
     private String status;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
+
+    @Column(name = "last_error", length = 1024)
+    private String lastError;
 }

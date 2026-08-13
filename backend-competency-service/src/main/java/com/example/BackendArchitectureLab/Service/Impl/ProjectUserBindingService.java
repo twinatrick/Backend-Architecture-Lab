@@ -27,6 +27,8 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -400,7 +402,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
                 restoreLogRepository.saveAndFlush(claim);
             }
             return true;
-        } catch (Exception e) {
+        } catch (DataIntegrityViolationException | ObjectOptimisticLockingFailureException e) {
             return false;
         }
     }
@@ -420,24 +422,25 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
 
-        CompensationRestoreLog claimLog = restoreLogRepository.findById(eventId)
-                .orElseThrow(() -> new IllegalStateException("Claim log not found for eventId: " + eventId));
-
         if (expectedVersion != null && !expectedVersion.equals(project.getVersion())) {
-            claimLog.setStatus("FAILED");
-            restoreLogRepository.save(claimLog);
             log.error("COMPENSATION_CONFLICT: Project {} has been updated by another transaction after snapshot! " +
                     "Current DB version = {}, Expected = {}", projectId, project.getVersion(), expectedVersion);
+            self.markRestoreFailed(eventId, "Project has newer modifications. Current DB version = " +
+                    project.getVersion() + ", Expected = " + expectedVersion);
             throw new CompensationConflictException(
                     "Conflict detected: project has newer modifications. Cannot perform unsafe restore."
             );
         }
 
+        // 3. Commit-time 版本守衛：touch Project 使 JPA @Version 在 commit 時執行 CAS 比對，封閉 TOCTOU 窗口
+        project.setUpdatedTime(new Date());
+        projectDataAccess.save(project);
+
         try {
-            // 3. 刪除該專案目前的技能綁定
+            // 4. 刪除該專案目前的技能綁定
             userProjectSkillDataAccess.deleteByProjectId(projectId);
 
-            // 4. 還原
+            // 5. 還原
             if (bindings != null) {
                 for (Map<String, String> b : bindings) {
                     UUID userId = UUID.fromString(b.get("userId"));
@@ -458,15 +461,48 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
                 }
             }
 
-            // 5. 還原成功，標記認領日誌為 SUCCESS
-            claimLog.setStatus("SUCCESS");
-            claimLog.setProcessedAt(new Date());
-            restoreLogRepository.save(claimLog);
+            // 6. 還原成功，以獨立交易標記認領日誌為 SUCCESS
+            self.markRestoreSuccess(eventId);
         } catch (Exception e) {
-            // 發生其他異常，將認領日誌標記為 FAILED，供後續重試或人工排查
-            claimLog.setStatus("FAILED");
-            restoreLogRepository.save(claimLog);
+            // 7. 發生其他異常，以獨立交易標記認領日誌為 FAILED，供後續重試或人工排查
+            self.markRestoreFailed(eventId, e.getMessage());
             throw e;
         }
+    }
+
+    /**
+     * markRestoreSuccess - 以獨立交易 (REQUIRES_NEW) 標記補償還原認領日誌為 SUCCESS。
+     * 獨立 commit 確保成功狀態不因外層交易回滾而遺失。
+     *
+     * @param eventId 補償事件 ID
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markRestoreSuccess(UUID eventId) {
+        CompensationRestoreLog claimLog = findRestoreLogOrThrow(eventId);
+        claimLog.setStatus("SUCCESS");
+        claimLog.setProcessedAt(new Date());
+        claimLog.setLastError(null);
+        restoreLogRepository.save(claimLog);
+    }
+
+    /**
+     * markRestoreFailed - 以獨立交易 (REQUIRES_NEW) 標記補償還原認領日誌為 FAILED 並記錄失敗原因。
+     * 獨立 commit 確保失敗狀態與錯誤訊息不因外層交易回滾而遺失。
+     *
+     * @param eventId 補償事件 ID
+     * @param reason  失敗原因，寫入 lastError 欄位
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markRestoreFailed(UUID eventId, String reason) {
+        CompensationRestoreLog claimLog = findRestoreLogOrThrow(eventId);
+        claimLog.setStatus("FAILED");
+        claimLog.setProcessedAt(new Date());
+        claimLog.setLastError(reason);
+        restoreLogRepository.save(claimLog);
+    }
+
+    private CompensationRestoreLog findRestoreLogOrThrow(UUID eventId) {
+        return restoreLogRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalStateException("Claim log not found for eventId: " + eventId));
     }
 }

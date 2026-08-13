@@ -27,6 +27,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -630,6 +632,7 @@ class ProjectUserBindingServiceTest {
         verify(userProjectSkillDataAccess).deleteByProjectId(projectId);
         verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
         verify(restoreLogRepository).save(claimLog);
+        verify(projectDataAccess).save(project);
         assertEquals("SUCCESS", claimLog.getStatus());
     }
 
@@ -674,6 +677,61 @@ class ProjectUserBindingServiceTest {
         verify(userProjectSkillDataAccess, never()).deleteByProjectId(projectId);
         verify(restoreLogRepository).save(claimLog);
         assertEquals("FAILED", claimLog.getStatus());
+        assertNotNull(claimLog.getLastError());
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldReturnFalse_whenOnlySuccessIsClaimable() {
+        UUID eventId = UUID.randomUUID();
+        CompensationRestoreLog successLog = new CompensationRestoreLog();
+        successLog.setEventId(eventId);
+        successLog.setStatus("SUCCESS");
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(successLog));
+
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID());
+
+        assertFalse(claimed);
+        verify(restoreLogRepository, never()).saveAndFlush(any(CompensationRestoreLog.class));
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldReturnFalse_whenConcurrentVersionConflict() {
+        UUID eventId = UUID.randomUUID();
+        CompensationRestoreLog processingLog = new CompensationRestoreLog();
+        processingLog.setEventId(eventId);
+        processingLog.setStatus("FAILED");
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(processingLog));
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException("concurrent update", processingLog));
+
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID());
+
+        assertFalse(claimed);
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldReturnFalse_whenDuplicateInsertKey() {
+        UUID eventId = UUID.randomUUID();
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        boolean claimed = projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID());
+
+        assertFalse(claimed);
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldRethrow_unexpectedDbError() {
+        UUID eventId = UUID.randomUUID();
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
+                .thenThrow(new RuntimeException("db connection lost"));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> projectUserBindingService.claimRestoreEvent(eventId, UUID.randomUUID()));
+
+        assertEquals("db connection lost", exception.getMessage());
     }
 
     @Test
