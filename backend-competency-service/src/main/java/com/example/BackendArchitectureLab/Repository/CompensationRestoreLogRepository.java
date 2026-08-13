@@ -1,7 +1,9 @@
 package com.example.BackendArchitectureLab.Repository;
 
 import com.example.BackendArchitectureLab.Entity.CompensationRestoreLog;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,10 +11,24 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface CompensationRestoreLogRepository extends JpaRepository<CompensationRestoreLog, UUID> {
+
+    /**
+     * 以悲觀寫鎖 (PESSIMISTIC_WRITE) 讀取補償還原認領紀錄，鎖持有至目前交易 commit/rollback。
+     * 在還原交易期間持有此鎖可讓其他執行緒的 takeOverClaim CAS 阻塞於資料列上；
+     * 待本交易 commit 後，接管 UPDATE 的 predicate 重新評估（狀態已非可接管條件）即失敗，
+     * 使舊持有者的 fencing token 在資料庫層真正失效，消除 check-then-act 的 TOCTOU 窗口。
+     *
+     * @param eventId 補償事件 ID
+     * @return 認領紀錄（不存在時為 Optional.empty）
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM CompensationRestoreLog r WHERE r.eventId = :eventId")
+    Optional<CompensationRestoreLog> findByIdForUpdate(@Param("eventId") UUID eventId);
 
     /**
      * 原子接管補償還原認領（CAS）：僅當事件仍是可認領狀態時才更新為新的 ownerId/fencingVersion。

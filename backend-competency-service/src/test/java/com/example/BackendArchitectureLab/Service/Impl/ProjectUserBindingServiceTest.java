@@ -30,6 +30,9 @@ import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronizationUtils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -622,8 +625,9 @@ class ProjectUserBindingServiceTest {
         claimLog.setOwnerId(ownerId);
         claimLog.setFencingVersion(fencingVersion);
 
-        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty(), Optional.of(claimLog));
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(restoreLogRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(claimLog));
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull())).thenReturn(1);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
@@ -643,6 +647,112 @@ class ProjectUserBindingServiceTest {
         verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull());
         verify(projectDataAccess).save(project);
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldDeferSuccessUntilAfterCommit() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setVersion(1L);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        SkillLevel level = new SkillLevel();
+        level.setId(levelId);
+
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(restoreLogRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(claimLog));
+        when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("SUCCESS"), any(Date.class), isNull())).thenReturn(1);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+
+        Map<String, String> bindingMap = Map.of(
+                "userId", userId.toString(),
+                "skillId", skillId.toString(),
+                "levelId", levelId.toString()
+        );
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            // 交易進行中：還原執行完成但 commit 尚未發生，SUCCESS 不應在此時被標記
+            projectUserBindingService.restoreMemberSkills(projectId, eventId, 1L, ownerId, fencingVersion, List.of(bindingMap));
+            verify(restoreLogRepository, never()).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                    eq("SUCCESS"), any(Date.class), isNull());
+
+            // commit 成功後，afterCommit 才觸發 SUCCESS 標記
+            TransactionSynchronizationUtils.triggerAfterCommit();
+            verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                    eq("SUCCESS"), any(Date.class), isNull());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldMarkFailedAfterRollback_whenRestoreFails() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setVersion(1L);
+
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(restoreLogRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(claimLog));
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString())).thenReturn(1);
+        doThrow(new RuntimeException("skill rebind failed"))
+                .when(userProjectSkillDataAccess).deleteByProjectId(projectId);
+
+        Map<String, String> bindingMap = Map.of(
+                "userId", UUID.randomUUID().toString(),
+                "skillId", skillId.toString(),
+                "levelId", levelId.toString()
+        );
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertThrows(RuntimeException.class,
+                    () -> projectUserBindingService.restoreMemberSkills(projectId, eventId, 1L, ownerId,
+                            fencingVersion, List.of(bindingMap)));
+            // commit 尚未失敗前不標記；外層 rollback 後才以 FAILED 標記
+            verify(restoreLogRepository, never()).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                    eq("FAILED"), any(Date.class), anyString());
+
+            TransactionSynchronizationUtils.triggerAfterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+            verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                    eq("FAILED"), any(Date.class), anyString());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

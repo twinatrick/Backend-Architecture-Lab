@@ -32,6 +32,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -467,9 +469,11 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         project.setUpdatedTime(new Date());
         projectDataAccess.save(project);
 
-        // 4. 破壞性操作前再次驗證 fencing token：確認認領紀錄仍由本次 owner+fencingVersion 持有，
-        //    若已被更新的租約接管（例如長時間執行中 lease 過期被 reclaimer 接手），則放棄本次還原。
-        CompensationRestoreLog current = restoreLogRepository.findById(eventId).orElse(null);
+        // 4. 破壞性操作前再次驗證 fencing token：以悲觀寫鎖 (PESSIMISTIC_WRITE) 鎖定認領紀錄，
+        //    確認目前仍由本次 owner+fencingVersion 持有，且此鎖持續持有至交易 commit。
+        //    其他執行緒的 takeOverClaim CAS 會被此資料列鎖阻塞；待本交易 commit 後其 predicate
+        //    （狀態已非 PROCESSING/FAILED 可接管）重新評估即失敗，使舊 token 在 DB 層真正失效。
+        CompensationRestoreLog current = restoreLogRepository.findByIdForUpdate(eventId).orElse(null);
         if (current == null || !ownerId.equals(current.getOwnerId())
                 || !fencingVersion.equals(current.getFencingVersion())) {
             log.warn("Fencing token superseded before destructive restore, abort: eventId={}, currentOwner={}, currentFence={}",
@@ -502,13 +506,40 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
                     userProjectSkillDataAccess.save(binding);
                 }
             }
-
-            // 7. 還原成功，以獨立交易標記認領日誌為 SUCCESS
-            self.markRestoreSuccess(eventId, ownerId, fencingVersion);
         } catch (Exception e) {
-            // 8. 發生其他異常，以獨立交易標記認領日誌為 FAILED，供後續重試或人工排查
-            self.markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
+            // 7. 發生其他異常：於外層交易 rollback（釋放悲觀鎖）後，以獨立交易標記 FAILED。
+            //    不可在此直接以 REQUIRES_NEW 更新認領紀錄——該更新會阻塞於本交易持有的資料列鎖，
+            //    而本交易又等待此呼叫回傳，形成死鎖，故改以 afterCompletion 延後執行。
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                final String reason = e.getMessage();
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                            self.markRestoreFailed(eventId, ownerId, fencingVersion, reason);
+                        }
+                    }
+                });
+            } else {
+                // 非交易環境（如單元測試直接呼叫）下無同步機制可用，直接標記 FAILED
+                self.markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
+            }
             throw e;
+        }
+
+        // 8. 還原成功：僅於外層交易 commit 成功後（afterCommit）以獨立交易標記 SUCCESS。
+        //    若 commit 失敗，SUCCESS 不會被寫入，認領紀錄維持 PROCESSING，
+        //    待租約到期後由 CompensationLeaseReclaimer 回收重試，避免「log=SUCCESS 但實際未還原」。
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    self.markRestoreSuccess(eventId, ownerId, fencingVersion);
+                }
+            });
+        } else {
+            // 非交易環境（如單元測試直接呼叫）下無同步機制可用，直接標記 SUCCESS
+            self.markRestoreSuccess(eventId, ownerId, fencingVersion);
         }
     }
 
