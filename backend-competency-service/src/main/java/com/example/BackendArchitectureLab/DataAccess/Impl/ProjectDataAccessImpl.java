@@ -30,6 +30,11 @@ public class ProjectDataAccessImpl implements IProjectDataAccess {
     public Project save(Project project) {
         return projectRepository.save(project);
     }
+
+    @Override
+    public Project saveAndFlush(Project project) {
+        return projectRepository.saveAndFlush(project);
+    }
     
     @Override
     public List<Project> findAll() {

@@ -1,0 +1,91 @@
+package com.example.BackendArchitectureLab.Repository;
+
+import com.example.BackendArchitectureLab.Entity.CompensationRestoreLog;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Date;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface CompensationRestoreLogRepository extends JpaRepository<CompensationRestoreLog, UUID> {
+
+    /**
+     * 以悲觀寫鎖 (PESSIMISTIC_WRITE) 讀取補償還原認領紀錄，鎖持有至目前交易 commit/rollback。
+     * 在還原交易期間持有此鎖可讓其他執行緒的 takeOverClaim CAS 阻塞於資料列上；
+     * 待本交易 commit 後，接管 UPDATE 的 predicate 重新評估（狀態已非可接管條件）即失敗，
+     * 使舊持有者的 fencing token 在資料庫層真正失效，消除 check-then-act 的 TOCTOU 窗口。
+     *
+     * @param eventId 補償事件 ID
+     * @return 認領紀錄（不存在時為 Optional.empty）
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM CompensationRestoreLog r WHERE r.eventId = :eventId")
+    Optional<CompensationRestoreLog> findByIdForUpdate(@Param("eventId") UUID eventId);
+
+    /**
+     * 原子接管補償還原認領（CAS）：僅當事件仍是可認領狀態且 incoming fencingVersion 嚴格大於
+     * 現有代數時才更新為新的 ownerId/fencingVersion。可認領條件為 FAILED，或 PROCESSING 且租約已到期。
+     * FAILED 與 PROCESSING 兩條路徑都套用「新版代數接管、stale token 一律拒絕」的相同代數不變式。
+     * 回傳 1 表示成功接管，0 表示仍被持有者使用中或 token 已過時。
+     *
+     * @param eventId        補償事件 ID
+     * @param processing     PROCESSING 狀態
+     * @param failed         FAILED 狀態
+     * @param now            目前時間（租約到期比對基準）
+     * @param leaseUntil     新租約到期時間
+     * @param ownerId        新持有者唯一識別碼
+     * @param fencingVersion 新持有者的代數（必須大於現有值才可接管）
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationRestoreLog r
+            SET r.status = :processing, r.processedAt = :now,
+                r.ownerId = :ownerId, r.fencingVersion = :fencingVersion, r.leaseUntil = :leaseUntil
+            WHERE r.eventId = :eventId
+              AND (r.fencingVersion IS NULL OR r.fencingVersion < :fencingVersion)
+              AND (r.status = :failed
+                   OR (r.status = :processing AND r.leaseUntil <= :now))
+            """)
+    int takeOverClaim(@Param("eventId") UUID eventId,
+                      @Param("processing") String processing,
+                      @Param("failed") String failed,
+                      @Param("now") Date now,
+                      @Param("leaseUntil") Date leaseUntil,
+                      @Param("ownerId") String ownerId,
+                      @Param("fencingVersion") Long fencingVersion);
+
+    /**
+     * 以獨立交易更新認領日誌的終態（SUCCESS / FAILED），僅接受仍由相同 ownerId + fencingVersion
+     * 持有的紀錄；若已被更新的持有者接管（影響 0 列），則不覆寫其結果。
+     *
+     * @param eventId        補償事件 ID
+     * @param ownerId        目前持有者（必須相符）
+     * @param fencingVersion 目前持有代數（必須相符）
+     * @param status         目標終態
+     * @param processedAt    完成時間
+     * @param lastError      失敗原因（成功時為 null）
+     * @return 更新筆數（0 = 已被他代持有者接管，不應覆寫）
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationRestoreLog r
+            SET r.status = :status, r.processedAt = :processedAt, r.lastError = :lastError
+            WHERE r.eventId = :eventId AND r.ownerId = :ownerId AND r.fencingVersion = :fencingVersion
+            """)
+    int markRestoreState(@Param("eventId") UUID eventId,
+                         @Param("ownerId") String ownerId,
+                         @Param("fencingVersion") Long fencingVersion,
+                         @Param("status") String status,
+                         @Param("processedAt") Date processedAt,
+                         @Param("lastError") String lastError);
+}

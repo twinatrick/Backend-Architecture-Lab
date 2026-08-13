@@ -53,12 +53,11 @@ class UserVoiceUploadDataAccessImplTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void searchByUserId_BuildsSpecificationAndDelegates() {
         VoiceUploadSearchQuery query = new VoiceUploadSearchQuery();
         Pageable pageable = Pageable.unpaged();
-        Page<UserVoiceUpload> page = mock(Page.class);
-        Specification<UserVoiceUpload> spec = mock(Specification.class);
+        Page<UserVoiceUpload> page = Page.empty();
+        Specification<UserVoiceUpload> spec = (root, criteriaQuery, criteriaBuilder) -> criteriaBuilder.conjunction();
 
         try (MockedStatic<VoiceUploadSpecification> mocked =
                      mockStatic(VoiceUploadSpecification.class)) {

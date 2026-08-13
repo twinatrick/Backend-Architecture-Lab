@@ -6,8 +6,8 @@ from config import settings
 from services.diarization_service import _detect_diarization_device
 from services.diarization_service import _resolve_conda_python
 from services.diarization_service import _run_diarization
-from services.formatter_service import _convert_tw_traditional
 from services.sensevoice_service import _transcribe_sensevoice
+from services.traditional_chinese_converter import traditional_chinese_converter
 from services.whisper_service import _get_whisper_model
 from services.whisper_service import _transcribe_whisper
 from utils.audio import _prepare_audio
@@ -58,7 +58,7 @@ class SttEngine:
             if effective_provider == "sensevoice":
                 text = _transcribe_sensevoice(stt_input_file)
                 if text:
-                    return _convert_tw_traditional(text)
+                    return traditional_chinese_converter.convert(text)
 
             model = _get_whisper_model()
             default_lang = settings.whisper_language if settings.whisper_language else None

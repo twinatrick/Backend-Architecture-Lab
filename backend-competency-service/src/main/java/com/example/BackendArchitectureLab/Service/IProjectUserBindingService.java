@@ -51,4 +51,17 @@ public interface IProjectUserBindingService {
      * @return 成員技能等級列表（含無技能綁定的成員，skills 為空陣列）
      */
     List<ProjectMemberSkillVo> getProjectMemberSkills(UUID projectId);
+
+    /**
+     * 補償還原專案成員技能綁定（全抹平重建強等冪模式）
+     *
+     * @param projectId 專案 ID
+     * @param eventId 補償事件 ID，用於等冪去重
+     * @param expectedVersion 快照時的專案樂觀鎖版本，用於並發守衛
+     * @param ownerId 目前認領此補償事件的處理者唯一識別碼（fencing token）
+     * @param fencingVersion 目前認領的代數（單調遞增，僅最新一代持有者能執行還原）
+     * @param bindings 歷史綁定 List 明細
+     */
+    void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedVersion,
+                             String ownerId, Long fencingVersion, List<Map<String, String>> bindings);
 }
