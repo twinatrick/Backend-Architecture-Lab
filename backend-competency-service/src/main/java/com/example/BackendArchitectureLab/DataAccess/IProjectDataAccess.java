@@ -22,6 +22,13 @@ public interface IProjectDataAccess {
      * @return 保存後的專案實體
      */
     Project save(Project project);
+
+    /**
+     * 保存 Project 並立即 Flush（確保 Auditing 與樂觀鎖 Version 遞增立即生效）
+     * @param project 要保存的專案實體
+     * @return 保存後的專案實體
+     */
+    Project saveAndFlush(Project project);
     
     /**
      * 查詢所有 Project

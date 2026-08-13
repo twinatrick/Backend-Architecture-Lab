@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Vo.Kafka;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -9,9 +10,12 @@ import java.util.Map;
 import java.util.UUID;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CompensationEvent {
+    private UUID eventId;
+    private int eventVersion;
     private UUID transactionId;
     private String serviceName;
     private CompensationAction action;

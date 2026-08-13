@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.UserProject;
-import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Service.IUserProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -24,7 +24,7 @@ public class UserProjectService implements IUserProjectService {
     @Autowired
     private IProjectDataAccess projectDataAccess;
     @Autowired
-    private UserServiceFeignClient userServiceFeignClient;
+    private IUserGateway userGateway;
     @Autowired
     @Lazy
     private UserProjectService self;
@@ -35,7 +35,7 @@ public class UserProjectService implements IUserProjectService {
             throw new IllegalArgumentException("Key must not be null");
         }
 
-        boolean userExists = userServiceFeignClient.existsUserById(userId);
+        boolean userExists = userGateway.existsUserById(userId);
         if (!userExists) {
             throw new IllegalArgumentException("User not found");
         }

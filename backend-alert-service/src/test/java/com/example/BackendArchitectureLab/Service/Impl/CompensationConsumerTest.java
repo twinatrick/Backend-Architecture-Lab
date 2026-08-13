@@ -1,128 +1,51 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
+import com.example.BackendArchitectureLab.Service.CompensationEventProcessor;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class CompensationConsumerTest {
+
+    @Mock
+    private CompensationEventProcessor eventProcessor;
 
     @InjectMocks
     private CompensationConsumer compensationConsumer;
 
-    @Test
-    void handleCompensation_whenStatusCompensatedAndActionProjectMemberSkillsRebind_shouldExecuteCompensation() {
-        CompensationEvent event = new CompensationEvent();
-        event.setTransactionId(UUID.randomUUID());
-        event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
-        event.setStatus(CompensationStatus.COMPENSATED);
-        event.setBeforeState(Map.of("key1", "value1"));
-        event.setAfterState(Map.of("key2", "value2"));
-        event.setTimestamp(Instant.now());
+    private CompensationEvent event;
 
-        compensationConsumer.handleCompensation(event);
+    @BeforeEach
+    void setUp() {
+        event = CompensationEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventVersion(1)
+                .transactionId(UUID.randomUUID())
+                .serviceName("competency-service")
+                .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
+                .status(CompensationStatus.COMPENSATION_REQUIRED)
+                .beforeState(Map.of("key1", "value1"))
+                .timestamp(Instant.now())
+                .build();
     }
 
     @Test
-    void handleCompensation_whenStatusCompensatedAndUnknownAction_shouldLogWarning() {
-        CompensationEvent event = new CompensationEvent();
-        event.setTransactionId(UUID.randomUUID());
-        event.setServiceName("unknown-service");
-        event.setAction(null);
-        event.setStatus(CompensationStatus.COMPENSATED);
-        event.setTimestamp(Instant.now());
-
+    void handleCompensation_shouldDelegateToEventProcessor() {
         compensationConsumer.handleCompensation(event);
-    }
 
-    @Test
-    void handleCompensation_whenStatusCommitted_shouldNotExecuteCompensation() {
-        CompensationEvent event = new CompensationEvent();
-        event.setTransactionId(UUID.randomUUID());
-        event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
-        event.setStatus(CompensationStatus.COMMITTED);
-        event.setTimestamp(Instant.now());
-
-        compensationConsumer.handleCompensation(event);
-    }
-
-    @Test
-    void handleCompensation_whenStatusSavePoint_shouldNotExecuteCompensation() {
-        CompensationEvent event = new CompensationEvent();
-        event.setTransactionId(UUID.randomUUID());
-        event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
-        event.setStatus(CompensationStatus.SAVE_POINT);
-        event.setTimestamp(Instant.now());
-
-        compensationConsumer.handleCompensation(event);
-    }
-
-    @Test
-    void handleCompensation_whenStatusFailed_shouldNotExecuteCompensation() {
-        CompensationEvent event = new CompensationEvent();
-        event.setTransactionId(UUID.randomUUID());
-        event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
-        event.setStatus(CompensationStatus.FAILED);
-        event.setTimestamp(Instant.now());
-
-        compensationConsumer.handleCompensation(event);
-    }
-
-    @Test
-    void handleCompensation_whenStatusIsNull_shouldNotExecuteCompensation() {
-        CompensationEvent event = new CompensationEvent();
-        event.setTransactionId(UUID.randomUUID());
-        event.setServiceName("project-service");
-        event.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND);
-        event.setStatus(null);
-        event.setTimestamp(Instant.now());
-
-        compensationConsumer.handleCompensation(event);
-    }
-
-    @Test
-    void handleCompensation_whenActionIsNullAndStatusCompensated_shouldLogWarningNotThrow() {
-        CompensationEvent event = new CompensationEvent();
-        event.setTransactionId(UUID.randomUUID());
-        event.setServiceName("project-service");
-        event.setAction(null);
-        event.setStatus(CompensationStatus.COMPENSATED);
-        event.setTimestamp(Instant.now());
-
-        assertDoesNotThrow(() -> compensationConsumer.handleCompensation(event));
-    }
-
-    @Test
-    void handleCompensation_withAllFieldsSet_shouldProcessCorrectly() {
-        CompensationEvent event = new CompensationEvent(
-                UUID.randomUUID(),
-                "project-service",
-                CompensationAction.PROJECT_MEMBER_SKILLS_REBIND,
-                CompensationStatus.COMPENSATED,
-                Map.of("role", "admin"),
-                Map.of("role", "user"),
-                null,
-                Instant.now()
-        );
-
-        compensationConsumer.handleCompensation(event);
+        verify(eventProcessor).process(event);
     }
 }

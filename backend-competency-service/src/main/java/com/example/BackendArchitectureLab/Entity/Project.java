@@ -20,6 +20,10 @@ import java.util.List;
         property = "id")
 
 public class Project extends BaseEntity {
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     //skill Name
     @Column(name = "name")
     private String name;
