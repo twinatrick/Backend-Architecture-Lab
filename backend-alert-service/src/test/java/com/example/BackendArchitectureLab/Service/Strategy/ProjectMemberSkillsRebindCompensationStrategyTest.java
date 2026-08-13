@@ -56,7 +56,7 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
                 .serviceName("competency-service")
                 .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
                 .status(CompensationStatus.COMPENSATED)
-                .beforeState(Map.of("projectId", projectId.toString(), "expectedLastUpdatedTime", 123456L, "bindings", bindings))
+                .beforeState(Map.of("projectId", projectId.toString(), "expectedVersion", 123456L, "bindings", bindings))
                 .timestamp(Instant.now())
                 .build();
 

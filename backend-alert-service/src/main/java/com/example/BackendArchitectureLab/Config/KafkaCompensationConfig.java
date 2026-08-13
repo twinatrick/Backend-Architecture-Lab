@@ -1,5 +1,8 @@
 package com.example.BackendArchitectureLab.Config;
 
+import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
+import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
+import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -11,6 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
@@ -63,14 +67,15 @@ public class KafkaCompensationConfig {
         // Consumer retry policy：FixedBackOff（1 秒間隔、最多 4 次退避 = 含首發共 5 次嘗試），
         // 超過後交由 DeadLetterPublishingRecoverer 轉發至 DLT 主題，並自動 commit offset 避免阻塞正常消費。
         // Permanent 錯誤（無法靠重試復原）不重試：Unsupported event version、Unsupported action、
-        // eventId null（契約違反）——直接交由 DLT。
-        org.springframework.kafka.listener.DeadLetterPublishingRecoverer recoverer =
-                new org.springframework.kafka.listener.DeadLetterPublishingRecoverer(compensationKafkaTemplate);
+        // eventId null（契約違反）、補償並發衝突（樂觀鎖守衛失敗）——直接交由 DLT。
+        DeadLetterPublishingRecoverer recoverer =
+                new DeadLetterPublishingRecoverer(compensationKafkaTemplate);
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 4L));
         errorHandler.addNotRetryableExceptions(
-                com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException.class,
-                com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException.class,
+                UnsupportedEventVersionException.class,
+                UnsupportedCompensationActionException.class,
+                CompensationConflictException.class,
                 IllegalArgumentException.class);
         factory.setCommonErrorHandler(errorHandler);
         return factory;

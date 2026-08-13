@@ -57,8 +57,8 @@ public interface IProjectUserBindingService {
      *
      * @param projectId 專案 ID
      * @param eventId 補償事件 ID，用於等冪去重
-     * @param expectedLastUpdatedTime 預期的專案最後更新時間戳，用於樂觀防禦
+     * @param expectedVersion 快照時的專案樂觀鎖版本，用於並發守衛
      * @param bindings 歷史綁定 List 明細
      */
-    void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedLastUpdatedTime, List<Map<String, String>> bindings);
+    void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedVersion, List<Map<String, String>> bindings);
 }

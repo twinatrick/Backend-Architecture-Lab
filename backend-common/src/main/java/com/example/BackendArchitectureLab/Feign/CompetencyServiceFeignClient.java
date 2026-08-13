@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Feign;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
@@ -20,13 +21,13 @@ public interface CompetencyServiceFeignClient {
      *
      * @param projectId 專案 ID
      * @param eventId 補償事件 ID，用於等冪去重防護
-     * @param expectedLastUpdatedTime 預期的專案最後更新時間戳，用於樂觀防禦
+     * @param expectedVersion 快照時的專案樂觀鎖版本，用於並發守衛
      * @param bindings 歷史綁定 List 明細
      */
     @PostMapping("/project/inner/skills/restore")
     void restoreProjectMemberSkills(
             @RequestParam("projectId") UUID projectId,
-            @org.springframework.web.bind.annotation.RequestHeader("Idempotency-Key") String eventId,
-            @RequestParam(value = "expectedLastUpdatedTime", required = false) Long expectedLastUpdatedTime,
+            @RequestHeader("Idempotency-Key") String eventId,
+            @RequestParam(value = "expectedVersion", required = false) Long expectedVersion,
             @RequestBody List<Map<String, String>> bindings);
 }

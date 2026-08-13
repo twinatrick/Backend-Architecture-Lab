@@ -6,36 +6,44 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
+import com.example.BackendArchitectureLab.Entity.CompensationRestoreLog;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
+import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
+import com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository;
 import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.MemberSkillLevelVo;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * ProjectUserBindingService - 專案與使用者/成員技能綁定業務邏輯服務
  */
+@Slf4j
 @Service
 public class ProjectUserBindingService implements IProjectUserBindingService {
 
@@ -58,7 +66,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     private ICompensationOutboxService compensationOutboxService;
 
     @Autowired
-    private com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository restoreLogRepository;
+    private CompensationRestoreLogRepository restoreLogRepository;
 
     @Autowired
     @Lazy
@@ -204,13 +212,13 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
 
-        // Touch 專案的 updatedTime，以進行補償時的樂觀防護
-        project.setUpdatedTime(new java.util.Date());
-        projectDataAccess.save(project);
+        // Touch 專案的 updatedTime 並強制 Flush（觸發 Auditing 與樂觀鎖 version 遞增），以進行補償時的樂觀防護
+        project.setUpdatedTime(new Date());
+        project = projectDataAccess.saveAndFlush(project);
 
         // 交易內建立 consistent snapshot
         Map<String, Object> state = buildStateSnapshot(projectId, memberSkillsMap);
-        state.put("expectedLastUpdatedTime", project.getUpdatedTime().getTime());
+        state.put("expectedVersion", project.getVersion() != null ? project.getVersion() : 0L);
 
         // TRANSACTION_STARTED 與業務交易同 commit（rollback 時一併消失）
         compensationOutboxService.enqueueTransactionStarted(
@@ -358,63 +366,107 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         return vo;
     }
 
+    /**
+     * 原子認領補償還原事件（資料庫級 Idempotency Guard）。
+     * 以 eventId 主鍵在獨立交易（REQUIRES_NEW）中進行 atomic claim：
+     * - 已存在且狀態為 SUCCESS → 拒絕認領（先前的消費者已完成處理）
+     * - 全新 eventId → 以 PROCESSING 插入，成功即取得本次還原的 ownership
+     * - 已存在但非 SUCCESS（PROCESSING / FAILED / 中斷）→ 更新為 PROCESSING 重新嘗試接管
+     * - 高並發下 concurrent insert 觸發主鍵衝突時 → 回傳 false 拒絕認領
+     *
+     * @param eventId  補償事件 ID
+     * @param projectId 專案 ID
+     * @return true 表示成功取得認領權可執行還原，false 表示重複或已被他人認領
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claimRestoreEvent(UUID eventId, UUID projectId) {
+        try {
+            Optional<CompensationRestoreLog> existing = restoreLogRepository.findById(eventId);
+            if (existing.isPresent() && "SUCCESS".equals(existing.get().getStatus())) {
+                return false;
+            }
+
+            if (existing.isEmpty()) {
+                CompensationRestoreLog claim = new CompensationRestoreLog();
+                claim.setEventId(eventId);
+                claim.setProjectId(projectId);
+                claim.setProcessedAt(new Date());
+                claim.setStatus("PROCESSING");
+                restoreLogRepository.saveAndFlush(claim);
+            } else {
+                CompensationRestoreLog claim = existing.get();
+                claim.setStatus("PROCESSING");
+                claim.setProcessedAt(new Date());
+                restoreLogRepository.saveAndFlush(claim);
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Override
     @Transactional
     @CacheEvict(value = "projectSkills", key = "#projectId")
-    public void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedLastUpdatedTime, List<Map<String, String>> bindings) {
-        // 1. 應用級去重校驗 (Idempotency Guard)
-        if (restoreLogRepository.existsById(eventId)) {
-            org.slf4j.LoggerFactory.getLogger(ProjectUserBindingService.class)
-                    .info("Idempotency Guard: Compensation event {} already processed. Skipping.", eventId);
+    public void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedVersion, List<Map<String, String>> bindings) {
+        // 1. 原子認領事件 (Atomic Idempotency Claim)：僅有成功取得 ownership 的實例能執行還原
+        boolean claimed = self.claimRestoreEvent(eventId, projectId);
+        if (!claimed) {
+            log.info("Idempotency Guard: Compensation event {} already processed or claimed by another consumer. Skipping.", eventId);
             return;
         }
 
-        // 2. 樂觀防禦比對 (Concurrency Timestamp Guard)
+        // 2. 樂觀防禦比對 (JPA @Version Optimistic Lock Check)
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
 
-        if (expectedLastUpdatedTime != null && project.getUpdatedTime() != null) {
-            long currentDbTime = project.getUpdatedTime().getTime();
-            if (currentDbTime != expectedLastUpdatedTime) {
-                org.slf4j.LoggerFactory.getLogger(ProjectUserBindingService.class)
-                        .error("COMPENSATION_CONFLICT: Project {} has been updated by another transaction after snapshot! " +
-                                "Current DB updatedTime = {}, Expected = {}", projectId, project.getUpdatedTime(), new java.util.Date(expectedLastUpdatedTime));
-                throw new com.example.BackendArchitectureLab.Exception.CompensationConflictException(
-                        "Conflict detected: project has newer modifications. Cannot perform unsafe restore."
-                );
-            }
+        CompensationRestoreLog claimLog = restoreLogRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalStateException("Claim log not found for eventId: " + eventId));
+
+        if (expectedVersion != null && !expectedVersion.equals(project.getVersion())) {
+            claimLog.setStatus("FAILED");
+            restoreLogRepository.save(claimLog);
+            log.error("COMPENSATION_CONFLICT: Project {} has been updated by another transaction after snapshot! " +
+                    "Current DB version = {}, Expected = {}", projectId, project.getVersion(), expectedVersion);
+            throw new CompensationConflictException(
+                    "Conflict detected: project has newer modifications. Cannot perform unsafe restore."
+            );
         }
 
-        // 3. 刪除該專案目前的技能綁定
-        userProjectSkillDataAccess.deleteByProjectId(projectId);
+        try {
+            // 3. 刪除該專案目前的技能綁定
+            userProjectSkillDataAccess.deleteByProjectId(projectId);
 
-        // 4. 還原
-        if (bindings != null) {
-            for (Map<String, String> b : bindings) {
-                UUID userId = UUID.fromString(b.get("userId"));
-                UUID skillId = UUID.fromString(b.get("skillId"));
-                UUID levelId = UUID.fromString(b.get("levelId"));
+            // 4. 還原
+            if (bindings != null) {
+                for (Map<String, String> b : bindings) {
+                    UUID userId = UUID.fromString(b.get("userId"));
+                    UUID skillId = UUID.fromString(b.get("skillId"));
+                    UUID levelId = UUID.fromString(b.get("levelId"));
 
-                Skill skill = skillDataAccess.findById(skillId)
-                        .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
-                SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
-                        .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
+                    Skill skill = skillDataAccess.findById(skillId)
+                            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
+                    SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
+                            .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
 
-                UserProjectSkill binding = new UserProjectSkill();
-                binding.setUserId(userId);
-                binding.setProject(project);
-                binding.setSkill(skill);
-                binding.setSkillLevel(skillLevel);
-                userProjectSkillDataAccess.save(binding);
+                    UserProjectSkill binding = new UserProjectSkill();
+                    binding.setUserId(userId);
+                    binding.setProject(project);
+                    binding.setSkill(skill);
+                    binding.setSkillLevel(skillLevel);
+                    userProjectSkillDataAccess.save(binding);
+                }
             }
-        }
 
-        // 5. 記錄去重日誌
-        com.example.BackendArchitectureLab.Entity.CompensationRestoreLog restoreLog = new com.example.BackendArchitectureLab.Entity.CompensationRestoreLog();
-        restoreLog.setEventId(eventId);
-        restoreLog.setProjectId(projectId);
-        restoreLog.setProcessedAt(new java.util.Date());
-        restoreLog.setStatus("SUCCESS");
-        restoreLogRepository.save(restoreLog);
+            // 5. 還原成功，標記認領日誌為 SUCCESS
+            claimLog.setStatus("SUCCESS");
+            claimLog.setProcessedAt(new Date());
+            restoreLogRepository.save(claimLog);
+        } catch (Exception e) {
+            // 發生其他異常，將認領日誌標記為 FAILED，供後續重試或人工排查
+            claimLog.setStatus("FAILED");
+            restoreLogRepository.save(claimLog);
+            throw e;
+        }
     }
 }

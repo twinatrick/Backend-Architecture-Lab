@@ -1,8 +1,10 @@
 package com.example.BackendArchitectureLab.Service.Strategy;
 
+import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Feign.CompetencyServiceFeignClient;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import feign.FeignException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -47,18 +49,25 @@ public class ProjectMemberSkillsRebindCompensationStrategy implements Compensati
         UUID projectId = UUID.fromString(projectIdStr);
         List<Map<String, String>> bindings = (List<Map<String, String>>) event.getBeforeState().get("bindings");
 
-        Long expectedLastUpdatedTime = null;
-        Object updatedTimeObj = event.getBeforeState().get("expectedLastUpdatedTime");
-        if (updatedTimeObj instanceof Number) {
-            expectedLastUpdatedTime = ((Number) updatedTimeObj).longValue();
+        Long expectedVersion = null;
+        Object versionObj = event.getBeforeState().get("expectedVersion");
+        if (versionObj instanceof Number) {
+            expectedVersion = ((Number) versionObj).longValue();
         }
 
-        log.warn("Calling competency-service to restore project member skills for projectId={} with eventId={} and expectedTime={} to beforeState size={}",
-                projectId, event.getEventId(), expectedLastUpdatedTime, bindings != null ? bindings.size() : 0);
+        log.warn("Calling competency-service to restore project member skills for projectId={} with eventId={} and expectedVersion={} to beforeState size={}",
+                projectId, event.getEventId(), expectedVersion, bindings != null ? bindings.size() : 0);
 
         if (competencyServiceFeignClient != null) {
-            competencyServiceFeignClient.restoreProjectMemberSkills(projectId, event.getEventId().toString(), expectedLastUpdatedTime, bindings);
-            log.info("Successfully restored project member skills for projectId={}", projectId);
+            try {
+                competencyServiceFeignClient.restoreProjectMemberSkills(projectId, event.getEventId().toString(), expectedVersion, bindings);
+                log.info("Successfully restored project member skills for projectId={}", projectId);
+            } catch (FeignException.Conflict e) {
+                log.error("COMPENSATION_CONFLICT received from competency-service for projectId={}", projectId, e);
+                throw new CompensationConflictException(
+                        "Conflict detected in competency-service: " + e.getMessage()
+                );
+            }
         } else {
             log.error("CompetencyServiceFeignClient is not available, unable to compensate!");
             throw new IllegalStateException("CompetencyServiceFeignClient is null");

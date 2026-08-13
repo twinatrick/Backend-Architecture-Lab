@@ -6,11 +6,14 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
+import com.example.BackendArchitectureLab.Entity.CompensationRestoreLog;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
+import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
+import com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository;
 import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
@@ -61,13 +64,17 @@ class ProjectUserBindingServiceTest {
     @Mock
     private ICompensationOutboxService compensationOutboxService;
     @Mock
-    private com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository restoreLogRepository;
+    private CompensationRestoreLogRepository restoreLogRepository;
 
     @InjectMocks
     private ProjectUserBindingService projectUserBindingService;
 
     @BeforeEach
     void setUp() {
+        // 提供 saveAndFlush 的預設行為（觸發 Auditing 與樂觀鎖 version 遞增後回傳同一實體）
+        lenient().when(projectDataAccess.saveAndFlush(any(Project.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
         // Inject self reference（自我代理：交易外驗證後呼叫自身交易方法）
         try {
             Field selfField = ProjectUserBindingService.class.getDeclaredField("self");
@@ -589,18 +596,25 @@ class ProjectUserBindingServiceTest {
     @Test
     void testRestoreMemberSkills() {
         UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID skillId = UUID.randomUUID();
         UUID levelId = UUID.randomUUID();
 
         Project project = new Project();
         project.setId(projectId);
+        project.setVersion(1L);
         Skill skill = new Skill();
         skill.setId(skillId);
         SkillLevel level = new SkillLevel();
         level.setId(levelId);
 
-        when(restoreLogRepository.existsById(any(UUID.class))).thenReturn(false);
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setStatus("PROCESSING");
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty(), Optional.of(claimLog));
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
@@ -611,11 +625,12 @@ class ProjectUserBindingServiceTest {
                 "levelId", levelId.toString()
         );
 
-        projectUserBindingService.restoreMemberSkills(projectId, UUID.randomUUID(), null, List.of(bindingMap));
+        projectUserBindingService.restoreMemberSkills(projectId, eventId, 1L, List.of(bindingMap));
 
         verify(userProjectSkillDataAccess).deleteByProjectId(projectId);
         verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
-        verify(restoreLogRepository).save(any(com.example.BackendArchitectureLab.Entity.CompensationRestoreLog.class));
+        verify(restoreLogRepository).save(claimLog);
+        assertEquals("SUCCESS", claimLog.getStatus());
     }
 
     @Test
@@ -623,7 +638,10 @@ class ProjectUserBindingServiceTest {
         UUID projectId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
 
-        when(restoreLogRepository.existsById(eventId)).thenReturn(true);
+        CompensationRestoreLog successLog = new CompensationRestoreLog();
+        successLog.setEventId(eventId);
+        successLog.setStatus("SUCCESS");
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(successLog));
 
         projectUserBindingService.restoreMemberSkills(projectId, eventId, null, List.of());
 
@@ -632,23 +650,30 @@ class ProjectUserBindingServiceTest {
     }
 
     @Test
-    void testRestoreMemberSkills_shouldThrow_whenTimestampConflict() {
+    void testRestoreMemberSkills_shouldThrow_whenVersionConflict() {
         UUID projectId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
-        long expectedTime = 1000L;
+        long expectedVersion = 1L;
 
         Project project = new Project();
         project.setId(projectId);
-        // DB project updatedTime is 2000L
-        project.setUpdatedTime(new java.util.Date(2000L));
+        // DB project 目前的樂觀鎖 version 為 2，與快照的 expectedVersion=1 不一致
+        project.setVersion(2L);
 
-        when(restoreLogRepository.existsById(eventId)).thenReturn(false);
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setStatus("PROCESSING");
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty(), Optional.of(claimLog));
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
 
-        assertThrows(com.example.BackendArchitectureLab.Exception.CompensationConflictException.class,
-                () -> projectUserBindingService.restoreMemberSkills(projectId, eventId, expectedTime, List.of()));
+        assertThrows(CompensationConflictException.class,
+                () -> projectUserBindingService.restoreMemberSkills(projectId, eventId, expectedVersion, List.of()));
 
         verify(userProjectSkillDataAccess, never()).deleteByProjectId(projectId);
+        verify(restoreLogRepository).save(claimLog);
+        assertEquals("FAILED", claimLog.getStatus());
     }
 
     @Test
