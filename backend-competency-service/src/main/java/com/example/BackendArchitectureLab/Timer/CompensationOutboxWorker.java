@@ -13,11 +13,17 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * CompensationOutboxWorker - Outbox 發佈工作者（與寫入 Service 分離）。
@@ -49,6 +55,9 @@ public class CompensationOutboxWorker {
     @Value("${compensation.outbox.backoff-seconds:5,15,30,60,300}")
     private List<Long> backoffSeconds;
 
+    @Value("${compensation.outbox.publish-parallelism:4}")
+    private int publishParallelism;
+
     @Autowired
     private CompensationOutboxEventRepository outboxRepository;
 
@@ -60,6 +69,9 @@ public class CompensationOutboxWorker {
 
     /**
      * 批次發佈尚未送達的事件（預設每 5 秒執行一次）。
+     * 批次內以固定 thread pool（並行度 = min(batch, parallelism)，可組態
+     * {@code compensation.outbox.publish-parallelism}）平行發佈，每筆各自等待 ACK
+     * 至 ackTimeoutSeconds 逾時，避免序列發佈時單一轉發壅塞把整個批次拖到打穿租約。
      */
     @Scheduled(fixedDelayString = "${compensation.outbox.flush-delay-ms:5000}")
     public void flushPendingEvents() {
@@ -69,34 +81,68 @@ public class CompensationOutboxWorker {
                         CompensationOutboxDeliveryStatus.PROCESSING),
                 CompensationOutboxDeliveryStatus.PROCESSING,
                 PageRequest.of(0, batchSize));
-        for (CompensationOutboxEvent outbox : pending) {
-            Date now = new Date();
-            int claimed = outboxRepository.claimEvent(
-                    outbox.getId(),
-                    List.of(CompensationOutboxDeliveryStatus.PENDING,
-                            CompensationOutboxDeliveryStatus.FAILED,
-                            CompensationOutboxDeliveryStatus.PROCESSING),
+        if (pending.isEmpty()) {
+            return;
+        }
+        int parallelism = Math.max(1, Math.min(pending.size(), publishParallelism));
+        ExecutorService pool = Executors.newFixedThreadPool(parallelism,
+                runnable -> {
+                    Thread thread = new Thread(runnable, "compensation-outbox-publisher");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        List<CompletableFuture<Void>> futures = new ArrayList<>(pending.size());
+        try {
+            for (CompensationOutboxEvent outbox : pending) {
+                futures.add(CompletableFuture.runAsync(() -> publishOne(outbox), pool));
+            }
+            int waves = (pending.size() + parallelism - 1) / parallelism;
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .get((waves + 1) * ackTimeoutSeconds + 1L, TimeUnit.SECONDS);
+            log.debug("Published {} outbox event(s) in parallel (parallelism={})", pending.size(), parallelism);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Outbox publish batch interrupted", e);
+        } catch (ExecutionException | TimeoutException e) {
+            // 單一事件逾時/失敗已在 publishOne 內各自處理並標記狀態；
+            // 此處僅反映批次整體未能於預期時間內完成（殘留工作由 daemon pool 繼續收尾）
+            log.warn("Outbox publish batch did not complete within expected window, remaining tasks run in background", e);
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    /**
+     * 發佈單一事件：原子領取 → 重新讀取最新狀態 → 呼叫 Kafka publisher 等待 ACK → 原子標記 SENT。
+     * 任何例外皆由 handleDeliveryFailure 以原子 UPDATE 標記 FAILED/DEAD，不向上拋出。
+     */
+    private void publishOne(CompensationOutboxEvent outbox) {
+        Date now = new Date();
+        int claimed = outboxRepository.claimEvent(
+                outbox.getId(),
+                List.of(CompensationOutboxDeliveryStatus.PENDING,
+                        CompensationOutboxDeliveryStatus.FAILED,
+                        CompensationOutboxDeliveryStatus.PROCESSING),
+                CompensationOutboxDeliveryStatus.PROCESSING,
+                now,
+                new Date(now.getTime() + leaseSeconds * 1000L));
+        if (claimed == 0) {
+            return;
+        }
+        // claim 後重新讀取最新狀態（attemptCount 已由 claim 原子遞增），避免使用陳舊資料
+        CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
+        if (fresh == null) {
+            return;
+        }
+        try {
+            CompensationEvent event = objectMapper.readValue(fresh.getPayload(), CompensationEvent.class);
+            compensationPublisher.publish(event).get(ackTimeoutSeconds, TimeUnit.SECONDS);
+            outboxRepository.markSent(fresh.getId(),
+                    CompensationOutboxDeliveryStatus.SENT,
                     CompensationOutboxDeliveryStatus.PROCESSING,
-                    now,
-                    new Date(now.getTime() + leaseSeconds * 1000L));
-            if (claimed == 0) {
-                continue;
-            }
-            // claim 後重新讀取最新狀態（attemptCount 已由 claim 原子遞增），避免使用陳舊資料
-            CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
-            if (fresh == null) {
-                continue;
-            }
-            try {
-                CompensationEvent event = objectMapper.readValue(fresh.getPayload(), CompensationEvent.class);
-                compensationPublisher.publish(event).get(ackTimeoutSeconds, TimeUnit.SECONDS);
-                outboxRepository.markSent(fresh.getId(),
-                        CompensationOutboxDeliveryStatus.SENT,
-                        CompensationOutboxDeliveryStatus.PROCESSING,
-                        new Date());
-            } catch (Exception e) {
-                handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), e);
-            }
+                    new Date());
+        } catch (Exception e) {
+            handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), e);
         }
     }
 

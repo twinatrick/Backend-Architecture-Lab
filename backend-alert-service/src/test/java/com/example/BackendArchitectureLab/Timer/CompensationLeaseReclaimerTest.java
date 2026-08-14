@@ -137,11 +137,11 @@ class CompensationLeaseReclaimerTest {
                 .thenReturn(List.of(failed1, failed2));
         when(eventLogRepository.retryClaim(
                 eq(failed1.getEventId()), eq(CompensationEventLogStatus.PROCESSING),
-                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class)))
+                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class), any(Date.class)))
                 .thenReturn(1);
         when(eventLogRepository.retryClaim(
                 eq(failed2.getEventId()), eq(CompensationEventLogStatus.PROCESSING),
-                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class)))
+                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class), any(Date.class)))
                 .thenReturn(1);
         when(eventLogRepository.findByEventId(failed1.getEventId())).thenReturn(Optional.of(retried1));
         when(eventLogRepository.findByEventId(failed2.getEventId())).thenReturn(Optional.of(retried2));
@@ -161,7 +161,7 @@ class CompensationLeaseReclaimerTest {
                 .thenReturn(List.of(failed));
         when(eventLogRepository.retryClaim(
                 eq(failed.getEventId()), eq(CompensationEventLogStatus.PROCESSING),
-                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class)))
+                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class), any(Date.class)))
                 .thenReturn(0);
 
         compensationLeaseReclaimer.reclaimExpiredLeases();
@@ -178,7 +178,7 @@ class CompensationLeaseReclaimerTest {
                 .thenReturn(List.of(failed));
         when(eventLogRepository.retryClaim(
                 eq(failed.getEventId()), eq(CompensationEventLogStatus.PROCESSING),
-                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class)))
+                eq(CompensationEventLogStatus.FAILED), anyString(), any(Date.class), any(Date.class), any(Date.class)))
                 .thenReturn(1);
         when(eventLogRepository.findByEventId(failed.getEventId())).thenReturn(Optional.of(failed));
         doThrow(new IllegalStateException("deserialize failed"))

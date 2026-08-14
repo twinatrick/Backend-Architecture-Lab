@@ -75,7 +75,8 @@ public class CompensationLeaseReclaimer {
                 CompensationEventLogStatus.FAILED,
                 UUID.randomUUID().toString(),
                 now,
-                new Date(now.getTime() + leaseSeconds * 1000L));
+                new Date(now.getTime() + leaseSeconds * 1000L),
+                now);
         if (claimed != 1) {
             log.debug("Retry-eligible event claimed by another instance, skipped: eventId={}", failed.getEventId());
             return;

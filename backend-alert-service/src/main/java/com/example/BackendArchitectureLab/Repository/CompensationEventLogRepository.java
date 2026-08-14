@@ -27,9 +27,11 @@ public interface CompensationEventLogRepository extends JpaRepository<Compensati
     List<CompensationEventLog> findTop20ByStatusAndFailedAtAfter(String status, Date failedAt);
 
     /**
-     * 原子重試領取（CAS）：僅當事件先前處理失敗（FAILED）時，才標記為 PROCESSING、更新租約並累計嘗試次數。
+     * 原子重試領取（CAS）：僅當事件先前處理失敗（FAILED）、且已達下次可重試時間
+     * （nextAttemptAt 為空或已過）時，才標記為 PROCESSING、更新租約並累計嘗試次數。
      * 同時以新 ownerId 佔有並將 fencingVersion 單調遞增（+1），供下游補償執行做 fencing token 驗證。
-     * 回傳 1 表示取得處理權、0 表示他人正在重試或狀態不允許。
+     * nextAttemptAt 守衛確保 Kafka 每 1 秒的 redelivery 不會繞過 markFailed 的線性退避。
+     * 回傳 1 表示取得處理權、0 表示他人正在重試、尚未到期或狀態不允許。
      */
     @Modifying
     @Transactional
@@ -37,15 +39,18 @@ public interface CompensationEventLogRepository extends JpaRepository<Compensati
             UPDATE CompensationEventLog e
             SET e.status = :processing, e.attemptCount = e.attemptCount + 1,
                 e.ownerId = :ownerId, e.fencingVersion = COALESCE(e.fencingVersion, 0) + 1,
-                e.processingAt = :processingAt, e.leaseUntil = :leaseUntil
+                e.processingAt = :processingAt, e.leaseUntil = :leaseUntil,
+                e.nextAttemptAt = NULL
             WHERE e.eventId = :eventId AND e.status = :failed
+              AND (e.nextAttemptAt IS NULL OR e.nextAttemptAt <= :now)
             """)
     int retryClaim(@Param("eventId") UUID eventId,
                    @Param("processing") String processing,
                    @Param("failed") String failed,
                    @Param("ownerId") String ownerId,
                    @Param("processingAt") Date processingAt,
-                   @Param("leaseUntil") Date leaseUntil);
+                   @Param("leaseUntil") Date leaseUntil,
+                   @Param("now") Date now);
 
     /**
      * 原子重新認領（CAS）：僅當事件仍在 PROCESSING 且租約已到期（處理者 crash 或逾時）時，
@@ -73,6 +78,39 @@ public interface CompensationEventLogRepository extends JpaRepository<Compensati
      * 依租約到期時間遞增排序、限 50 筆，供過期租約回收排程接手。
      */
     List<CompensationEventLog> findTop50ByStatusAndLeaseUntilBeforeOrderByLeaseUntilAsc(String status, Date leaseUntil);
+
+    /**
+     * 原子標記處理終態（CAS）：僅當事件目前仍由相同 ownerId + fencingVersion 持有且仍為 PROCESSING
+     * 時，才標記為最終狀態（PROCESSED/FAILED/DEAD）並寫入結果欄位。若租約已被其他實例以
+     * reclaimLease/retryClaim 接管（stale token），回傳 0 且不覆寫新持有者的紀錄，
+     * 確保「只有最新一代持有者能標記結果」。processedAt / failedAt / lastError / nextAttemptAt
+     * 依狀態語意可傳 null（例如 PROCESSED 不需 failedAt 與 nextAttemptAt，皆會被清空）。
+     *
+     * @return 1 表示成功寫入；0 表示 stale token（租約已被接管）或狀態不符
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationEventLog e
+            SET e.status = :status,
+                e.processedAt = :processedAt,
+                e.failedAt = :failedAt,
+                e.lastError = :lastError,
+                e.nextAttemptAt = :nextAttemptAt
+            WHERE e.eventId = :eventId
+              AND e.ownerId = :ownerId
+              AND e.fencingVersion = :fencingVersion
+              AND e.status = :processing
+            """)
+    int markState(@Param("eventId") UUID eventId,
+                  @Param("ownerId") String ownerId,
+                  @Param("fencingVersion") Long fencingVersion,
+                  @Param("processing") String processing,
+                  @Param("status") String status,
+                  @Param("processedAt") Date processedAt,
+                  @Param("failedAt") Date failedAt,
+                  @Param("lastError") String lastError,
+                  @Param("nextAttemptAt") Date nextAttemptAt);
 
     /**
      * 查詢已達下次重試時間（nextAttemptAt <= 現在）的 FAILED 事件，依重試時間遞增排序、限 50 筆，

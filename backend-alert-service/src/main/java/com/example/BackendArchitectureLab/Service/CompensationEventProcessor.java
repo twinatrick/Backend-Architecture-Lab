@@ -188,7 +188,8 @@ public class CompensationEventProcessor {
                 CompensationEventLogStatus.FAILED,
                 UUID.randomUUID().toString(),
                 now,
-                new Date(now.getTime() + leaseSeconds * 1000L));
+                new Date(now.getTime() + leaseSeconds * 1000L),
+                now);
         if (claimed == 1) {
             CompensationEventLog entry = eventLogRepository.findByEventId(event.getEventId()).orElse(null);
             if (entry == null) {
@@ -290,27 +291,42 @@ public class CompensationEventProcessor {
     }
 
     private void markProcessed(CompensationEventLog entry) {
-        entry.setStatus(CompensationEventLogStatus.PROCESSED);
-        entry.setProcessedAt(new Date());
-        entry.setLastError(null);
-        eventLogRepository.save(entry);
+        int updated = eventLogRepository.markState(
+                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
+                CompensationEventLogStatus.PROCESSING,
+                CompensationEventLogStatus.PROCESSED,
+                new Date(), null, null, null);
+        if (updated != 1) {
+            log.warn("markState skipped (stale token or status changed), processed result not committed: eventId={}",
+                    entry.getEventId());
+        }
     }
 
     private void markFailed(CompensationEventLog entry, String errorMessage) {
-        entry.setStatus(CompensationEventLogStatus.FAILED);
-        entry.setLastError(truncate(errorMessage));
-        entry.setFailedAt(new Date());
-        // 設定下次可重試時間（線性退避）：供過期租約回收排程重新領取重試，
-        // 避免 Kafka 已無 redelivery 的事件永久停留在 FAILED。
-        entry.setNextAttemptAt(new Date(System.currentTimeMillis() + retryBackoffMs * entry.getAttemptCount()));
-        eventLogRepository.save(entry);
+        Date now = new Date();
+        int updated = eventLogRepository.markState(
+                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
+                CompensationEventLogStatus.PROCESSING,
+                CompensationEventLogStatus.FAILED,
+                null, now, truncate(errorMessage),
+                new Date(now.getTime() + retryBackoffMs * entry.getAttemptCount()));
+        if (updated != 1) {
+            log.warn("markState skipped (stale token or status changed), failed result not committed: eventId={}",
+                    entry.getEventId());
+        }
     }
 
     private void markDead(CompensationEventLog entry, String errorMessage) {
-        entry.setStatus(CompensationEventLogStatus.DEAD);
-        entry.setLastError(truncate(errorMessage));
-        entry.setFailedAt(new Date());
-        eventLogRepository.save(entry);
+        Date now = new Date();
+        int updated = eventLogRepository.markState(
+                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
+                CompensationEventLogStatus.PROCESSING,
+                CompensationEventLogStatus.DEAD,
+                null, now, truncate(errorMessage), null);
+        if (updated != 1) {
+            log.warn("markState skipped (stale token or status changed), dead result not committed: eventId={}",
+                    entry.getEventId());
+        }
     }
 
     private String truncate(String message) {
