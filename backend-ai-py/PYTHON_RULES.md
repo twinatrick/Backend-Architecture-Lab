@@ -8,7 +8,7 @@
 - Import 區塊依序排列，以空行分隔三類：
   1. 標準函式庫（`import os`、`import json`）
   2. 第三方套件（`import numpy`、`from fastapi import APIRouter`）
-  3. 本專案模組（`from config import settings`、`from services.common import _is_mock`）
+  3. 本專案模組（`from config import settings`、`from utils.mock_detection import _is_mock`）
 - 同類別內依字母順序排列。
 - 例外情況：測試檔案（`tests/`）中為配合 `sys.modules` Mock 機制的局部 import，可放置於檔案後段，但需加 `# noqa: E402` 註解說明。
 

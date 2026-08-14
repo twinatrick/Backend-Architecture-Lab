@@ -48,6 +48,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(CompensationConflictException.class)
+    public ResponseEntity<ResponseType<?>> handleCompensationConflict(CompensationConflictException ex) {
+        log.warn("Compensation conflict occurred: {}", ex.getMessage());
+        ResponseType<?> response = ResponseType.Fail("COMPENSATION_CONFLICT", ex.getMessage(), HttpStatus.CONFLICT.value());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ResponseType<?>> handleNotFound(EntityNotFoundException ex) {
         ResponseType<?> response = ResponseType.Fail("NOT_FOUND", "Not found", HttpStatus.NOT_FOUND.value());

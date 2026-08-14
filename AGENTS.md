@@ -47,6 +47,7 @@
   - Entity 僅在 Repository、DataAccess 及 Service Impl（經 Mapper 轉換後）中使用，**嚴禁**傳遞至 Controller 層或作為 API 回傳型別
 - **開發規範 (唯一規則文件)**: **絕對必須遵守** `開發規範.md`（此為唯一規則來源，合併自微服務分類/Permission/Controller 註記/Python 規則/程式碼品質標準（CodeReadview），原文於 `docs/archive/`）。重點包含：模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager、三層權限設計（`@RequirePermission`）、Controller OpenAPI 標準註記（`Annotation/OpenApi`）、Python 語法規範（import 置頂/禁止單字母變數/禁止 `except: pass`）、程式碼品質標準（SOLID/DRY/KISS/YAGNI/高內聚低耦合/Boy Scout Rule）。
 - **範例一律使用完整套件路徑**: 文件或說明中引用程式碼位置時，一律寫完整套件路徑（如 `com.example.BackendArchitectureLab.Service.Impl.RoleService`），嚴禁寫縮寫路徑（如 `RoleService.java`）。
+- **原始碼中禁止使用完全限定名稱 (Fully Qualified Name, FQN)**：在 Java、Python 等原始碼檔案中，一律禁止直接在方法簽名、變數宣告或實例化物件時寫入長路徑的 FQN（例如 `java.util.Date`、`java.util.Optional`、以及微服務內部的實體或異常長路徑）。所有依賴的類別必須在檔案頂部撰寫顯式 `import`，並在程式碼內部僅使用簡潔的類別名稱 (Simple Name) 來維持代碼美觀與高度可讀性。*(備註：前條「範例一律使用完整套件路徑」僅適用於向使用者回報或文件描述中，原始碼編寫仍需遵守本 FQN 禁止規則。)*
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。

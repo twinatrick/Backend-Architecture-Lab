@@ -41,6 +41,12 @@ spring:
 kafka:
   consumer:
     group-id: myGroup
+compensation:
+  consumer:
+    lease-seconds: 300
+    max-attempts: 5
+    retry-backoff-ms: 60000
+    reclaim-delay-ms: 60000
 jwt:
   secret:
     use: ${JWT_SECRET_USE:qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}

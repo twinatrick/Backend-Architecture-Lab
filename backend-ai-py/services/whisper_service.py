@@ -7,9 +7,8 @@ import sys
 from faster_whisper import WhisperModel
 
 from config import settings
-from services.common import _is_mock
-from services.formatter_service import _format_diarized
-from services.formatter_service import _format_plain
+from services.transcript_formatter import transcript_formatter
+from utils.mock_detection import _is_mock
 
 logger = logging.getLogger(__name__)
 
@@ -97,5 +96,5 @@ def _get_whisper_model():
 def _transcribe_whisper(segment_list: list, diarization_result: list) -> str:
     """將 Whisper 主程序轉譯結果依語者分離資料排版，或輸出純文字/時間戳記"""
     if diarization_result:
-        return _format_diarized(segment_list, diarization_result)
-    return _format_plain(segment_list)
+        return transcript_formatter.format_diarized(segment_list, diarization_result)
+    return transcript_formatter.format_plain(segment_list)
