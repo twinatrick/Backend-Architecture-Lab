@@ -16,6 +16,25 @@
     "Functional Correctness",
     "Data Integrity"
   ],
+  "required_fields": [
+    "location",
+    "rule",
+    "problem",
+    "evidence",
+    "risk",
+    "recommendation",
+    "severity",
+    "confidence"
+  ],
+  "fail_closed": [
+    "missing_batch",
+    "invalid_json",
+    "invalid_schema",
+    "missing_artifact",
+    "coverage_incomplete",
+    "coverage_mismatch",
+    "review_execution_failure"
+  ],
   "fail_closed_on": [
     "missing_batch",
     "invalid_json",

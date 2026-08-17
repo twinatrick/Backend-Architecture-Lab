@@ -48,7 +48,3 @@ jwt:
   issuer: ${JWT_ISSUER:BackendArchitectureLab}
   audience: ${JWT_AUDIENCE:BackendArchitectureLab}
   expiration-minutes: ${JWT_EXPIRATION_MINUTES:1440}
-
-app:
-  internal:
-    token: ${APP_INTERNAL_TOKEN:}
