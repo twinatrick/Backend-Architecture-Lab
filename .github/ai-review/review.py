@@ -4,11 +4,14 @@ import sys
 from pathlib import Path
 import requests
 
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from engine import evaluate, load_policy, validate_finding
+
 REPO = os.environ["REPO"]
 EVENT_PATH = os.environ["EVENT_PATH"]
 GH_TOKEN = os.environ.get("GH_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-ROOT = Path(__file__).resolve().parents[2]
 
 if not GH_TOKEN or not GROQ_API_KEY:
     raise SystemExit("Required trusted secrets are not configured.")
@@ -57,18 +60,8 @@ if not changed:
 
 rules = (ROOT / "開發規範.md").read_text(encoding="utf-8")
 contract = (ROOT / ".github/AI_REVIEW.md").read_text(encoding="utf-8")
-policy = load_json(ROOT / ".github/ai-review/policy.json")
+policy = load_policy()
 
-required = {
-    "location", "rule", "problem", "evidence", "risk",
-    "recommendation", "severity", "confidence",
-}
-allowed_severity = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
-allowed_confidence = {"HIGH", "MEDIUM", "LOW"}
-blocking_severities = set(policy["blocking_severities"])
-blocking_confidence = set(policy["blocking_confidence"])
-
-# Deterministic one-to-one semantic ownership of every changed file.
 groups = {k: [] for k in ("ci", "security-api", "business", "data", "integration", "python", "other")}
 for filename in changed:
     path = filename.lower()
@@ -126,12 +119,10 @@ for index, (scope, paths) in enumerate(batches, 1):
         if any(k.lower() in line.lower() for k in keywords[scope]):
             relevant.extend(rule_lines[max(0, i - 2): min(len(rule_lines), i + 14)])
     relevant_rules = "\n".join(dict.fromkeys(relevant))[:12000] or rules[:7000]
-
     diff = "\n\n".join(
         f"diff -- {item['filename']}\n{item.get('patch') or '[GitHub did not provide a patch; review metadata only]'}"
         for item in files if item["filename"] in paths
     )[:26000]
-
     prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。
 所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
 
@@ -158,7 +149,6 @@ CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Ac
 {{"batch":"{scope}-{index}","files_reviewed":{json.dumps(paths, ensure_ascii=False)},"findings":[{{"severity":"CRITICAL|HIGH|MEDIUM|LOW","confidence":"HIGH|MEDIUM|LOW","location":"file:line","rule":"繁體中文規範依據","problem":"繁體中文問題","evidence":"繁體中文證據","risk":"繁體中文風險","recommendation":"繁體中文修正建議"}}],"passed_checks":["繁體中文"],"coverage":"COMPLETE"}}
 
 不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定。'''
-
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
@@ -177,86 +167,42 @@ CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Ac
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     data = json.loads(text)
-
     if data.get("coverage") != "COMPLETE" or data.get("files_reviewed") != paths:
         raise SystemExit(f"Batch coverage validation failed: {scope}-{index}")
     for finding in data.get("findings", []):
-        missing = required - set(finding)
-        if missing or finding.get("severity") not in allowed_severity or finding.get("confidence") not in allowed_confidence:
-            raise SystemExit(f"Invalid finding schema in {scope}-{index}: {sorted(missing)}")
-        if "blocking" in finding or "decision" in finding:
-            raise SystemExit(f"AI attempted to control the gate in {scope}-{index}")
+        if not validate_finding(finding, policy):
+            raise SystemExit(f"Invalid finding schema in {scope}-{index}")
     results.append(data)
 
 reviewed = [filename for data in results for filename in data["files_reviewed"]]
-if sorted(reviewed) != sorted(changed) or len(reviewed) != len(set(reviewed)):
-    raise SystemExit("Coverage mismatch: reviewed files are not an exact one-to-one match with PR changed files.")
-
 findings = [finding for data in results for finding in data.get("findings", [])]
 passed = [check for data in results for check in data.get("passed_checks", [])]
-unique, seen = [], set()
-for finding in findings:
-    key = (finding.get("location"), finding.get("problem"), finding.get("rule"))
-    if key not in seen:
-        seen.add(key)
-        unique.append(finding)
+result = evaluate(findings, expected, reviewed, policy)
+decision = result["decision"]
+unique = result["findings"]
+blocking = result["blocking_findings"]
 
-blocking = [
-    finding for finding in unique
-    if finding.get("confidence") in blocking_confidence
-    and finding.get("severity") in blocking_severities
-]
-decision = "REQUEST_CHANGES" if blocking else "APPROVE"
-
-report = [
-    "# AI Code Review", "", f"## 審查結果\n{decision}",
-    "", f"已審查 {len(changed)} 個變更檔案、{len(results)} 個批次；共 {len(unique)} 個 Finding，其中 {len(blocking)} 個阻擋項目。", "",
-]
+report = ["# AI Code Review", "", f"## 審查結果\n{decision}", "", f"已審查 {len(changed)} 個變更檔案、{len(results)} 個批次；共 {len(unique)} 個 Finding，其中 {len(blocking)} 個阻擋項目。", ""]
 if unique:
     report.append("## Findings")
     for finding in unique:
-        report += [
-            "", f"### [{finding['severity']}] {finding['problem']}",
-            f"**位置**：`{finding['location']}`", f"**規範依據**：{finding['rule']}",
-            f"**證據**：{finding['evidence']}", f"**風險**：{finding['risk']}",
-            f"**修正建議**：{finding['recommendation']}", f"**信心度**：{finding['confidence']}",
-        ]
+        report += ["", f"### [{finding['severity']}] {finding['problem']}", f"**位置**：`{finding['location']}`", f"**規範依據**：{finding['rule']}", f"**證據**：{finding['evidence']}", f"**風險**：{finding['risk']}", f"**修正建議**：{finding['recommendation']}", f"**信心度**：{finding['confidence']}"]
 else:
     report += ["## Findings", "無。"]
 report += ["", "## 已通過檢查"] + [f"- {item}" for item in sorted(set(passed))]
-report += ["", "## 審查結論", "本次 Review 由分批 AI 分析，並由 CI deterministic policy 統一計算阻擋條件。"]
+report += ["", "## 審查結論", "本次 Review 由分批 AI 分析，並由 deterministic engine 與 policy 統一計算阻擋條件。"]
 body = "\n".join(report) + "\n\n<!-- ai-review-gate -->"
 
-comments = gh_get(
-    f"https://api.github.com/repos/{REPO}/issues/{pr_number}/comments",
-    params={"per_page": 100},
-)
+comments = gh_get(f"https://api.github.com/repos/{REPO}/issues/{pr_number}/comments", params={"per_page": 100})
 existing = next((comment for comment in comments if "<!-- ai-review-gate -->" in comment.get("body", "")), None)
 if existing:
-    response = requests.patch(
-        f"https://api.github.com/repos/{REPO}/issues/comments/{existing['id']}",
-        headers=headers,
-        json={"body": body},
-        timeout=30,
-    )
+    response = requests.patch(f"https://api.github.com/repos/{REPO}/issues/comments/{existing['id']}", headers=headers, json={"body": body}, timeout=30)
 else:
-    response = requests.post(
-        f"https://api.github.com/repos/{REPO}/issues/{pr_number}/comments",
-        headers=headers,
-        json={"body": body},
-        timeout=30,
-    )
+    response = requests.post(f"https://api.github.com/repos/{REPO}/issues/{pr_number}/comments", headers=headers, json={"body": body}, timeout=30)
 response.raise_for_status()
 
 Path("review.md").write_text(body, encoding="utf-8")
-Path("ai-review.json").write_text(
-    json.dumps(
-        {"decision": decision, "findings": unique, "blocking_findings": blocking, "batches": len(results), "files_reviewed": changed},
-        ensure_ascii=False,
-        indent=2,
-    ),
-    encoding="utf-8",
-)
+Path("ai-review.json").write_text(json.dumps({"decision": decision, "findings": unique, "blocking_findings": blocking, "batches": len(results), "files_reviewed": changed}, ensure_ascii=False, indent=2), encoding="utf-8")
 print(body)
 if decision == "REQUEST_CHANGES":
     raise SystemExit(1)
