@@ -551,4 +551,16 @@ class CompensationEventProcessorTest {
         verify(eventLogRepository).markState(eq(eventId), anyString(), any(), eq(CompensationEventLogStatus.PROCESSING),
                 eq(CompensationEventLogStatus.PROCESSED), any(), isNull(), isNull(), isNull());
     }
+
+    @Test
+    void process_whenDuplicateEventLogNotFound_shouldThrowIllegalStateException() {
+        stubDuplicate();
+        when(eventLogRepository.findByEventId(eventId)).thenReturn(Optional.empty());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
+
+        assertTrue(ex.getMessage().contains("Compensation event log disappeared after duplicate-key collision"));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
+    }
 }

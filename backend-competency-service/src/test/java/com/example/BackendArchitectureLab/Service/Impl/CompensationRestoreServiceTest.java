@@ -15,6 +15,7 @@ import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronizationUtils;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -402,7 +404,9 @@ class CompensationRestoreServiceTest {
         UUID eventId = UUID.randomUUID();
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+                .thenThrow(new DataIntegrityViolationException("duplicate key",
+                        new ConstraintViolationException("duplicate key",
+                                new SQLException("duplicate key value", "23505"), "uq_restore_event_id")));
 
         boolean claimed = claimService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L, List.of());
 
@@ -667,5 +671,55 @@ class CompensationRestoreServiceTest {
         assertTrue(ex.getMessage().contains("exceeds maximum allowed limit of 1000"));
         verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("FAILED"), any(Date.class), anyString());
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldReturnFalse_whenDuplicateKeyViolation() {
+        UUID eventId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate",
+                        new ConstraintViolationException("duplicate key",
+                                new SQLException("duplicate key value", "23505"), "uq_restore_event_id")));
+
+        boolean claimed = claimService.claimRestoreEvent(eventId, projectId, ownerId, 1L, List.of());
+        assertFalse(claimed);
+    }
+
+    @Test
+    void testClaimRestoreEvent_shouldRethrow_whenUnexpectedDataIntegrityViolation() {
+        UUID eventId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
+                .thenThrow(new DataIntegrityViolationException("value too long",
+                        new ConstraintViolationException("value too long",
+                                new SQLException("value too long", "22001"), "column_length")));
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> claimService.claimRestoreEvent(eventId, projectId, ownerId, 1L, List.of()));
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldRethrow_whenUnexpectedDataIntegrityViolationOnClaim() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 1L;
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
+                .thenThrow(new DataIntegrityViolationException("unexpected integrity violation",
+                        new ConstraintViolationException("constraint fail",
+                                new SQLException("not null constraint", "23502"), "not_null")));
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId,
+                        fencingVersion, List.of()));
     }
 }

@@ -174,8 +174,10 @@ public class CompensationEventProcessor {
     private void handleDuplicateEvent(CompensationEvent event) {
         CompensationEventLog existing = eventLogRepository.findByEventId(event.getEventId()).orElse(null);
         if (existing == null) {
-            log.warn("Duplicate compensation event without existing log, ignored: eventId={}", event.getEventId());
-            return;
+            log.error("Duplicate-key collision occurred but existing event log could not be found: eventId={}",
+                    event.getEventId());
+            throw new IllegalStateException(
+                    "Compensation event log disappeared after duplicate-key collision: " + event.getEventId());
         }
         switch (existing.getStatus()) {
             case CompensationEventLogStatus.PROCESSED -> {

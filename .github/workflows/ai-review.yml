@@ -58,6 +58,7 @@ jobs:
           REPO: ${{ github.repository }}
           PYTHON_CODE: |
             import os
+            import sys
             import requests
 
             def main():
@@ -132,7 +133,7 @@ jobs:
 
                 if not response:
                     print("🚨 抱歉，所有準備的 Groq 模型皆無法使用。")
-                    return
+                    sys.exit(1)
 
                 ai_reply = response.json()['choices'][0]['message']['content']
             

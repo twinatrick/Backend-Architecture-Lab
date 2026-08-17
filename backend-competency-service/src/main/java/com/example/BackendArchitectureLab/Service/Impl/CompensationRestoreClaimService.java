@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -88,9 +90,32 @@ public class CompensationRestoreClaimService implements ICompensationRestoreClai
                     eventId, "PROCESSING", "FAILED", now,
                     new Date(now.getTime() + restoreLeaseSeconds * 1000L),
                     ownerId, fencingVersion) == 1;
-        } catch (DataIntegrityViolationException | ObjectOptimisticLockingFailureException e) {
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicateKeyViolation(e)) {
+                log.debug("Restore claim lost unique insert race: eventId={}", eventId);
+                return false;
+            }
+            log.error("Restore claim failed due to unexpected DB integrity error: eventId={}", eventId, e);
+            throw e;
+        } catch (ObjectOptimisticLockingFailureException e) {
+            log.debug("Restore claim lost optimistic-lock race: eventId={}", eventId);
             return false;
         }
+    }
+
+    /**
+     * 判斷 DataIntegrityViolationException 是否為明確的 unique key conflict（SQLState 23505）。
+     * 僅此類錯誤可視為「eventId 重複認領」；其他 integrity 失敗必須向外傳播。
+     */
+    private boolean isDuplicateKeyViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        if (cause instanceof ConstraintViolationException cve) {
+            return "23505".equals(cve.getSQLState());
+        }
+        if (cause instanceof SQLException sqlEx) {
+            return "23505".equals(sqlEx.getSQLState());
+        }
+        return false;
     }
 
     @Override

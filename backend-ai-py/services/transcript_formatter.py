@@ -1,9 +1,8 @@
 from config import settings
-from services.speaker_aligner import Segment, SpeakerAligner
-from services.traditional_chinese_converter import (
-    TraditionalChineseConverter,
-    traditional_chinese_converter,
-)
+from services.speaker_aligner import Segment
+from services.speaker_aligner import SpeakerAligner
+from services.traditional_chinese_converter import TraditionalChineseConverter
+from services.traditional_chinese_converter import traditional_chinese_converter
 
 
 class TranscriptFormatter:

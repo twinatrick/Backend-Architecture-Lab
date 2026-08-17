@@ -1,8 +1,6 @@
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
-import pytest
-
 from config import settings
 from services.traditional_chinese_converter import TraditionalChineseConverter
 
