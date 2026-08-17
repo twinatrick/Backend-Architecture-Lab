@@ -1,20 +1,21 @@
 # AI Code Review Contract
 
-> `開發規範.md` 是唯一規則來源；本文件只定義 CI 如何執行 AI Review、如何判定風險，以及何時阻擋 PR。
+> `開發規範.md` 是唯一專案規則來源；本文件只定義 CI 如何執行 AI Review、Review 範圍、Finding 格式與 Gate 原則。
 
 ## 1. Review 目標
 
 AI Review 必須優先檢查：
 
-1. Security / Authentication / Authorization
-2. BOLA / IDOR / Resource Ownership
-3. Microservice Boundary / Data Ownership
-4. Data Integrity / Transaction / Concurrency
-5. Functional Correctness
-6. API Contract / Permission / OpenAPI
-7. SOLID / DRY / KISS / YAGNI / Coupling
-8. Java / Python 專案規範
-9. Test / Regression Risk
+1. CI / GitHub Actions / Supply Chain（若 PR 修改 `.github/**`）
+2. Security / Authentication / Authorization
+3. BOLA / IDOR / Resource Ownership
+4. Microservice Boundary / Data Ownership
+5. Data Integrity / Transaction / Concurrency
+6. Functional Correctness
+7. API Contract / Permission / OpenAPI
+8. SOLID / DRY / KISS / YAGNI / Coupling
+9. Java / Python 專案規範
+10. Test / Regression Risk
 
 Style 與可選重構最後處理，不得掩蓋高風險問題。
 
@@ -22,15 +23,28 @@ Style 與可選重構最後處理，不得掩蓋高風險問題。
 
 AI 必須先分析 PR diff，再依依賴關係向外追查必要 context：Controller、Service、DataAccess、Repository、Entity、VO、Mapper、Feign、Permission、Config、Exception、Test。
 
+若 PR 修改 `.github/**`，必須審查 workflow permissions、Secrets、Action pinning、untrusted input、shell injection、artifact/cache、fail-open、review bypass 與 workflow supply-chain 風險。
+
 不得因無關的既有技術債要求本 PR 大規模重構；只有在 PR 新增、放大、暴露或觸發該問題時才納入。
 
 ## 3. 規範判定
 
-所有規範判斷以 `開發規範.md` 為準。`AGENTS.md` 可提供執行與專案 context，但不得取代 `開發規範.md`。
+所有專案規範判斷以 `開發規範.md` 為準。若 PR 同時修改 `開發規範.md`，Review 必須同時檢查該規範變更本身；不得因 PR 修改規範就自動降低原有安全或架構要求。
 
 若一般最佳實務與專案規範衝突，以專案規範為準。
 
 ## 4. 必查項目
+
+### CI / Supply Chain
+
+- Workflow `permissions` 必須遵循最小權限。
+- PR 不可信輸入不得直接形成 shell command、script 或 expression injection。
+- `pull_request` workflow 不得讓 PR 可控程式碼取得高敏感 Secrets。
+- 第三方 Actions 優先 pin 到不可變 SHA；若使用 tag 必須有明確理由。
+- 檢查 `pull_request_target`、artifact、cache、GITHUB_TOKEN、environment approval 與 workflow dispatch 的信任邊界。
+- Review workflow 不得因缺少 batch、timeout、artifact 或 AI response 而 fail-open。
+- AI 輸出的 `blocking`、`decision` 不得直接成為 Merge Gate 的唯一依據；最終 Gate 必須由 deterministic CI policy 計算。
+- 修改 `.github/workflows/**` 時，必須視為高風險變更並納入 Review。
 
 ### Security / Authorization
 
@@ -72,11 +86,11 @@ AI 必須先分析 PR diff，再依依賴關係向外追查必要 context：Cont
 
 只對 `backend-ai-py` 套用 Python 規則：import 順序、命名、格式、type hints，以及禁止 bare `except` / `except Exception: pass` 等規範。
 
-## 5. Severity
+## 5. Severity / Confidence
 
-- **CRITICAL**：權限繞過、敏感資料洩漏、重大注入、重大資料破壞等。必須阻擋。
-- **HIGH**：明確 BOLA、Architecture Boundary violation、Permission violation、重大功能錯誤等。必須阻擋。
-- **MEDIUM**：明顯 maintainability / coupling / error-handling 問題。預設不阻擋，除非 CI policy 明確設定。
+- **CRITICAL**：權限繞過、敏感資料洩漏、重大注入、重大資料破壞等。deterministic Gate 必須阻擋。
+- **HIGH**：明確 BOLA、Architecture Boundary violation、Permission violation、CI Secret/Supply-chain boundary violation、重大功能錯誤等。deterministic Gate 必須阻擋。
+- **MEDIUM**：明顯 maintainability / coupling / error-handling 問題。預設不阻擋。
 - **LOW**：可讀性、命名、小型 refactor 建議。不阻擋。
 
 Confidence：`HIGH` / `MEDIUM` / `LOW`。LOW confidence 不得單獨阻擋 PR。
@@ -93,53 +107,32 @@ Confidence：`HIGH` / `MEDIUM` / `LOW`。LOW confidence 不得單獨阻擋 PR。
 - Recommendation
 - Severity
 - Confidence
-- Blocking
 
-不得以「感覺不好」、「建議重構」、「可能有問題」作為沒有證據的阻擋理由。
+**不得輸出 `Blocking` 或 `Decision` 欄位。** AI 只能提出 Finding；是否阻擋由 Aggregator 的 deterministic policy 決定。
 
-## 7. Decision
+## 7. Batch / Aggregator
 
-`REQUEST_CHANGES` 條件：存在 CRITICAL / HIGH，或有明確 Security、Authorization、BOLA、Microservice Boundary、Permission、Functional Bug。
+每個 Batch 只負責找問題，不產生 Final Verdict。
 
-否則：`APPROVE`。
+Aggregator 必須：
 
-MEDIUM / LOW 可列在報告中，但不得阻擋。
+1. 驗證所有預期 Batch 都產生結果。
+2. 驗證每個 Batch JSON schema。
+3. Deduplicate Findings。
+4. 重新依 `severity + confidence + policy` 計算 blocking。
+5. Batch 缺失、AI response invalid、artifact 缺失、coverage 不完整時一律 fail-closed。
+6. 最終只由 deterministic policy 決定 `APPROVE` / `REQUEST_CHANGES`。
 
-## 8. AI 輸出格式
+## 8. 語言要求
 
-```markdown
-# AI Code Review
+所有 AI 產生的自然語言內容必須使用繁體中文（zh-TW）。禁止使用簡體中文。
 
-## Decision
-APPROVE | REQUEST_CHANGES
-
-## Summary
-- Files Reviewed: N
-- Critical: N
-- High: N
-- Medium: N
-- Low: N
-
-## Findings
-
-### [HIGH] Title
-**Location**: `full/package/path/File.java:123`
-**Rule**: `開發規範.md — <section>`
-**Evidence**: ...
-**Risk**: ...
-**Recommendation**: ...
-**Confidence**: HIGH
-**Blocking**: YES
-
-## Passed Checks
-- ...
-
-## Review Conclusion
-...
-```
+程式碼、Class、Method、Annotation、檔案路徑、API 路徑與標準技術名詞可以保留原文。
 
 ## 9. CI 原則
 
 可以由 compiler、test、lint、AST 或 deterministic script 精確判斷的規則，優先由 CI 執行；AI 主要負責架構、資安、功能與設計推理。
 
 AI Review 不代表測試通過；CI 仍必須獨立執行 Maven、Python、coverage 與其他 deterministic checks。
+
+AI Review workflow 本身屬於高風險 CI 資產；執行 PR Review 的 trusted workflow 不得 checkout 後執行 PR 提供的 script，也不得讓 PR 可控 workflow 直接接觸 Review Secret。
