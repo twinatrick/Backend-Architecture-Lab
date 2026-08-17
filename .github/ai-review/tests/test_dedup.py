@@ -1,12 +1,9 @@
-def deduplicate(findings):
-    result = []
-    seen = set()
-    for finding in findings:
-        key = (finding.get("location"), finding.get("problem"), finding.get("rule"))
-        if key not in seen:
-            seen.add(key)
-            result.append(finding)
-    return result
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / ".github/ai-review"))
+from engine import deduplicate
 
 
 def test_duplicate_findings_are_removed():
