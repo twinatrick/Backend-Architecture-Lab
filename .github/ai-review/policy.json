@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "language": "zh-TW",
+  "blocking_severities": ["CRITICAL", "HIGH"],
+  "blocking_confidence": ["HIGH"],
+  "blocking_categories": [
+    "Security",
+    "Authentication",
+    "Authorization",
+    "BOLA",
+    "IDOR",
+    "Permission",
+    "Microservice Boundary",
+    "CI Supply Chain",
+    "Secret Exposure",
+    "Functional Correctness",
+    "Data Integrity"
+  ],
+  "fail_closed_on": [
+    "missing_batch",
+    "invalid_json",
+    "invalid_schema",
+    "missing_artifact",
+    "coverage_mismatch",
+    "review_execution_failure"
+  ]
+}

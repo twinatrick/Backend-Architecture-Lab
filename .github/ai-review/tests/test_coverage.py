@@ -1,0 +1,22 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / ".github/ai-review"))
+from engine import validate_coverage
+
+
+def test_exact_coverage_passes():
+    assert validate_coverage(["a.java", "b.java"], ["a.java", "b.java"])
+
+
+def test_missing_file_fails():
+    assert not validate_coverage(["a.java", "b.java"], ["a.java"])
+
+
+def test_extra_file_fails():
+    assert not validate_coverage(["a.java"], ["a.java", "b.java"])
+
+
+def test_duplicate_file_fails():
+    assert not validate_coverage(["a.java", "b.java"], ["a.java", "a.java", "b.java"])
