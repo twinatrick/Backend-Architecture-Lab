@@ -18,6 +18,7 @@ import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.List;
@@ -105,7 +106,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, List<AlarmMessage>> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(alarmMessageConsumerFactory);
-        factory.setCommonErrorHandler(new DefaultErrorHandler());
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 4L)));
         return factory;
     }
 

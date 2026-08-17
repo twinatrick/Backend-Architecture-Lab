@@ -1,14 +1,19 @@
+import logging
+from typing import Any
+
 import sherpa_onnx
 import soundfile as sf
 
 from config import settings
-from services.common import _is_mock
-from services.common import _resolve_path
+from utils.mock_detection import _is_mock
+from utils.paths import _resolve_path
+
+logger = logging.getLogger(__name__)
 
 _sensevoice_recognizer = None
 
 
-def _get_sensevoice_recognizer():
+def _get_sensevoice_recognizer() -> Any:
     """延遲載入 SenseVoice (sherpa-onnx) 離線辨識器並快取"""
     global _sensevoice_recognizer
     if _sensevoice_recognizer is None:
@@ -42,5 +47,5 @@ def _transcribe_sensevoice(audio_path: str) -> str:
         recognizer.decode_stream(stream)
         return stream.result.text.strip()
     except Exception as e:
-        print(f"[STT] SenseVoice failed: {e}")
+        logger.warning("[STT] SenseVoice failed: %s", e)
         return ""

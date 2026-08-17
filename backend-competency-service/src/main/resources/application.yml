@@ -40,3 +40,7 @@ cache:
   bloom-filter:
     entities:
       - "Skill:skills"
+
+app:
+  internal:
+    token: ${APP_INTERNAL_TOKEN:}

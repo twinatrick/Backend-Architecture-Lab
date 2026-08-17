@@ -3,13 +3,13 @@ import importlib.util
 import logging
 import os
 import sys
+from typing import Any
 
 from faster_whisper import WhisperModel
 
 from config import settings
-from services.common import _is_mock
-from services.formatter_service import _format_diarized
-from services.formatter_service import _format_plain
+from services.transcript_formatter import transcript_formatter
+from utils.mock_detection import _is_mock
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def _register_whisper_dll_dirs() -> None:
                 logger.warning("[Whisper] 預載 CUDA DLL 失敗 %s: %s", name, exc)
 
 
-def _get_whisper_model():
+def _get_whisper_model() -> Any:
     """延遲載入 faster-whisper 模型並快取"""
     global _whisper_model
     if _whisper_model is None:
@@ -97,5 +97,5 @@ def _get_whisper_model():
 def _transcribe_whisper(segment_list: list, diarization_result: list) -> str:
     """將 Whisper 主程序轉譯結果依語者分離資料排版，或輸出純文字/時間戳記"""
     if diarization_result:
-        return _format_diarized(segment_list, diarization_result)
-    return _format_plain(segment_list)
+        return transcript_formatter.format_diarized(segment_list, diarization_result)
+    return transcript_formatter.format_plain(segment_list)

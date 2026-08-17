@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab;
 
+import com.example.BackendArchitectureLab.Feign.CompetencyServiceFeignClient;
 import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -10,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableFeignClients(clients = {PermissionCheckFeignClient.class})
+@EnableFeignClients(clients = {PermissionCheckFeignClient.class, CompetencyServiceFeignClient.class})
 @EnableJpaAuditing
 @EnableScheduling
 public class AlertServiceApplication {

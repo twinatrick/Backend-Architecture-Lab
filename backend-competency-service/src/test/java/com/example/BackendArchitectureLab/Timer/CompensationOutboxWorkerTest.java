@@ -1,0 +1,242 @@
+package com.example.BackendArchitectureLab.Timer;
+
+import com.example.BackendArchitectureLab.Entity.CompensationOutboxEvent;
+import com.example.BackendArchitectureLab.DataAccess.ICompensationOutboxEventDataAccess;
+import com.example.BackendArchitectureLab.Service.ICompensationPublisher;
+import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Instant;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class CompensationOutboxWorkerTest {
+
+    @Mock
+    private ICompensationOutboxEventDataAccess outboxRepository;
+
+    @Mock
+    private ICompensationPublisher compensationPublisher;
+
+    @InjectMocks
+    private CompensationOutboxWorker compensationOutboxWorker;
+
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "objectMapper", objectMapper);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "maxAttempts", 5);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "leaseSeconds", 300L);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 20);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 10L);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "backoffSeconds", List.of(5L, 15L, 30L, 60L, 300L));
+        ReflectionTestUtils.setField(compensationOutboxWorker, "compensationOutboxPublisherPool",
+                Executors.newFixedThreadPool(2));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldPublishAndMarkSentAfterAck() throws Exception {
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        ArgumentCaptor<CompensationEvent> eventCaptor = ArgumentCaptor.forClass(CompensationEvent.class);
+        verify(compensationPublisher).publish(eventCaptor.capture());
+        assertEquals(outbox.getEventId(), eventCaptor.getValue().getEventId());
+        assertEquals(CompensationStatus.COMMITTED, eventCaptor.getValue().getStatus());
+
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+        verify(outboxRepository, never()).save(any(CompensationOutboxEvent.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldReclaimExpiredLeaseAndPublish() throws Exception {
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
+        outbox.setProcessingAt(new Date(System.currentTimeMillis() - 600_000L));
+        outbox.setLeaseUntil(new Date(System.currentTimeMillis() - 60_000L));
+        outbox.setAttemptCount(1);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 2);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(compensationPublisher).publish(any(CompensationEvent.class));
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldSkip_whenClaimReturnsZeroOrLeaseNotExpired() throws Exception {
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
+        outbox.setLeaseUntil(new Date(System.currentTimeMillis() + 60_000L));
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class))).thenReturn(0);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verifyNoInteractions(compensationPublisher);
+        verify(outboxRepository, never()).save(any(CompensationOutboxEvent.class));
+        verify(outboxRepository, never()).markSent(any(UUID.class), anyString(), anyString(), any(Date.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldNotPublish_whenNoPendingEvents() {
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of());
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verifyNoInteractions(compensationPublisher);
+        verify(outboxRepository, never()).save(any(CompensationOutboxEvent.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldRetryWithBackoff_whenPublishFails() throws Exception {
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        CompletableFuture<Void> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new RuntimeException("broker unreachable"));
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(failedFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        ArgumentCaptor<Date> nextAttemptCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                org.mockito.ArgumentMatchers.contains("broker unreachable"),
+                nextAttemptCaptor.capture());
+        assertNotNull(nextAttemptCaptor.getValue());
+        verify(outboxRepository, never()).save(any(CompensationOutboxEvent.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldMarkDead_whenMaxAttemptsReached() throws Exception {
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setAttemptCount(4);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 5);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        CompletableFuture<Void> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new RuntimeException("broker unreachable"));
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(failedFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).markDead(eq(outbox.getId()),
+                eq(CompensationOutboxDeliveryStatus.DEAD),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                org.mockito.ArgumentMatchers.contains("broker unreachable"));
+        verify(outboxRepository, never()).save(any(CompensationOutboxEvent.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldCountAttemptAndRetain_whenPayloadCorrupted() {
+        CompensationOutboxEvent outbox = new CompensationOutboxEvent();
+        outbox.setId(UUID.randomUUID());
+        outbox.setEventId(UUID.randomUUID());
+        outbox.setTransactionId(UUID.randomUUID());
+        outbox.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
+        outbox.setStatus(CompensationStatus.COMMITTED);
+        outbox.setPayload("not-valid-json{");
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verifyNoInteractions(compensationPublisher);
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                org.mockito.ArgumentMatchers.contains("JSON"),
+                any(Date.class));
+    }
+
+    private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {
+        CompensationOutboxEvent fresh = new CompensationOutboxEvent();
+        fresh.setId(outbox.getId());
+        fresh.setEventId(outbox.getEventId());
+        fresh.setTransactionId(outbox.getTransactionId());
+        fresh.setAction(outbox.getAction());
+        fresh.setStatus(outbox.getStatus());
+        fresh.setPayload(outbox.getPayload());
+        fresh.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
+        fresh.setAttemptCount(attemptCount);
+        return fresh;
+    }
+
+    private CompensationOutboxEvent newOutboxEvent(String status) throws Exception {
+        CompensationOutboxEvent outbox = new CompensationOutboxEvent();
+        outbox.setId(UUID.randomUUID());
+        UUID eventId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        outbox.setEventId(eventId);
+        outbox.setTransactionId(transactionId);
+        outbox.setAction(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND.name());
+        outbox.setStatus(status);
+        CompensationEvent event = CompensationEvent.builder()
+                .eventId(eventId)
+                .eventVersion(1)
+                .transactionId(transactionId)
+                .serviceName("competency-service")
+                .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
+                .status(status)
+                .beforeState(Map.of("projectId", "p1"))
+                .timestamp(Instant.now())
+                .build();
+        outbox.setPayload(objectMapper.writeValueAsString(event));
+        return outbox;
+    }
+}
