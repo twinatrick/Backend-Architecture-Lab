@@ -5,6 +5,9 @@ import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.Feign.CompetencyServiceFeignClient;
 import com.example.BackendArchitectureLab.Repository.CompensationEventLogRepository;
 import com.example.BackendArchitectureLab.Service.CompensationEventProcessor;
+import com.example.BackendArchitectureLab.Service.Impl.CompensationExecutionService;
+import com.example.BackendArchitectureLab.Service.Impl.CompensationPayloadService;
+import com.example.BackendArchitectureLab.Service.Impl.CompensationStateService;
 import com.example.BackendArchitectureLab.Service.Strategy.ProjectMemberSkillsRebindCompensationStrategy;
 import com.example.BackendArchitectureLab.Timer.CompensationLeaseReclaimer;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
@@ -70,6 +73,9 @@ class CompensationRecoveryLoopIntegrationTest {
     @Import({CompensationEventLogDataAccessImpl.class,
             CompensationEventProcessor.class,
             CompensationLeaseReclaimer.class,
+            CompensationPayloadService.class,
+            CompensationStateService.class,
+            CompensationExecutionService.class,
             ProjectMemberSkillsRebindCompensationStrategy.class})
     static class CompensationTestApp {
     }

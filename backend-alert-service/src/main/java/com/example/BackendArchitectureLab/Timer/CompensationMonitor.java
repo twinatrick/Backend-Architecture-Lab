@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -28,7 +29,7 @@ public class CompensationMonitor {
     private long failedWindowMinutes;
 
     @Scheduled(fixedDelayString = "${compensation.monitor.interval-ms:60000}")
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void monitorFailedEvents() {
         // 1. 限制筆數掃描已歸於死信（DEAD）的補償事件（避免大表全表掃描），並實施一小時頻率控制
         List<CompensationEventLog> deadEvents =

@@ -5,6 +5,9 @@ import com.example.BackendArchitectureLab.Exception.CompensationConflictExceptio
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
+import com.example.BackendArchitectureLab.Service.Impl.CompensationExecutionService;
+import com.example.BackendArchitectureLab.Service.Impl.CompensationPayloadService;
+import com.example.BackendArchitectureLab.Service.Impl.CompensationStateService;
 import com.example.BackendArchitectureLab.Service.Strategy.CompensationStrategy;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
@@ -55,13 +58,26 @@ class CompensationEventProcessorTest {
     @BeforeEach
     void setUp() {
         eventId = UUID.randomUUID();
-        ReflectionTestUtils.setField(compensationEventProcessor, "compensationStrategies", List.of(strategy));
-        ReflectionTestUtils.setField(compensationEventProcessor, "leaseSeconds", 300L);
-        ReflectionTestUtils.setField(compensationEventProcessor, "maxAttempts", 5);
-        ReflectionTestUtils.setField(compensationEventProcessor, "retryBackoffMs", 60_000L);
+
+        CompensationPayloadService payloadService = new CompensationPayloadService();
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
-        ReflectionTestUtils.setField(compensationEventProcessor, "objectMapper", mapper);
+        ReflectionTestUtils.setField(payloadService, "objectMapper", mapper);
+
+        CompensationStateService stateService = new CompensationStateService();
+        ReflectionTestUtils.setField(stateService, "eventLogRepository", eventLogRepository);
+        ReflectionTestUtils.setField(stateService, "retryBackoffMs", 60_000L);
+
+        CompensationExecutionService executionService = new CompensationExecutionService();
+        ReflectionTestUtils.setField(executionService, "compensationStrategies", List.of(strategy));
+
+        ReflectionTestUtils.setField(compensationEventProcessor, "eventLogRepository", eventLogRepository);
+        ReflectionTestUtils.setField(compensationEventProcessor, "payloadService", payloadService);
+        ReflectionTestUtils.setField(compensationEventProcessor, "stateService", stateService);
+        ReflectionTestUtils.setField(compensationEventProcessor, "executionService", executionService);
+        ReflectionTestUtils.setField(compensationEventProcessor, "leaseSeconds", 300L);
+        ReflectionTestUtils.setField(compensationEventProcessor, "maxAttempts", 5);
+
         when(eventLogRepository.saveAndFlush(any(CompensationEventLog.class)))
                 .thenAnswer(invocation -> copyLog(invocation.getArgument(0)));
         when(eventLogRepository.markState(any(), anyString(), any(), anyString(), anyString(),

@@ -1,16 +1,12 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
-import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
-import com.example.BackendArchitectureLab.Service.Strategy.CompensationStrategy;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,11 +14,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
-import java.util.List;
 import java.util.UUID;
 
 /**
- * CompensationEventProcessor - 補償事件處理核心（由 {@code CompensationConsumer} 委派）。
+ * CompensationEventProcessor - 補償事件處理協調者（由 {@code CompensationConsumer} 委派）。
  * <p>
  * 以 event_id 唯一鍵原子領取事件（at-least-once 下同一 eventId 至多被處理一次補償），
  * 處理狀態 PROCESSING → PROCESSED / FAILED，FAILED 於下次送達時以 retryClaim CAS 重試，
@@ -32,8 +27,17 @@ import java.util.UUID;
  * {@code compensation_event_log}，並於呼叫策略時原樣傳遞；下游還原端以此驗證
  * 只有「最新一代」的持有者能真正執行還原並標記結果，避免舊租約持有者覆寫新結果。
  * <p>
+ * 本類僅負責：事件驗證、原子領取（claim）、去重路由、失敗重試、租約恢復與狀態編排；
+ * 實際職責委派如下：
+ * <ul>
+ *   <li>payload 序列化／還原：{@link ICompensationPayloadService}</li>
+ *   <li>終態（PROCESSED/FAILED/DEAD）CAS 標記：{@link ICompensationStateService}</li>
+ *   <li>Strategy 分派與重試分類：{@link ICompensationExecutionService}</li>
+ * </ul>
+ * <p>
  * 不可重試（permanent）例外（{@link UnsupportedEventVersionException}、
- * {@link UnsupportedCompensationActionException}、{@link CompensationConflictException}、
+ * {@link UnsupportedCompensationActionException}、
+ * {@link com.example.BackendArchitectureLab.Exception.CompensationConflictException}、
  * {@link IllegalArgumentException}）會直接標記 DEAD 後向外 rethrow，由 Kafka 錯誤處理器
  * 轉發至 DLT 供人工介入，不進行無意義的重試。
  */
@@ -48,19 +52,19 @@ public class CompensationEventProcessor {
     private ICompensationEventLogDataAccess eventLogRepository;
 
     @Autowired
-    private List<CompensationStrategy> compensationStrategies;
+    private ICompensationPayloadService payloadService;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private ICompensationStateService stateService;
+
+    @Autowired
+    private ICompensationExecutionService executionService;
 
     @Value("${compensation.consumer.lease-seconds:300}")
     private long leaseSeconds;
 
     @Value("${compensation.consumer.max-attempts:5}")
     private int maxAttempts;
-
-    @Value("${compensation.consumer.retry-backoff-ms:60000}")
-    private long retryBackoffMs;
 
     public void process(CompensationEvent event) {
         if (event.getEventId() == null) {
@@ -72,18 +76,10 @@ public class CompensationEventProcessor {
         }
 
         // 驗證是否有支援的 strategy (若是 COMPENSATION_REQUIRED 且是未知的 Action)
-        if (CompensationStatus.COMPENSATION_REQUIRED.equals(event.getStatus())) {
-            boolean hasStrategy = false;
-            for (CompensationStrategy strategy : compensationStrategies) {
-                if (strategy.supports(event.getAction())) {
-                    hasStrategy = true;
-                    break;
-                }
-            }
-            if (!hasStrategy) {
-                throw new UnsupportedCompensationActionException(
-                        "Unsupported compensation action: " + event.getAction());
-            }
+        if (CompensationStatus.COMPENSATION_REQUIRED.equals(event.getStatus())
+                && !executionService.supports(event.getAction())) {
+            throw new UnsupportedCompensationActionException(
+                    "Unsupported compensation action: " + event.getAction());
         }
 
         // 原子領取：event_id 唯一鍵保證同一事件只會被一個實例處理
@@ -112,7 +108,7 @@ public class CompensationEventProcessor {
         entry.setReceivedAt(now);
         entry.setProcessingAt(now);
         entry.setLeaseUntil(new Date(now.getTime() + leaseSeconds * 1000L));
-        entry.setPayload(serialize(event));
+        entry.setPayload(payloadService.serialize(event));
         try {
             return eventLogRepository.saveAndFlush(entry);
         } catch (DataIntegrityViolationException e) {
@@ -131,22 +127,6 @@ public class CompensationEventProcessor {
         processEntry(entry, event);
     }
 
-    private String serialize(CompensationEvent event) {
-        try {
-            return objectMapper.writeValueAsString(event);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Failed to serialize compensation event payload: " + event.getEventId(), e);
-        }
-    }
-
-    private CompensationEvent deserialize(String payload) {
-        try {
-            return objectMapper.readValue(payload, CompensationEvent.class);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to deserialize compensation event payload: " + payload, e);
-        }
-    }
-
     /**
      * 以 persisted payload 還原處理事件（所有回復路徑共同的 authoritative source）。
      * payload 損毀無法還原時，依 persistence error semantics 直接標記 DEAD 後向外 rethrow，
@@ -154,11 +134,11 @@ public class CompensationEventProcessor {
      */
     private CompensationEvent replayFromPersistedPayload(CompensationEventLog entry) {
         try {
-            return deserialize(entry.getPayload());
+            return payloadService.deserialize(entry.getPayload());
         } catch (RuntimeException e) {
             log.error("Persisted compensation event payload is corrupt, quarantine in DEAD status: eventId={}",
                     entry.getEventId(), e);
-            markDead(entry, e.getMessage());
+            stateService.markDead(entry, e.getMessage());
             throw e;
         }
     }
@@ -242,97 +222,30 @@ public class CompensationEventProcessor {
     private void processEntry(CompensationEventLog entry, CompensationEvent event) {
         try {
             if (!CompensationStatus.COMPENSATION_REQUIRED.equals(event.getStatus())) {
-                markProcessed(entry);
+                stateService.markProcessed(entry);
                 return;
             }
             log.warn("Executing compensation for transaction {} action {} with owner {} fence {}",
                     event.getTransactionId(), event.getAction(), entry.getOwnerId(), entry.getFencingVersion());
-            executeCompensation(event, entry.getOwnerId(), entry.getFencingVersion());
-            markProcessed(entry);
+            executionService.execute(event, entry.getOwnerId(), entry.getFencingVersion());
+            stateService.markProcessed(entry);
         } catch (Exception e) {
-            if (isNonRetryable(e)) {
+            if (executionService.isNonRetryable(e)) {
                 log.error("Compensation failed with non-retryable error. Quarantine in DEAD status: eventId={}",
                         event.getEventId(), e);
-                markDead(entry, e.getMessage());
+                stateService.markDead(entry, e.getMessage());
                 throw e; // 仍 rethrow：讓 Kafka 錯誤處理器識別為 non-retryable，直接轉發 DLT
             } else if (entry.getAttemptCount() >= maxAttempts) {
                 log.error("Compensation failed and reached max attempts ({}). Quarantine in DEAD status: eventId={}",
                         maxAttempts, event.getEventId(), e);
-                markDead(entry, e.getMessage());
+                stateService.markDead(entry, e.getMessage());
                 // 不再 rethrow，使 Kafka offset 順利 commit
             } else {
                 log.warn("Compensation failed, will retry: eventId={}, attempt={}",
                         event.getEventId(), entry.getAttemptCount(), e);
-                markFailed(entry, e.getMessage());
+                stateService.markFailed(entry, e.getMessage());
                 throw e; // 拋出異常，觸發 Kafka 重試/redelivery
             }
         }
-    }
-
-    private void executeCompensation(CompensationEvent event, String ownerId, Long fencingVersion) {
-        for (CompensationStrategy strategy : compensationStrategies) {
-            if (strategy.supports(event.getAction())) {
-                strategy.compensate(event, ownerId, fencingVersion);
-                return;
-            }
-        }
-        throw new UnsupportedCompensationActionException("Unsupported compensation action: " + event.getAction());
-    }
-
-    /**
-     * 判斷是否為不可重試的永久錯誤：契約不相容（版本 / 未知 action / 缺失必要狀態）與永久性業務衝突。
-     * 這類錯誤重試亦不會成功，Kafka 端已設定為 non-retryable 並轉發 DLT。
-     */
-    private boolean isNonRetryable(Throwable e) {
-        return e instanceof UnsupportedEventVersionException
-                || e instanceof UnsupportedCompensationActionException
-                || e instanceof CompensationConflictException
-                || e instanceof IllegalArgumentException;
-    }
-
-    private void markProcessed(CompensationEventLog entry) {
-        int updated = eventLogRepository.markState(
-                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
-                CompensationEventLogStatus.PROCESSING,
-                CompensationEventLogStatus.PROCESSED,
-                new Date(), null, null, null);
-        if (updated != 1) {
-            log.warn("markState skipped (stale token or status changed), processed result not committed: eventId={}",
-                    entry.getEventId());
-        }
-    }
-
-    private void markFailed(CompensationEventLog entry, String errorMessage) {
-        Date now = new Date();
-        int updated = eventLogRepository.markState(
-                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
-                CompensationEventLogStatus.PROCESSING,
-                CompensationEventLogStatus.FAILED,
-                null, now, truncate(errorMessage),
-                new Date(now.getTime() + retryBackoffMs * entry.getAttemptCount()));
-        if (updated != 1) {
-            log.warn("markState skipped (stale token or status changed), failed result not committed: eventId={}",
-                    entry.getEventId());
-        }
-    }
-
-    private void markDead(CompensationEventLog entry, String errorMessage) {
-        Date now = new Date();
-        int updated = eventLogRepository.markState(
-                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
-                CompensationEventLogStatus.PROCESSING,
-                CompensationEventLogStatus.DEAD,
-                null, now, truncate(errorMessage), null);
-        if (updated != 1) {
-            log.warn("markState skipped (stale token or status changed), dead result not committed: eventId={}",
-                    entry.getEventId());
-        }
-    }
-
-    private String truncate(String message) {
-        if (message == null) {
-            return null;
-        }
-        return message.length() > 1024 ? message.substring(0, 1024) : message;
     }
 }

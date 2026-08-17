@@ -9,7 +9,8 @@ import org.springframework.context.annotation.Bean;
  * <p>
  * 僅套用於 @FeignClient(configuration = this)（此處為 CompetencyServiceFeignClient）；
  * 以共享密鑰 X-Internal-Token 標示呼叫端身份，供 competency 內網攔截器驗證。
- * token 未設定（空白）時不帶 header，與 competency 端未設定 token 即放行的行為相容。
+ * token 未設定（空白）時不帶 header；competency 端採 fail-closed（未設定即 401），
+ * 因此呼叫端與被呼叫端必須於部署時同時設定相同且非空白的 APP_INTERNAL_TOKEN。
  * 注意：依 Feign 慣例此類不標 @Configuration，避免被主 context 掃描而全域套用。
  */
 public class CompetencyServiceFeignConfiguration {

@@ -54,12 +54,14 @@ class InternalApiTokenInterceptorTest {
     }
 
     @Test
-    void unconfiguredToken_shouldPass_openByDefault() throws Exception {
+    void unconfiguredToken_shouldRejectAllRequests() throws Exception {
         ReflectionTestUtils.setField(interceptor, "internalToken", "");
         MockHttpServletRequest request = requestWithout("X-Internal-Token");
+        request.addHeader("X-Internal-Token", "test-secret");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        assertTrue(interceptor.preHandle(request, response, new Object()));
+        assertFalse(interceptor.preHandle(request, response, new Object()));
+        assertEquals(401, response.getStatus());
     }
 
     private MockHttpServletRequest requestWithout(String headerName) {

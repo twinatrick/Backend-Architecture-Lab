@@ -43,4 +43,6 @@ cache:
 
 app:
   internal:
+    # 內網端點（/project/inner/**）共享 token，fail-closed：未設定時一律 401。
+    # 生產環境必須以環境變數 APP_INTERNAL_TOKEN 設定（secret manager 管理）。
     token: ${APP_INTERNAL_TOKEN:}
