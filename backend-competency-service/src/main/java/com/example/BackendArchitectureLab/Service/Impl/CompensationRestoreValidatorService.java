@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 @Service
 public class CompensationRestoreValidatorService implements ICompensationRestoreValidatorService {
 
+    public static final int MAX_BINDINGS = 1000;
+
     @Autowired
     private IUserProjectSkillDataAccess userProjectSkillDataAccess;
 
@@ -66,6 +68,11 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                                                             List<BindingSnapshot> bindings) {
         if (bindings == null) {
             return List.of();
+        }
+
+        if (bindings.size() > MAX_BINDINGS) {
+            throw new IllegalArgumentException(
+                    "Bindings count " + bindings.size() + " exceeds maximum allowed limit of " + MAX_BINDINGS);
         }
 
         // 1. 記憶體去重校驗：同一成員不可綁定重複技能

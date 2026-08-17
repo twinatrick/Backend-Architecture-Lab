@@ -26,6 +26,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronizationUtils;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -601,6 +602,69 @@ class CompensationRestoreServiceTest {
                         fencingVersion, List.of(malformed)));
 
         verify(userProjectSkillDataAccess, never()).deleteByProjectId(projectId);
+        verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString());
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldMarkFailed_whenProjectNotFound() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
+
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setProjectId(projectId);
+        claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.empty());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId,
+                        fencingVersion, List.of()));
+
+        assertTrue(ex.getMessage().contains("Project not found"));
+        verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString());
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldThrow_whenExceedsMaxBindings() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setVersion(1L);
+
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setProjectId(projectId);
+        claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+
+        List<BindingSnapshot> tooMany = new ArrayList<>();
+        for (int i = 0; i < 1001; i++) {
+            tooMany.add(new BindingSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()));
+        }
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId,
+                        fencingVersion, tooMany));
+
+        assertTrue(ex.getMessage().contains("exceeds maximum allowed limit of 1000"));
         verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("FAILED"), any(Date.class), anyString());
     }

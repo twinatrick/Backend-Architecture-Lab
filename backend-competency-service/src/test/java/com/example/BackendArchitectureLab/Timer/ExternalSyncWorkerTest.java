@@ -61,6 +61,7 @@ class ExternalSyncWorkerTest {
         ReflectionTestUtils.setField(externalSyncWorker, "maxAttempts", 5);
         ReflectionTestUtils.setField(externalSyncWorker, "leaseSeconds", 300L);
         ReflectionTestUtils.setField(externalSyncWorker, "batchSize", 20);
+        ReflectionTestUtils.setField(externalSyncWorker, "operationTimeoutSeconds", 10L);
         ReflectionTestUtils.setField(externalSyncWorker, "backoffSeconds", List.of(5L, 15L, 30L, 60L, 300L));
     }
 
@@ -187,9 +188,10 @@ class ExternalSyncWorkerTest {
     }
 
     @Test
-    void validateConfiguration_shouldThrow_whenLeaseNotGreaterThanBatchSize() {
-        ReflectionTestUtils.setField(externalSyncWorker, "leaseSeconds", 20L);
+    void validateConfiguration_shouldThrow_whenLeaseNotGreaterThanBatchWorstCase() {
+        ReflectionTestUtils.setField(externalSyncWorker, "leaseSeconds", 200L);
         ReflectionTestUtils.setField(externalSyncWorker, "batchSize", 20);
+        ReflectionTestUtils.setField(externalSyncWorker, "operationTimeoutSeconds", 10L);
 
         assertThrows(IllegalStateException.class, externalSyncWorker::validateConfiguration);
     }

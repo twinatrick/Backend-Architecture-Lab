@@ -40,17 +40,19 @@ class SttEngine:
                     fd, diarization_json = tempfile.mkstemp(suffix="_diar.json")
                     os.close(fd)
                     device = _detect_diarization_device()
-                    print(
-                        f"[STT] Launching Diarization subprocess "
-                        f"({settings.diarization_env_name}) on device: {device}..."
+                    logger.info(
+                        "[STT] Launching Diarization subprocess (%s) on device: %s...",
+                        settings.diarization_env_name,
+                        device,
                     )
                     diarization_result = _run_diarization(
                         pyannote_python, stt_input_file, diarization_json, device
                     )
                 else:
-                    print(
-                        f"[STT] 找不到語者分離環境 '{settings.diarization_env_name}'，"
-                        "略過語者分離（請參考語者分離環境安裝說明）。"
+                    logger.warning(
+                        "[STT] 找不到語者分離環境 '%s'，"
+                        "略過語者分離（請參考語者分離環境安裝說明）。",
+                        settings.diarization_env_name,
                     )
 
             # B. 依 provider 載入 SenseVoice 或 Whisper 進行轉錄
@@ -63,7 +65,7 @@ class SttEngine:
             model = _get_whisper_model()
             default_lang = settings.whisper_language if settings.whisper_language else None
             lang = language if language else default_lang
-            segments, info = model.transcribe(stt_input_file, beam_size=5, language=lang)
+            segments, _ = model.transcribe(stt_input_file, beam_size=5, language=lang)
             segment_list = list(segments)
 
             return _transcribe_whisper(segment_list, diarization_result)

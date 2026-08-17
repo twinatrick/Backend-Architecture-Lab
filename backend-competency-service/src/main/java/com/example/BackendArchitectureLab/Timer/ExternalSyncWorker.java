@@ -45,6 +45,9 @@ public class ExternalSyncWorker {
     @Value("${external-sync.batch-size:20}")
     private int batchSize;
 
+    @Value("${external-sync.operation-timeout-seconds:10}")
+    private long operationTimeoutSeconds;
+
     @Value("${external-sync.backoff-seconds:5,15,30,60,300}")
     private List<Long> backoffSeconds;
 
@@ -62,17 +65,17 @@ public class ExternalSyncWorker {
 
     /**
      * 啟動時驗證租約組態不變式：
-     * 本批次採序列執行，最多 batch-size 筆，單筆外部同步執行時間無組態上限；
-     * lease-seconds 若小於等於 batch-size，最壞情況（每筆至少 1 秒）可能在批次完成前
-     * 就被其他實例接管，造成重複執行。此處以 batch-size 為粗略下限 fail-fast，
-     * 接入真實外部 adapter 時應另行定義單筆 operation timeout 並據此收緊此校驗。
+     * 本批次採序列執行，最多 batch-size 筆，每筆外部呼叫最長 operation-timeout-seconds 秒；
+     * lease-seconds 若小於等於 batch-size * operation-timeout-seconds，最壞情況可能在批次完成前
+     * 就被其他實例接管，造成重複執行。此處以 worst-case 批次總時間 fail-fast，確保租約足以覆蓋整批執行。
      */
     @PostConstruct
     void validateConfiguration() {
-        if (leaseSeconds <= batchSize) {
+        long worstCaseSeconds = (long) batchSize * operationTimeoutSeconds;
+        if (leaseSeconds <= worstCaseSeconds) {
             throw new IllegalStateException(
                     "external-sync.lease-seconds (" + leaseSeconds
-                            + ") must be greater than batch-size (" + batchSize
+                            + ") must be greater than batch-size * operation-timeout-seconds (" + worstCaseSeconds
                             + ") so a serial batch can complete before lease expiry");
         }
     }
