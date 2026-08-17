@@ -1,5 +1,9 @@
-def validate_coverage(expected, reviewed):
-    return sorted(expected) == sorted(reviewed) and len(reviewed) == len(set(reviewed))
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / ".github/ai-review"))
+from engine import validate_coverage
 
 
 def test_exact_coverage_passes():
