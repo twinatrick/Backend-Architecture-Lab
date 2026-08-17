@@ -1,0 +1,216 @@
+name: AI Architecture & Security Review
+
+# IMPORTANT:
+# This workflow is intended to be trusted only after it exists on the protected
+# default branch. It is triggered by the secret-free AI Review Trigger workflow
+# and never checks out or executes PR code.
+
+on:
+  workflow_run:
+    workflows: ["AI Review Trigger"]
+    types: [completed]
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+jobs:
+  review:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: apikey
+    steps:
+      - name: Checkout trusted workflow source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+
+      - name: Run trusted batch review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          REPO: ${{ github.repository }}
+          EVENT_PATH: ${{ github.event_path }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess, sys
+          from pathlib import Path
+          import requests
+
+          repo = os.environ['REPO']
+          event = json.loads(Path(os.environ['EVENT_PATH']).read_text())
+          pr_number = None
+          if event.get('pull_requests'):
+              pr_number = event['pull_requests'][0]['number']
+          if not pr_number:
+              print('No PR associated with workflow_run; manual dispatch requires PR_NUMBER input in a future hardening step.')
+              sys.exit(1)
+
+          token = os.environ.get('GH_TOKEN')
+          groq = os.environ.get('GROQ_API_KEY')
+          if not groq:
+              sys.exit('GROQ_API_KEY is not configured.')
+
+          gh_headers = {'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json'}
+          pr = requests.get(f'https://api.github.com/repos/{repo}/pulls/{pr_number}', headers=gh_headers, timeout=30)
+          pr.raise_for_status()
+          pr_data = pr.json()
+          base_sha = pr_data['base']['sha']
+          head_sha = pr_data['head']['sha']
+
+          # Read the PR file list through GitHub API. No PR checkout is performed.
+          files=[]
+          page=1
+          while True:
+              r=requests.get(f'https://api.github.com/repos/{repo}/pulls/{pr_number}/files', headers=gh_headers, params={'per_page':100,'page':page}, timeout=30)
+              r.raise_for_status()
+              chunk=r.json()
+              files.extend(chunk)
+              if len(chunk)<100: break
+              page+=1
+
+          changed=[x['filename'] for x in files]
+          if not changed:
+              sys.exit('PR contains no changed files.')
+
+          rules = Path('開發規範.md').read_text(encoding='utf-8')
+          contract = Path('.github/AI_REVIEW.md').read_text(encoding='utf-8')
+
+          groups={'ci':[],'security-api':[],'business':[],'data':[],'integration':[],'python':[],'other':[]}
+          for f in changed:
+              p=f.lower()
+              if p.startswith('.github/'):
+                  groups['ci'].append(f)
+              elif p.endswith('.py'):
+                  groups['python'].append(f)
+              elif any(x in p for x in ('controller','security','permission','auth','openapi')):
+                  groups['security-api'].append(f)
+              elif any(x in p for x in ('feign','client','integration','external')):
+                  groups['integration'].append(f)
+              elif any(x in p for x in ('repository','entity','dao','migration','mapper')):
+                  groups['data'].append(f)
+              elif any(x in p for x in ('service','domain','usecase')):
+                  groups['business'].append(f)
+              else:
+                  groups['other'].append(f)
+
+          # Build bounded batches by approximate diff size, not only file count.
+          batches=[]
+          max_chars=24000
+          for scope, paths in groups.items():
+              if not paths: continue
+              current=[]; size=0
+              for path in paths:
+                  item=next((x for x in files if x['filename']==path), {})
+                  patch=item.get('patch') or ''
+                  cost=len(path)+len(patch)
+                  if current and size+cost>max_chars:
+                      batches.append((scope,current)); current=[]; size=0
+                  current.append(path); size+=cost
+              if current: batches.append((scope,current))
+
+          keywords={
+              'ci':('GitHub Actions','workflow','permissions','Secrets','GITHUB_TOKEN','pull_request','shell','artifact','cache','supply-chain'),
+              'security-api':('BOLA','權限','OpenAPI','Controller','IAM','Security','API'),
+              'business':('SOLID','DRY','KISS','YAGNI','Service','架構'),
+              'data':('Repository','Entity','DataAccess','資料庫','EntityManager','Entity'),
+              'integration':('Feign','跨服務','外部','Microservice','Client'),
+              'python':('Python','Ruff','Exception','Type Hint','snake_case'),
+              'other':('CI','規範','品質'),
+          }
+
+          results=[]
+          for index,(scope, paths) in enumerate(batches,1):
+              relevant=[]
+              for i,line in enumerate(rules.splitlines()):
+                  if any(k.lower() in line.lower() for k in keywords[scope]):
+                      relevant.extend(rules.splitlines()[max(0,i-2):min(len(rules.splitlines()),i+14)])
+              relevant_rules='\n'.join(dict.fromkeys(relevant))[:12000] or rules[:7000]
+
+              diffs=[]
+              for f in files:
+                  if f['filename'] in paths:
+                      diffs.append(f"diff -- {f['filename']}\n{f.get('patch') or '[GitHub did not provide a patch; inspect metadata only]'}")
+              diff='\n\n'.join(diffs)[:26000]
+
+              prompt=f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。
+所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
+
+開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
+
+【Review Contract】
+{contract[:9000]}
+
+【相關規範】
+{relevant_rules}
+
+【本批次檔案】
+{chr(10).join(paths)}
+
+【PR Diff】
+```diff
+{diff}
+```
+
+只審查本批次。必須有程式碼或 workflow 證據才能提出 Finding。不得提出與本 PR 無關的既有技術債或純風格建議。
+CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Action pinning、artifact/cache、fail-open 與 Review bypass。
+
+只輸出合法 JSON，不得輸出 markdown：
+{{"batch":"{scope}-{index}","files_reviewed":{json.dumps(paths,ensure_ascii=False)},"findings":[{{"severity":"CRITICAL|HIGH|MEDIUM|LOW","confidence":"HIGH|MEDIUM|LOW","location":"file:line","rule":"繁體中文規範依據","problem":"繁體中文問題","evidence":"繁體中文證據","risk":"繁體中文風險","recommendation":"繁體中文修正建議"}}],"passed_checks":["繁體中文"],"coverage":"COMPLETE"}}
+
+不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定。'''
+
+              rr=requests.post('https://api.groq.com/openai/v1/chat/completions',headers={'Authorization':f'Bearer {groq}','Content-Type':'application/json'},json={'model':'llama-3.3-70b-versatile','messages':[{'role':'system','content':'你必須使用繁體中文。只輸出合法 JSON。不得捏造 Finding。'},{'role':'user','content':prompt}],'temperature':0.1},timeout=120)
+              rr.raise_for_status()
+              text=rr.json()['choices'][0]['message']['content'].strip()
+              if text.startswith('```'):
+                  text=text.split('\n',1)[1].rsplit('```',1)[0].strip()
+              data=json.loads(text)
+              if data.get('coverage')!='COMPLETE' or data.get('files_reviewed')!=paths:
+                  sys.exit(f'Batch coverage validation failed: {scope}-{index}')
+              results.append(data)
+
+          # Deterministic aggregator: AI cannot choose blocking or final decision.
+          findings=[]; passed=[]
+          for data in results:
+              findings.extend(data.get('findings',[])); passed.extend(data.get('passed_checks',[]))
+          unique=[]; seen=set()
+          for f in findings:
+              key=(f.get('location'),f.get('problem'),f.get('rule'))
+              if key not in seen:
+                  seen.add(key); unique.append(f)
+
+          blocking=[f for f in unique if f.get('confidence')=='HIGH' and f.get('severity') in {'CRITICAL','HIGH'}]
+          decision='REQUEST_CHANGES' if blocking else 'APPROVE'
+          report=['# AI Code Review','',f'## 審查結果\n{decision}','',f'已審查 {len(changed)} 個變更檔案、{len(results)} 個批次；共 {len(unique)} 個 Finding，其中 {len(blocking)} 個阻擋項目。','']
+          if unique:
+              report.append('## Findings')
+              for f in unique:
+                  report += ['',f"### [{f.get('severity')}] {f.get('problem')}",f"**位置**：`{f.get('location')}`",f"**規範依據**：{f.get('rule')}",f"**證據**：{f.get('evidence')}",f"**風險**：{f.get('risk')}",f"**修正建議**：{f.get('recommendation')}",f"**信心度**：{f.get('confidence')}"]
+          else:
+              report += ['## Findings','無。']
+          report += ['', '## 已通過檢查']+[f'- {x}' for x in sorted(set(passed))]
+          report += ['', '## 審查結論', '本次 Review 由分批 AI 分析，並由 CI deterministic policy 統一計算阻擋條件。']
+          body='\n'.join(report)+'\n\n<!-- ai-review-gate -->'
+
+          cr=requests.post(f'https://api.github.com/repos/{repo}/issues/{pr_number}/comments',headers=gh_headers,json={'body':body},timeout=30)
+          cr.raise_for_status()
+          Path('review.md').write_text(body,encoding='utf-8')
+          Path('ai-review.json').write_text(json.dumps({'decision':decision,'findings':unique,'blocking_findings':blocking,'batches':len(results),'files_reviewed':changed},ensure_ascii=False,indent=2),encoding='utf-8')
+          print(body)
+          if decision=='REQUEST_CHANGES': sys.exit(1)
+          PY
+
+      - name: Upload final report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-review-final
+          path: |
+            review.md
+            ai-review.json
+          if-no-files-found: ignore
