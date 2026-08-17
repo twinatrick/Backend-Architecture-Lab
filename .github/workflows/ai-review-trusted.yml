@@ -37,7 +37,7 @@ jobs:
 
       - name: Upload final report
         if: always()
-        uses: actions/upload-artifact@11bd71901bbe5b1630ceea73d27597364c9af4e95f4bb
+        uses: actions/upload-artifact@v4
         with:
           name: ai-review-final
           path: |
