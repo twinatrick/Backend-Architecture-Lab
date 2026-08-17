@@ -1,19 +1,14 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / ".github/ai-review"))
+from engine import validate_finding
+
 REQUIRED = {
     "location", "rule", "problem", "evidence", "risk",
     "recommendation", "severity", "confidence",
 }
-ALLOWED_SEVERITY = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
-ALLOWED_CONFIDENCE = {"HIGH", "MEDIUM", "LOW"}
-
-
-def validate_finding(finding):
-    return (
-        REQUIRED.issubset(finding)
-        and finding["severity"] in ALLOWED_SEVERITY
-        and finding["confidence"] in ALLOWED_CONFIDENCE
-        and "blocking" not in finding
-        and "decision" not in finding
-    )
 
 
 def test_valid_finding_passes():
