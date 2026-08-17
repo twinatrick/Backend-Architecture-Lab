@@ -1,0 +1,20 @@
+name: AI Review Trigger
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [master, main]
+  workflow_dispatch:
+
+# This workflow intentionally does not checkout or execute PR code and does not access secrets.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  trigger:
+    name: Authorize AI Review Run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record review trigger
+        run: echo "AI review requested for PR ${{ github.event.pull_request.number || 'manual run' }}"
