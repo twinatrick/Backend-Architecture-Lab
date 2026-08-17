@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Service.IExternalSyncService;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,6 +59,23 @@ public class ExternalSyncWorker {
 
     @Autowired
     private IExternalSyncCommandService externalSyncCommandService;
+
+    /**
+     * 啟動時驗證租約組態不變式：
+     * 本批次採序列執行，最多 batch-size 筆，單筆外部同步執行時間無組態上限；
+     * lease-seconds 若小於等於 batch-size，最壞情況（每筆至少 1 秒）可能在批次完成前
+     * 就被其他實例接管，造成重複執行。此處以 batch-size 為粗略下限 fail-fast，
+     * 接入真實外部 adapter 時應另行定義單筆 operation timeout 並據此收緊此校驗。
+     */
+    @PostConstruct
+    void validateConfiguration() {
+        if (leaseSeconds <= batchSize) {
+            throw new IllegalStateException(
+                    "external-sync.lease-seconds (" + leaseSeconds
+                            + ") must be greater than batch-size (" + batchSize
+                            + ") so a serial batch can complete before lease expiry");
+        }
+    }
 
     /**
      * 批次執行尚未同步的命令（預設每 5 秒執行一次）。

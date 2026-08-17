@@ -23,7 +23,7 @@ class InternalApiTokenInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(interceptor, "internalToken", "test-secret");
+        ReflectionTestUtils.setField(interceptor, "internalToken", "test-secret-0123456789");
     }
 
     @Test
@@ -48,7 +48,7 @@ class InternalApiTokenInterceptorTest {
     @Test
     void matchingToken_shouldPass() throws Exception {
         MockHttpServletRequest request = requestWithout("X-Internal-Token");
-        request.addHeader("X-Internal-Token", "test-secret");
+        request.addHeader("X-Internal-Token", "test-secret-0123456789");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         assertTrue(interceptor.preHandle(request, response, new Object()));
@@ -76,6 +76,23 @@ class InternalApiTokenInterceptorTest {
         ReflectionTestUtils.setField(interceptor, "internalToken", "your_internal_token");
         MockHttpServletRequest request = requestWithout("X-Internal-Token");
         request.addHeader("X-Internal-Token", "your_internal_token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor.preHandle(request, response, new Object()));
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void tooShortToken_shouldFailAtStartup() {
+        ReflectionTestUtils.setField(interceptor, "internalToken", "short");
+        assertThrows(IllegalStateException.class, interceptor::validateConfiguredToken);
+    }
+
+    @Test
+    void tooShortToken_shouldRejectRequests() throws Exception {
+        ReflectionTestUtils.setField(interceptor, "internalToken", "short");
+        MockHttpServletRequest request = requestWithout("X-Internal-Token");
+        request.addHeader("X-Internal-Token", "short");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         assertFalse(interceptor.preHandle(request, response, new Object()));

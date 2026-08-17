@@ -29,6 +29,7 @@ import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -203,6 +204,16 @@ class CompensationOutboxWorkerTest {
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
                 contains("JSON"),
                 any(Date.class));
+    }
+
+    @Test
+    void validateConfiguration_shouldThrow_whenLeaseTooShortForBatchWindow() {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "leaseSeconds", 5L);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 100);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 10L);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+
+        assertThrows(IllegalStateException.class, compensationOutboxWorker::validateConfiguration);
     }
 
     private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {

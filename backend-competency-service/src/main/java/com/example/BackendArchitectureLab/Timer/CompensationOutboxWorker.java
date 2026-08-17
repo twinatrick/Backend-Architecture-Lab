@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Service.ICompensationPublisher;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,6 +69,26 @@ public class CompensationOutboxWorker {
 
     @Autowired
     private ExecutorService compensationOutboxPublisherPool;
+
+    /**
+     * 啟動時驗證租約組態不變式：
+     * 批次最壞完成時間為 (expectedWaves + 1) * ackTimeoutSeconds + 1 秒（expectedWaves 由
+     * batch-size 與 publish-parallelism 決定）；lease-seconds 若不足（少於該時間 + 60 秒安全餘裕），
+     * 可能在同一批尚未完成時就被其他實例接管認領，造成重複發佈。此處 fail-fast 於啟動期攔截，
+     * 避免上線後才出現 lease 打穿。
+     */
+    @PostConstruct
+    void validateConfiguration() {
+        int poolSize = Math.max(1, publishParallelism);
+        int expectedWaves = Math.max(1, (batchSize + poolSize - 1) / poolSize);
+        long worstCaseWaitSeconds = (expectedWaves + 1) * ackTimeoutSeconds + 1L;
+        if (leaseSeconds < worstCaseWaitSeconds + 60L) {
+            throw new IllegalStateException(
+                    "compensation.outbox.lease-seconds (" + leaseSeconds
+                            + ") must be at least worst-case batch wait (" + worstCaseWaitSeconds
+                            + "s) + 60s margin to avoid lease expiry during a publish batch");
+        }
+    }
 
     /**
      * 批次發佈尚未送達的事件（預設每 5 秒執行一次）。

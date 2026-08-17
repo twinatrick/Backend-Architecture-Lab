@@ -15,6 +15,8 @@ import java.util.UUID;
 @RequestMapping("/project/inner")
 public class ProjectInternalController {
 
+    private static final int MAX_BINDINGS = 50;
+
     @Autowired
     private ICompensationRestoreService compensationRestoreService;
 
@@ -36,6 +38,10 @@ public class ProjectInternalController {
             @RequestHeader("X-Fencing-Owner") String ownerId,
             @RequestHeader("X-Fencing-Version") Long fencingVersion,
             @RequestBody List<BindingSnapshot> bindings) {
+        if (bindings != null && bindings.size() > MAX_BINDINGS) {
+            throw new IllegalArgumentException(
+                    "bindings count exceeds limit " + MAX_BINDINGS + ": " + bindings.size());
+        }
         compensationRestoreService.restoreMemberSkills(
                 projectId, UUID.fromString(eventId), expectedVersion, ownerId, fencingVersion, bindings);
     }

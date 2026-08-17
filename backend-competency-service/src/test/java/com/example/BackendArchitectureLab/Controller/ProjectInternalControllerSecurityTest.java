@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 SecurityFilterAutoConfiguration.class,
                 UserDetailsServiceAutoConfiguration.class})
 @Import({WebMvcConfig.class, InternalApiTokenInterceptor.class})
-@TestPropertySource(properties = "app.internal.token=test-secret")
+@TestPropertySource(properties = "app.internal.token=integration-test-secret")
 class ProjectInternalControllerSecurityTest {
 
     @Autowired
@@ -56,6 +56,7 @@ class ProjectInternalControllerSecurityTest {
 
     private static final String API_PATH = "/project/inner/skills/restore";
     private static final String BODY = "[{\"userId\":\"%s\",\"skillId\":\"%s\",\"levelId\":\"%s\"}]";
+    private static final String BINDING = "{\"userId\":\"%s\",\"skillId\":\"%s\",\"levelId\":\"%s\"}";
 
     @Test
     void matchingToken_shouldInvokeRestoreAndReturn200() throws Exception {
@@ -69,7 +70,7 @@ class ProjectInternalControllerSecurityTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .header("X-Fencing-Owner", "owner-1")
                         .header("X-Fencing-Version", "1")
-                        .header("X-Internal-Token", "test-secret")
+                        .header("X-Internal-Token", "integration-test-secret")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format(BODY, userId, skillId, levelId)))
                 .andExpect(status().isOk());
@@ -115,6 +116,31 @@ class ProjectInternalControllerSecurityTest {
     }
 
     @Test
+    void tooManyBindings_shouldReturn400_andNotInvokeRestore() throws Exception {
+        StringBuilder body = new StringBuilder("[");
+        for (int i = 0; i < 51; i++) {
+            if (i > 0) {
+                body.append(",");
+            }
+            body.append(String.format(BINDING, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()));
+        }
+        body.append("]");
+
+        mockMvc.perform(post(API_PATH)
+                        .param("projectId", UUID.randomUUID().toString())
+                        .param("expectedVersion", "1")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("X-Fencing-Owner", "owner-1")
+                        .header("X-Fencing-Version", "1")
+                        .header("X-Internal-Token", "integration-test-secret")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.toString()))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(compensationRestoreService);
+    }
+
+    @Test
     void nonMemberUser_shouldReturn400_whenServiceRejects() throws Exception {
         String userId = UUID.randomUUID().toString();
         String skillId = UUID.randomUUID().toString();
@@ -130,7 +156,7 @@ class ProjectInternalControllerSecurityTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .header("X-Fencing-Owner", "owner-1")
                         .header("X-Fencing-Version", "1")
-                        .header("X-Internal-Token", "test-secret")
+                        .header("X-Internal-Token", "integration-test-secret")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format(BODY, userId, skillId, levelId)))
                 .andExpect(status().isBadRequest());

@@ -31,8 +31,11 @@ public class CompensationPayloadService implements ICompensationPayloadService {
         try {
             return objectMapper.readValue(payload, CompensationEvent.class);
         } catch (JsonProcessingException e) {
+            // 不將完整 payload 寫入錯誤訊息（其中含 userId/skillId/levelId/expectedVersion 等業務資料），
+            // 僅記錄長度以防止機敏資料洩漏至 log / DB lastError。
             throw new IllegalStateException(
-                    "Failed to deserialize compensation event payload: " + payload, e);
+                    "Failed to deserialize compensation event payload: payloadLength="
+                            + (payload != null ? payload.length() : 0), e);
         }
     }
 }

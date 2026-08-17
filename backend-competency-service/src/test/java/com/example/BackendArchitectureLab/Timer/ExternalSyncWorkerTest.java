@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -175,6 +176,14 @@ class ExternalSyncWorkerTest {
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
                 contains("JSON"),
                 any(Date.class));
+    }
+
+    @Test
+    void validateConfiguration_shouldThrow_whenLeaseNotGreaterThanBatchSize() {
+        ReflectionTestUtils.setField(externalSyncWorker, "leaseSeconds", 20L);
+        ReflectionTestUtils.setField(externalSyncWorker, "batchSize", 20);
+
+        assertThrows(IllegalStateException.class, externalSyncWorker::validateConfiguration);
     }
 
     private ExternalSyncCommand newCommand(int attemptCount) {
