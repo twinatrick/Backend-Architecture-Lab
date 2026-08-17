@@ -150,12 +150,8 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         //    即使 JVM 在 commit 與實際同步之間 crash，命令仍存在於 external_sync_command，
         //    worker 遲早會執行，不再有「commit 後同步永不執行」的 crash window。
         //    同步失敗重試耗盡（DEAD）時才觸發補償閉環（COMPENSATION_REQUIRED）。
-        try {
-            self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId);
-        } catch (Exception e) {
-            // 本地事務執行失敗已由 Spring 負責 rollback，此處不需發送補償事件，直接拋出
-            throw e;
-        }
+        //    本地事務執行失敗已由 Spring 負責 rollback，此處不需發送補償事件，直接向上拋出。
+        self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId);
     }
 
     /**

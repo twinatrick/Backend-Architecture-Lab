@@ -2,12 +2,10 @@ package com.example.BackendArchitectureLab.Timer;
 
 import com.example.BackendArchitectureLab.DataAccess.IExternalSyncCommandDataAccess;
 import com.example.BackendArchitectureLab.Entity.ExternalSyncCommand;
-import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncService;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,9 +52,6 @@ public class ExternalSyncWorker {
 
     @Autowired
     private IExternalSyncService externalSyncService;
-
-    @Autowired
-    private ICompensationOutboxService compensationOutboxService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -125,8 +120,10 @@ public class ExternalSyncWorker {
     }
 
     /**
-     * 執行失敗處理：以原子 UPDATE 標記狀態；未達上限 → FAILED 並排下次重試；已達上限 → DEAD
-     * 並觸發補償閉環（REQUIRES_NEW 寫入 FAILED + COMPENSATION_REQUIRED，確保補償請求可靠持久化）。
+     * 執行失敗處理：以原子 UPDATE 標記狀態；未達上限 → FAILED 並排下次重試；已達上限時
+     * 委託 {@link IExternalSyncCommandService#markDeadAndEnqueueCompensation} 在同一交易內
+     * 標記 DEAD 並寫入 FAILED + COMPENSATION_REQUIRED，確保補償請求與 DEAD 狀態原子化、
+     * 不會在「DEAD 已提交但補償寫入失敗」時永久遺失補償事件。
      * attemptCount 於 claim 時遞增，此處以現值判斷。
      */
     private void handleExecutionFailure(ExternalSyncCommand command, UUID transactionId,
@@ -134,12 +131,8 @@ public class ExternalSyncWorker {
         String errorMessage = truncate(e.getMessage());
         int attempt = command.getAttemptCount();
         if (attempt >= maxAttempts) {
-            commandRepository.markDead(command.getId(),
-                    CompensationOutboxDeliveryStatus.DEAD,
-                    CompensationOutboxDeliveryStatus.PROCESSING,
-                    errorMessage);
-            compensationOutboxService.enqueueFailureAndCompensationRequired(
-                    transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, beforeState, errorMessage);
+            externalSyncCommandService.markDeadAndEnqueueCompensation(
+                    command.getId(), transactionId, beforeState, errorMessage);
             log.error("外部同步已達最大重試次數，轉為 DEAD 並觸發補償: commandId={}, transactionId={}, attempt={}, cause={}",
                     command.getId(), transactionId, attempt, e.toString());
         } else {

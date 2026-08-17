@@ -23,11 +23,13 @@ public interface ICompensationOutboxService {
     void enqueueCommitted(UUID transactionId, CompensationAction action, Map<String, Object> state);
 
     /**
-     * 業務交易失敗後（rollback 完成）寫入失敗與補償請求事件（同一獨立新交易，含錯誤訊息）。
+     * 業務交易失敗後（rollback 完成）寫入失敗與補償請求事件。
      * <p>
-     * 同一個 {@code REQUIRES_NEW} 交易內依序寫入 {@code FAILED}（記錄失敗事實）與
+     * 同一個交易內依序寫入 {@code FAILED}（記錄失敗事實）與
      * {@code COMPENSATION_REQUIRED}（補償請求，閉環：Consumer 委派 CompensationStrategy 執行補償），
      * 兩者要嘛一起 commit、要嘛一起 rollback，避免閉環斷裂。
+     * 若呼叫端已有交易（如 ExternalSyncWorker 將命令標記 DEAD 的同一交易）則加入該交易，
+     * 確保「DEAD 標記 + 補償請求」原子化；無交易上下文時自行開啟新交易。
      */
     void enqueueFailureAndCompensationRequired(UUID transactionId, CompensationAction action,
                                                Map<String, Object> state, String errorMessage);

@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -155,6 +156,29 @@ class ProjectUserBindingServiceIntegrationTest {
 
     @MockBean
     private IUserGateway userGateway;
+
+    @Test
+    void rebind_shouldBumpProjectVersion_onEachMutation() {
+        UUID userId = UUID.randomUUID();
+        Project project = seedProject();
+        Skill skill = seedSkill("Java");
+        SkillLevel level = seedLevel(skill, 1, "Beginner");
+        seedUserProject(project, userId);
+
+        when(userGateway.existsUserById(userId)).thenReturn(true);
+
+        projectUserBindingService.rebindProjectMemberSkills(
+                project.getId(), Map.of(userId, Map.of(skill.getId(), level.getId())));
+        Long versionAfterFirst = projectDataAccess.findById(project.getId()).orElseThrow().getVersion();
+        assertNotNull(versionAfterFirst, "rebind 後 Project.version 必須存在");
+
+        projectUserBindingService.rebindProjectMemberSkills(
+                project.getId(), Map.of(userId, Map.of(skill.getId(), level.getId())));
+        Long versionAfterSecond = projectDataAccess.findById(project.getId()).orElseThrow().getVersion();
+        assertNotNull(versionAfterSecond);
+        assertTrue(versionAfterSecond > versionAfterFirst,
+                "user_project_skill 寫入後 Project.version 應單調遞增，作為補償還原的樂觀鎖基準");
+    }
 
     @Test
     void rebindThenRestore_shouldCompleteClosedLoop_withSuccessLog() {

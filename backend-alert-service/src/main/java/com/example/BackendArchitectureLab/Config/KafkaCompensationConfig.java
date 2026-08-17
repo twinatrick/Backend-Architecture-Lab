@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Config;
 
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
+import com.example.BackendArchitectureLab.Exception.CompensationDeadEventException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
@@ -67,7 +68,8 @@ public class KafkaCompensationConfig {
         // Consumer retry policy：FixedBackOff（1 秒間隔、最多 4 次退避 = 含首發共 5 次嘗試），
         // 超過後交由 DeadLetterPublishingRecoverer 轉發至 DLT 主題，並自動 commit offset 避免阻塞正常消費。
         // Permanent 錯誤（無法靠重試復原）不重試：Unsupported event version、Unsupported action、
-        // eventId null（契約違反）、補償並發衝突（樂觀鎖守衛失敗）——直接交由 DLT。
+        // eventId null（契約違反）、補償並發衝突（樂觀鎖守衛失敗）、補償事件已達上限進入 DEAD 隔離——
+        // 直接交由 DLT。
         DeadLetterPublishingRecoverer recoverer =
                 new DeadLetterPublishingRecoverer(compensationKafkaTemplate);
 
@@ -76,7 +78,8 @@ public class KafkaCompensationConfig {
                 UnsupportedEventVersionException.class,
                 UnsupportedCompensationActionException.class,
                 CompensationConflictException.class,
-                IllegalArgumentException.class);
+                IllegalArgumentException.class,
+                CompensationDeadEventException.class);
         factory.setCommonErrorHandler(errorHandler);
         return factory;
     }

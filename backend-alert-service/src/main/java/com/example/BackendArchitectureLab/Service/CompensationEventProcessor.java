@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
+import com.example.BackendArchitectureLab.Exception.CompensationDeadEventException;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
@@ -43,6 +44,10 @@ import java.util.UUID;
  * {@link CompensationConflictException}、
  * {@link IllegalArgumentException}）會直接標記 DEAD 後向外 rethrow，由 Kafka 錯誤處理器
  * 轉發至 DLT 供人工介入，不進行無意義的重試。
+ * <p>
+ * 已達最大重試次數（{@code compensation.consumer.max-attempts}）或重送時發現事件已是 DEAD
+ * （先前已隔離）亦以 {@link CompensationDeadEventException} 向外 rethrow，確保隔離事件一律
+ * 交由 DLT 記錄，而非被 Kafka offset commit 靜默吞掉。
  */
 @Slf4j
 @Service
@@ -178,6 +183,12 @@ public class CompensationEventProcessor {
             }
             case CompensationEventLogStatus.FAILED -> retryFailedEvent(event, existing);
             case CompensationEventLogStatus.PROCESSING -> recoverExpiredLease(event, existing);
+            case CompensationEventLogStatus.DEAD -> {
+                log.error("Compensation event already quarantined in DEAD, forward to DLT: eventId={}",
+                        event.getEventId());
+                throw new CompensationDeadEventException(
+                        "Compensation event is already in DEAD status, not retryable: eventId=" + event.getEventId());
+            }
             default -> log.debug("Compensation event already in-flight, skipped: eventId={}, status={}",
                     event.getEventId(), existing.getStatus());
         }
@@ -262,7 +273,9 @@ public class CompensationEventProcessor {
                 log.error("Compensation failed and reached max attempts ({}). Quarantine in DEAD status: eventId={}",
                         maxAttempts, event.getEventId(), e);
                 stateService.markDead(entry, e.getMessage());
-                // 不再 rethrow，使 Kafka offset 順利 commit
+                throw new CompensationDeadEventException(
+                        "Compensation event reached max attempts and was quarantined in DEAD: eventId="
+                                + event.getEventId(), e); // 向外 rethrow：Kafka 錯誤處理器識別為不可重試，直接轉發 DLT
             } else {
                 log.warn("Compensation failed, will retry: eventId={}, attempt={}",
                         event.getEventId(), entry.getAttemptCount(), e);

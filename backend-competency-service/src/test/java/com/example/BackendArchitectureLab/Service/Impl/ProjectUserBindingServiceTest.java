@@ -331,7 +331,7 @@ class ProjectUserBindingServiceTest {
     }
 
     @Test
-    void outboxEnqueue_shouldCommitCommittedWithinBusinessTransaction_butFailedRequiresNew() throws Exception {
+    void outboxEnqueue_shouldCommitCommittedWithinBusinessTransaction_butFailedJoinsOrOpensNew() throws Exception {
         Method enqueueCommitted = CompensationOutboxServiceImpl.class.getMethod("enqueueCommitted",
                 UUID.class, CompensationAction.class, Map.class);
         assertNull(enqueueCommitted.getAnnotation(Transactional.class),
@@ -341,8 +341,9 @@ class ProjectUserBindingServiceTest {
                 .getMethod("enqueueFailureAndCompensationRequired",
                         UUID.class, CompensationAction.class, Map.class, String.class);
         Transactional failedTx = enqueueFailure.getAnnotation(Transactional.class);
-        assertNotNull(failedTx, "失敗閉環需在 rollback 後以新交易寫入 FAILED 與 COMPENSATION_REQUIRED");
-        assertEquals(Propagation.REQUIRES_NEW, failedTx.propagation());
+        assertNotNull(failedTx, "失敗閉環需以交易寫入 FAILED 與 COMPENSATION_REQUIRED");
+        assertEquals(Propagation.REQUIRED, failedTx.propagation(),
+                "enqueueFailureAndCompensationRequired 應以 REQUIRED 加入呼叫端交易（確保 DEAD 標記與補償請求原子化），無交易上下文時自行開啟新交易");
     }
 
     @Test

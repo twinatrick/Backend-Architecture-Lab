@@ -2,12 +2,10 @@ package com.example.BackendArchitectureLab.Timer;
 
 import com.example.BackendArchitectureLab.DataAccess.IExternalSyncCommandDataAccess;
 import com.example.BackendArchitectureLab.Entity.ExternalSyncCommand;
-import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncService;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,9 +45,6 @@ class ExternalSyncWorkerTest {
 
     @Mock
     private IExternalSyncService externalSyncService;
-
-    @Mock
-    private ICompensationOutboxService compensationOutboxService;
 
     @Mock
     private IExternalSyncCommandService externalSyncCommandService;
@@ -135,8 +130,8 @@ class ExternalSyncWorkerTest {
                 nextAttemptCaptor.capture());
         assertNotNull(nextAttemptCaptor.getValue());
         verify(commandRepository, never()).markDead(any(UUID.class), anyString(), anyString(), anyString());
-        verify(compensationOutboxService, never()).enqueueFailureAndCompensationRequired(
-                any(UUID.class), any(CompensationAction.class), anyMap(), anyString());
+        verify(externalSyncCommandService, never()).markDeadAndEnqueueCompensation(
+                any(UUID.class), any(UUID.class), anyMap(), anyString());
     }
 
     @Test
@@ -153,13 +148,9 @@ class ExternalSyncWorkerTest {
 
         externalSyncWorker.flushPendingCommands();
 
-        verify(commandRepository).markDead(eq(command.getId()),
-                eq(CompensationOutboxDeliveryStatus.DEAD),
-                eq(CompensationOutboxDeliveryStatus.PROCESSING),
-                contains("external sync unreachable"));
-        verify(compensationOutboxService).enqueueFailureAndCompensationRequired(
+        verify(externalSyncCommandService).markDeadAndEnqueueCompensation(
+                eq(command.getId()),
                 eq(command.getTransactionId()),
-                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND),
                 anyMap(),
                 contains("external sync unreachable"));
         verify(commandRepository, never()).markFailed(any(UUID.class), anyString(), anyString(), anyString(), any(Date.class));

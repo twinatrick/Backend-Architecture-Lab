@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
+import com.example.BackendArchitectureLab.Exception.CompensationDeadEventException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
@@ -417,21 +418,38 @@ class CompensationEventProcessorTest {
     }
 
     @Test
-    void process_whenCompensationFailsRepeatedly_shouldMarkDeadAndNotRethrow() {
+    void process_whenCompensationFailsRepeatedly_shouldMarkDeadAndRethrowToDLT() {
         doThrow(new RuntimeException("compensate error")).when(strategy).compensate(any(CompensationEvent.class), anyString(), anyLong());
 
         CompensationEventLog entry = newLog(CompensationEventLogStatus.PROCESSING);
         entry.setAttemptCount(5);
         when(eventLogRepository.saveAndFlush(any(CompensationEventLog.class))).thenReturn(entry);
 
-        assertDoesNotThrow(() -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
+        CompensationDeadEventException exception = assertThrows(CompensationDeadEventException.class,
+                () -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
 
+        assertTrue(exception.getMessage().contains(eventId.toString()));
         ArgumentCaptor<String> lastErrorCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Date> failedAtCaptor = ArgumentCaptor.forClass(Date.class);
         verify(eventLogRepository).markState(eq(eventId), anyString(), any(), eq(CompensationEventLogStatus.PROCESSING),
                 eq(CompensationEventLogStatus.DEAD), isNull(), failedAtCaptor.capture(), lastErrorCaptor.capture(), isNull());
         assertEquals("compensate error", lastErrorCaptor.getValue());
         assertNotNull(failedAtCaptor.getValue());
+    }
+
+    @Test
+    void process_whenEventAlreadyDead_shouldRethrowToDLT() {
+        CompensationEvent event = newEvent(CompensationStatus.COMPENSATION_REQUIRED);
+
+        stubDuplicate();
+        when(eventLogRepository.findByEventId(eventId))
+                .thenReturn(Optional.of(newLog(CompensationEventLogStatus.DEAD)));
+
+        CompensationDeadEventException exception = assertThrows(CompensationDeadEventException.class,
+                () -> compensationEventProcessor.process(event));
+
+        assertTrue(exception.getMessage().contains(eventId.toString()));
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
     }
 
     @Test

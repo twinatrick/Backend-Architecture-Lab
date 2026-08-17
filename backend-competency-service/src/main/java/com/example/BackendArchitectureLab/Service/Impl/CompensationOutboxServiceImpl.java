@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -46,7 +45,7 @@ public class CompensationOutboxServiceImpl implements ICompensationOutboxService
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void enqueueFailureAndCompensationRequired(UUID transactionId, CompensationAction action,
                                                       Map<String, Object> state, String errorMessage) {
         saveOutbox(transactionId, action, CompensationStatus.FAILED, state, errorMessage);

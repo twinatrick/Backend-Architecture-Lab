@@ -8,6 +8,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -58,6 +59,23 @@ class InternalApiTokenInterceptorTest {
         ReflectionTestUtils.setField(interceptor, "internalToken", "");
         MockHttpServletRequest request = requestWithout("X-Internal-Token");
         request.addHeader("X-Internal-Token", "test-secret");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertFalse(interceptor.preHandle(request, response, new Object()));
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void knownPlaceholderToken_shouldFailAtStartup() {
+        ReflectionTestUtils.setField(interceptor, "internalToken", "your_internal_token");
+        assertThrows(IllegalStateException.class, interceptor::validateConfiguredToken);
+    }
+
+    @Test
+    void knownPlaceholderToken_shouldRejectRequests() throws Exception {
+        ReflectionTestUtils.setField(interceptor, "internalToken", "your_internal_token");
+        MockHttpServletRequest request = requestWithout("X-Internal-Token");
+        request.addHeader("X-Internal-Token", "your_internal_token");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         assertFalse(interceptor.preHandle(request, response, new Object()));

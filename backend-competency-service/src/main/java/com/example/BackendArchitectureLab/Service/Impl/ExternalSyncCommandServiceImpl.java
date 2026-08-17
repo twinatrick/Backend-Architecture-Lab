@@ -2,9 +2,11 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IExternalSyncCommandDataAccess;
 import com.example.BackendArchitectureLab.Entity.ExternalSyncCommand;
+import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +36,9 @@ public class ExternalSyncCommandServiceImpl implements IExternalSyncCommandServi
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private ICompensationOutboxService compensationOutboxService;
+
     @Override
     public boolean isEnabled() {
         return syncEnabled;
@@ -58,6 +63,18 @@ public class ExternalSyncCommandServiceImpl implements IExternalSyncCommandServi
         command.setPayload(toJson(transactionId, memberSkillsMap, beforeState));
         commandRepository.save(command);
         log.debug("Enqueued external sync command: transactionId={}, projectId={}", transactionId, projectId);
+    }
+
+    @Override
+    @Transactional
+    public void markDeadAndEnqueueCompensation(UUID commandId, UUID transactionId, Map<String, Object> beforeState,
+                                               String errorMessage) {
+        commandRepository.markDead(commandId, CompensationOutboxDeliveryStatus.DEAD,
+                CompensationOutboxDeliveryStatus.PROCESSING, errorMessage);
+        compensationOutboxService.enqueueFailureAndCompensationRequired(transactionId,
+                CompensationAction.PROJECT_MEMBER_SKILLS_REBIND,
+                beforeState != null ? beforeState : new HashMap<>(), errorMessage);
+        log.error("外部同步已達最大重試次數，標記 DEAD 並寫入補償請求: commandId={}, transactionId={}", commandId, transactionId);
     }
 
     private String toJson(UUID transactionId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
