@@ -25,7 +25,8 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     /**
      * 原子領取（CAS）：事件仍可重試（PENDING/FAILED 且已達下次重試時間），
      * 或 PROCESSING 且租約已過期（crash recovery），才將其標記為 PROCESSING，
-     * 同時遞增 attemptCount 並寫入處理時間與新租約。回傳 1 表示取得處理權、0 表示他人處理中或未到期。
+     * 同時遞增 attemptCount、更新 ownerId 與 fencingVersion（COALESCE + 1）並寫入處理時間與新租約。
+     * 回傳 1 表示取得處理權、0 表示他人處理中或未到期。
      */
     @Modifying
     @Transactional
@@ -33,8 +34,11 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
             UPDATE CompensationOutboxEvent e
             SET e.deliveryStatus = :processing,
                 e.attemptCount = e.attemptCount + 1,
+                e.ownerId = :ownerId,
+                e.fencingVersion = COALESCE(e.fencingVersion, 0) + 1,
                 e.processingAt = :processingAt,
-                e.leaseUntil = :leaseUntil
+                e.leaseUntil = :leaseUntil,
+                e.nextAttemptAt = NULL
             WHERE e.id = :id
               AND (
                     (e.deliveryStatus <> :processing
@@ -48,8 +52,9 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     int claimEvent(@Param("id") UUID id,
                    @Param("claimableStatuses") List<String> claimableStatuses,
                    @Param("processing") String processing,
-                    @Param("processingAt") Date processingAt,
-                    @Param("leaseUntil") Date leaseUntil);
+                   @Param("ownerId") String ownerId,
+                   @Param("processingAt") Date processingAt,
+                   @Param("leaseUntil") Date leaseUntil);
 
     /**
      * 查詢尚未送達且已到期的事件（PENDING/FAILED 已到期，或 PROCESSING 租約已過期可回收），
@@ -72,22 +77,27 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
                                                  Pageable pageable);
 
     /**
-     * 原子標記已送達（僅 PROCESSING 狀態可轉換；SENT + 清除租約）。
+     * 原子標記已送達（僅 PROCESSING 狀態且持有一致的 ownerId 與 fencingVersion 可轉換；SENT + 清除租約）。
      */
     @Modifying
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e
             SET e.deliveryStatus = :sent, e.sentAt = :sentAt, e.leaseUntil = NULL
-            WHERE e.id = :id AND e.deliveryStatus = :processing
+            WHERE e.id = :id
+              AND e.ownerId = :ownerId
+              AND e.fencingVersion = :fencingVersion
+              AND e.deliveryStatus = :processing
             """)
     int markSent(@Param("id") UUID id,
+                 @Param("ownerId") String ownerId,
+                 @Param("fencingVersion") Long fencingVersion,
                  @Param("sent") String sent,
                  @Param("processing") String processing,
                  @Param("sentAt") Date sentAt);
 
     /**
-     * 原子標記失敗（僅 PROCESSING 狀態可轉換；FAILED + 記錄錯誤 + 排定下次重試 + 清除租約）。
+     * 原子標記失敗（僅 PROCESSING 狀態且持有一致的 ownerId 與 fencingVersion 可轉換；FAILED + 記錄錯誤 + 排定下次重試 + 清除租約）。
      */
     @Modifying
     @Transactional
@@ -95,25 +105,35 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
             UPDATE CompensationOutboxEvent e
             SET e.deliveryStatus = :failed, e.errorMessage = :errorMessage,
                 e.nextAttemptAt = :nextAttemptAt, e.leaseUntil = NULL
-            WHERE e.id = :id AND e.deliveryStatus = :processing
+            WHERE e.id = :id
+              AND e.ownerId = :ownerId
+              AND e.fencingVersion = :fencingVersion
+              AND e.deliveryStatus = :processing
             """)
     int markFailed(@Param("id") UUID id,
+                   @Param("ownerId") String ownerId,
+                   @Param("fencingVersion") Long fencingVersion,
                    @Param("failed") String failed,
                    @Param("processing") String processing,
                    @Param("errorMessage") String errorMessage,
                    @Param("nextAttemptAt") Date nextAttemptAt);
 
     /**
-     * 原子標記死亡（僅 PROCESSING 狀態可轉換；DEAD + 記錄錯誤 + 清除租約）。
+     * 原子標記死亡（僅 PROCESSING 狀態且持有一致的 ownerId 與 fencingVersion 可轉換；DEAD + 記錄錯誤 + 清除租約）。
      */
     @Modifying
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e
             SET e.deliveryStatus = :dead, e.errorMessage = :errorMessage, e.leaseUntil = NULL
-            WHERE e.id = :id AND e.deliveryStatus = :processing
+            WHERE e.id = :id
+              AND e.ownerId = :ownerId
+              AND e.fencingVersion = :fencingVersion
+              AND e.deliveryStatus = :processing
             """)
     int markDead(@Param("id") UUID id,
+                 @Param("ownerId") String ownerId,
+                 @Param("fencingVersion") Long fencingVersion,
                  @Param("dead") String dead,
                  @Param("processing") String processing,
                  @Param("errorMessage") String errorMessage);

@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
+import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreValidatorService;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
@@ -14,10 +15,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * CompensationRestoreValidatorService - 補償還原的綁定驗證與冪等比對實作（M-02 拆分）。
@@ -63,7 +67,9 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
         if (bindings == null) {
             return List.of();
         }
-        List<UserProjectSkill> resolved = new ArrayList<>(bindings.size());
+
+        // 1. 記憶體去重校驗：同一成員不可綁定重複技能
+        Set<String> seenUserSkill = new HashSet<>();
         for (BindingSnapshot binding : bindings) {
             UUID userId = binding.getUserId();
             UUID skillId = binding.getSkillId();
@@ -74,15 +80,41 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                         "Invalid binding snapshot: userId/skillId/levelId must not be null, got " + binding);
             }
 
-            if (!userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)) {
+            String userSkillKey = userId + ":" + skillId;
+            if (!seenUserSkill.add(userSkillKey)) {
+                throw new IllegalArgumentException(
+                        "Duplicate binding snapshot detected for user " + userId + " and skill " + skillId);
+            }
+        }
+
+        // 2. 批次載入專案成員，避免 N 次 DB roundtrip
+        List<UserProject> projectMembers = userProjectDataAccess.findByProjectId(projectId);
+        Set<UUID> memberUserIds = (projectMembers != null)
+                ? projectMembers.stream().map(UserProject::getUserId).collect(Collectors.toSet())
+                : Set.of();
+
+        // 3. 快取解析已查詢之技能與等級，減少重複查詢
+        Map<UUID, Skill> skillCache = new HashMap<>();
+        Map<UUID, SkillLevel> skillLevelCache = new HashMap<>();
+
+        List<UserProjectSkill> resolved = new ArrayList<>(bindings.size());
+        for (BindingSnapshot binding : bindings) {
+            UUID userId = binding.getUserId();
+            UUID skillId = binding.getSkillId();
+            UUID levelId = binding.getLevelId();
+
+            if (!memberUserIds.contains(userId)) {
                 throw new IllegalArgumentException(
                         "User " + userId + " is not a member of project " + projectId);
             }
 
-            Skill skill = skillDataAccess.findById(skillId)
-                    .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
-            SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
-                    .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
+            Skill skill = skillCache.computeIfAbsent(skillId, id ->
+                    skillDataAccess.findById(id)
+                            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + id)));
+
+            SkillLevel skillLevel = skillLevelCache.computeIfAbsent(levelId, id ->
+                    skillLevelDataAccess.findById(id)
+                            .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + id)));
 
             if (!skillLevel.getSkill().getId().equals(skillId)) {
                 throw new IllegalArgumentException(

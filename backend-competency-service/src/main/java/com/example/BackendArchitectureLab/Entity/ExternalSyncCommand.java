@@ -54,6 +54,12 @@ public class ExternalSyncCommand extends BaseEntity {
     @Column(name = "sent_at")
     private Date sentAt;
 
+    @Column(name = "owner_id", length = 64)
+    private String ownerId;
+
+    @Column(name = "fencing_version")
+    private Long fencingVersion;
+
     @Column(name = "error_message", length = 1024)
     private String errorMessage;
 }

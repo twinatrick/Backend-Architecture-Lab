@@ -98,70 +98,83 @@ public class ExternalSyncWorker {
 
     /**
      * 執行單一命令：原子領取 → 重新讀取最新狀態 → 反序列化 payload → 呼叫外部同步 → 原子標記 SENT。
-     * 任何例外皆由 handleExecutionFailure 以原子 UPDATE 標記 FAILED/DEAD，不向上拋出。
+     * 任何例外皆由 handleExecutionFailure 以帶 ownerId + fencingVersion 的原子 UPDATE 標記 FAILED/DEAD，不向上拋出。
      */
     private void processOne(ExternalSyncCommand command) {
         Date now = new Date();
+        String ownerId = UUID.randomUUID().toString();
         int claimed = commandRepository.claimCommand(
                 command.getId(),
                 List.of(CompensationOutboxDeliveryStatus.PENDING,
                         CompensationOutboxDeliveryStatus.FAILED,
                         CompensationOutboxDeliveryStatus.PROCESSING),
                 CompensationOutboxDeliveryStatus.PROCESSING,
+                ownerId,
                 now,
                 new Date(now.getTime() + leaseSeconds * 1000L));
         if (claimed == 0) {
             return;
         }
-        // claim 後重新讀取最新狀態（attemptCount 已由 claim 原子遞增），避免使用陳舊資料
+        // claim 後重新讀取最新狀態（attemptCount 與 fencingVersion 已由 claim 原子遞增），避免使用陳舊資料
         ExternalSyncCommand fresh = commandRepository.findById(command.getId()).orElse(null);
         if (fresh == null) {
             return;
         }
 
+        Long fencingVersion = fresh.getFencingVersion();
         ExternalSyncCommandPayload payload;
         try {
             payload = objectMapper.readValue(fresh.getPayload(), ExternalSyncCommandPayload.class);
         } catch (Exception e) {
-            handleExecutionFailure(fresh, fresh.getTransactionId(), null, e);
+            handleExecutionFailure(fresh, fresh.getTransactionId(), null, ownerId, fencingVersion, e);
             return;
         }
         try {
             externalSyncService.syncProjectMemberSkills(fresh.getProjectId(), payload.getMemberSkillsMap());
             commandRepository.markSent(fresh.getId(),
+                    ownerId,
+                    fencingVersion,
                     CompensationOutboxDeliveryStatus.SENT,
                     CompensationOutboxDeliveryStatus.PROCESSING,
                     new Date());
         } catch (Exception e) {
-            handleExecutionFailure(fresh, fresh.getTransactionId(), payload.getBeforeState(), e);
+            handleExecutionFailure(fresh, fresh.getTransactionId(), payload.getBeforeState(), ownerId, fencingVersion, e);
         }
     }
 
     /**
-     * 執行失敗處理：以原子 UPDATE 標記狀態；未達上限 → FAILED 並排下次重試；已達上限時
+     * 執行失敗處理：以帶 ownerId + fencingVersion 的原子 UPDATE 標記狀態；未達上限 → FAILED 並排下次重試；已達上限時
      * 委託 {@link IExternalSyncCommandService#markDeadAndEnqueueCompensation} 在同一交易內
      * 標記 DEAD 並寫入 FAILED + COMPENSATION_REQUIRED，確保補償請求與 DEAD 狀態原子化、
-     * 不會在「DEAD 已提交但補償寫入失敗」時永久遺失補償事件。
+     * 不會在「DEAD 已提交但補償寫入失敗」時永久遺失補償事件，且不會因 stale token 誤發補償。
      * attemptCount 於 claim 時遞增，此處以現值判斷。
      */
     private void handleExecutionFailure(ExternalSyncCommand command, UUID transactionId,
-                                        Map<String, Object> beforeState, Exception e) {
+                                        Map<String, Object> beforeState, String ownerId,
+                                        Long fencingVersion, Exception e) {
         String errorMessage = truncate(e.getMessage());
         int attempt = command.getAttemptCount();
         if (attempt >= maxAttempts) {
             externalSyncCommandService.markDeadAndEnqueueCompensation(
-                    command.getId(), transactionId, beforeState, errorMessage);
-            log.error("外部同步已達最大重試次數，轉為 DEAD 並觸發補償: commandId={}, transactionId={}, attempt={}, cause={}",
-                    command.getId(), transactionId, attempt, e.toString());
+                    command.getId(), ownerId, fencingVersion, transactionId, beforeState, errorMessage);
+            log.error("外部同步已達最大重試次數，轉為 DEAD 並觸發補償: commandId={}, transactionId={}, attempt={}, ownerId={}, fencingVersion={}, cause={}",
+                    command.getId(), transactionId, attempt, ownerId, fencingVersion, e.toString());
         } else {
             long backoff = resolveBackoffSeconds(attempt);
-            commandRepository.markFailed(command.getId(),
+            int affected = commandRepository.markFailed(command.getId(),
+                    ownerId,
+                    fencingVersion,
                     CompensationOutboxDeliveryStatus.FAILED,
                     CompensationOutboxDeliveryStatus.PROCESSING,
                     errorMessage,
                     new Date(System.currentTimeMillis() + backoff * 1000L));
-            log.warn("外部同步失敗，排定重試: commandId={}, transactionId={}, attempt={}, nextAttemptIn={}s, cause={}",
-                    command.getId(), transactionId, attempt, backoff, e.toString());
+            if (affected > 0) {
+                log.warn("外部同步失敗，排定重試: commandId={}, transactionId={}, attempt={}, ownerId={}, fencingVersion={}, nextAttemptIn={}s, cause={}",
+                        command.getId(), transactionId, attempt, ownerId, fencingVersion, backoff, e.toString());
+            } else {
+                log.warn("外部同步失敗但租約已被接管，略過 markFailed: commandId={}, transactionId={}, ownerId={}, fencingVersion={}",
+                        command.getId(), transactionId, ownerId, fencingVersion);
+            }
         }
     }
 

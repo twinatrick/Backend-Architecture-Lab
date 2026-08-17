@@ -31,14 +31,18 @@ public interface IExternalSyncCommandService {
     /**
      * 將外部同步命令標記為 DEAD 並在同一交易內寫入補償請求（FAILED + COMPENSATION_REQUIRED）。
      * <p>
-     * 三個操作收斂於同一本地交易：DEAD 標記、FAILED 事件、COMPENSATION_REQUIRED 事件
-     * 要嘛一起 commit、要嘛一起 rollback，消除「命令已 DEAD 但補償事件遺失」的 window。
+     * 僅當命令目前仍由相同 ownerId + fencingVersion 持有且仍為 PROCESSING 時才標記 DEAD 並寫入補償請求，
+     * 若已被其他實例接管（stale token）則略過，避免過期 worker 誤發補償回滾。
      *
-     * @param commandId     外部同步命令 ID（將被標記 DEAD）
-     * @param transactionId 補償交易 ID
-     * @param beforeState   同步前的一致性快照（補償還原所需），null 時存空 map
-     * @param errorMessage  失敗訊息（記錄於命令與補償事件）
+     * @param commandId      外部同步命令 ID（將被標記 DEAD）
+     * @param ownerId        認領者唯一識別碼
+     * @param fencingVersion 認領代數
+     * @param transactionId  補償交易 ID
+     * @param beforeState    同步前的一致性快照（補償還原所需），null 時存空 map
+     * @param errorMessage   失敗訊息（記錄於命令與補償事件）
+     * @return true 表示成功標記並寫入補償請求；false 表示為 stale token 略過
      */
-    void markDeadAndEnqueueCompensation(UUID commandId, UUID transactionId, Map<String, Object> beforeState,
-                                        String errorMessage);
+    boolean markDeadAndEnqueueCompensation(UUID commandId, String ownerId, Long fencingVersion,
+                                           UUID transactionId, Map<String, Object> beforeState,
+                                           String errorMessage);
 }

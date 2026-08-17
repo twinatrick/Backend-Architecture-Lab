@@ -33,8 +33,8 @@ public class ExternalSyncCommandDataAccessImpl implements IExternalSyncCommandDa
 
     @Override
     public int claimCommand(UUID id, List<String> claimableStatuses, String processing,
-                            Date processingAt, Date leaseUntil) {
-        return repository.claimCommand(id, claimableStatuses, processing, processingAt, leaseUntil);
+                            String ownerId, Date processingAt, Date leaseUntil) {
+        return repository.claimCommand(id, claimableStatuses, processing, ownerId, processingAt, leaseUntil);
     }
 
     @Override
@@ -43,17 +43,17 @@ public class ExternalSyncCommandDataAccessImpl implements IExternalSyncCommandDa
     }
 
     @Override
-    public int markSent(UUID id, String sent, String processing, Date sentAt) {
-        return repository.markSent(id, sent, processing, sentAt);
+    public int markSent(UUID id, String ownerId, Long fencingVersion, String sent, String processing, Date sentAt) {
+        return repository.markSent(id, ownerId, fencingVersion, sent, processing, sentAt);
     }
 
     @Override
-    public int markFailed(UUID id, String failed, String processing, String errorMessage, Date nextAttemptAt) {
-        return repository.markFailed(id, failed, processing, errorMessage, nextAttemptAt);
+    public int markFailed(UUID id, String ownerId, Long fencingVersion, String failed, String processing, String errorMessage, Date nextAttemptAt) {
+        return repository.markFailed(id, ownerId, fencingVersion, failed, processing, errorMessage, nextAttemptAt);
     }
 
     @Override
-    public int markDead(UUID id, String dead, String processing, String errorMessage) {
-        return repository.markDead(id, dead, processing, errorMessage);
+    public int markDead(UUID id, String ownerId, Long fencingVersion, String dead, String processing, String errorMessage) {
+        return repository.markDead(id, ownerId, fencingVersion, dead, processing, errorMessage);
     }
 }

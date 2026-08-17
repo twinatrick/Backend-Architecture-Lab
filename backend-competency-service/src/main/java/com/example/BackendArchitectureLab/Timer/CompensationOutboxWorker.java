@@ -131,35 +131,40 @@ public class CompensationOutboxWorker {
 
     /**
      * 發佈單一事件：原子領取 → 重新讀取最新狀態 → 呼叫 Kafka publisher 等待 ACK → 原子標記 SENT。
-     * 任何例外皆由 handleDeliveryFailure 以原子 UPDATE 標記 FAILED/DEAD，不向上拋出。
+     * 任何例外皆由 handleDeliveryFailure 以帶 ownerId + fencingVersion 的原子 UPDATE 標記 FAILED/DEAD，不向上拋出。
      */
     private void publishOne(CompensationOutboxEvent outbox) {
         Date now = new Date();
+        String ownerId = UUID.randomUUID().toString();
         int claimed = outboxRepository.claimEvent(
                 outbox.getId(),
                 List.of(CompensationOutboxDeliveryStatus.PENDING,
                         CompensationOutboxDeliveryStatus.FAILED,
                         CompensationOutboxDeliveryStatus.PROCESSING),
                 CompensationOutboxDeliveryStatus.PROCESSING,
+                ownerId,
                 now,
                 new Date(now.getTime() + leaseSeconds * 1000L));
         if (claimed == 0) {
             return;
         }
-        // claim 後重新讀取最新狀態（attemptCount 已由 claim 原子遞增），避免使用陳舊資料
+        // claim 後重新讀取最新狀態（attemptCount 與 fencingVersion 已由 claim 原子遞增），避免使用陳舊資料
         CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
         if (fresh == null) {
             return;
         }
+        Long fencingVersion = fresh.getFencingVersion();
         try {
             CompensationEvent event = objectMapper.readValue(fresh.getPayload(), CompensationEvent.class);
             compensationPublisher.publish(event).get(ackTimeoutSeconds, TimeUnit.SECONDS);
             outboxRepository.markSent(fresh.getId(),
+                    ownerId,
+                    fencingVersion,
                     CompensationOutboxDeliveryStatus.SENT,
                     CompensationOutboxDeliveryStatus.PROCESSING,
                     new Date());
         } catch (Exception e) {
-            handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), e);
+            handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
         }
     }
 
@@ -167,24 +172,38 @@ public class CompensationOutboxWorker {
      * 投遞失敗處理：以原子 UPDATE 標記狀態；未達上限 → FAILED 並排下次重試；已達上限 → DEAD。
      * attemptCount 於 claim 時遞增（fresh 為遞增後的值），此處直接以現值判斷。
      */
-    private void handleDeliveryFailure(UUID id, UUID eventId, int attempt, Exception e) {
+    private void handleDeliveryFailure(UUID id, UUID eventId, int attempt, String ownerId, Long fencingVersion, Exception e) {
         String errorMessage = truncate(e.getMessage());
         if (attempt >= maxAttempts) {
-            outboxRepository.markDead(id,
+            int affected = outboxRepository.markDead(id,
+                    ownerId,
+                    fencingVersion,
                     CompensationOutboxDeliveryStatus.DEAD,
                     CompensationOutboxDeliveryStatus.PROCESSING,
                     errorMessage);
-            log.error("Outbox 事件已達最大重試次數，轉為 DEAD: eventId={}, attempt={}, cause={}",
-                    eventId, attempt, e.toString());
+            if (affected > 0) {
+                log.error("Outbox 事件已達最大重試次數，轉為 DEAD: eventId={}, attempt={}, ownerId={}, fencingVersion={}, cause={}",
+                        eventId, attempt, ownerId, fencingVersion, e.toString());
+            } else {
+                log.warn("Outbox 事件達最大重試次數但租約已被接管，略過 markDead: eventId={}, ownerId={}, fencingVersion={}",
+                        eventId, ownerId, fencingVersion);
+            }
         } else {
             long backoff = resolveBackoffSeconds(attempt);
-            outboxRepository.markFailed(id,
+            int affected = outboxRepository.markFailed(id,
+                    ownerId,
+                    fencingVersion,
                     CompensationOutboxDeliveryStatus.FAILED,
                     CompensationOutboxDeliveryStatus.PROCESSING,
                     errorMessage,
                     new Date(System.currentTimeMillis() + backoff * 1000L));
-            log.warn("Outbox 事件發佈失敗，排定重試: eventId={}, attempt={}, nextAttemptIn={}s, cause={}",
-                    eventId, attempt, backoff, e.toString());
+            if (affected > 0) {
+                log.warn("Outbox 事件發佈失敗，排定重試: eventId={}, attempt={}, ownerId={}, fencingVersion={}, nextAttemptIn={}s, cause={}",
+                        eventId, attempt, ownerId, fencingVersion, backoff, e.toString());
+            } else {
+                log.warn("Outbox 事件發佈失敗但租約已被接管，略過 markFailed: eventId={}, ownerId={}, fencingVersion={}",
+                        eventId, ownerId, fencingVersion);
+            }
         }
     }
 

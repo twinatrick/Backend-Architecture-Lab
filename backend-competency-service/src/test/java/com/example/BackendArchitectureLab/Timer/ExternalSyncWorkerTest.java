@@ -80,7 +80,7 @@ class ExternalSyncWorkerTest {
         when(externalSyncCommandService.isEnabled()).thenReturn(true);
         when(commandRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of(command));
-        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class)))
+        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
                 .thenReturn(1);
         when(commandRepository.findById(command.getId())).thenReturn(Optional.of(command));
 
@@ -88,6 +88,8 @@ class ExternalSyncWorkerTest {
 
         verify(externalSyncService).syncProjectMemberSkills(eq(command.getProjectId()), anyMap());
         verify(commandRepository).markSent(eq(command.getId()),
+                anyString(),
+                eq(command.getFencingVersion()),
                 eq(CompensationOutboxDeliveryStatus.SENT),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
                 any(Date.class));
@@ -100,13 +102,13 @@ class ExternalSyncWorkerTest {
         when(externalSyncCommandService.isEnabled()).thenReturn(true);
         when(commandRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of(command));
-        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class)))
+        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
                 .thenReturn(0);
 
         externalSyncWorker.flushPendingCommands();
 
         verifyNoInteractions(externalSyncService);
-        verify(commandRepository, never()).markSent(any(UUID.class), anyString(), anyString(), any(Date.class));
+        verify(commandRepository, never()).markSent(any(UUID.class), anyString(), any(), anyString(), anyString(), any(Date.class));
     }
 
     @Test
@@ -115,7 +117,7 @@ class ExternalSyncWorkerTest {
         when(externalSyncCommandService.isEnabled()).thenReturn(true);
         when(commandRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of(command));
-        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class)))
+        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
                 .thenReturn(1);
         when(commandRepository.findById(command.getId())).thenReturn(Optional.of(command));
         doThrow(new RuntimeException("external sync unreachable"))
@@ -125,14 +127,16 @@ class ExternalSyncWorkerTest {
 
         ArgumentCaptor<Date> nextAttemptCaptor = ArgumentCaptor.forClass(Date.class);
         verify(commandRepository).markFailed(eq(command.getId()),
+                anyString(),
+                eq(command.getFencingVersion()),
                 eq(CompensationOutboxDeliveryStatus.FAILED),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
                 contains("external sync unreachable"),
                 nextAttemptCaptor.capture());
         assertNotNull(nextAttemptCaptor.getValue());
-        verify(commandRepository, never()).markDead(any(UUID.class), anyString(), anyString(), anyString());
+        verify(commandRepository, never()).markDead(any(UUID.class), anyString(), any(), anyString(), anyString(), anyString());
         verify(externalSyncCommandService, never()).markDeadAndEnqueueCompensation(
-                any(UUID.class), any(UUID.class), anyMap(), anyString());
+                any(UUID.class), anyString(), any(), any(UUID.class), anyMap(), anyString());
     }
 
     @Test
@@ -141,7 +145,7 @@ class ExternalSyncWorkerTest {
         when(externalSyncCommandService.isEnabled()).thenReturn(true);
         when(commandRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of(command));
-        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class)))
+        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
                 .thenReturn(1);
         when(commandRepository.findById(command.getId())).thenReturn(Optional.of(command));
         doThrow(new RuntimeException("external sync unreachable"))
@@ -151,10 +155,12 @@ class ExternalSyncWorkerTest {
 
         verify(externalSyncCommandService).markDeadAndEnqueueCompensation(
                 eq(command.getId()),
+                anyString(),
+                eq(command.getFencingVersion()),
                 eq(command.getTransactionId()),
                 anyMap(),
                 contains("external sync unreachable"));
-        verify(commandRepository, never()).markFailed(any(UUID.class), anyString(), anyString(), anyString(), any(Date.class));
+        verify(commandRepository, never()).markFailed(any(UUID.class), anyString(), any(), anyString(), anyString(), anyString(), any(Date.class));
     }
 
     @Test
@@ -164,7 +170,7 @@ class ExternalSyncWorkerTest {
         when(externalSyncCommandService.isEnabled()).thenReturn(true);
         when(commandRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
                 .thenReturn(List.of(command));
-        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), any(Date.class), any(Date.class)))
+        when(commandRepository.claimCommand(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
                 .thenReturn(1);
         when(commandRepository.findById(command.getId())).thenReturn(Optional.of(command));
 
@@ -172,6 +178,8 @@ class ExternalSyncWorkerTest {
 
         verifyNoInteractions(externalSyncService);
         verify(commandRepository).markFailed(eq(command.getId()),
+                anyString(),
+                eq(command.getFencingVersion()),
                 eq(CompensationOutboxDeliveryStatus.FAILED),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
                 contains("JSON"),

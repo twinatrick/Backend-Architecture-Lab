@@ -18,13 +18,13 @@ public interface IExternalSyncCommandDataAccess {
     Optional<ExternalSyncCommand> findById(UUID id);
 
     int claimCommand(UUID id, List<String> claimableStatuses, String processing,
-                     Date processingAt, Date leaseUntil);
+                     String ownerId, Date processingAt, Date leaseUntil);
 
     List<ExternalSyncCommand> findPendingDue(List<String> pendingStatuses, String processing, Pageable pageable);
 
-    int markSent(UUID id, String sent, String processing, Date sentAt);
+    int markSent(UUID id, String ownerId, Long fencingVersion, String sent, String processing, Date sentAt);
 
-    int markFailed(UUID id, String failed, String processing, String errorMessage, Date nextAttemptAt);
+    int markFailed(UUID id, String ownerId, Long fencingVersion, String failed, String processing, String errorMessage, Date nextAttemptAt);
 
-    int markDead(UUID id, String dead, String processing, String errorMessage);
+    int markDead(UUID id, String ownerId, Long fencingVersion, String dead, String processing, String errorMessage);
 }

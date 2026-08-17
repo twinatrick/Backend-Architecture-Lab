@@ -10,6 +10,7 @@ import com.example.BackendArchitectureLab.Entity.CompensationRestoreLog;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
+import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
@@ -118,7 +119,10 @@ class CompensationRestoreServiceTest {
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
-        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        UserProject up = new UserProject();
+        up.setUserId(userId);
+        up.setProject(project);
+        when(userProjectDataAccess.findByProjectId(projectId)).thenReturn(List.of(up));
 
         BindingSnapshot binding = new BindingSnapshot(userId, skillId, levelId);
 
@@ -164,7 +168,10 @@ class CompensationRestoreServiceTest {
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
-        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        UserProject up2 = new UserProject();
+        up2.setUserId(userId);
+        up2.setProject(project);
+        when(userProjectDataAccess.findByProjectId(projectId)).thenReturn(List.of(up2));
 
         BindingSnapshot binding = new BindingSnapshot(userId, skillId, levelId);
 
@@ -212,11 +219,13 @@ class CompensationRestoreServiceTest {
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("FAILED"), any(Date.class), anyString())).thenReturn(1);
-        when(userProjectDataAccess.existsByUserIdAndProjectId(any(), eq(projectId))).thenReturn(true);
+        BindingSnapshot binding = new BindingSnapshot(UUID.randomUUID(), skillId, levelId);
+        UserProject up = new UserProject();
+        up.setUserId(binding.getUserId());
+        up.setProject(project);
+        when(userProjectDataAccess.findByProjectId(projectId)).thenReturn(List.of(up));
         doThrow(new RuntimeException("skill rebind failed"))
                 .when(userProjectSkillDataAccess).deleteByProjectId(projectId);
-
-        BindingSnapshot binding = new BindingSnapshot(UUID.randomUUID(), skillId, levelId);
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -471,7 +480,7 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
-        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(false);
+        when(userProjectDataAccess.findByProjectId(projectId)).thenReturn(List.of());
 
         BindingSnapshot binding = new BindingSnapshot(userId, skillId, levelId);
 
@@ -520,6 +529,45 @@ class CompensationRestoreServiceTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> claimService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of(binding)));
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldThrow_whenDuplicateBindings() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId1 = UUID.randomUUID();
+        UUID levelId2 = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setVersion(1L);
+
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setProjectId(projectId);
+        claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+
+        BindingSnapshot binding1 = new BindingSnapshot(userId, skillId, levelId1);
+        BindingSnapshot binding2 = new BindingSnapshot(userId, skillId, levelId2);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId,
+                        fencingVersion, List.of(binding1, binding2)));
+
+        assertTrue(ex.getMessage().contains("Duplicate binding snapshot detected"));
+        verify(userProjectSkillDataAccess, never()).deleteByProjectId(projectId);
+        verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString());
     }
 
     @Test

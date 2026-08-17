@@ -2,8 +2,10 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IExternalSyncCommandDataAccess;
 import com.example.BackendArchitectureLab.Entity.ExternalSyncCommand;
+import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
+import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,18 +20,26 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ExternalSyncCommandServiceImplTest {
 
     @Mock
     private IExternalSyncCommandDataAccess commandRepository;
+
+    @Mock
+    private ICompensationOutboxService compensationOutboxService;
 
     @InjectMocks
     private ExternalSyncCommandServiceImpl externalSyncCommandService;
@@ -99,5 +109,50 @@ class ExternalSyncCommandServiceImplTest {
                 () -> externalSyncCommandService.enqueue(null, UUID.randomUUID(), Map.of(), Map.of()));
         assertEquals("transactionId and projectId must not be null", exception.getMessage());
         verify(commandRepository, never()).save(any(ExternalSyncCommand.class));
+    }
+
+    @Test
+    void markDeadAndEnqueueCompensation_shouldEnqueue_whenMarkDeadAffectedRowIsOne() {
+        UUID commandId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        String ownerId = UUID.randomUUID().toString();
+        Long fencingVersion = 1L;
+        Map<String, Object> beforeState = Map.of("projectId", "p1");
+        String errorMessage = "sync timeout";
+
+        when(commandRepository.markDead(commandId, ownerId, fencingVersion,
+                CompensationOutboxDeliveryStatus.DEAD,
+                CompensationOutboxDeliveryStatus.PROCESSING, errorMessage)).thenReturn(1);
+
+        boolean result = externalSyncCommandService.markDeadAndEnqueueCompensation(
+                commandId, ownerId, fencingVersion, transactionId, beforeState, errorMessage);
+
+        assertTrue(result);
+        verify(compensationOutboxService).enqueueFailureAndCompensationRequired(
+                eq(transactionId),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND),
+                eq(beforeState),
+                eq(errorMessage));
+    }
+
+    @Test
+    void markDeadAndEnqueueCompensation_shouldSkipCompensation_whenMarkDeadAffectedRowIsZero() {
+        UUID commandId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        String ownerId = UUID.randomUUID().toString();
+        Long fencingVersion = 1L;
+        Map<String, Object> beforeState = Map.of("projectId", "p1");
+        String errorMessage = "sync timeout";
+
+        when(commandRepository.markDead(commandId, ownerId, fencingVersion,
+                CompensationOutboxDeliveryStatus.DEAD,
+                CompensationOutboxDeliveryStatus.PROCESSING, errorMessage)).thenReturn(0);
+
+        boolean result = externalSyncCommandService.markDeadAndEnqueueCompensation(
+                commandId, ownerId, fencingVersion, transactionId, beforeState, errorMessage);
+
+        assertFalse(result);
+        verify(compensationOutboxService, never()).enqueueFailureAndCompensationRequired(
+                any(UUID.class), any(CompensationAction.class), anyMap(), anyString());
     }
 }

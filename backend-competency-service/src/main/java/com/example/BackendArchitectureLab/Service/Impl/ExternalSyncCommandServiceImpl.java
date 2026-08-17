@@ -67,14 +67,24 @@ public class ExternalSyncCommandServiceImpl implements IExternalSyncCommandServi
 
     @Override
     @Transactional
-    public void markDeadAndEnqueueCompensation(UUID commandId, UUID transactionId, Map<String, Object> beforeState,
-                                               String errorMessage) {
-        commandRepository.markDead(commandId, CompensationOutboxDeliveryStatus.DEAD,
+    public boolean markDeadAndEnqueueCompensation(UUID commandId, String ownerId, Long fencingVersion,
+                                                  UUID transactionId, Map<String, Object> beforeState,
+                                                  String errorMessage) {
+        int affected = commandRepository.markDead(commandId, ownerId, fencingVersion,
+                CompensationOutboxDeliveryStatus.DEAD,
                 CompensationOutboxDeliveryStatus.PROCESSING, errorMessage);
-        compensationOutboxService.enqueueFailureAndCompensationRequired(transactionId,
-                CompensationAction.PROJECT_MEMBER_SKILLS_REBIND,
-                beforeState != null ? beforeState : new HashMap<>(), errorMessage);
-        log.error("外部同步已達最大重試次數，標記 DEAD 並寫入補償請求: commandId={}, transactionId={}", commandId, transactionId);
+        if (affected > 0) {
+            compensationOutboxService.enqueueFailureAndCompensationRequired(transactionId,
+                    CompensationAction.PROJECT_MEMBER_SKILLS_REBIND,
+                    beforeState != null ? beforeState : new HashMap<>(), errorMessage);
+            log.error("外部同步已達最大重試次數，標記 DEAD 並寫入補償請求: commandId={}, transactionId={}, ownerId={}, fencingVersion={}",
+                    commandId, transactionId, ownerId, fencingVersion);
+            return true;
+        } else {
+            log.warn("略過陳舊 worker 的 markDeadAndEnqueueCompensation（租約已被接管或已非 PROCESSING）: commandId={}, ownerId={}, fencingVersion={}",
+                    commandId, ownerId, fencingVersion);
+            return false;
+        }
     }
 
     private String toJson(UUID transactionId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
