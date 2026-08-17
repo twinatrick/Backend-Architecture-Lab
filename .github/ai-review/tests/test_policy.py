@@ -1,28 +1,27 @@
-import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-POLICY = json.loads((ROOT / ".github/ai-review/policy.json").read_text(encoding="utf-8"))
+sys.path.insert(0, str(ROOT / ".github/ai-review"))
+from engine import is_blocking, load_policy
 
-
-def blocks(severity, confidence):
-    return severity in set(POLICY["blocking_severities"]) and confidence in set(POLICY["blocking_confidence"])
+POLICY = load_policy()
 
 
 def test_high_high_blocks():
-    assert blocks("HIGH", "HIGH")
+    assert is_blocking({"severity": "HIGH", "confidence": "HIGH"}, POLICY)
 
 
 def test_critical_high_blocks():
-    assert blocks("CRITICAL", "HIGH")
+    assert is_blocking({"severity": "CRITICAL", "confidence": "HIGH"}, POLICY)
 
 
 def test_high_low_does_not_block():
-    assert not blocks("HIGH", "LOW")
+    assert not is_blocking({"severity": "HIGH", "confidence": "LOW"}, POLICY)
 
 
 def test_medium_high_does_not_block():
-    assert not blocks("MEDIUM", "HIGH")
+    assert not is_blocking({"severity": "MEDIUM", "confidence": "HIGH"}, POLICY)
 
 
 def test_policy_required_fields_are_present():
