@@ -44,7 +44,6 @@ jobs:
           import os
           import sys
           from pathlib import Path
-
           import requests
 
           api_key = os.environ.get('GROQ_API_KEY')
@@ -57,14 +56,14 @@ jobs:
           rules = Path('開發規範.md').read_text(encoding='utf-8')
           contract = Path('.github/AI_REVIEW.md').read_text(encoding='utf-8')
 
-          # Keep enough context for architecture review while avoiding unbounded prompt size.
           max_diff = 50000
           if len(diff) > max_diff:
-              diff = diff[:max_diff] + '\n\n[DIFF TRUNCATED: inspect changed files and relevant context before concluding.]'
+              diff = diff[:max_diff] + '\n\n[DIFF TRUNCATED]'
 
           prompt = f'''你是此 repository 的 Senior Java/Spring Boot + Python + Application Security Reviewer。
 
-          這是 Pull Request Review，不是整個專案重構。你必須嚴格遵守下列 Review Contract，並以「開發規範.md」作為唯一專案規則來源。
+          這是 Pull Request Review，不是整個專案重構。
+          「開發規範.md」是唯一專案規則來源。
 
           ===== REVIEW CONTRACT =====
           {contract}
@@ -83,73 +82,64 @@ jobs:
           REVIEW PROCESS:
           1. 先確認 PR scope。
           2. 只對 diff 中真正新增、修改或因此被觸發的問題提出 Finding。
-          3. 必要時根據 changed file path 推理其 Controller -> Service -> DataAccess -> Repository / Feign / Permission context。
+          3. 必要時根據 changed file path 推理 Controller -> Service -> DataAccess -> Repository / Feign / Permission context。
           4. 優先檢查 Security、Authorization、BOLA/IDOR、Microservice Boundary、Data Integrity、Functional Bug。
           5. 再檢查 API、Permission、OpenAPI、SOLID/DRY/KISS/YAGNI、Java/Python 規範。
-          6. 不得因為「一般最佳實務」而違反專案規範。
-          7. 沒有證據不得宣稱漏洞；LOW confidence 不得 blocking。
-          8. 不得重複相同 Finding。
-          9. 不得把純 style / optional refactor 升級為 blocking issue。
+          6. 沒有證據不得宣稱漏洞；LOW confidence 不得 blocking。
+          7. 不得重複相同 Finding。
+          8. 不得把純 style / optional refactor 升級為 blocking issue。
 
-          SECURITY CHECKS:
-          - path/query/body 中的 userId、resourceId 是否做 owner authorization。
-          - 管理 API 是否有正確 permission。
-          - 是否可能跨服務直接查其他 service database。
-          - 是否存在 IAM -> business service、A -> B -> A 或 self-Feign。
-          - 是否洩漏 token/password/secret/API key/敏感資料。
-          - 是否有 injection、N+1、resource leak、transaction/concurrency/data consistency 風險。
+          ===== LANGUAGE REQUIREMENT =====
+          所有 AI 產生的自然語言內容「必須使用繁體中文（Traditional Chinese, zh-TW）」。
+          包含但不限於：summary、problem、evidence、risk、recommendation、rule、passed_checks、scope_notes、review_conclusion。
+          不得使用簡體中文。
+          程式碼、Class 名稱、Method 名稱、Annotation、檔案路徑、API 路徑、標準技術名詞（例如 BOLA、Feign、Spring Boot、SOLID）可以保留原文。
+          JSON key 必須保持英文固定格式。
 
           OUTPUT MUST BE VALID JSON ONLY:
           {{
             "decision": "APPROVE" or "REQUEST_CHANGES",
-            "summary": "2-4 sentences",
+            "summary": "繁體中文 2-4 句",
             "findings": [
               {{
                 "severity": "CRITICAL|HIGH|MEDIUM|LOW",
                 "confidence": "HIGH|MEDIUM|LOW",
                 "blocking": true or false,
-                "location": "full/package/path/File.java:line or file",
-                "rule": "specific 開發規範.md rule/section",
-                "problem": "concrete problem",
-                "evidence": "evidence from diff/context",
-                "risk": "impact",
-                "recommendation": "specific fix"
+                "location": "file:line",
+                "rule": "繁體中文規範依據",
+                "problem": "繁體中文具體問題",
+                "evidence": "繁體中文證據",
+                "risk": "繁體中文風險",
+                "recommendation": "繁體中文修正建議"
               }}
             ],
-            "passed_checks": ["..."],
-            "scope_notes": ["..."],
-            "review_conclusion": "..."
+            "passed_checks": ["繁體中文"],
+            "scope_notes": ["繁體中文"],
+            "review_conclusion": "繁體中文"
           }}
 
           DECISION RULE:
-          REQUEST_CHANGES if and only if there is a confirmed CRITICAL/HIGH issue, or a confirmed security/authorization/BOLA/microservice-boundary/permission/functional correctness issue. Otherwise APPROVE.
+          REQUEST_CHANGES if and only if there is a confirmed CRITICAL/HIGH issue, or a confirmed security/authorization/BOLA/microservice-boundary/permission/functional correctness issue. Otherwise APPROVE。
           '''
 
-          headers = {
-              'Authorization': f'Bearer {api_key}',
-              'Content-Type': 'application/json',
-          }
           payload = {
               'model': 'llama-3.3-70b-versatile',
               'messages': [
-                  {'role': 'system', 'content': 'Return valid JSON only. Do not invent findings.'},
+                  {'role': 'system', 'content': '你必須使用繁體中文回答。只輸出合法 JSON。不得捏造 Finding。'},
                   {'role': 'user', 'content': prompt},
               ],
               'temperature': 0.1,
           }
-
           response = requests.post(
               'https://api.groq.com/openai/v1/chat/completions',
-              headers=headers,
+              headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
               json=payload,
               timeout=120,
           )
           response.raise_for_status()
           content = response.json()['choices'][0]['message']['content'].strip()
-
           if content.startswith('```'):
               content = content.split('\n', 1)[1].rsplit('```', 1)[0].strip()
-
           try:
               review = json.loads(content)
           except json.JSONDecodeError as exc:
@@ -157,82 +147,55 @@ jobs:
               print(content)
               sys.exit(1)
 
-          decision = review.get('decision')
-          findings = review.get('findings', [])
-          if decision not in {'APPROVE', 'REQUEST_CHANGES'} or not isinstance(findings, list):
+          if review.get('decision') not in {'APPROVE', 'REQUEST_CHANGES'} or not isinstance(review.get('findings', []), list):
               print('Invalid AI review schema.')
-              print(json.dumps(review, ensure_ascii=False, indent=2))
               sys.exit(1)
 
-          # Recalculate the gate from findings instead of trusting the model's decision alone.
+          # Recalculate the gate from findings instead of trusting the model decision alone.
           blocking = [
-              f for f in findings
+              f for f in review.get('findings', [])
               if f.get('blocking') is True
               and f.get('confidence') == 'HIGH'
               and f.get('severity') in {'CRITICAL', 'HIGH'}
           ]
-          if blocking:
-              decision = 'REQUEST_CHANGES'
-          else:
-              decision = 'APPROVE'
-
-          review['decision'] = decision
+          review['decision'] = 'REQUEST_CHANGES' if blocking else 'APPROVE'
           review['blocking_findings'] = len(blocking)
-          Path('ai-review.json').write_text(
-              json.dumps(review, ensure_ascii=False, indent=2),
-              encoding='utf-8',
-          )
 
-          lines = [
-              '# AI Code Review',
-              '',
-              f'## Decision\n{decision}',
-              '',
-              '## Summary',
-              review.get('summary', ''),
-              '',
-              '## Findings',
-          ]
+          Path('ai-review.json').write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding='utf-8')
+          lines = ['# AI Code Review', '', f"## 審查結果\n{review['decision']}", '', '## 摘要', review.get('summary', ''), '', '## Findings']
+          findings = review.get('findings', [])
           if not findings:
-              lines.append('None.')
+              lines.append('無。')
           for f in findings:
               lines.extend([
-                  '',
-                  f"### [{f.get('severity')}] {f.get('problem')}",
-                  f"**Location**: `{f.get('location')}`",
-                  f"**Rule**: {f.get('rule')}",
-                  f"**Evidence**: {f.get('evidence')}",
-                  f"**Risk**: {f.get('risk')}",
-                  f"**Recommendation**: {f.get('recommendation')}",
-                  f"**Confidence**: {f.get('confidence')}",
-                  f"**Blocking**: {f.get('blocking')}",
+                  '', f"### [{f.get('severity')}] {f.get('problem')}",
+                  f"**位置**：`{f.get('location')}`",
+                  f"**規範依據**：{f.get('rule')}",
+                  f"**證據**：{f.get('evidence')}",
+                  f"**風險**：{f.get('risk')}",
+                  f"**修正建議**：{f.get('recommendation')}",
+                  f"**信心度**：{f.get('confidence')}",
+                  f"**是否阻擋**：{f.get('blocking')}",
               ])
-          lines.extend(['', '## Passed Checks'])
-          lines.extend(f"- {item}" for item in review.get('passed_checks', []))
-          lines.extend(['', '## Scope Notes'])
-          lines.extend(f"- {item}" for item in review.get('scope_notes', []))
-          lines.extend(['', '## Review Conclusion', review.get('review_conclusion', '')])
+          lines += ['', '## 已通過檢查']
+          lines += [f'- {x}' for x in review.get('passed_checks', [])]
+          lines += ['', '## Scope 備註']
+          lines += [f'- {x}' for x in review.get('scope_notes', [])]
+          lines += ['', '## 審查結論', review.get('review_conclusion', '')]
           report = '\n'.join(lines)
           Path('review.md').write_text(report, encoding='utf-8')
-          Path('review.md').read_text(encoding='utf-8')
           print(report)
 
-          gh_headers = {
-              'Authorization': f"Bearer {os.environ['GITHUB_TOKEN']}",
-              'Accept': 'application/vnd.github+json',
-          }
-          comment_body = report + '\n\n<!-- ai-review-gate -->'
           gh_url = f"https://api.github.com/repos/{os.environ['REPO']}/issues/{os.environ['PR_NUMBER']}/comments"
           gh_response = requests.post(
               gh_url,
-              headers=gh_headers,
-              json={'body': comment_body},
+              headers={'Authorization': f"Bearer {os.environ['GITHUB_TOKEN']}", 'Accept': 'application/vnd.github+json'},
+              json={'body': report + '\n\n<!-- ai-review-gate -->'},
               timeout=30,
           )
           gh_response.raise_for_status()
 
-          if decision == 'REQUEST_CHANGES':
-              print('AI review gate: REQUEST_CHANGES')
+          if review['decision'] == 'REQUEST_CHANGES':
               sys.exit(1)
           print('AI review gate: APPROVE')
           PY
