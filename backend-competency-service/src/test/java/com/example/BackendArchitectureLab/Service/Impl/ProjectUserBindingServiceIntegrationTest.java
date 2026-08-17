@@ -229,17 +229,23 @@ class ProjectUserBindingServiceIntegrationTest {
         projectUserBindingService.rebindProjectMemberSkills(
                 project.getId(), Map.of(userId, Map.of(skill.getId(), level.getId())));
 
-        Project fresh = projectDataAccess.findById(project.getId()).orElseThrow();
         UUID eventId = UUID.randomUUID();
+        // 快照明細：level1 狀態（與 rebind 前 state 一致，作為 before-state 權威）
         BindingSnapshot snapshot = new BindingSnapshot(userId, skill.getId(), level.getId());
 
-        // 第一次還原以過期版本 + 與現況不符的目標（空快照）失敗 → FAILED
+        // 快照後發生並發 rebind，將 level 改為 level2 → 目前狀態與快照目標不符
+        SkillLevel level2 = seedLevel(skill, 2, "Intermediate");
+        projectUserBindingService.rebindProjectMemberSkills(
+                project.getId(), Map.of(userId, Map.of(skill.getId(), level2.getId())));
+        Project fresh = projectDataAccess.findById(project.getId()).orElseThrow();
+
+        // 第一次還原以過期版本 + 與現況不符的目標失敗 → FAILED（bindings 仍為權威快照）
         assertThrows(CompensationConflictException.class, () ->
                 compensationRestoreService.restoreMemberSkills(
-                        project.getId(), eventId, 0L, "owner-1", 1L, List.of()));
+                        project.getId(), eventId, 0L, "owner-1", 1L, List.of(snapshot)));
         assertEquals("FAILED", restoreLogRepository.findById(eventId).orElseThrow().getStatus());
 
-        // 更高 fencingVersion + 正確版本接管後重試 → SUCCESS
+        // 更高 fencingVersion + 正確版本、相同 bindings 接管後重試 → SUCCESS
         compensationRestoreService.restoreMemberSkills(
                 project.getId(), eventId, fresh.getVersion(), "owner-2", 2L, List.of(snapshot));
 

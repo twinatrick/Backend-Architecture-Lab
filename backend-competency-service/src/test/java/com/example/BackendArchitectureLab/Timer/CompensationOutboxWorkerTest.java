@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -153,7 +154,7 @@ class CompensationOutboxWorkerTest {
         verify(outboxRepository).markFailed(eq(outbox.getId()),
                 eq(CompensationOutboxDeliveryStatus.FAILED),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
-                org.mockito.ArgumentMatchers.contains("broker unreachable"),
+                contains("broker unreachable"),
                 nextAttemptCaptor.capture());
         assertNotNull(nextAttemptCaptor.getValue());
         verify(outboxRepository, never()).save(any(CompensationOutboxEvent.class));
@@ -176,7 +177,7 @@ class CompensationOutboxWorkerTest {
         verify(outboxRepository).markDead(eq(outbox.getId()),
                 eq(CompensationOutboxDeliveryStatus.DEAD),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
-                org.mockito.ArgumentMatchers.contains("broker unreachable"));
+                contains("broker unreachable"));
         verify(outboxRepository, never()).save(any(CompensationOutboxEvent.class));
     }
 
@@ -200,7 +201,7 @@ class CompensationOutboxWorkerTest {
         verify(outboxRepository).markFailed(eq(outbox.getId()),
                 eq(CompensationOutboxDeliveryStatus.FAILED),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
-                org.mockito.ArgumentMatchers.contains("JSON"),
+                contains("JSON"),
                 any(Date.class));
     }
 

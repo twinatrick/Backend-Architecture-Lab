@@ -18,6 +18,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -71,12 +75,12 @@ class ProjectInternalControllerSecurityTest {
                 .andExpect(status().isOk());
 
         verify(compensationRestoreService).restoreMemberSkills(
-                org.mockito.ArgumentMatchers.any(UUID.class),
-                org.mockito.ArgumentMatchers.any(UUID.class),
-                org.mockito.ArgumentMatchers.eq(1L),
-                org.mockito.ArgumentMatchers.eq("owner-1"),
-                org.mockito.ArgumentMatchers.eq(1L),
-                org.mockito.ArgumentMatchers.anyList());
+                any(UUID.class),
+                any(UUID.class),
+                eq(1L),
+                eq("owner-1"),
+                eq(1L),
+                anyList());
     }
 
     @Test
@@ -108,5 +112,35 @@ class ProjectInternalControllerSecurityTest {
                 .andExpect(jsonPath("$.message").value("Unauthorized: missing or invalid X-Internal-Token"));
 
         verifyNoInteractions(compensationRestoreService);
+    }
+
+    @Test
+    void nonMemberUser_shouldReturn400_whenServiceRejects() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        String skillId = UUID.randomUUID().toString();
+        String levelId = UUID.randomUUID().toString();
+
+        doThrow(new IllegalArgumentException("User " + userId + " is not a member of project"))
+                .when(compensationRestoreService)
+                .restoreMemberSkills(any(UUID.class), any(UUID.class), eq(1L), eq("owner-1"), eq(1L), anyList());
+
+        mockMvc.perform(post(API_PATH)
+                        .param("projectId", UUID.randomUUID().toString())
+                        .param("expectedVersion", "1")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("X-Fencing-Owner", "owner-1")
+                        .header("X-Fencing-Version", "1")
+                        .header("X-Internal-Token", "test-secret")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(BODY, userId, skillId, levelId)))
+                .andExpect(status().isBadRequest());
+
+        verify(compensationRestoreService).restoreMemberSkills(
+                any(UUID.class),
+                any(UUID.class),
+                eq(1L),
+                eq("owner-1"),
+                eq(1L),
+                anyList());
     }
 }

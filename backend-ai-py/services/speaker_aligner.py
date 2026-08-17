@@ -70,7 +70,7 @@ class SpeakerAligner:
                         speaker_names[idx] if idx < len(speaker_names) else assigned_speaker
                     )
                 except ValueError as exc:
-                    # 語者名稱清單可能不完整，找不到時退回原始標籤
+                    # 語者名稱清單可能不完整，找不到時退回原始標籤；記錄診斷資訊以便後續補齊。
                     logger.warning("[STT] 語者名稱查無對應: %s", exc)
 
             aligned.append((speaker_label, seg.text.strip(), seg.start, seg.end))

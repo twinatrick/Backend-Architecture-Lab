@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -86,7 +87,7 @@ class CompensationOutboxServiceImplTest {
                 transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state, "boom");
 
         ArgumentCaptor<CompensationOutboxEvent> captor = ArgumentCaptor.forClass(CompensationOutboxEvent.class);
-        verify(outboxRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        verify(outboxRepository, times(2)).save(captor.capture());
         var saved = captor.getAllValues();
         assertEquals(2, saved.size());
         assertEquals(CompensationStatus.FAILED, saved.get(0).getStatus());

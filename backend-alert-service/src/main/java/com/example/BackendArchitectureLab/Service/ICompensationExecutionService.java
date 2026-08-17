@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 
 /**
  * ICompensationExecutionService - 補償執行（Strategy 委派）與重試分類。
@@ -21,7 +22,7 @@ public interface ICompensationExecutionService {
 
     /**
      * 執行補償：將事件分派至支援的策略；無支援策略時拋出
-     * {@link com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException}。
+     * {@link UnsupportedCompensationActionException}。
      *
      * @param event          補償事件
      * @param ownerId        目前認領此事件的處理者唯一識別碼（fencing token 的一部份）

@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Service;
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
+import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
@@ -37,7 +38,7 @@ import java.util.UUID;
  * <p>
  * 不可重試（permanent）例外（{@link UnsupportedEventVersionException}、
  * {@link UnsupportedCompensationActionException}、
- * {@link com.example.BackendArchitectureLab.Exception.CompensationConflictException}、
+ * {@link CompensationConflictException}、
  * {@link IllegalArgumentException}）會直接標記 DEAD 後向外 rethrow，由 Kafka 錯誤處理器
  * 轉發至 DLT 供人工介入，不進行無意義的重試。
  */

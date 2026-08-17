@@ -51,4 +51,7 @@ public class CompensationRestoreLog {
 
     @Column(name = "lease_until")
     private Date leaseUntil;
+
+    @Column(name = "before_state", columnDefinition = "TEXT")
+    private String beforeStateJson;
 }
