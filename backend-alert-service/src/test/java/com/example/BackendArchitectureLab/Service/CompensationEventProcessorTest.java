@@ -18,6 +18,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.hibernate.exception.ConstraintViolationException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -27,6 +28,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -132,8 +134,11 @@ class CompensationEventProcessorTest {
     }
 
     private void stubDuplicate() {
+        // unique constraint violation（SQLState 23505）模擬 event_id 重複
         when(eventLogRepository.saveAndFlush(any(CompensationEventLog.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate"));
+                .thenThrow(new DataIntegrityViolationException("duplicate",
+                        new ConstraintViolationException("duplicate key",
+                                new SQLException("duplicate key value", "23505"), "uq_event_id")));
     }
 
     @Test
@@ -478,6 +483,22 @@ class CompensationEventProcessorTest {
         assertEquals(1L, claimed.getFencingVersion());
         assertNotNull(claimed.getPayload());
         assertTrue(claimed.getPayload().contains("\"eventId\""));
+    }
+
+    @Test
+    void process_whenIntegrityViolationNotDuplicateKey_shouldRethrowAndNotSwallow() {
+        // 非 unique violation（此例為長度違規 SQLState 22001）：不得視為 duplicate，必須向外傳播
+        when(eventLogRepository.saveAndFlush(any(CompensationEventLog.class)))
+                .thenThrow(new DataIntegrityViolationException("value too long",
+                        new ConstraintViolationException("value too long",
+                                new SQLException("value too long", "22001"), "proper_value")));
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> compensationEventProcessor.process(newEvent(CompensationStatus.COMPENSATION_REQUIRED)));
+
+        verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
+        verify(eventLogRepository, never()).findByEventId(any(UUID.class));
+        verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
     }
 
     @Test

@@ -46,6 +46,6 @@ def _transcribe_sensevoice(audio_path: str) -> str:
         stream.accept_waveform(sample_rate, samples)
         recognizer.decode_stream(stream)
         return stream.result.text.strip()
-    except Exception as e:
-        logger.warning("[STT] SenseVoice failed: %s", e)
+    except (ImportError, RuntimeError, OSError, ValueError) as exc:
+        logger.warning("[STT] SenseVoice failed: %s", exc)
         return ""

@@ -17,15 +17,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronizationUtils;
 
-import java.lang.reflect.Field;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -52,27 +51,38 @@ class CompensationRestoreServiceTest {
     private ISkillLevelDataAccess skillLevelDataAccess;
     @Mock
     private ICompensationRestoreLogDataAccess restoreLogRepository;
-
     @Mock
     private IUserProjectDataAccess userProjectDataAccess;
 
-    @InjectMocks
+    private CompensationRestoreClaimService claimService;
+    private CompensationRestoreValidatorService validatorService;
+    private CompensationRestoreStateService stateService;
     private CompensationRestoreService compensationRestoreService;
 
     @BeforeEach
     void setUp() {
-        // Inject self reference（自?�代?��?REQUIRES_NEW/REQUIRED 交�??��??��?步�??��?經代?��?
-        try {
-            Field selfField = CompensationRestoreService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(compensationRestoreService, compensationRestoreService);
-            // Inject ?�實 ObjectMapper，�? before-state JSON 序�????��??��?比�?使用
-            Field mapperField = CompensationRestoreService.class.getDeclaredField("objectMapper");
-            mapperField.setAccessible(true);
-            mapperField.set(compensationRestoreService, new ObjectMapper());
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self/objectMapper into CompensationRestoreService", e);
-        }
+        claimService = new CompensationRestoreClaimService();
+        validatorService = new CompensationRestoreValidatorService();
+        stateService = new CompensationRestoreStateService();
+        compensationRestoreService = new CompensationRestoreService();
+
+        ReflectionTestUtils.setField(claimService, "restoreLogRepository", restoreLogRepository);
+        ReflectionTestUtils.setField(claimService, "objectMapper", new ObjectMapper());
+        ReflectionTestUtils.setField(claimService, "restoreLeaseSeconds", 300L);
+
+        ReflectionTestUtils.setField(validatorService, "userProjectSkillDataAccess", userProjectSkillDataAccess);
+        ReflectionTestUtils.setField(validatorService, "userProjectDataAccess", userProjectDataAccess);
+        ReflectionTestUtils.setField(validatorService, "skillDataAccess", skillDataAccess);
+        ReflectionTestUtils.setField(validatorService, "skillLevelDataAccess", skillLevelDataAccess);
+
+        ReflectionTestUtils.setField(stateService, "restoreLogRepository", restoreLogRepository);
+        ReflectionTestUtils.setField(stateService, "self", stateService);
+
+        ReflectionTestUtils.setField(compensationRestoreService, "projectDataAccess", projectDataAccess);
+        ReflectionTestUtils.setField(compensationRestoreService, "userProjectSkillDataAccess", userProjectSkillDataAccess);
+        ReflectionTestUtils.setField(compensationRestoreService, "claimService", claimService);
+        ReflectionTestUtils.setField(compensationRestoreService, "validatorService", validatorService);
+        ReflectionTestUtils.setField(compensationRestoreService, "stateService", stateService);
     }
 
     @Test
@@ -297,7 +307,7 @@ class CompensationRestoreServiceTest {
         successLog.setStatus("SUCCESS");
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(successLog));
 
-        boolean claimed = compensationRestoreService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L, List.of());
+        boolean claimed = claimService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L, List.of());
 
         assertFalse(claimed);
         verify(restoreLogRepository, never()).saveAndFlush(any(CompensationRestoreLog.class));
@@ -315,7 +325,7 @@ class CompensationRestoreServiceTest {
         processingLog.setFencingVersion(3L);
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(processingLog));
 
-        boolean claimed = compensationRestoreService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
+        boolean claimed = claimService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
 
         assertFalse(claimed);
         verify(restoreLogRepository, never()).saveAndFlush(any(CompensationRestoreLog.class));
@@ -335,7 +345,7 @@ class CompensationRestoreServiceTest {
         processingLog.setFencingVersion(5L);
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(processingLog));
 
-        boolean claimed = compensationRestoreService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
+        boolean claimed = claimService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
 
         assertFalse(claimed);
         verify(restoreLogRepository, never()).takeOverClaim(any(), anyString(), anyString(), any(Date.class),
@@ -354,7 +364,7 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.takeOverClaim(any(), anyString(), anyString(), any(Date.class),
                 any(Date.class), anyString(), anyLong())).thenReturn(0);
 
-        boolean claimed = compensationRestoreService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
+        boolean claimed = claimService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
 
         assertFalse(claimed);
     }
@@ -370,7 +380,7 @@ class CompensationRestoreServiceTest {
         failedLog.setFencingVersion(10L);
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(failedLog));
 
-        boolean claimed = compensationRestoreService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
+        boolean claimed = claimService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of());
 
         assertFalse(claimed);
         verify(restoreLogRepository, never()).takeOverClaim(any(), anyString(), anyString(), any(Date.class),
@@ -384,7 +394,7 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
-        boolean claimed = compensationRestoreService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L, List.of());
+        boolean claimed = claimService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L, List.of());
 
         assertFalse(claimed);
     }
@@ -397,7 +407,7 @@ class CompensationRestoreServiceTest {
                 .thenThrow(new RuntimeException("db connection lost"));
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> compensationRestoreService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L, List.of()));
+                () -> claimService.claimRestoreEvent(eventId, UUID.randomUUID(), "owner-x", 1L, List.of()));
 
         assertEquals("db connection lost", exception.getMessage());
     }
@@ -488,7 +498,7 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(existingLog));
 
         assertThrows(IllegalArgumentException.class,
-                () -> compensationRestoreService.claimRestoreEvent(eventId, otherProjectId, "owner-x", 1L, List.of()));
+                () -> claimService.claimRestoreEvent(eventId, otherProjectId, "owner-x", 1L, List.of()));
     }
 
     @Test
@@ -509,7 +519,7 @@ class CompensationRestoreServiceTest {
         BindingSnapshot binding = new BindingSnapshot(userId, skillId, levelId);
 
         assertThrows(IllegalArgumentException.class,
-                () -> compensationRestoreService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of(binding)));
+                () -> claimService.claimRestoreEvent(eventId, projectId, "owner-x", 1L, List.of(binding)));
     }
 
     @Test

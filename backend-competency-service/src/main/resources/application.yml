@@ -46,3 +46,15 @@ app:
     # 內網端點（/project/inner/**）共享 token，fail-closed：未設定時一律 401。
     # 生產環境必須以環境變數 APP_INTERNAL_TOKEN 設定（secret manager 管理）。
     token: ${APP_INTERNAL_TOKEN:}
+
+external-sync:
+  # 外部系統同步 adapter：預設未啟用（尚未接線真實外部系統）。
+  # 啟用時必須設定 base-url，否則啟動 fail-fast；同步命令（external_sync_command）
+  # 由 ExternalSyncWorker 可靠執行，重試耗盡（DEAD）才觸發補償閉環。
+  enabled: ${EXTERNAL_SYNC_ENABLED:false}
+  base-url: ${EXTERNAL_SYNC_BASE_URL:}
+  max-attempts: 5
+  lease-seconds: 300
+  batch-size: 20
+  backoff-seconds: 5,15,30,60,300
+  flush-delay-ms: 5000

@@ -15,8 +15,9 @@ import java.util.UUID;
  * 目前為「未啟用」的 infrastructure adapter（external-sync.enabled 預設為 false）：
  * 尚未接線真實外部系統，因此啟用時（enabled=true 且 base-url 已設定）呼叫
  * {@link #syncProjectMemberSkills} 會明確拋出例外以觸發補償流程，而非靜默成功。
- * 本服務僅在本地事務 commit 後由 ProjectUserBindingService 呼叫，失敗時拋出例外
- * 以觸發補償流程（不參與資料庫 rollback）。
+ * 本服務由 {@code Timer/ExternalSyncWorker} 依 durable command（external_sync_command）
+ * 呼叫：命令與業務交易同 commit，消除「本地 commit 後 JVM crash 導致外部同步永不執行」
+ * 的 crash window；失敗由 worker 依退避重試，重試耗盡（DEAD）才觸發補償閉環。
  */
 @Slf4j
 @Service

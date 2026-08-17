@@ -1,47 +1,31 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.DataAccess.ICompensationRestoreLogDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
-import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
-import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
-import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
-import com.example.BackendArchitectureLab.Entity.CompensationRestoreLog;
 import com.example.BackendArchitectureLab.Entity.Project;
-import com.example.BackendArchitectureLab.Entity.Skill;
-import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
+import com.example.BackendArchitectureLab.Service.ICompensationRestoreClaimService;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
+import com.example.BackendArchitectureLab.Service.ICompensationRestoreStateService;
+import com.example.BackendArchitectureLab.Service.ICompensationRestoreValidatorService;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 /**
- * CompensationRestoreService - 補償還原專案成員技能綁定（M-02 自 ProjectUserBindingService 拆分）。
- * 承載 C-01 修正後的完整 restore 流程：原子認領（REQUIRES_NEW）、版本守衛 + 冪等還原比對、
- * 悲觀鎖驗證、破壞性還原、同交易 SUCCESS 標記（Option A）與 reclaim 冪等復原（Option B）。
+ * CompensationRestoreService - 補償還原專案成員技能綁定的流程編排（M-02 拆分）。
+ * 承載 restore 全流程編排：認領（ClaimService，REQUIRES_NEW）、版本守衛 + 冪等比對（ValidatorService）、
+ * 悲觀鎖驗證（ClaimService）、破壞性還原、同交易 SUCCESS 標記（StateService，C-01）。
+ * 認領、驗證、狀態標記三大職責已拆分至 ICompensationRestoreClaimService /
+ * ICompensationRestoreValidatorService / ICompensationRestoreStateService。
  */
 @Slf4j
 @Service
@@ -54,225 +38,21 @@ public class CompensationRestoreService implements ICompensationRestoreService {
     private IUserProjectSkillDataAccess userProjectSkillDataAccess;
 
     @Autowired
-    private ISkillDataAccess skillDataAccess;
+    private ICompensationRestoreClaimService claimService;
 
     @Autowired
-    private ISkillLevelDataAccess skillLevelDataAccess;
+    private ICompensationRestoreValidatorService validatorService;
 
     @Autowired
-    private ICompensationRestoreLogDataAccess restoreLogRepository;
-
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Value("${compensation.restore.lease-seconds:300}")
-    private long restoreLeaseSeconds;
-
-    @Autowired
-    @Lazy
-    private CompensationRestoreService self;
-
-    /**
-     * 原子認領補償還原事件（資料庫級 Idempotency Guard + Fencing Token）。
-     * 以 eventId 主鍵在獨立交易（REQUIRES_NEW）中進行 atomic claim：
-     * - 已存在且狀態為 SUCCESS → 拒絕認領（先前的消費者已完成處理）
-     * - 全新 eventId → 以 PROCESSING 插入，並將 caller 提供的 before-state bindings 序列化
-     *   持久化為該 eventId 的伺服器端權威來源（方案 A：persisted before-state authority）
-     * - 已存在 FAILED → 以新 token 直接接管（接管前先驗證 projectId 與 bindings 與已持久化者一致）
-     * - 已存在 PROCESSING 且租約未到期 → 拒絕（他人仍在使用）
-     * - 已存在 PROCESSING 且租約到期 → 僅當新 fencingVersion 更大時由 takeOverClaim CAS 接管
-     * - 高並發下 concurrent insert 觸發主鍵衝突時 → 回傳 false 拒絕認領
-     *
-     * 方案 A 安全強化：同一 eventId 的後續請求，projectId 或 bindings 與首次認領時持久化的
-     * before-state 不一致時，一律拋 IllegalArgumentException（非重試例外，呼叫端轉 DEAD），
-     * 使「同 eventId 換 payload / 跨 project 重用 eventId」的竄改在伺服器端被拒絕。
-     *
-     * @param eventId        補償事件 ID
-     * @param projectId      專案 ID
-     * @param ownerId        本次認領的處理者唯一識別碼（fencing token 之一）
-     * @param fencingVersion 本次認領的代數（單調遞增，stale token 將被拒絕）
-     * @param bindings       還原目標綁定快照明細（首次認領時持久化為權威 before-state）
-     * @return true 表示成功取得認領權可執行還原，false 表示重複、他人持有中或 token 已過時
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public boolean claimRestoreEvent(UUID eventId, UUID projectId, String ownerId, Long fencingVersion,
-                                     List<BindingSnapshot> bindings) {
-        try {
-            Optional<CompensationRestoreLog> existing = restoreLogRepository.findById(eventId);
-            if (existing.isPresent() && "SUCCESS".equals(existing.get().getStatus())) {
-                return false;
-            }
-
-            if (existing.isEmpty()) {
-                CompensationRestoreLog claim = new CompensationRestoreLog();
-                claim.setEventId(eventId);
-                claim.setProjectId(projectId);
-                claim.setProcessedAt(new Date());
-                claim.setStatus("PROCESSING");
-                claim.setOwnerId(ownerId);
-                claim.setFencingVersion(fencingVersion);
-                claim.setLeaseUntil(new Date(System.currentTimeMillis() + restoreLeaseSeconds * 1000L));
-                claim.setBeforeStateJson(serializeBindings(bindings));
-                restoreLogRepository.saveAndFlush(claim);
-                return true;
-            }
-
-            CompensationRestoreLog claim = existing.get();
-            // 方案 A：eventId 已綁定其他 project → 拒絕（跨 project 重用竄改）
-            if (!projectId.equals(claim.getProjectId())) {
-                throw new IllegalArgumentException(
-                        "Compensation event " + eventId + " is already bound to project " + claim.getProjectId()
-                                + ", cannot restore project " + projectId);
-            }
-            // 方案 A：bindings 與首次認領持久化的 before-state 不一致 → 拒絕（同 eventId 換 payload）
-            if (claim.getBeforeStateJson() != null
-                    && !bindingsEqualPersisted(claim.getBeforeStateJson(), bindings)) {
-                throw new IllegalArgumentException(
-                        "Compensation event " + eventId + " was claimed with different bindings");
-            }
-            if ("PROCESSING".equals(claim.getStatus()) && claim.getLeaseUntil() != null
-                    && claim.getLeaseUntil().after(new Date())) {
-                // 租約未到期：仍有處理者正在執行，拒絕認領
-                return false;
-            }
-            // stale fencing token：FAILED 與 PROCESSING（租約已到期）皆拒絕以舊代數接管，
-            // 與 takeOverClaim SQL 的「嚴格更新代數」不變式一致（defense-in-depth）
-            if (claim.getFencingVersion() != null && fencingVersion != null
-                    && claim.getFencingVersion() >= fencingVersion) {
-                return false;
-            }
-
-            Date now = new Date();
-            return restoreLogRepository.takeOverClaim(
-                    eventId, "PROCESSING", "FAILED", now,
-                    new Date(now.getTime() + restoreLeaseSeconds * 1000L),
-                    ownerId, fencingVersion) == 1;
-        } catch (DataIntegrityViolationException | ObjectOptimisticLockingFailureException e) {
-            return false;
-        }
-    }
-
-    /**
-     * 序列化還原目標綁定清單為 JSON（空清單序列化為 []，null 視為空清單）。
-     *
-     * @param bindings 綁定快照明細
-     * @return JSON 字串（失敗拋 IllegalArgumentException）
-     */
-    private String serializeBindings(List<BindingSnapshot> bindings) {
-        try {
-            return objectMapper.writeValueAsString(bindings == null ? List.of() : bindings);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Failed to serialize restore bindings", e);
-        }
-    }
-
-    /**
-     * 以持久化的 before-state JSON 與本次請求的 bindings 比對（以 Set 比較忽略順序）。
-     *
-     * @param persistedJson 首次認領時持久化的 before-state JSON
-     * @param bindings      本次請求的綁定快照明細
-     * @return 兩者綁定集合相等則回傳 true
-     */
-    private boolean bindingsEqualPersisted(String persistedJson, List<BindingSnapshot> bindings) {
-        try {
-            List<BindingSnapshot> persisted = objectMapper.readValue(persistedJson, new TypeReference<>() {
-            });
-            return new HashSet<>(persisted).equals(new HashSet<>(bindings == null ? List.of() : bindings));
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Failed to deserialize persisted restore bindings", e);
-        }
-    }
-
-    /**
-     * 冪等還原比對（C-01 crash window 復原）：判斷該專案目前的技能綁定是否已等於還原目標
-     * （binding snapshot）。若相等，代表先前的 restore 資料已成功 commit（並 bump 了
-     * Project.version）只是 SUCCESS 標記遺失，無需再執行破壞性操作，可直接標記 SUCCESS。
-     *
-     * @param projectId 專案 ID
-     * @param bindings  還原目標快照明細（null 視為空集合）
-     * @return 目前綁定與目標相等則回傳 true
-     */
-    private boolean isBindingsAlreadyRestored(UUID projectId, List<BindingSnapshot> bindings) {
-        List<UserProjectSkill> current = userProjectSkillDataAccess.findByProjectId(projectId);
-        Set<List<UUID>> currentSet = new HashSet<>();
-        if (current != null) {
-            for (UserProjectSkill row : current) {
-                currentSet.add(List.of(
-                        row.getUserId(), row.getSkill().getId(), row.getSkillLevel().getId()));
-            }
-        }
-        Set<List<UUID>> targetSet = new HashSet<>();
-        if (bindings != null) {
-            for (BindingSnapshot b : bindings) {
-                targetSet.add(List.of(b.getUserId(), b.getSkillId(), b.getLevelId()));
-            }
-        }
-        return currentSet.equals(targetSet);
-    }
-
-    /**
-     * 還原前驗證並解析綁定明細（於 DELETE 等破壞性操作之前呼叫，供 INSERT 直接重用以符合 DRY）。
-     * 檢核每筆綁定的 UUID 欄位皆存在、該 userId 確實是專案成員（方案 B：project membership 驗證）、
-     * skill / skill level 存在、level 屬於對應 skill，與 doRebindProjectMemberSkills 的檢核標準一致。
-     * 任何不符皆拋出 IllegalArgumentException（非重試例外），使 malformed / 越權 payload 直接轉為 DEAD，
-     * 避免重複執行 DELETE→INSERT→rollback。
-     *
-     * @param projectId 專案 ID（membership 驗證基準）
-     * @param project   專案實體（供建立綁定 entity）
-     * @param bindings  歷史綁定快照明細（型別化 DTO）
-     * @return 已驗證並解析的 UserProjectSkill 清單（INSERT 直接重用，不再重查 skill/level）
-     */
-    private List<UserProjectSkill> resolveBindingsForRestore(UUID projectId, Project project,
-                                                             List<BindingSnapshot> bindings) {
-        if (bindings == null) {
-            return List.of();
-        }
-        List<UserProjectSkill> resolved = new ArrayList<>(bindings.size());
-        for (BindingSnapshot binding : bindings) {
-            UUID userId = binding.getUserId();
-            UUID skillId = binding.getSkillId();
-            UUID levelId = binding.getLevelId();
-
-            if (userId == null || skillId == null || levelId == null) {
-                throw new IllegalArgumentException(
-                        "Invalid binding snapshot: userId/skillId/levelId must not be null, got " + binding);
-            }
-
-            if (!userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)) {
-                throw new IllegalArgumentException(
-                        "User " + userId + " is not a member of project " + projectId);
-            }
-
-            Skill skill = skillDataAccess.findById(skillId)
-                    .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
-            SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
-                    .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
-
-            if (!skillLevel.getSkill().getId().equals(skillId)) {
-                throw new IllegalArgumentException(
-                        "Skill level " + levelId + " does not belong to skill " + skillId);
-            }
-
-            UserProjectSkill entity = new UserProjectSkill();
-            entity.setUserId(userId);
-            entity.setProject(project);
-            entity.setSkill(skill);
-            entity.setSkillLevel(skillLevel);
-            resolved.add(entity);
-        }
-        return resolved;
-    }
+    private ICompensationRestoreStateService stateService;
 
     @Override
     @Transactional
     @CacheEvict(value = "projectSkills", key = "#projectId")
     public void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedVersion,
-                                     String ownerId, Long fencingVersion, List<BindingSnapshot> bindings) {
+                                    String ownerId, Long fencingVersion, List<BindingSnapshot> bindings) {
         // 1. 原子認領事件 (Atomic Idempotency + Fencing Claim)：僅有成功取得 ownership 的實例能執行還原
-        boolean claimed = self.claimRestoreEvent(eventId, projectId, ownerId, fencingVersion, bindings);
+        boolean claimed = claimService.claimRestoreEvent(eventId, projectId, ownerId, fencingVersion, bindings);
         if (!claimed) {
             log.info("Idempotency Guard: Compensation event {} already processed, claimed by another consumer, or stale token. Skipping.", eventId);
             return;
@@ -288,9 +68,9 @@ public class CompensationRestoreService implements ICompensationRestoreService {
         //     reconcile 比對或 DELETE 之後才拋出 NPE，白白執行一輪 DELETE→INSERT→rollback（P3 修復）。
         List<UserProjectSkill> resolvedBindings;
         try {
-            resolvedBindings = resolveBindingsForRestore(projectId, project, bindings);
+            resolvedBindings = validatorService.resolveBindingsForRestore(projectId, project, bindings);
         } catch (Exception e) {
-            scheduleMarkRestoreFailed(eventId, ownerId, fencingVersion, e);
+            stateService.scheduleMarkRestoreFailed(eventId, ownerId, fencingVersion, e);
             throw e;
         }
 
@@ -298,15 +78,15 @@ public class CompensationRestoreService implements ICompensationRestoreService {
             // C-01 crash window 復原：先前 restore 資料已 commit 成功但 SUCCESS 標記遺失時
             // （事件被 reclaim，第一次還原已 bump Project.version），目前綁定應等於還原目標。
             // 此種情況直接以同一交易標記 SUCCESS，而非誤判衝突，避免「實際成功、狀態 FAILED/DEAD」。
-            if (isBindingsAlreadyRestored(projectId, bindings)) {
+            if (validatorService.isBindingsAlreadyRestored(projectId, bindings)) {
                 log.info("Compensation reconcile: project {} bindings already match restore target, " +
                         "marking event {} SUCCESS without re-executing restore.", projectId, eventId);
-                self.markRestoreSuccess(eventId, ownerId, fencingVersion);
+                stateService.markRestoreSuccess(eventId, ownerId, fencingVersion);
                 return;
             }
             log.error("COMPENSATION_CONFLICT: Project {} has been updated by another transaction after snapshot! " +
                     "Current DB version = {}, Expected = {}", projectId, project.getVersion(), expectedVersion);
-            self.markRestoreFailed(eventId, ownerId, fencingVersion,
+            stateService.markRestoreFailed(eventId, ownerId, fencingVersion,
                     "Project has newer modifications. Current DB version = " +
                             project.getVersion() + ", Expected = " + expectedVersion);
             throw new CompensationConflictException(
@@ -324,12 +104,7 @@ public class CompensationRestoreService implements ICompensationRestoreService {
         //    確認目前仍由本次 owner+fencingVersion 持有，且此鎖持續持有至交易 commit。
         //    其他執行緒的 takeOverClaim CAS 會被此資料列鎖阻塞；待本交易 commit 後其 predicate
         //    （狀態已非 PROCESSING/FAILED 可接管）重新評估即失敗，使舊 token 在 DB 層真正失效。
-        CompensationRestoreLog current = restoreLogRepository.findByIdForUpdate(eventId).orElse(null);
-        if (current == null || !ownerId.equals(current.getOwnerId())
-                || !fencingVersion.equals(current.getFencingVersion())) {
-            log.warn("Fencing token superseded before destructive restore, abort: eventId={}, currentOwner={}, currentFence={}",
-                    eventId, current != null ? current.getOwnerId() : "missing",
-                    current != null ? current.getFencingVersion() : "missing");
+        if (!claimService.verifyFencingHeld(eventId, ownerId, fencingVersion)) {
             return;
         }
 
@@ -345,80 +120,15 @@ public class CompensationRestoreService implements ICompensationRestoreService {
             // 7. 發生其他異常：於外層交易 rollback（釋放悲觀鎖）後，以獨立交易標記 FAILED。
             //    不可在此直接以 REQUIRES_NEW 更新認領紀錄——該更新會阻塞於本交易持有的資料列鎖，
             //    而本交易又等待此呼叫回傳，形成死鎖，故改以 afterCompletion 延後執行。
-            scheduleMarkRestoreFailed(eventId, ownerId, fencingVersion, e);
+            stateService.scheduleMarkRestoreFailed(eventId, ownerId, fencingVersion, e);
             throw e;
         }
 
-        // 8. 還原成功：於同一交易內標記 SUCCESS（markRestoreSuccess 已改為加入現行交易而非 REQUIRES_NEW），
+        // 8. 還原成功：於同一交易內標記 SUCCESS（StateService.markRestoreSuccess 以 REQUIRED 加入現行交易），
         //    與 restore 資料同 commit、同 rollback。若 commit 失敗，SUCCESS 一併回滾，認領紀錄維持
         //    PROCESSING，待租約到期後由 CompensationLeaseReclaimer 回收重試，避免「log=SUCCESS 但實際未還原」；
         //    同交易原子性同時消除「restore 已 commit、SUCCESS 標記遺失」的 crash window（C-01）。
         //    本交易已在第 4 步持有該認領列的 PESSIMISTIC_WRITE 鎖，同交易更新不會死鎖。
-        self.markRestoreSuccess(eventId, ownerId, fencingVersion);
-    }
-
-    /**
-     * 排程於外層交易回滾後以獨立交易標記 FAILED；非交易環境下直接標記。
-     * 供 restore 流程中任何會觸發交易回滾的例外使用，確保失敗狀態與錯誤訊息不因回滾而遺失。
-     *
-     * @param eventId        補償事件 ID
-     * @param ownerId        持有者（須與認領紀錄相符）
-     * @param fencingVersion 持有代數（須與認領紀錄相符）
-     * @param e              觸發失敗的例外
-     */
-    private void scheduleMarkRestoreFailed(UUID eventId, String ownerId, Long fencingVersion, Exception e) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            final String reason = e.getMessage();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                        self.markRestoreFailed(eventId, ownerId, fencingVersion, reason);
-                    }
-                }
-            });
-        } else {
-            // 非交易環境（如單元測試直接呼叫）下無同步機制可用，直接標記 FAILED
-            self.markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
-        }
-    }
-
-    /**
-     * markRestoreSuccess - 於現行交易內標記補償還原認領日誌為 SUCCESS。
-     * 以 REQUIRED 加入還原交易，與 restore 資料原子 commit/rollback，隨 commit 一起持久化，
-     * 消除「restore 已 commit 但 SUCCESS 標記遺失」的 crash window（C-01）；
-     * 僅接受目前仍由相同 ownerId + fencingVersion 持有的紀錄，若已被更新的持有者接管則不覆寫。
-     * 呼叫前提：restore 交易已取得該認領列的 PESSIMISTIC_WRITE 鎖，同交易更新不會死鎖。
-     *
-     * @param eventId        補償事件 ID
-     * @param ownerId        持有者（須與認領紀錄相符）
-     * @param fencingVersion 持有代數（須與認領紀錄相符）
-     */
-    @Transactional
-    public void markRestoreSuccess(UUID eventId, String ownerId, Long fencingVersion) {
-        int updated = restoreLogRepository.markRestoreState(
-                eventId, ownerId, fencingVersion, "SUCCESS", new Date(), null);
-        if (updated == 0) {
-            log.warn("markRestoreSuccess skipped (token superseded or log missing): eventId={}", eventId);
-        }
-    }
-
-    /**
-     * markRestoreFailed - 以獨立交易 (REQUIRES_NEW) 標記補償還原認領日誌為 FAILED 並記錄失敗原因。
-     * 獨立 commit 確保失敗狀態與錯誤訊息不因外層交易回滾而遺失；僅接受目前仍由相同
-     * ownerId + fencingVersion 持有的紀錄，若已被更新的持有者接管則不覆寫。
-     *
-     * @param eventId        補償事件 ID
-     * @param ownerId        持有者（須與認領紀錄相符）
-     * @param fencingVersion 持有代數（須與認領紀錄相符）
-     * @param reason         失敗原因，寫入 lastError 欄位
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markRestoreFailed(UUID eventId, String ownerId, Long fencingVersion, String reason) {
-        int updated = restoreLogRepository.markRestoreState(
-                eventId, ownerId, fencingVersion, "FAILED", new Date(), reason);
-        if (updated == 0) {
-            log.warn("markRestoreFailed skipped (token superseded or log missing): eventId={}", eventId);
-        }
+        stateService.markRestoreSuccess(eventId, ownerId, fencingVersion);
     }
 }

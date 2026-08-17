@@ -71,11 +71,11 @@ public class CompensationOutboxWorker {
 
     /**
      * 批次發佈尚未送達的事件（預設每 5 秒執行一次）。
-     * 批次內以共用執行緒池（並行度 = min(batch, parallelism)，可組態
-     * {@code compensation.outbox.publish-parallelism}）平行發佈，每筆各自等待 ACK
-     * 至 ackTimeoutSeconds 逾時，避免序列發佈時單一轉發壅塞把整個批次拖到打穿租約。
-     * 執行緒池由 {@code CompensationOutboxThreadPoolConfig} 提供（application-scoped），
-     * 批次結束不重建/不銷毀（M-03），逾時殘留工作由 daemon 執行緒背景收尾。
+     * 並行度完全由 {@code CompensationOutboxThreadPoolConfig} 提供的固定執行緒池
+     * （size = {@code compensation.outbox.publish-parallelism}，application-scoped）決定，
+     * 本方法不再重複計算；僅依批次大小與執行緒池大小估算最壞完成時間，作為
+     * 批次整體等待的保守逾時（每筆各自等待 ACK 至 ackTimeoutSeconds，逾時殘留工作
+     * 由 daemon 執行緒背景收尾，避免單一轉發壅塞把整個批次拖到打穿租約）。
      */
     @Scheduled(fixedDelayString = "${compensation.outbox.flush-delay-ms:5000}")
     public void flushPendingEvents() {
@@ -88,16 +88,16 @@ public class CompensationOutboxWorker {
         if (pending.isEmpty()) {
             return;
         }
-        int parallelism = Math.max(1, Math.min(pending.size(), publishParallelism));
         List<CompletableFuture<Void>> futures = new ArrayList<>(pending.size());
         for (CompensationOutboxEvent outbox : pending) {
             futures.add(CompletableFuture.runAsync(() -> publishOne(outbox), compensationOutboxPublisherPool));
         }
-        int waves = (pending.size() + parallelism - 1) / parallelism;
+        int poolSize = Math.max(1, publishParallelism);
+        int expectedWaves = Math.max(1, (batchSize + poolSize - 1) / poolSize);
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                    .get((waves + 1) * ackTimeoutSeconds + 1L, TimeUnit.SECONDS);
-            log.debug("Published {} outbox event(s) in parallel (parallelism={})", pending.size(), parallelism);
+                    .get((expectedWaves + 1) * ackTimeoutSeconds + 1L, TimeUnit.SECONDS);
+            log.debug("Published {} outbox event(s) via shared publisher pool", pending.size());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("Outbox publish batch interrupted", e);

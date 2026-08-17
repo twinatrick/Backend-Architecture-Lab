@@ -12,7 +12,7 @@ import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
-import com.example.BackendArchitectureLab.Service.IExternalSyncService;
+import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
@@ -65,7 +65,7 @@ class ProjectUserBindingServiceTest {
     @Mock
     private ICompensationOutboxService compensationOutboxService;
     @Mock
-    private IExternalSyncService externalSyncService;
+    private IExternalSyncCommandService externalSyncCommandService;
 
     @InjectMocks
     private ProjectUserBindingService projectUserBindingService;
@@ -595,9 +595,9 @@ class ProjectUserBindingServiceTest {
     }
 
     @Test
-    void testRebindSkillsWithSimulatedExternalFailure() {
+    void rebindProjectMemberSkills_shouldEnqueueExternalSyncCommand_whenSyncEnabled() {
         UUID projectId = UUID.randomUUID();
-        UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        UUID userId = UUID.randomUUID();
         UUID skillId = UUID.randomUUID();
         UUID levelId = UUID.randomUUID();
         Project project = new Project();
@@ -616,17 +616,47 @@ class ProjectUserBindingServiceTest {
         when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
         when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
         when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of());
-        doThrow(new RuntimeException("Simulated external partner sync failed after DB commit"))
-                .when(externalSyncService).syncProjectMemberSkills(projectId, memberSkillsMap);
+        when(externalSyncCommandService.isEnabled()).thenReturn(true);
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap));
-        assertEquals("Simulated external partner sync failed after DB commit", exception.getMessage());
+        projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap);
 
-        verify(compensationOutboxService).enqueueTransactionStarted(any(UUID.class),
+        ArgumentCaptor<UUID> txCaptor = ArgumentCaptor.forClass(UUID.class);
+        verify(compensationOutboxService).enqueueCommitted(txCaptor.capture(),
                 eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap());
-        verify(compensationOutboxService).enqueueFailureAndCompensationRequired(any(UUID.class),
-                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(),
-                eq("Simulated external partner sync failed after DB commit"));
+        verify(externalSyncCommandService).enqueue(eq(txCaptor.getValue()), eq(projectId),
+                eq(memberSkillsMap), anyMap());
+        verify(compensationOutboxService, never()).enqueueFailureAndCompensationRequired(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(), any());
+    }
+
+    @Test
+    void rebindProjectMemberSkills_shouldNotEnqueueExternalSyncCommand_whenSyncDisabled() {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        UUID levelId = UUID.randomUUID();
+        Project project = new Project();
+        project.setId(projectId);
+        Skill skill = new Skill();
+        skill.setId(skillId);
+        SkillLevel level = new SkillLevel();
+        level.setId(levelId);
+        level.setSkill(skill);
+
+        Map<UUID, Map<UUID, UUID>> memberSkillsMap = Map.of(userId, Map.of(skillId, levelId));
+
+        when(userGateway.existsUserById(userId)).thenReturn(true);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+        when(userProjectDataAccess.existsByUserIdAndProjectId(userId, projectId)).thenReturn(true);
+        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
+        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(userProjectSkillDataAccess.findByProjectId(projectId)).thenReturn(List.of());
+        when(externalSyncCommandService.isEnabled()).thenReturn(false);
+
+        projectUserBindingService.rebindProjectMemberSkills(projectId, memberSkillsMap);
+
+        verify(externalSyncCommandService, never()).enqueue(any(UUID.class), any(UUID.class), anyMap(), anyMap());
+        verify(compensationOutboxService, never()).enqueueFailureAndCompensationRequired(any(UUID.class),
+                eq(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND), anyMap(), any());
     }
 }

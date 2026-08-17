@@ -5,6 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.Impl.CompensationOutboxEventDataAccessImpl;
 import com.example.BackendArchitectureLab.DataAccess.Impl.CompensationRestoreLogDataAccessImpl;
+import com.example.BackendArchitectureLab.DataAccess.Impl.ExternalSyncCommandDataAccessImpl;
 import com.example.BackendArchitectureLab.DataAccess.Impl.ProjectDataAccessImpl;
 import com.example.BackendArchitectureLab.DataAccess.Impl.SkillDataAccessImpl;
 import com.example.BackendArchitectureLab.DataAccess.Impl.SkillLevelDataAccessImpl;
@@ -83,8 +84,13 @@ class ProjectUserBindingServiceIntegrationTest {
     @EnableJpaRepositories(basePackageClasses = ProjectRepository.class)
     @Import({ProjectUserBindingService.class,
             CompensationRestoreService.class,
+            CompensationRestoreClaimService.class,
+            CompensationRestoreStateService.class,
+            CompensationRestoreValidatorService.class,
             CompensationOutboxEventDataAccessImpl.class,
             CompensationRestoreLogDataAccessImpl.class,
+            ExternalSyncCommandDataAccessImpl.class,
+            ExternalSyncCommandServiceImpl.class,
             ProjectDataAccessImpl.class,
             UserProjectDataAccessImpl.class,
             UserProjectSkillDataAccessImpl.class,

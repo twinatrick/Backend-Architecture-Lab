@@ -9,11 +9,13 @@ import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.sql.SQLException;
 import java.util.Date;
 import java.util.UUID;
 
@@ -113,8 +115,28 @@ public class CompensationEventProcessor {
         try {
             return eventLogRepository.saveAndFlush(entry);
         } catch (DataIntegrityViolationException e) {
-            return null;
+            if (isDuplicateKeyViolation(e)) {
+                return null;
+            }
+            // 其他完整性錯誤（欄位長度/NULL constraint/trigger 等）不可當成 duplicate 吞掉：
+            // rethrow 交由 Kafka 錯誤處理器重試 / 轉發 DLT，避免事件 silent drop。
+            throw e;
         }
+    }
+
+    /**
+     * 判斷 DataIntegrityViolationException 是否為明確的 unique key conflict（SQLState 23505）。
+     * 僅此類錯誤可視為「eventId 重複」；其他 integrity 失敗必須向外傳播。
+     */
+    private boolean isDuplicateKeyViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        if (cause instanceof ConstraintViolationException cve) {
+            return "23505".equals(cve.getSQLState());
+        }
+        if (cause instanceof SQLException sqlEx) {
+            return "23505".equals(sqlEx.getSQLState());
+        }
+        return false;
     }
 
     /**

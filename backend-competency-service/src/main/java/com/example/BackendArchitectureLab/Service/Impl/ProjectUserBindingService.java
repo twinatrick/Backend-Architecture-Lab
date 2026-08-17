@@ -12,7 +12,7 @@ import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
-import com.example.BackendArchitectureLab.Service.IExternalSyncService;
+import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
@@ -64,7 +64,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     private ICompensationOutboxService compensationOutboxService;
 
     @Autowired
-    private IExternalSyncService externalSyncService;
+    private IExternalSyncCommandService externalSyncCommandService;
 
     @Autowired
     @Lazy
@@ -144,24 +144,16 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         validateUsersExist(memberSkillsMap.keySet());
 
         UUID transactionId = UUID.randomUUID();
-        Map<String, Object> state;
 
-        // 2. 執行本地資料庫事務
+        // 2. 執行本地資料庫事務（內部包含外部同步 durable command 的同 commit 寫入）
+        //    本地事務 commit 之後，外部同步由 ExternalSyncWorker 依 durable command 可靠執行：
+        //    即使 JVM 在 commit 與實際同步之間 crash，命令仍存在於 external_sync_command，
+        //    worker 遲早會執行，不再有「commit 後同步永不執行」的 crash window。
+        //    同步失敗重試耗盡（DEAD）時才觸發補償閉環（COMPENSATION_REQUIRED）。
         try {
-            state = self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId);
+            self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId);
         } catch (Exception e) {
             // 本地事務執行失敗已由 Spring 負責 rollback，此處不需發送補償事件，直接拋出
-            throw e;
-        }
-
-        // 3. 本地事務成功 Commit 後，進行外部系統同步
-        try {
-            externalSyncService.syncProjectMemberSkills(projectId, memberSkillsMap);
-        } catch (Exception e) {
-            // 僅在「本地已 commit 且外部同步失敗」時，才需要非同步補償
-            // 失敗時：同一 REQUIRES_NEW 交易內寫入 FAILED（失敗事實）與 COMPENSATION_REQUIRED（補償請求閉環），確保兩者同 commit
-            compensationOutboxService.enqueueFailureAndCompensationRequired(
-                    transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state, e.getMessage());
             throw e;
         }
     }
@@ -311,6 +303,12 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         // COMMITTED 與業務資料同交易 commit（rollback 時一併消失）；失敗則由 rebind 層以 REQUIRES_NEW 寫入 FAILED
         compensationOutboxService.enqueueCommitted(
                 transactionId, CompensationAction.PROJECT_MEMBER_SKILLS_REBIND, state);
+
+        // 外部同步 durable command 與業務資料同 commit：啟用時寫入命令，由 ExternalSyncWorker 可靠執行，
+        // 消除「本地 commit 後 JVM crash 導致外部同步永不執行」的 crash window。
+        if (externalSyncCommandService.isEnabled()) {
+            externalSyncCommandService.enqueue(transactionId, projectId, memberSkillsMap, state);
+        }
 
         return state;
     }

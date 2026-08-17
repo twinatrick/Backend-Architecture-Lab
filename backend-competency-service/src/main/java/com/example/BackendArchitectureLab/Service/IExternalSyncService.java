@@ -6,9 +6,10 @@ import java.util.UUID;
 /**
  * IExternalSyncService - 專案成員技能綁定的外部系統同步抽象介面（DIP）。
  * <p>
- * 於本地事務 commit 之後執行（外部系統非資料庫，無法參與本機 rollback）。
- * 失敗時拋出例外，由呼叫端（ProjectUserBindingService）依補償流程寫入
- * FAILED 與 COMPENSATION_REQUIRED 事件，觸發後續還原。
+ * 由 {@code Timer/ExternalSyncWorker} 依 durable command（external_sync_command）可靠呼叫：
+ * 命令與業務交易同 commit，因此本地 commit 與外部同步之間即使 JVM crash，
+ * 同步仍會在 worker 重試時執行，不再存在 crash window。
+ * 失敗時拋出例外，由 worker 依退避重試；重試耗盡（DEAD）時才觸發補償閉環。
  */
 public interface IExternalSyncService {
 
