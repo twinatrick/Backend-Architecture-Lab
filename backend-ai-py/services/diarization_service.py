@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 import subprocess
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_conda_python(env_name: str) -> str:
@@ -22,7 +25,7 @@ def _resolve_conda_python(env_name: str) -> str:
                 if os.path.exists(candidate):
                     return candidate
     except Exception as e:
-        print(f"[STT] conda env 解析失敗: {e}")
+        logger.warning("[STT] conda env 解析失敗: %s", e)
     return ""
 
 
@@ -49,13 +52,13 @@ def _detect_diarization_device() -> str:
         return "cpu"
     total_vram_gb = _get_gpu_vram_gb()
     if total_vram_gb <= 0:
-        print("[STT] 無法偵測 GPU VRAM，語者分離改用 CPU。")
+        logger.info("[STT] 無法偵測 GPU VRAM，語者分離改用 CPU。")
         return "cpu"
-    print(f"[STT] Detected GPU total VRAM: {total_vram_gb:.2f} GB")
+    logger.info("[STT] Detected GPU total VRAM: %.2f GB", total_vram_gb)
     if strategy == "full_gpu" or (strategy == "auto" and total_vram_gb >= 8.0):
-        print("[STT] 語者分離策略：使用 CUDA GPU")
+        logger.info("[STT] 語者分離策略：使用 CUDA GPU")
         return "cuda"
-    print("[STT] 語者分離策略：使用 CPU")
+    logger.info("[STT] 語者分離策略：使用 CPU")
     return "cpu"
 
 
@@ -78,11 +81,11 @@ def _run_diarization(pyannote_python: str, audio_path: str, output_json: str, de
     try:
         res = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding="utf-8")
         if res.stdout:
-            print(res.stdout)
+            logger.debug("[STT] Diarization stdout: %s", res.stdout)
         if res.returncode != 0 and res.stderr:
-            print(f"[STT] Diarization stderr (tail): {res.stderr[-500:]}")
+            logger.warning("[STT] Diarization stderr (tail): %s", res.stderr[-500:])
     except Exception as e:
-        print(f"[STT] Diarization 子進程執行失敗: {e}")
+        logger.error("[STT] Diarization 子進程執行失敗: %s", e)
         return []
 
     if os.path.exists(output_json) and os.path.getsize(output_json) > 0:
@@ -90,5 +93,5 @@ def _run_diarization(pyannote_python: str, audio_path: str, output_json: str, de
             with open(output_json, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"[STT] Diarization 結果解析失敗: {e}")
+            logger.warning("[STT] Diarization 結果解析失敗: %s", e)
     return []

@@ -6,8 +6,8 @@ from config import settings
 from services.diarization_service import _detect_diarization_device
 from services.diarization_service import _resolve_conda_python
 from services.diarization_service import _run_diarization
-from services.formatter_service import _convert_tw_traditional
 from services.sensevoice_service import _transcribe_sensevoice
+from services.traditional_chinese_converter import traditional_chinese_converter
 from services.whisper_service import _get_whisper_model
 from services.whisper_service import _transcribe_whisper
 from utils.audio import _prepare_audio
@@ -40,17 +40,19 @@ class SttEngine:
                     fd, diarization_json = tempfile.mkstemp(suffix="_diar.json")
                     os.close(fd)
                     device = _detect_diarization_device()
-                    print(
-                        f"[STT] Launching Diarization subprocess "
-                        f"({settings.diarization_env_name}) on device: {device}..."
+                    logger.info(
+                        "[STT] Launching Diarization subprocess (%s) on device: %s...",
+                        settings.diarization_env_name,
+                        device,
                     )
                     diarization_result = _run_diarization(
                         pyannote_python, stt_input_file, diarization_json, device
                     )
                 else:
-                    print(
-                        f"[STT] 找不到語者分離環境 '{settings.diarization_env_name}'，"
-                        "略過語者分離（請參考語者分離環境安裝說明）。"
+                    logger.warning(
+                        "[STT] 找不到語者分離環境 '%s'，"
+                        "略過語者分離（請參考語者分離環境安裝說明）。",
+                        settings.diarization_env_name,
                     )
 
             # B. 依 provider 載入 SenseVoice 或 Whisper 進行轉錄
@@ -58,12 +60,12 @@ class SttEngine:
             if effective_provider == "sensevoice":
                 text = _transcribe_sensevoice(stt_input_file)
                 if text:
-                    return _convert_tw_traditional(text)
+                    return traditional_chinese_converter.convert(text)
 
             model = _get_whisper_model()
             default_lang = settings.whisper_language if settings.whisper_language else None
             lang = language if language else default_lang
-            segments, info = model.transcribe(stt_input_file, beam_size=5, language=lang)
+            segments, _ = model.transcribe(stt_input_file, beam_size=5, language=lang)
             segment_list = list(segments)
 
             return _transcribe_whisper(segment_list, diarization_result)

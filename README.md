@@ -114,11 +114,13 @@
 跨服務呼叫統一使用 OpenFeign，Client 集中定義於 `com.example.BackendArchitectureLab.Feign`（backend-common），實際呼叫方向如下：
 
 - `UserServiceFeignClient`（→ IAM `/users/inner/*`）：competency / job / external 查詢使用者
-- `AiPyServiceFeignClient`（→ backend-ai-py：/ai/inner/*）：external 呼叫 Python AI（STT/TTS/Chat）
+- `AiPyServiceFeignClient`（→ backend-ai-py：`/stt`、`/tts`、`/chat`）：external 呼叫 Python AI（STT/TTS/Chat）
 - `ExternalApiServiceFeignClient`（→ external `/job/*` 等）：job 呼叫 AI 分析職缺
 - `PermissionCheckFeignClient`（→ IAM `/role/inner/validate`）：驗證 `@RequirePermission`
 
-所有對內呼叫路徑均以 `/inner` 結尾，且 Gateway 有 `com.example.BackendArchitectureLab.Filter.InnerEndpointBlockFilter` 阻擋外部直接訪問 `/inner`，確保只有服務間能呼叫。禁止幽靈 Feign（定義卻沒被使用），檢查方式見《開發規範.md》§5。
+> 註：Feign 套件內另有非 Feign Client 的 `UserGatewayImpl`（`IUserGateway` 的實作，`@Autowired(required=false)` 注入 `UserServiceFeignClient`）；`SecurityUtil` 位於 `Util` 套件。
+
+所有對內呼叫路徑均以 `/inner` 結尾（Python 側車 API `/stt`、`/tts`、`/chat` 因係直連獨立埠口不經 Gateway 而不在此限），且 Gateway 有 `com.example.BackendArchitectureLab.Filter.InnerEndpointBlockFilter` 阻擋外部直接訪問 `/inner`，確保只有服務間能呼叫。禁止幽靈 Feign（定義卻沒被使用），檢查方式見《開發規範.md》§5。
 
 ## 3. 集中權限驗證（IAM 為唯一權限源）
 
@@ -131,10 +133,10 @@
 Kafka 用於解耦跨服務事件，目前有三大主題（Broker 位址由 KafkaConfig 自動依環境判斷，本機 `localhost:9092`、Docker 內 `kafka:9092`）：
 
 - `socketSend`：告警即時推送。`AlarmKafkaPublisher`（alert）發佈 → `KafkaConsumerService` 接收 → WebSocket 推給前端
-- `transaction-compensation`：分散式事務補償。`CompensationConsumer`（alert）處理，`CompensationEvent` 含 transactionId/action/status，支援 COMMITTED / COMPENSATED / SAVE_POINT 狀態
+- `transaction-compensation`：分散式事務補償（Transactional Outbox 模式）。`ProjectUserBindingService.rebindProjectMemberSkills`（competency）先將事件寫入 `compensation_outbox_event` 表（與業務交易同 commit，rollback 時一併消失），由 `Timer/CompensationOutboxWorker` 排程（預設每 5 秒）批次經 `CompensationPublisherImpl` 發佈 → `CompensationConsumer`（competency）以 `eventId` 冪等去重處理；`CompensationEvent` 含 transactionId/eventId/eventVersion/action/status；狀態機：`TRANSACTION_STARTED` → `COMMITTED` / `FAILED`，業務失敗時同一 `REQUIRES_NEW` 交易內寫入 `FAILED` 與 `COMPENSATION_REQUIRED` → 消費端執行補償（成功即 `COMPENSATED` 語意，失敗以持久化 `FAILED` 呈現並交由 Kafka retry）
 - `cache-stats`：快取命中統計。`KafkaCacheStatsPublisher` 發佈 → alert-service 的 `CacheStatsController` 暴露查詢
 
-消費者群組統一 `myGroup`，採 at-least-once 語意；容器設有 `DefaultErrorHandler` 處理失敗批次。
+消費者群組預設 `myGroup`（`KafkaConfig`），補償事件另用硬編碼 `compensation-group`（`KafkaCompensationConfig`）；採 at-least-once 語意；容器設有 `DefaultErrorHandler` 處理失敗批次。
 
 ## 5. Redis 多層快取（+ 穿透防護）
 
@@ -146,7 +148,7 @@ Kafka 用於解耦跨服務事件，目前有三大主題（Broker 位址由 Kaf
 
 ## 6. WebSocket 即時告警
 
-前端透過 WebSocket 訂閱告警，後端 `AlarmKafkaPublisher`（Kafka `socketSend` 主題）→ `KafkaConsumerService` 消費 → 透過 WebSocket 推送給瀏覽器。
+前端透過 WebSocket 訂閱告警，後端 `AlarmKafkaPublisher`（Kafka `socketSend` 主題）→ `KafkaConsumerService` 消費 → 透過 WebSocket 推送給瀏覽器。告警消費者使用與補償一致的重試政策（`DefaultErrorHandler` + `FixedBackOff(1000ms, 4)`，共 5 次嘗試；先前為失敗即丟棄）。
 
 ## 7. Gateway 統一出入口（統一防護）
 
@@ -156,7 +158,7 @@ Kafka 用於解耦跨服務事件，目前有三大主題（Broker 位址由 Kaf
 
 ## 8. Python AI 側車服務 backend-ai-py
 
-AI 語音功能以 Python 實作成獨立服務（FastAPI，埠 5001），不經 Gateway，由 Java 的 external-api-service 用 `AiPyServiceFeignClient` 呼叫（/ai/inner/*）。功能：STT（Whisper / SenseVoice）、語者分離（pyannote）、TTS 排版、Chat。環境需 conda 環境 backend-ai-py，啟動指令見 §「Python 環境」。
+AI 語音功能以 Python 實作成獨立服務（FastAPI，埠 5001），不經 Gateway，由 Java 的 external-api-service 用 `AiPyServiceFeignClient` 直接呼叫 Python 端點（`/stt`、`/stt/whisper`、`/stt/sensevoice`、`/tts`、`/chat`）。功能：STT（Whisper / SenseVoice）、語者分離（pyannote）、TTS 排版、Chat。環境需 conda 環境 backend-ai-py，啟動指令見 §「Python 環境」。
 
 ---
 
@@ -622,16 +624,15 @@ erDiagram
 ### Python 環境建置
 
 ```bash
-# 建立 conda 環境（backend-ai-py，Python 3.11）
-conda create -n backend-ai-py python=3.11
+# 建立 conda 環境（backend-ai-py，Python 3.11）並安裝全部依賴（fastapi/uvicorn/faster-whisper/minio 等）
+conda env create -f backend-ai-py/environment.yml
 conda activate backend-ai-py
-pip install -r backend-ai-py/requirements.txt
 
 # 啟動服務（需先啟動 Docker 基礎設施與 Nacos，供服務註冊）
 conda run -n backend-ai-py uvicorn main:app --port 5001
 ```
 
-語者分離（pyannote-audio）需額外安裝（涉及 CUDA 版 PyTorch），完整步驟見 [`docs/archive/語者分離環境安裝說明.md`](docs/archive/語者分離環境安裝說明.md)。
+語者分離（pyannote-audio）需額外 conda 環境 `pyannote-env`（涉及 CUDA 版 PyTorch），完整步驟見 [`docs/archive/backend-ai-py 語者分離環境安裝說明.md`](docs/archive/backend-ai-py 語者分離環境安裝說明.md)。
 
 ## 技術選型說明
 
@@ -674,9 +675,9 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 | **公司管理模組**  | 公司 CRUD，作為職缺的隸屬企業                                     | `/company/*`                  |
 | **職缺管理模組**  | 職缺 CRUD、依公司查詢、爬蟲結果儲存                                  | `/job-posting/*`              |
 | **爬蟲分析模組**  | Jsoup/Selenium 複合爬蟲抓取公司網站 + Gemini API 智能分析職缺資訊       | `內部服務`                        |
-| **AI 語音辨識模組**| 透過 Java 整合 Python sidecar (faster-whisper) 進行高效率語音辨識、支援 LINE 音訊流程與 MinIO 雲端儲存，並提供中日文羅馬音/注音/拼音轉換 | `/stt/v1/*` 與 `POST /ai/inner/stt/recognize` |
-| **Python TTS 模組** | 透過 Python sidecar (GPT-SoVIT) 提供語音合成，儲存至 MinIO 回傳 URL | `POST /ai/inner/tts/synthesize` |
-| **Ollama Chat 模組** | 透過 Python sidecar 呼叫 Ollama 語言模型，支援同步/串流 | `POST /ai/inner/chat` |
+| **AI 語音辨識模組**| 透過 Java 整合 Python sidecar (faster-whisper) 進行高效率語音辨識、支援 LINE 音訊流程與 MinIO 雲端儲存，並提供中日文羅馬音/注音/拼音轉換 | `/stt/v1/*` 與 `POST /stt`（Python 側車，經 `AiPyServiceFeignClient`） |
+| **Python TTS 模組** | 透過 Python sidecar (GPT-SoVIT) 提供語音合成，儲存至 MinIO 回傳 URL | `POST /tts`（Python 側車，經 `AiPyServiceFeignClient`） |
+| **Ollama Chat 模組** | 透過 Python sidecar 呼叫 Ollama 語言模型，支援同步/串流 | `POST /chat`（Python 側車，經 `AiPyServiceFeignClient`） |
 | **告警通知模組**  | 定時拉取外部資料、閾值比對、Kafka 非同步推送、WebSocket 即時通知              | `/alertCheckLimit/*`          |
 | **資料查詢模組**  | Aquark 感測器資料查詢、動態條件過濾、Redis 快取                        | `/aquarkData/*`               |
 | **快取統計監控模組** | Kafka-based 快取命中/未命中/Bloom Filter 阻擋統計，聚合至 Redis Hash 提供查詢 | `/cache-stats`                |
@@ -720,10 +721,43 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 | 主題 | 誰發佈 | 誰消費 | 目的 |
 |------|--------|--------|------|
 | `socketSend` | `AlarmKafkaPublisher`（alert）| `KafkaConsumerService` | 告警即時推送到 WebSocket |
-| `transaction-compensation` | 跨服務寫操作（TransactionManager） | `CompensationConsumer`（alert） | 分散式事務補償（含 transactionId/action/status） |
+| `transaction-compensation` | `CompensationOutboxServiceImpl`（competency，由 `ProjectUserBindingService.rebindProjectMemberSkills` 觸發寫入 Outbox）→ `CompensationPublisherImpl`（common） | `CompensationConsumer`（competency） | 分散式事務補償（Outbox + eventId 冪等 + eventVersion 版本化） |
 | `cache-stats` | `KafkaCacheStatsPublisher`（common） | `CacheStatsConsumer`（alert） | 快取命中/Bloom 阻擋統計聚合至 Redis Hash，供 `/cache-stats` 查詢 |
 
-消費者群組預設 `myGroup`，執行時以 `KafkaConfig`（backend-common）依環境自動解析 Broker（本機 `localhost:9092`、Docker 內 `kafka:9092`）。
+消費者群組預設 `myGroup`（`KafkaConfig`），補償事件另用 `compensation-group`（`KafkaCompensationConfig`）；執行時依環境自動解析 Broker（本機 `localhost:9092`、Docker 內 `kafka:9092`）。
+
+**分散式交易補償（Transactional Outbox）**：
+
+```
+rebindProjectMemberSkills (competency)
+  ├─ 產生 transactionId + 狀態摘要
+  ├─ validateUsersExist（交易外 Feign 驗證）
+  ├─ doRebindProjectMemberSkills（@Transactional）
+  │   ├─ 寫入業務資料 + enqueue TRANSACTION_STARTED（同交易）
+  │   ├─ 寫入業務資料 + enqueue COMMITTED（同交易 commit；rollback 則一併消失）
+  │   └─ commit
+  ├─ 失敗 → rollback 後以 REQUIRES_NEW 寫入 enqueue FAILED（失敗事實）+ enqueue COMPENSATION_REQUIRED（補償請求）
+  └─ CompensationOutboxWorker @Scheduled（預設 5 秒）
+      ├─ findPendingDue（PENDING/FAILED 到期，或 PROCESSING 租約過期）→ claimEvent（CAS 搶佔
+      │   + attemptCount 遞增 + 新租約，多實例安全）
+       ├─ publish(event).get(10s) 等 Kafka ACK → 成功 SENT
+       └─ 失敗 → FAILED + nextAttemptAt（指數退避）→ 超過 ${compensation.outbox.max-attempts:5} 次 → DEAD
+            └─ CompensationConsumer (competency)：saveAndFlush 原子領取（event_id 唯一鍵）→ PROCESSING（帶租約）
+                 → 僅 COMPENSATION_REQUIRED 才委派 CompensationStrategy 執行補償，其餘狀態僅記錄
+```
+
+- **可靠性**：`TRANSACTION_STARTED` 與 `COMMITTED` 皆與業務資料**同一交易 commit**（rollback 時一併消失），杜絕「業務成功但 COMMITTED 未建立」的缺口；失敗時在 rollback 後以 `REQUIRES_NEW` 寫入 `FAILED`（失敗事實）。Kafka ACK 前不會標記已送達；發送失敗的事件保留於 Outbox 表，以指數退避重試（5s → 15s → 30s → 1m → 5m），超過 `compensation.outbox.max-attempts`（預設 5 次）標記 `DEAD` 供人工查核
+- **Outbox 傳遞狀態機**：`PENDING → PROCESSING → SENT`（Kafka ACK 後）；失敗回 `FAILED`（記錄 attemptCount / errorMessage / nextAttemptAt 後到期重試）→ 超限 `DEAD`；`claimEvent` 以條件式 UPDATE（CAS）保證多實例不重複發送；`PROCESSING` 但租約（`compensation.outbox.lease-seconds`，預設 300 秒）過期 → 可由任一實例 reclaim（release crash recovery，不卡死）；`attemptCount` 於每次 claim 時遞增（3 次 = 3 次發送嘗試）。`CompensationOutboxWorker` 以**可組態並行度**（`compensation.outbox.publish-parallelism`，預設 4，實際 `min(批次筆數, 並行度)`）平行發佈整批事件，避免串行 `publish().get(ackTimeoutSeconds)` 讓單一慢 Kafka 拖垮整批——批次最差等待由 `batchSize × ackTimeout`（最壞 200s）降至約等於 `ackTimeout`（10s），降低過長佔用 scheduler thread 打穿租約的風險
+- **冪等**：傳遞契約為 **At-Least-Once**（非 Exactly-Once）：允許「Kafka ACK → JVM crash → SENT 尚未寫入 DB → 租約過期 → reclaim 重新發送」的 crash window，同一 `eventId` 可能被發送兩次。消費端以 `compensation_event_log`（`event_id` 唯一鍵）原子領取去重（event-level deduplication）：插入成功取得處理權，衝突則依狀態處理（PROCESSED 跳過 / FAILED 以 `retryClaim` CAS 重試 / PROCESSING 且租約未到期跳過）。**注意：event log 去重僅保證 Consumer 不重複執行，無法保證業務 side effect 的 exactly-once**——租約過期不代表前一個 Worker 一定失敗（可能仍在執行），`CompensationStrategy` 實作**必須以 `eventId` 或等效冪等鍵自行設計為冪等**（尤其未來執行 REST / DB 寫入 / 外部服務呼叫等不可逆副作用時）
+- **消費端處理狀態機**：`PROCESSING → PROCESSED`；執行暫時性失敗 → `FAILED`（記錄 lastError 與 attemptCount）並拋出異常以觸發 Kafka 重試；若重試次數達到 `compensation.consumer.max-attempts: 5`，則改標記為 `DEAD` 終態且不再 rethrow 異常（防止 Kafka 和處理器重複 retryClaim 打架）；`PROCESSING` 但租約（`compensation.consumer.lease-seconds`，預設 300 秒）已到期 → 其他實例以 `reclaimLease` CAS 接手（crash recovery，不再卡死）。**終態寫入皆以 `markState` 條件式 UPDATE（CAS）執行**（WHERE `eventId + ownerId + fencingVersion + status = PROCESSING`）：`CompensationEventLog` 無 `@Version`，改以帶 token 的 SQL CAS 保證只有**目前最新一代持有者**能將終態（`PROCESSED` / `FAILED` / `DEAD`）寫入——舊 worker 租約到期被接管後若回頭寫終態，因 token（ownerId/fencingVersion）已不符而被拒絕（updated=0 → `log.warn` 不覆寫），杜絕 stale worker 用舊 attemptCount/fence 覆蓋新持有者認領狀態的終態寫入競態。`markProcessed` 一併清空 `nextAttemptAt`，`markDead` 亦清空（DEAD 不再重試）
+- **過期租約回收排程 + FAILED 事件重試迴圈**：`CompensationLeaseReclaimer`（competency，`@Scheduled` 預設 60 秒，可調 `compensation.consumer.reclaim-delay-ms`）**兩階段掃描**：① 租約已過期的 `PROCESSING` 紀錄（`findTop50ByStatusAndLeaseUntilBefore`）、② 已達 `nextAttemptAt` 的 `FAILED` 紀錄（`findTop50ByStatusAndNextAttemptAtBefore`，每次至多 50 筆）。前者以 `reclaimLease` CAS、後者以 `retryClaim` CAS 重新認領（皆產生新 `ownerId` 並使 `fencingVersion` 遞增），再從 stored `payload` 反序列化並呼叫 `processReclaimed` 重跑補償；單一事件失敗僅 `log.warn` 不中斷整批。`markFailed` 會寫入 `nextAttemptAt = now + retryBackoffMs * attemptCount`（線性退避，`compensation.consumer.retry-backoff-ms` 預設 60000）——確保 **FAILED 事件即使 Kafka 已無 redelivery 也能被排程重新領取**（閉環：reclaimer 奪取 → transient 失敗 → FAILED → nextAttemptAt 到期 → retryClaim → 再次執行，重試耗盡仍由 `maxAttempts` 封存 `DEAD`）。`payload` 欄位於 `claimEventLog` 認領時序列化完整 `CompensationEvent` 存入，且**所有回復路徑統一以 persisted payload 為 authoritative source**（含 `retryClaim` 重試與租約過期 `reclaimLease` 接手，皆由 `replayFromPersistedPayload` 反序列化）；persisted payload 損毀無法還原時直接標記 `DEAD` 分流，不退回 Kafka 重新投遞的 payload，避免同一 `eventId` 兩套內容不一致
+- **消費端重試政策**：由 Kafka `DefaultErrorHandler`（`FixedBackOff(1000ms, 4)`，共 5 次嘗試）負責重試。永久型錯誤（如 `UnsupportedEventVersionException`、`UnsupportedCompensationActionException`、`CompensationConflictException`、`IllegalArgumentException`）已列入 `addNotRetryableExceptions`，會直接轉發至死信佇列 `transaction-compensation.DLT`，不進行重複嘗試，確保 offset 乾淨不卡死。**`retryClaim` 亦以 `nextAttemptAt` 為 guard**（WHERE 含 `nextAttemptAt IS NULL OR nextAttemptAt <= :now`，且認領成功後清空）——Kafka 每 1 秒的 redelivery 不會繞過 `markFailed` 設定的線性退避，只有退避到期（或從未設定退避）的 `FAILED` 事件才可被重新領取，與 outbox 側 `claimEvent` 的 `nextAttemptAt <= CURRENT_TIMESTAMP` 行為一致
+- **監控告警**：`CompensationMonitor`（alert）定期（預設 60 秒）掃描滯留 `FAILED` 的消費事件並記錄 `log.info`，而對於重試耗盡或已隔離於死信（`DEAD`）的補償事件，為防止全表掃描，使用限制筆數的 Bounded 查詢，並透過 `lastAlertedAt` 實施 1 小時頻率控制（避免每分鐘 log.error 重複洗板）；`CompensationOutboxMonitor`（competency）同週期以 Bounded 查詢（`findTop20ByDeliveryStatusOrderByUpdatedTimeDesc`，至多 20 筆）掃描重試耗盡的 `DEAD` Outbox 事件並以 `lastAlertedAt` 實施 1 小時頻率控制後 `log.error` 告警，供人工介入
+- **補償語意**：閉環已建立——業務失敗時 Producer 以單一 `REQUIRES_NEW` 交易寫入 `FAILED`（失敗事實）與 `COMPENSATION_REQUIRED`（補償請求，兩者同 commit），Consumer 僅對 `COMPENSATION_REQUIRED` 事件執行補償（成功即為 `COMPENSATED` 語意；執行失敗則標記持久化 `FAILED` 並 rethrow 交由 Kafka 重試）；`TRANSACTION_STARTED / COMMITTED / FAILED / COMPENSATED` 事件僅記錄後標記完成，不觸發補償；找不到對應 Strategy 的動作拋出 `UnsupportedCompensationActionException` 視為永久型錯誤分流至 DLT 供人工查核，不進行無效重試
+- **策略架構**：補償動作透過 `CompensationStrategy` 介面委派（目前為 `ProjectMemberSkillsRebindCompensationStrategy`）；`PROJECT_MEMBER_SKILLS_REBIND` 採取實體「完全擦除並重建」還原模式。原先由 `alert-service` 透過 `CompetencyServiceFeignClient` 遠程呼叫還原 API，**現已將整套補償引擎（含 Kafka Consumer、Reclaimer 監控與 Strategy）全部搬遷至 `competency-service` 內部**。這樣徹底消除了微服務間的反向依賴循環，並將破壞性的還原操作轉換為 **JVM 本機 Service 直接呼叫**（不再對外暴露 `/project/inner/skills/restore` 終端點，Strategy 改以 `@Autowired` 欄位注入本機 `ICompensationRestoreService`，契合專案開發慣例，並以 `eventId` 作為去重鍵寫入本機 `compensation_restore_log` 去重紀錄）。——啟動時缺 bean 即 fail fast，杜絕生產環境靜默 `null` 失效。**Fencing Token 全鏈路**：`CompensationEventProcessor` 於 `claimEventLog` 認領時產生新 `ownerId`（UUID）並使 `fencingVersion` 單調遞增（認領即 1），經 `CompensationStrategy.compensate` 原樣傳遞給本機 `ICompensationRestoreService.restoreMemberSkills`，認領紀錄（`compensation_restore_log`）一併記下該 token，形成「最新一代持有者才能執行還原並標記結果」的端到端守衛。還原 API 以 `compensation_restore_log` 的 `eventId` 主鍵 + `@Version` 樂觀鎖進行 DB 層級原子認領（INSERT 撞鍵 → `DataIntegrityViolationException` 拒絕；已存在 PROCESSING 且租約未到期 → 拒絕；`FAILED` 或 `PROCESSING` 租約到期之接管皆要求新 `fencingVersion` 嚴格更大才由 `takeOverClaim` CAS 接手，stale token 一律拒絕——兩條路徑共用相同代數不變式）。**Token 的 DB 級 fencing**：破壞性刪除前以 `findByIdForUpdate` 對 `compensation_restore_log` row 持 `PESSIMISTIC_WRITE` 悲觀鎖至外層交易 commit，同時再次驗證 token——鎖定後 `takeOverClaim` CAS 會被資料列鎖阻塞，待 commit 後其 predicate（狀態已非可接管）重新評估即失敗，使舊 token 在 DB 層真正失效，封閉 check-then-act 的 TOCTOU 窗口。**結果標記**：`markRestoreSuccess` 改為於同一還原交易內呼叫（`REQUIRED` 加入外層交易，取代 `REQUIRES_NEW` + `afterCommit`，與還原資料同 commit、同 rollback）——commit 失敗時 SUCCESS 一併回滾（log 維持 PROCESSING，租約到期由 reclaimer 回收重試），杜絕「log=SUCCESS 但實際未還原」，同時消除「restore 已 commit 但 SUCCESS 標記遺失」的 crash window；版本守衛失敗時若目前綁定已等於還原目標則直接冪等標記 SUCCESS（crash window 復原，不重跑破壞性還原）。`markRestoreFailed` 於 `afterCompletion`（狀態非 COMMITTED）觸發並以 `REQUIRES_NEW` 獨立 commit——成功路徑因已持有該認領列悲觀鎖、同交易更新不會死鎖，失敗路徑延後標記則避免持鎖交易內開新交易更新同 row 造成死鎖。`markRestoreState` 以 `ownerId + fencingVersion` 為條件 CAS（token 已被更新代數接管 → 不覆寫並 `log.warn`），確保只有最新一代持有者能標記結果，並記錄 `lastError`。並以 snapshot 快照攜帶的專案樂觀鎖 `@Version`（`expectedVersion`）作並發守衛：先快速比對版本，通過後 touch Project 使 `@Version` 於 commit 時執行 CAS 比對，封閉 TOCTOU 窗口，保障補償在並行場景下絕不覆蓋最新合法修改
+- **版本化**：`eventVersion` 標記事件 schema 版本（目前 1）；Consumer 拒絕不支援的版本（`eventVersion != 1` 拋出 `UnsupportedEventVersionException`，不重試直接分流至 DLT 死信佇列）以防版本不相容
+- **事件狀態機**：`TRANSACTION_STARTED → COMMITTED / FAILED`；業務失敗閉環 `FAILED → COMPENSATION_REQUIRED → COMPENSATED`（補償執行暫時性失敗以 `FAILED` 呈現，重試耗盡以 `DEAD` 呈現，永久錯誤直接 DLT，不另設 domain status）
+- **發佈邊界與配置**：職責分離——業務 Service 僅依賴 `ICompensationOutboxService`（4 個 enqueue 寫入 Outbox，不碰 Kafka）；Kafka 發佈只由 `CompensationOutboxWorker`（Timer 套件，`@Scheduled` 預設 5 秒）透過 `ICompensationPublisher`（僅 `publish` 單一方法）執行。Worker 全部政策可配置：`compensation.outbox.flush-delay-ms`（預設 5000）、`max-attempts`（5）、`lease-seconds`（300）、`batch-size`（20）、`ack-timeout-seconds`（10）、`backoff-seconds`（預設 5,15,30,60,300，逗號分隔）
 
 ### Spring Security 認證攔截
 
@@ -874,11 +908,12 @@ graph LR
        -F "file=@/path/to/your/audio.mp3"
   ```
 
-#### 2. 內部通用辨識介面：`POST /ai/inner/stt/recognize`
-由 Java `AiInternalController` 提供，供 Discord Bot、LINE Bot 等背景服務直接獲取辨識結果與音訊檔案儲存 URL：
-* **請求參數**:
-  * `file`: 音訊檔案 (MultipartFile)
+#### 2. 內部語音辨識介面：`AiPyServiceFeignClient` → `POST /stt`（Python 側車）
+STT 由 Java `AiPyServiceFeignClient`（backend-common）直接呼叫 Python 側車（不經 Gateway），供 Discord Bot、LINE Bot 等背景服務取得辨識結果與音訊檔案儲存 URL（`AiInternalController` 僅提供 `/ai/inner/analyze-jobs`）：
+* **請求參數 (Query Param)**:
+  * `object_key`: MinIO 物件鍵（音訊已預先上傳至 MinIO）
   * `language`: 辨識目標語言 (String，預設 `zh`)
+  * `provider`: 引擎選擇 (`whisper` / `sensevoice`，可選)；另有 `recognizeWithWhisper` / `recognizeWithSenseVoice` 分別對應 `/stt/whisper`、`/stt/sensevoice`
 * **回應格式 (SttResponseVo)**:
   ```json
   {
@@ -1842,12 +1877,12 @@ class UserIntegrationTest {
 | 排除路徑 (相對於 Base Package) | 原因說明 |
 | :--- | :--- |
 | `Crawler/**` | 網頁爬蟲模組。需向外部目標網站（如 Job 平台）發送真實 HTTP 請求並解析 HTML，極易因外部網站改版或連線逾時導致測試失效。 |
-| `impl/*AiService.class`、`impl/*Service.class` (AI 相關) | 多大語言模型整合服務。包括 `BaseOpenAiService`、`GeminiService`、`DeepSeekService`、`GroqService`、`GitHubModelsService`、`CompositeAiService`、`ChatService`、`TtsService`、`SttService`、`TtsRefAudioService`。高度依賴外部第三方 API 端點或 Python 側車服務，缺乏真實端點或網絡模擬時無法通過驗證。 |
-| `impl/LineWebhookService.class`、`impl/LineGfService.class`、`impl/LineGfRichMenuService.class`、`impl/LineDiaryService.class` | LINE 機器人生態與日記應用。深度耦合 LINE 官方 Webhook 回調與外部 AI 模型。 |
-| `impl/VoiceDiaryService.class`、`impl/BotConfigService.class`、`impl/ApiUsageLogService.class` | 語音日記與機器人配置。與外部 Bot 控制及 AI 語音處理流程高頻互動，並非純粹的核心領域業務邏輯。 |
-| `impl/ProjectService.class`、`impl/LearnService.class` | 專案推薦與學習路徑規劃服務。內部深度耦合 AI 計算邏輯與複雜第三方外部呼叫，難以進行純粹的單元 Mock 隔離。 |
-| `Service/UsageTracker.class`、`impl/UsageTrackService.class` | AI 額度與 API 呼叫計量監控。與 AI 計算模組高度耦合。 |
-| `impl/CacheStatsConsumer.class` | Kafka 快取統計事件消費者。高度依賴真實 Kafka Broker 與 Zookeeper 等基礎設施。 |
+| `Impl/*AiService.class`、`Impl/*Service.class` (AI 相關) | 多大語言模型整合服務。包括 `BaseOpenAiService`、`GeminiService`、`DeepSeekService`、`GroqService`、`GitHubModelsService`、`CompositeAiService`、`ChatService`、`TtsService`、`SttService`、`TtsRefAudioService`。高度依賴外部第三方 API 端點或 Python 側車服務，缺乏真實端點或網絡模擬時無法通過驗證。 |
+| `Impl/LineWebhookService.class`、`Impl/LineGfService.class`、`Impl/LineGfRichMenuService.class`、`Impl/LineDiaryService.class` | LINE 機器人生態與日記應用。深度耦合 LINE 官方 Webhook 回調與外部 AI 模型。 |
+| `Impl/VoiceDiaryService.class`、`Impl/BotConfigService.class`、`Impl/ApiUsageLogService.class` | 語音日記與機器人配置。與外部 Bot 控制及 AI 語音處理流程高頻互動，並非純粹的核心領域業務邏輯。 |
+| `Impl/LearnService.class` | 學習路徑規劃服務。內部深度耦合 AI 計算邏輯與複雜第三方外部呼叫，難以進行純粹的單元 Mock 隔離。 |
+| `Impl/UsageTrackService.class` | AI 額度與 API 呼叫計量監控。與 AI 計算模組高度耦合。 |
+| `Impl/CacheStatsConsumer.class` | Kafka 快取統計事件消費者。高度依賴真實 Kafka Broker 與 Zookeeper 等基礎設施。 |
 | `Service/Discord/**` | Discord 機器人生態。高度依賴 Discord 官方 WebSocket 連線與 SDK 回調，無 Broker 模擬則無法驗證。 |
 
 **檢視覆蓋率報告：**
@@ -1870,10 +1905,10 @@ target/
         ├── jacoco.xml          ← CI/CD 用
         └── com.example.BackendArchitectureLab/
             ├── Service/
-            │   └── impl/
+            │   └── Impl/
             │       └── UserService.html
             └── DataAccess/
-                └── impl/
+                └── Impl/
                     └── UserDataAccessImpl.html
 ```
 

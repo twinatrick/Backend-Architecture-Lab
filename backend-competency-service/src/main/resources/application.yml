@@ -17,6 +17,8 @@ spring:
     properties:
       hibernate:
         default_batch_fetch_size: 16
+  kafka:
+    bootstrap-servers: localhost:9092
   task:
     execution:
       shutdown:
@@ -40,3 +42,23 @@ cache:
   bloom-filter:
     entities:
       - "Skill:skills"
+
+external-sync:
+  # 外部系統同步 adapter：預設未啟用（尚未接線真實外部系統）。
+  # 啟用時必須設定 base-url，否則啟動 fail-fast；同步命令（external_sync_command）
+  # 由 ExternalSyncWorker 可靠執行，重試耗盡（DEAD）才觸發補償閉環。
+  enabled: ${EXTERNAL_SYNC_ENABLED:false}
+  base-url: ${EXTERNAL_SYNC_BASE_URL:}
+  max-attempts: 5
+  lease-seconds: 300
+  batch-size: 20
+  operation-timeout-seconds: 10
+  backoff-seconds: 5,15,30,60,300
+  flush-delay-ms: 5000
+
+compensation:
+  consumer:
+    lease-seconds: 300
+    max-attempts: 5
+    retry-backoff-ms: 60000
+    reclaim-delay-ms: 60000
