@@ -15,7 +15,7 @@ import java.util.UUID;
 @RequestMapping("/project/inner")
 public class ProjectInternalController {
 
-    private static final int MAX_BINDINGS = 50;
+    private static final int MAX_BINDINGS = 1000;
 
     @Autowired
     private ICompensationRestoreService compensationRestoreService;

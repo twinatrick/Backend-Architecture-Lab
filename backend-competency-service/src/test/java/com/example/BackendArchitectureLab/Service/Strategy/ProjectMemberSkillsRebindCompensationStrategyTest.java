@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Strategy;
 
-import com.example.BackendArchitectureLab.Feign.CompetencyServiceFeignClient;
+import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.*;
 class ProjectMemberSkillsRebindCompensationStrategyTest {
 
     @Mock
-    private CompetencyServiceFeignClient competencyServiceFeignClient;
+    private ICompensationRestoreService compensationRestoreService;
 
     @InjectMocks
     private ProjectMemberSkillsRebindCompensationStrategy strategy;
@@ -39,7 +39,7 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
     }
 
     @Test
-    void compensate_shouldNotThrow_andShouldCallFeign() {
+    void compensate_shouldNotThrow_andShouldCallRestoreService() {
         UUID projectId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         String ownerId = UUID.randomUUID().toString();
@@ -62,8 +62,8 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
                 .build();
 
         assertDoesNotThrow(() -> strategy.compensate(event, ownerId, 1L));
-        verify(competencyServiceFeignClient).restoreProjectMemberSkills(
-                eq(projectId), eq(eventId.toString()), eq(123456L), eq(ownerId), eq(1L), eq(expectedBindings));
+        verify(compensationRestoreService).restoreMemberSkills(
+                eq(projectId), eq(eventId), eq(123456L), eq(ownerId), eq(1L), eq(expectedBindings));
     }
 
     @Test
@@ -81,7 +81,7 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
                 .build();
 
         assertThrows(IllegalArgumentException.class, () -> strategy.compensate(event, "ownerId", 1L));
-        verify(competencyServiceFeignClient, never()).restoreProjectMemberSkills(any(), anyString(), any(), any(), any(), any());
+        verify(compensationRestoreService, never()).restoreMemberSkills(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -94,11 +94,30 @@ class ProjectMemberSkillsRebindCompensationStrategyTest {
                 .serviceName("competency-service")
                 .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
                 .status(CompensationStatus.COMPENSATED)
-                .beforeState(Map.of())
+                .beforeState(Map.of("expectedVersion", 123456L))
                 .timestamp(Instant.now())
                 .build();
 
         assertThrows(IllegalArgumentException.class, () -> strategy.compensate(event, "ownerId", 1L));
-        verify(competencyServiceFeignClient, never()).restoreProjectMemberSkills(any(), anyString(), any(), any(), any(), any());
+        verify(compensationRestoreService, never()).restoreMemberSkills(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void compensate_shouldThrowIllegalArgument_whenExpectedVersionMissing() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        CompensationEvent event = CompensationEvent.builder()
+                .eventId(eventId)
+                .eventVersion(1)
+                .transactionId(UUID.randomUUID())
+                .serviceName("competency-service")
+                .action(CompensationAction.PROJECT_MEMBER_SKILLS_REBIND)
+                .status(CompensationStatus.COMPENSATED)
+                .beforeState(Map.of("projectId", projectId.toString()))
+                .timestamp(Instant.now())
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> strategy.compensate(event, "ownerId", 1L));
+        verify(compensationRestoreService, never()).restoreMemberSkills(any(), any(), any(), any(), any(), any());
     }
 }

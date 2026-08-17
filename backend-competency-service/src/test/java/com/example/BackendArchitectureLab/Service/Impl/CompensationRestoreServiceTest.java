@@ -245,7 +245,7 @@ class CompensationRestoreServiceTest {
         successLog.setStatus("SUCCESS");
         when(restoreLogRepository.findById(eventId)).thenReturn(Optional.of(successLog));
 
-        compensationRestoreService.restoreMemberSkills(projectId, eventId, null, "owner-x", 1L, List.of());
+        compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, "owner-x", 1L, List.of());
 
         verifyNoInteractions(projectDataAccess);
         verifyNoInteractions(userProjectSkillDataAccess);

@@ -1,13 +1,12 @@
 package com.example.BackendArchitectureLab.Service.Strategy;
 
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
-import com.example.BackendArchitectureLab.Feign.CompetencyServiceFeignClient;
+import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
-import feign.FeignException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,19 +17,16 @@ import java.util.UUID;
 /**
  * ProjectMemberSkillsRebindCompensationStrategy - 專案成員技能重綁定的補償策略。
  * 當外部同步失敗等後續流程發生異常，導致本地事務已 commit 但整體流程失敗時，
- * 本策略會透過 Feign 呼叫 competency-service 將專案的技能綁定還原至 beforeState 記錄的歷史狀態。
+ * 本策略會直接呼叫本地的 ICompensationRestoreService 將專案的技能綁定還原至 beforeState 記錄的歷史狀態。
  * 若事件缺少必要的 beforeState 欄位，視為永久性契約錯誤（拋出 IllegalArgumentException → 直接隔離至 DLT），
  * 避免補償被靜默跳過卻標記為成功。
- * <p>
- * CompetencyServiceFeignClient 為必要依賴（required constructor injection）：啟動時若
- * 該 Feign client 未註冊成 bean 即 fail fast，避免生產環境靜默失效。
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ProjectMemberSkillsRebindCompensationStrategy implements CompensationStrategy {
 
-    private final CompetencyServiceFeignClient competencyServiceFeignClient;
+    @Autowired
+    private ICompensationRestoreService compensationRestoreService;
 
     @Override
     public boolean supports(CompensationAction action) {
@@ -94,27 +90,19 @@ public class ProjectMemberSkillsRebindCompensationStrategy implements Compensati
             expectedVersion = ((Number) versionObj).longValue();
         }
 
-        log.warn("Calling competency-service to restore project member skills for projectId={} with eventId={}, expectedVersion={}, ownerId={}, fencingVersion={} to beforeState size={}",
+        if (expectedVersion == null) {
+            throw new IllegalArgumentException(
+                    "ExpectedVersion in beforeState must be present and be a Number, "
+                            + "cannot compensate transactionId=" + event.getTransactionId());
+        }
+
+        log.warn("Calling ICompensationRestoreService to restore project member skills for projectId={} with eventId={}, expectedVersion={}, ownerId={}, fencingVersion={} to beforeState size={}",
                 projectId, event.getEventId(), expectedVersion, ownerId, fencingVersion,
                 bindings != null ? bindings.size() : 0);
 
-        try {
-            competencyServiceFeignClient.restoreProjectMemberSkills(
-                    projectId, event.getEventId().toString(), expectedVersion, ownerId, fencingVersion, bindings);
-            log.info("Successfully restored project member skills for projectId={}", projectId);
-        } catch (FeignException.BadRequest e) {
-            // 400 Bad Request：payload 契約錯誤（如 UUID 格式不符、skill/level 不存在），
-            // 屬於永久性錯誤，直接以 IllegalArgumentException 隔離至 DLT，不重試。
-            log.error("COMPENSATION_BAD_REQUEST received from competency-service for projectId={}, marking as non-retryable", projectId, e);
-            throw new IllegalArgumentException(
-                    "Competency-service rejected restore payload with BadRequest: " + e.getMessage()
-            );
-        } catch (FeignException.Conflict e) {
-            log.error("COMPENSATION_CONFLICT received from competency-service for projectId={}", projectId, e);
-            throw new CompensationConflictException(
-                    "Conflict detected in competency-service: " + e.getMessage()
-            );
-        }
+        compensationRestoreService.restoreMemberSkills(
+                projectId, event.getEventId(), expectedVersion, ownerId, fencingVersion, bindings);
+        log.info("Successfully restored project member skills for projectId={}", projectId);
     }
 
     /**

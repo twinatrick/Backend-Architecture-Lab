@@ -2,14 +2,15 @@ package com.example.BackendArchitectureLab;
 
 import com.example.BackendArchitectureLab.DataAccess.Impl.CompensationEventLogDataAccessImpl;
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
-import com.example.BackendArchitectureLab.Feign.CompetencyServiceFeignClient;
 import com.example.BackendArchitectureLab.Repository.CompensationEventLogRepository;
 import com.example.BackendArchitectureLab.Service.CompensationEventProcessor;
+import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
 import com.example.BackendArchitectureLab.Service.Impl.CompensationExecutionService;
 import com.example.BackendArchitectureLab.Service.Impl.CompensationPayloadService;
 import com.example.BackendArchitectureLab.Service.Impl.CompensationStateService;
 import com.example.BackendArchitectureLab.Service.Strategy.ProjectMemberSkillsRebindCompensationStrategy;
 import com.example.BackendArchitectureLab.Timer.CompensationLeaseReclaimer;
+import com.example.BackendArchitectureLab.Vo.CompensationRestoreResultVo;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
@@ -40,17 +41,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-/**
- * 補償 FAILED 事件恢復迴圈整合測試（alert-service 首個 @SpringBootTest）：
- * <p>
- * 驗證 MR #44 Issue 1 的完整閉環：PROCESSING 租約過期 → reclaimer 回收 → transient failure
- * → 標記 FAILED + nextAttemptAt → 排程再次掃到 → retryClaim CAS 重新領取 → 補償成功 → PROCESSED。
- * 同時驗證 Issue 2 的 Feign required 注入（strategy 依賴 CompetencyServiceFeignClient bean）。
- */
 @ActiveProfiles("test")
 @SpringBootTest(
         webEnvironment = WebEnvironment.NONE,
@@ -93,7 +88,7 @@ class CompensationRecoveryLoopIntegrationTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private CompetencyServiceFeignClient competencyServiceFeignClient;
+    private ICompensationRestoreService compensationRestoreService;
 
     @BeforeEach
     void cleanDatabase() {
@@ -105,10 +100,10 @@ class CompensationRecoveryLoopIntegrationTest {
         CompensationEventLog processing = seedExpiredProcessingEvent();
 
         // 第一次回收：租約過期 PROCESSING 被接手，補償遭遇 transient failure → FAILED + nextAttemptAt
-        doThrow(new RuntimeException("competency-service temporarily unreachable"))
-                .doNothing()
-                .when(competencyServiceFeignClient)
-                .restoreProjectMemberSkills(any(), anyString(), any(), anyString(), anyLong(), any());
+        doThrow(new RuntimeException("competency-service database temporarily unreachable"))
+                .doReturn(new CompensationRestoreResultVo(true, "SUCCESS", UUID.randomUUID(), processing.getEventId()))
+                .when(compensationRestoreService)
+                .restoreMemberSkills(any(), any(), anyLong(), anyString(), anyLong(), any());
 
         compensationLeaseReclaimer.reclaimExpiredLeases();
 
@@ -128,8 +123,8 @@ class CompensationRecoveryLoopIntegrationTest {
         assertEquals(CompensationEventLogStatus.PROCESSED, processed.getStatus());
         assertNotNull(processed.getProcessedAt());
         assertEquals(3, processed.getAttemptCount(), "retryClaim 應再次遞增嘗試次數");
-        verify(competencyServiceFeignClient, times(2))
-                .restoreProjectMemberSkills(any(), anyString(), any(), anyString(), anyLong(), any());
+        verify(compensationRestoreService, times(2))
+                .restoreMemberSkills(any(), any(), anyLong(), anyString(), anyLong(), any());
     }
 
     @Test
@@ -144,8 +139,8 @@ class CompensationRecoveryLoopIntegrationTest {
                 "租約未到期的 PROCESSING 不應被 reclaimer 回收");
         assertEquals(1, after.getAttemptCount(), "租約未到期不應遞增嘗試次數");
         assertEquals("owner-current", after.getOwnerId(), "租約未到期不應改寫 owner");
-        verify(competencyServiceFeignClient, never())
-                .restoreProjectMemberSkills(any(), anyString(), any(), anyString(), anyLong(), any());
+        verify(compensationRestoreService, never())
+                .restoreMemberSkills(any(), any(), anyLong(), anyString(), anyLong(), any());
     }
 
     @Test

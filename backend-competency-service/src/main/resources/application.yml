@@ -17,6 +17,8 @@ spring:
     properties:
       hibernate:
         default_batch_fetch_size: 16
+  kafka:
+    bootstrap-servers: localhost:9092
   task:
     execution:
       shutdown:
@@ -58,3 +60,10 @@ external-sync:
   batch-size: 20
   backoff-seconds: 5,15,30,60,300
   flush-delay-ms: 5000
+
+compensation:
+  consumer:
+    lease-seconds: 300
+    max-attempts: 5
+    retry-backoff-ms: 60000
+    reclaim-delay-ms: 60000

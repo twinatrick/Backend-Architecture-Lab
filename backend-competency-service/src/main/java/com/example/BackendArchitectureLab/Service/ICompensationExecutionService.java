@@ -25,8 +25,8 @@ public interface ICompensationExecutionService {
      * {@link UnsupportedCompensationActionException}。
      *
      * @param event          補償事件
-     * @param ownerId        目前認領此事件的處理者唯一識別碼（fencing token 的一部份）
-     * @param fencingVersion 目前認領的樂觀鎖代數（單調遞增）
+     * @param ownerId        目前認領此事件 the current owner's unique ID
+     * @param fencingVersion fencing version
      */
     void execute(CompensationEvent event, String ownerId, Long fencingVersion);
 

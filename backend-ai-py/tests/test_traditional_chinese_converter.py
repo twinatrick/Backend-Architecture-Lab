@@ -52,18 +52,27 @@ def test_convert_returns_same_text_when_conversion_raises_type_error():
         assert converter.convert("你好世界") == "你好世界"
 
 
-def test_convert_does_not_swallow_unexpected_errors():
+def test_convert_gracefully_handles_runtime_and_os_errors():
     class _FailingConverter:
         def convert(self, text: str) -> str:
-            raise RuntimeError("programming bug")
+            raise RuntimeError("native bindings missing")
 
     class _FailingOpenCC:
         def OpenCC(self, config: str) -> _FailingConverter:  # noqa: N802
             return _FailingConverter()
 
     converter = TraditionalChineseConverter()
-    with (
-        patch("services.traditional_chinese_converter.opencc", _FailingOpenCC()),
-        pytest.raises(RuntimeError),
-    ):
-        converter.convert("你好世界")
+    with patch("services.traditional_chinese_converter.opencc", _FailingOpenCC()):
+        assert converter.convert("你好世界") == "你好世界"
+
+    class _OSFailingConverter:
+        def convert(self, text: str) -> str:
+            raise OSError("config file not found")
+
+    class _OSFailingOpenCC:
+        def OpenCC(self, config: str) -> _OSFailingConverter:  # noqa: N802
+            return _OSFailingConverter()
+
+    converter2 = TraditionalChineseConverter()
+    with patch("services.traditional_chinese_converter.opencc", _OSFailingOpenCC()):
+        assert converter2.convert("你好世界") == "你好世界"

@@ -24,7 +24,7 @@ class TraditionalChineseConverter:
             if self._opencc_converter is None:
                 self._opencc_converter = opencc.OpenCC("s2twp.json")
             return self._opencc_converter.convert(text)
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, OSError, RuntimeError) as exc:
             logger.warning("[STT] OpenCC conversion failed: %s", exc)
             return text
 

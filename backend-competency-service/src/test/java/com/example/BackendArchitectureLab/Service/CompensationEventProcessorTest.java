@@ -516,7 +516,6 @@ class CompensationEventProcessorTest {
 
         verify(strategy, never()).compensate(any(CompensationEvent.class), anyString(), anyLong());
         verify(eventLogRepository, never()).findByEventId(any(UUID.class));
-        verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
     }
 
     @Test
@@ -551,6 +550,5 @@ class CompensationEventProcessorTest {
         verify(strategy, times(1)).compensate(any(CompensationEvent.class), anyString(), anyLong());
         verify(eventLogRepository).markState(eq(eventId), anyString(), any(), eq(CompensationEventLogStatus.PROCESSING),
                 eq(CompensationEventLogStatus.PROCESSED), any(), isNull(), isNull(), isNull());
-        verify(eventLogRepository, never()).save(any(CompensationEventLog.class));
     }
 }

@@ -20,16 +20,16 @@ public interface ICompensationStateService {
     /**
      * 將 PROCESSING 標記為 FAILED，並依 attemptCount 計算下次重試時間（退避）。
      *
-     * @param entry        目前認領的處理紀錄
-     * @param errorMessage 失敗原因（自動截斷至 1024 字元）
+     * @param entry        currently claimed processing record
+     * @param errorMessage error message (truncated to 1024 chars)
      */
     void markFailed(CompensationEventLog entry, String errorMessage);
 
     /**
      * 將 PROCESSING 標記為 DEAD（不可重試錯誤或重試次數耗盡，隔離供人工介入）。
      *
-     * @param entry        目前認領的處理紀錄
-     * @param errorMessage 失敗原因（自動截斷至 1024 字元）
+     * @param entry        currently claimed processing record
+     * @param errorMessage error message (truncated to 1024 chars)
      */
     void markDead(CompensationEventLog entry, String errorMessage);
 }

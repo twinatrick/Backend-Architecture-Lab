@@ -10,6 +10,7 @@ import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreStateService;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreValidatorService;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Vo.CompensationRestoreResultVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -49,13 +50,17 @@ public class CompensationRestoreService implements ICompensationRestoreService {
     @Override
     @Transactional
     @CacheEvict(value = "projectSkills", key = "#projectId")
-    public void restoreMemberSkills(UUID projectId, UUID eventId, Long expectedVersion,
-                                    String ownerId, Long fencingVersion, List<BindingSnapshot> bindings) {
+    public CompensationRestoreResultVo restoreMemberSkills(UUID projectId, UUID eventId, Long expectedVersion,
+                                                           String ownerId, Long fencingVersion, List<BindingSnapshot> bindings) {
+        if (expectedVersion == null) {
+            throw new IllegalArgumentException("expectedVersion must not be null for competency restore");
+        }
+
         // 1. 原子認領事件 (Atomic Idempotency + Fencing Claim)：僅有成功取得 ownership 的實例能執行還原
         boolean claimed = claimService.claimRestoreEvent(eventId, projectId, ownerId, fencingVersion, bindings);
         if (!claimed) {
             log.info("Idempotency Guard: Compensation event {} already processed, claimed by another consumer, or stale token. Skipping.", eventId);
-            return;
+            return new CompensationRestoreResultVo(true, "Already processed or claimed by another instance", projectId, eventId);
         }
 
         // 2. 樂觀防禦比對 (JPA @Version Optimistic Lock Check)
@@ -74,15 +79,15 @@ public class CompensationRestoreService implements ICompensationRestoreService {
             throw e;
         }
 
-        if (expectedVersion != null && !expectedVersion.equals(project.getVersion())) {
-            // C-01 crash window 復原：先前 restore 資料已 commit 成功但 SUCCESS 標記遺失時
+        if (!expectedVersion.equals(project.getVersion())) {
+            // C-01 crash window 復原：先前 restore 資料已 commit 成功 but SUCCESS 標記遺失時
             // （事件被 reclaim，第一次還原已 bump Project.version），目前綁定應等於還原目標。
             // 此種情況直接以同一交易標記 SUCCESS，而非誤判衝突，避免「實際成功、狀態 FAILED/DEAD」。
             if (validatorService.isBindingsAlreadyRestored(projectId, bindings)) {
                 log.info("Compensation reconcile: project {} bindings already match restore target, " +
                         "marking event {} SUCCESS without re-executing restore.", projectId, eventId);
                 stateService.markRestoreSuccess(eventId, ownerId, fencingVersion);
-                return;
+                return new CompensationRestoreResultVo(true, "Already restored", projectId, eventId);
             }
             log.error("COMPENSATION_CONFLICT: Project {} has been updated by another transaction after snapshot! " +
                     "Current DB version = {}, Expected = {}", projectId, project.getVersion(), expectedVersion);
@@ -95,13 +100,13 @@ public class CompensationRestoreService implements ICompensationRestoreService {
         }
 
         // 3. 破壞性操作前（及任何寫入前）再次驗證 fencing token：以悲觀寫鎖 (PESSIMISTIC_WRITE)
-        //    鎖定認領紀錄，確認目前仍由本次 owner+fencingVersion 持有，且此鎖持續持有至交易 commit。
+        //    鎖定認領紀錄，確認目前仍由本次 owner + fencingVersion 持有，且此鎖持續持有至交易 commit。
         //    其他執行緒的 takeOverClaim CAS 會被此資料列鎖阻塞；待本交易 commit 後其 predicate
         //    （狀態已非 PROCESSING/FAILED 可接管）重新評估即失敗，使舊 token 在 DB 層真正失效。
         //    此驗證必須排在 touch Project 之前：若租約已被新代數接管而早退 return 時，
         //    交易尚未有 dirty 寫入，不會白 bump Project.version（避免下一持有者因版本不符而誤判衝突）。
         if (!claimService.verifyFencingHeld(eventId, ownerId, fencingVersion)) {
-            return;
+            return new CompensationRestoreResultVo(false, "Fencing verification failed", projectId, eventId);
         }
 
         // 4. Commit-time 版本守衛：touch Project 使 JPA @Version 在 commit 時執行 CAS 比對，封閉 TOCTOU 窗口。
@@ -132,5 +137,6 @@ public class CompensationRestoreService implements ICompensationRestoreService {
         //    同交易原子性同時消除「restore 已 commit、SUCCESS 標記遺失」的 crash window（C-01）。
         //    本交易已在第 3 步持有該認領列的 PESSIMISTIC_WRITE 鎖，同交易更新不會死鎖。
         stateService.markRestoreSuccess(eventId, ownerId, fencingVersion);
+        return new CompensationRestoreResultVo(true, "Successfully restored", projectId, eventId);
     }
 }

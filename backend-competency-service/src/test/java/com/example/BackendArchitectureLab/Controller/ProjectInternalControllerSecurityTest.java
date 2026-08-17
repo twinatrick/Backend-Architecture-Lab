@@ -118,7 +118,7 @@ class ProjectInternalControllerSecurityTest {
     @Test
     void tooManyBindings_shouldReturn400_andNotInvokeRestore() throws Exception {
         StringBuilder body = new StringBuilder("[");
-        for (int i = 0; i < 51; i++) {
+        for (int i = 0; i < 1001; i++) {
             if (i > 0) {
                 body.append(",");
             }
