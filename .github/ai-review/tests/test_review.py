@@ -257,3 +257,49 @@ def test_chat_completion_downgrades_on_400_json_validate_failed():
         mock_sleep.assert_called_once_with(1.0)
 
 
+def test_calculate_backoff_delay_exponential_growth():
+    delay_1 = review.calculate_backoff_delay(attempt=1, retry_after=0.0, base_delay=2.0, jitter_range=(0.0, 0.0))
+    delay_2 = review.calculate_backoff_delay(attempt=2, retry_after=0.0, base_delay=2.0, jitter_range=(0.0, 0.0))
+    delay_3 = review.calculate_backoff_delay(attempt=3, retry_after=0.0, base_delay=2.0, jitter_range=(0.0, 0.0))
+    assert delay_1 == 2.0
+    assert delay_2 == 4.0
+    assert delay_3 == 8.0
+
+
+def test_calculate_backoff_delay_respects_retry_after():
+    delay = review.calculate_backoff_delay(attempt=1, retry_after=12.5, base_delay=2.0, jitter_range=(0.0, 0.0))
+    assert delay == 12.5
+
+
+def test_calculate_backoff_delay_capped_at_max_delay():
+    delay = review.calculate_backoff_delay(attempt=10, retry_after=100.0, max_delay=60.0, jitter_range=(0.0, 0.0))
+    assert delay == 60.0
+
+
+def test_chat_completion_adaptive_model_promotion_and_demotion():
+    review.ACTIVE_MODEL_CANDIDATES = ["model-fail", "model-ok"]
+
+    mock_resp_fail = MagicMock()
+    mock_resp_fail.ok = False
+    mock_resp_fail.status_code = 429
+    mock_resp_fail.headers = {}
+    mock_resp_fail.text = "Rate limit reached"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "adaptive", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["model-fail", "model-ok"]), \
+         patch("requests.post", side_effect=[mock_resp_fail, mock_resp_ok]), \
+         patch("time.sleep"):
+        result = review.chat_completion("test adaptive", max_retries_per_model=1)
+        assert result == '{"batch": "adaptive", "findings": []}'
+        # model-ok should now be promoted to the front, and model-fail demoted to back
+        assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-ok"
+        assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-fail"
+
+
+

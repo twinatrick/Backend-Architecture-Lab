@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import random
 import re
 import sys
 import time
@@ -13,6 +14,15 @@ EVENT_PATH = os.environ.get("EVENT_PATH", "")
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
+
+DEFAULT_MODEL_CANDIDATES = [
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+]
+ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
 
 
 def get_repo():
@@ -268,22 +278,36 @@ def parse_retry_after(response) -> float:
     return 5.0
 
 
-def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
-    api_key = get_groq_api_key()
-    candidates = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "qwen/qwen3.6-27b",
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
-    ]
+def calculate_backoff_delay(
+    attempt: int,
+    retry_after: float = 0.0,
+    base_delay: float = 2.0,
+    max_delay: float = 60.0,
+    jitter_range: tuple = (0.5, 1.5),
+) -> float:
+    exponential_delay = base_delay * (2 ** max(0, attempt - 1))
+    effective_delay = max(retry_after, exponential_delay)
+    jitter = random.uniform(jitter_range[0], jitter_range[1])
+    return min(effective_delay + jitter, max_delay)
+
+
+def get_candidate_models() -> list:
+    global ACTIVE_MODEL_CANDIDATES
+    candidates = list(ACTIVE_MODEL_CANDIDATES)
     try:
         available_models = get_available_models()
-        filtered_candidates = [candidate for candidate in candidates if candidate in available_models]
+        filtered_candidates = [model for model in candidates if model in available_models]
         if filtered_candidates:
-            candidates = filtered_candidates
+            return filtered_candidates
     except requests.RequestException as exc:
         print(f"無法列舉 Groq 可用模型清單：{exc}，直接依序嘗試備援候選模型。")
+    return candidates
+
+
+def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
+    global ACTIVE_MODEL_CANDIDATES
+    api_key = get_groq_api_key()
+    candidates = get_candidate_models()
 
     attempted_models = []
     error_details = []
@@ -315,21 +339,29 @@ def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
                 )
                 if response.ok:
                     print(f"使用 Groq 模型：{model_name}")
+                    # 自適應調度：將運作成功的模型提升為第一優先順位
+                    if model_name in ACTIVE_MODEL_CANDIDATES:
+                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                        ACTIVE_MODEL_CANDIDATES.insert(0, model_name)
                     return response.json()["choices"][0]["message"]["content"]
 
                 status_code = response.status_code
                 reason_msg = f"HTTP {status_code}: {response.text[:300]}"
                 error_details.append((model_name, reason_msg))
 
-                # 處理 429 速率限制退避重試
+                # 處理 429 速率限制指數退避重試
                 if status_code == 429:
-                    wait_seconds = parse_retry_after(response) + 1.0
-                    wait_seconds = min(max(wait_seconds, 2.0), 60.0)
+                    raw_retry_after = parse_retry_after(response)
+                    wait_seconds = calculate_backoff_delay(attempt, raw_retry_after)
                     if attempt < max_retries_per_model:
-                        print(f"模型 {model_name} 達到速率限制 (429)，等待 {wait_seconds:.1f} 秒後重試（第 {attempt}/{max_retries_per_model} 次）...")
+                        print(f"模型 {model_name} 達到速率限制 (429)，指數退避等待 {wait_seconds:.1f} 秒後重試（第 {attempt}/{max_retries_per_model} 次）...")
                         time.sleep(wait_seconds)
                         continue
-                    print(f"模型 {model_name} 達到重試上限，切換下一個備援模型。")
+
+                    print(f"模型 {model_name} 達到重試上限且額度已滿，降級至備援清單尾端並切換下一個模型。")
+                    if model_name in ACTIVE_MODEL_CANDIDATES:
+                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                        ACTIVE_MODEL_CANDIDATES.append(model_name)
                     break
 
                 # 處理 400 JSON 模式校驗失敗：降級為一般文字模式重試
@@ -345,7 +377,8 @@ def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
                 error_details.append((model_name, str(exc)))
                 print(f"模型 {model_name} 連線異常：{exc}")
                 if attempt < max_retries_per_model:
-                    time.sleep(2.0)
+                    wait_seconds = calculate_backoff_delay(attempt, 2.0)
+                    time.sleep(wait_seconds)
                     continue
                 break
 
