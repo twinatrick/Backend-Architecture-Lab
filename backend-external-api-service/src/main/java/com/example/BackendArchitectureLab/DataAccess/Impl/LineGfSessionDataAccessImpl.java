@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.ILineGfSessionDataAccess;
 import com.example.BackendArchitectureLab.Entity.LineGfSession;
 import com.example.BackendArchitectureLab.Repository.LineGfSessionRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -13,10 +13,10 @@ import java.util.Optional;
  * 委派 LineGfSessionRepository 執行資料存取。
  */
 @Component
+@RequiredArgsConstructor
 public class LineGfSessionDataAccessImpl implements ILineGfSessionDataAccess {
 
-    @Autowired
-    private LineGfSessionRepository lineGfSessionRepository;
+    private final LineGfSessionRepository lineGfSessionRepository;
 
     @Override
     public Optional<LineGfSession> findByUserId(String userId) {

@@ -25,8 +25,7 @@ class VoiceTranslationDataAccessImplTest {
 
     @BeforeEach
     void setUp() {
-        dataAccess = new VoiceTranslationDataAccessImpl();
-        ReflectionTestUtils.setField(dataAccess, "voiceTranslationRepository", voiceTranslationRepository);
+        dataAccess = new VoiceTranslationDataAccessImpl(voiceTranslationRepository);
     }
 
     @Test

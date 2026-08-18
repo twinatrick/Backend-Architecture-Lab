@@ -6,7 +6,7 @@ import com.example.BackendArchitectureLab.Service.ILearnService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import io.swagger.v3.oas.annotations.Parameter;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -15,10 +15,10 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/stt")
 @ApiControllerTag(name = "Speech To Text Provider", description = "指定 STT Provider 的語音辨識端點")
+@RequiredArgsConstructor
 public class SttController {
 
-    @Autowired
-    private ILearnService learnService;
+    private final ILearnService learnService;
 
     @Value("${stt.providers.whisper.enabled:true}")
     private boolean whisperEnabled;

@@ -8,7 +8,7 @@ import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
@@ -20,14 +20,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class AquarkDataQueryService implements IAquarkDataQueryService {
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-
-    @Autowired
-    private IAquarkDataDataAccess aquarkDataDataAccess;
-    @Autowired
-    private AquarkDataMapper aquarkDataMapper;
+    private final TransactionExecutor transactionExecutor;
+    private final IAquarkDataDataAccess aquarkDataDataAccess;
+    private final AquarkDataMapper aquarkDataMapper;
 
     @Override
     public List<AquarkDataRaw> getAquarkData() {

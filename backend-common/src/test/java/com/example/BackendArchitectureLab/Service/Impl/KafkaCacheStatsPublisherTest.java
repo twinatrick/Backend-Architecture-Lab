@@ -21,8 +21,7 @@ class KafkaCacheStatsPublisherTest {
 
     @BeforeEach
     void setUp() {
-        publisher = new KafkaCacheStatsPublisher();
-        ReflectionTestUtils.setField(publisher, "kafkaTemplate", kafkaTemplate);
+        publisher = new KafkaCacheStatsPublisher(kafkaTemplate);
     }
 
     @Test

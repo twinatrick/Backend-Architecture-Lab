@@ -11,7 +11,7 @@ import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.context.annotation.Lazy;
@@ -24,24 +24,18 @@ import java.util.UUID;
  * ProjectCommandService - 專案寫入業務邏輯服務
  */
 @Service
+@RequiredArgsConstructor
 public class ProjectCommandService implements IProjectCommandService {
 
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
-    @Autowired
-    private IProjectSkillDataAccess projectSkillDataAccess;
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-    @Autowired
-    private SecurityUtil securityUtil;
-    @Autowired
-    private ProjectMapper projectMapper;
-    @Autowired
-    private IProjectUserBindingService projectUserBindingService;
+    private final IProjectDataAccess projectDataAccess;
+    private final IProjectSkillDataAccess projectSkillDataAccess;
+    private final IUserProjectDataAccess userProjectDataAccess;
+    private final SecurityUtil securityUtil;
+    private final ProjectMapper projectMapper;
+    private final IProjectUserBindingService projectUserBindingService;
 
-    @Autowired
     @Lazy
-    private ProjectCommandService self;
+    private final ProjectCommandService self;
 
     /**
      * 新增專案

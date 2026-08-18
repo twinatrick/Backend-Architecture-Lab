@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,10 +12,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/ai/inner")
+@RequiredArgsConstructor
 public class AiInternalController {
 
-    @Autowired
-    private IAiService aiService;
+    private final IAiService aiService;
 
     @PostMapping("/analyze-jobs")
     public List<AiJobPostingVo> analyzeJobPostings(@RequestParam("companyName") String companyName,

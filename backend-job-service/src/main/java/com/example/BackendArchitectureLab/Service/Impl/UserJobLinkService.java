@@ -11,8 +11,8 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -27,22 +27,17 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class UserJobLinkService implements IUserJobLinkService {
 
-    @Autowired
-    private IUserJobLinkDataAccess userJobLinkDataAccess;
-    @Autowired
-    private IJobPostingDataAccess jobPostingDataAccess;
-    @Autowired
-    private UserJobLinkMapper userJobLinkMapper;
-    @Autowired
-    private CacheManager cacheManager;
-    @Autowired
-    private UserServiceFeignClient userServiceFeignClient;
+    private final IUserJobLinkDataAccess userJobLinkDataAccess;
+    private final IJobPostingDataAccess jobPostingDataAccess;
+    private final UserJobLinkMapper userJobLinkMapper;
+    private final CacheManager cacheManager;
+    private final UserServiceFeignClient userServiceFeignClient;
 
     @Lazy
-    @Autowired
-    private IUserJobLinkService self;
+    private final IUserJobLinkService self;
 
     @Override
     @Transactional

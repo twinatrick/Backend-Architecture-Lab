@@ -30,16 +30,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * 4. 不加載完整的 ApplicationContext,速度更快
  */
 @DataJpaTest
-@Import(ProjectDataAccessImpl.class)
 @ActiveProfiles("test")
 @DisplayName("ProjectDataAccessImpl 集成測試")
 class ProjectDataAccessImplTest {
     
+    private final ProjectRepository projectRepository;
+    private final IProjectDataAccess projectDataAccess;
+
     @Autowired
-    private ProjectRepository projectRepository;
-    
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
+    public ProjectDataAccessImplTest(ProjectRepository projectRepository) {
+        this.projectRepository = projectRepository;
+        this.projectDataAccess = new ProjectDataAccessImpl(projectRepository);
+    }
     
     @BeforeEach
     void setUp() {

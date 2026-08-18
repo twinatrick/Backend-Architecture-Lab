@@ -9,8 +9,8 @@ import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,15 +24,13 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CompensationOutboxServiceImpl implements ICompensationOutboxService {
 
     private static final int EVENT_VERSION = 1;
 
-    @Autowired
-    private ICompensationOutboxEventDataAccess outboxRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ICompensationOutboxEventDataAccess outboxRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void enqueueTransactionStarted(UUID transactionId, CompensationAction action, Map<String, Object> state) {

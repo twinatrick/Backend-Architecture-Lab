@@ -2,9 +2,9 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -13,18 +13,15 @@ import java.util.List;
 @Slf4j
 @Primary
 @Service
+@RequiredArgsConstructor
 public class CompositeAiService implements IAiService {
 
     private static final int MAX_TEXT_LENGTH = 30000;
 
-    @Autowired
-    private GeminiService geminiService;
-    @Autowired
-    private GroqService groqService;
-    @Autowired
-    private DeepSeekService deepSeekService;
-    @Autowired
-    private GitHubModelsService gitHubModelsService;
+    private final GeminiService geminiService;
+    private final GroqService groqService;
+    private final DeepSeekService deepSeekService;
+    private final GitHubModelsService gitHubModelsService;
 
     @Override
     public List<AiJobPostingVo> analyzeJobPostings(String companyName, String htmlContent) {

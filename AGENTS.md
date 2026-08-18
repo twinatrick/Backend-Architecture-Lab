@@ -37,7 +37,7 @@
 - **Generators**: 專案大量使用 MapStruct 與 Lombok，Maven 已設定對應的 Annotation Processors。
 - **Package Quirks**: 請遵守現有的 Package 命名與大小寫慣例：
   - 首字母大寫: `Aop`, `Vo`, `Entity`, `Repository`, `Service`, `Timer`, `Util`, `WebSocket`,`Annotation`, `Config`, `Controller`, `Dataaccess`, `Exception`, `Filter`, `Mapper`
-- **Dependency Injection**: 專案使用 **Field injection**（`@Autowired` 直接寫在欄位上）作為預設注入方式。
+- **Dependency Injection**: 專案全面採用 **建構子注入 (Constructor Injection)** 作為預設注入方式，統一透過 Lombok 的 `@RequiredArgsConstructor` 搭配 `private final` 欄位宣告依賴，**嚴禁**在生產程式碼中使用 `@Autowired` 進行欄位注入（除 `@Autowired(required = false)` 等特殊可選注入或 Spring Test 測試類別外）。
 - **Service 層與 Mapper 使用規範 (重要)**：
   - Mapper 僅可在 Service Impl 層中使用，Controller **嚴禁**注入或呼叫 Mapper
   - Service 介面方法簽名必須回傳 Vo（如 `UserVo`、`BotConfigVo`），嚴禁回傳 Entity

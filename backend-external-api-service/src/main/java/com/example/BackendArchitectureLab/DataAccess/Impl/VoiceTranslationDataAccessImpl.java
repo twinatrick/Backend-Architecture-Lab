@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.IVoiceTranslationDataAccess;
 import com.example.BackendArchitectureLab.Entity.VoiceTranslation;
 import com.example.BackendArchitectureLab.Repository.VoiceTranslationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -14,10 +14,10 @@ import java.util.UUID;
  * 委派 VoiceTranslationRepository 執行資料存取。
  */
 @Component
+@RequiredArgsConstructor
 public class VoiceTranslationDataAccessImpl implements IVoiceTranslationDataAccess {
 
-    @Autowired
-    private VoiceTranslationRepository voiceTranslationRepository;
+    private final VoiceTranslationRepository voiceTranslationRepository;
 
     @Override
     public VoiceTranslation save(VoiceTranslation entity) {

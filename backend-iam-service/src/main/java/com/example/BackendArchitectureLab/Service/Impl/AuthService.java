@@ -15,7 +15,7 @@ import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.SignupRequest;
 import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,20 +27,15 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService implements IAuthService {
 
-    @Autowired
-    private IUserDataAccess userDataAccess;
-    @Autowired
-    private IFunctionDataAccess functionDataAccess;
-    @Autowired
-    private IUserService userService;
-    @Autowired
-    private IRoleService roleService;
-    @Autowired
-    private UserMapper userMapper;
-    @Autowired
-    private FunctionMapper functionMapper;
+    private final IUserDataAccess userDataAccess;
+    private final IFunctionDataAccess functionDataAccess;
+    private final IUserService userService;
+    private final IRoleService roleService;
+    private final UserMapper userMapper;
+    private final FunctionMapper functionMapper;
 
     @Value("${superuser.key}")
     private String superUserKey;

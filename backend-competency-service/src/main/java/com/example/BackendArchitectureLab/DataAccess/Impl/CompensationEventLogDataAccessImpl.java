@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.Repository.CompensationEventLogRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -15,10 +15,10 @@ import java.util.UUID;
  * CompensationEventLogDataAccessImpl - ICompensationEventLogDataAccess 實作（薄委派 CompensationEventLogRepository）。
  */
 @Component
+@RequiredArgsConstructor
 public class CompensationEventLogDataAccessImpl implements ICompensationEventLogDataAccess {
 
-    @Autowired
-    private CompensationEventLogRepository repository;
+    private final CompensationEventLogRepository repository;
 
     @Override
     public CompensationEventLog save(CompensationEventLog entity) {

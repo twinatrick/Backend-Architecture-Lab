@@ -50,14 +50,18 @@ class ExternalSyncWorkerTest {
     @Mock
     private IExternalSyncCommandService externalSyncCommandService;
 
-    @InjectMocks
     private ExternalSyncWorker externalSyncWorker;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(externalSyncWorker, "objectMapper", objectMapper);
+        externalSyncWorker = new ExternalSyncWorker(
+                commandRepository,
+                externalSyncService,
+                objectMapper,
+                externalSyncCommandService
+        );
         ReflectionTestUtils.setField(externalSyncWorker, "maxAttempts", 5);
         ReflectionTestUtils.setField(externalSyncWorker, "leaseSeconds", 300L);
         ReflectionTestUtils.setField(externalSyncWorker, "batchSize", 20);

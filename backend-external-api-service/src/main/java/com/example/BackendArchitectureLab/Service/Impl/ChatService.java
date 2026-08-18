@@ -5,20 +5,18 @@ import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.IChatService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class ChatService implements IChatService {
 
-    @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
+    private final AiPyServiceFeignClient aiPyServiceFeignClient;
+    private final IUsageTrackService usageTrackService;
 
     @Override
     public ChatResponseVo chat(List<Map<String, String>> messages, Double temperature) {

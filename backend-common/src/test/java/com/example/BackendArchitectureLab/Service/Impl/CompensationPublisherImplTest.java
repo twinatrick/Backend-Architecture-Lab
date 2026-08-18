@@ -42,8 +42,7 @@ class CompensationPublisherImplTest {
 
     @BeforeEach
     void setUp() {
-        publisher = new CompensationPublisherImpl();
-        ReflectionTestUtils.setField(publisher, "compensationKafkaTemplate", compensationKafkaTemplate);
+        publisher = new CompensationPublisherImpl(compensationKafkaTemplate);
 
         Logger logger = (Logger) LoggerFactory.getLogger(CompensationPublisherImpl.class);
         logAppender = new ListAppender<>();

@@ -19,6 +19,10 @@ class BaseOpenAiServiceTest {
         private String apiUrl = "https://api.test.com/v1/chat/completions";
         private String modelName = "test-model";
 
+        TestBaseOpenAiService() {
+            super(null, new Gson());
+        }
+
         @Override
         protected String getApiKey() { return apiKey; }
         @Override
@@ -35,7 +39,6 @@ class BaseOpenAiServiceTest {
     @BeforeEach
     void setUp() {
         service = new TestBaseOpenAiService();
-        service.gson = new Gson();
     }
 
     private static String buildApiResponse(String content) {

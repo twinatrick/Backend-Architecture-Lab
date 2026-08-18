@@ -1,7 +1,9 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
+import com.google.gson.Gson;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 public class GroqService extends BaseOpenAiService {
@@ -14,6 +16,10 @@ public class GroqService extends BaseOpenAiService {
 
     @Value("${groq.api.model}")
     private String model;
+
+    public GroqService(RestTemplate restTemplate, Gson gson) {
+        super(restTemplate, gson);
+    }
 
     @Override
     protected String getApiKey() {

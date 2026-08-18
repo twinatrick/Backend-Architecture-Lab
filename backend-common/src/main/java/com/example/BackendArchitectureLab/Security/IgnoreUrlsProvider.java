@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Security;
 
 import com.example.BackendArchitectureLab.Annotation.Ignore;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
@@ -15,11 +15,11 @@ import java.util.Map;
 import java.util.Set;
 
 @Component
+@RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class IgnoreUrlsProvider implements InitializingBean {
 
-    @Autowired
-    private ApplicationContext applicationContext;
+    private final ApplicationContext applicationContext;
     private final Set<String> ignoredUrls = new HashSet<>();
 
     @Override

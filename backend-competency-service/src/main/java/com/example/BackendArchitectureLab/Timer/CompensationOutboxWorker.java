@@ -7,8 +7,8 @@ import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -36,6 +36,7 @@ import java.util.concurrent.TimeoutException;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CompensationOutboxWorker {
 
     private static final long[] DEFAULT_BACKOFF_SECONDS = {5L, 15L, 30L, 60L, 300L};
@@ -58,17 +59,10 @@ public class CompensationOutboxWorker {
     @Value("${compensation.outbox.publish-parallelism:4}")
     private int publishParallelism;
 
-    @Autowired
-    private ICompensationOutboxEventDataAccess outboxRepository;
-
-    @Autowired
-    private ICompensationPublisher compensationPublisher;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private ExecutorService compensationOutboxPublisherPool;
+    private final ICompensationOutboxEventDataAccess outboxRepository;
+    private final ICompensationPublisher compensationPublisher;
+    private final ObjectMapper objectMapper;
+    private final ExecutorService compensationOutboxPublisherPool;
 
     /**
      * 啟動時驗證租約組態不變式：

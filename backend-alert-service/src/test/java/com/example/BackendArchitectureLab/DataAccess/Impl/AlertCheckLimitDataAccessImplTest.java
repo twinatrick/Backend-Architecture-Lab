@@ -9,7 +9,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -22,15 +21,17 @@ import static org.junit.jupiter.api.Assertions.*;
  * Uses in-memory H2 database for testing.
  */
 @DataJpaTest
-@Import(AlertCheckLimitDataAccessImpl.class)
 @ActiveProfiles("test")
 class AlertCheckLimitDataAccessImplTest {
 
-    @Autowired
-    private AlertCheckLimitRepository alertCheckLimitRepository;
+    private final AlertCheckLimitRepository alertCheckLimitRepository;
+    private final IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
 
     @Autowired
-    private IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
+    public AlertCheckLimitDataAccessImplTest(AlertCheckLimitRepository alertCheckLimitRepository) {
+        this.alertCheckLimitRepository = alertCheckLimitRepository;
+        this.alertCheckLimitDataAccess = new AlertCheckLimitDataAccessImpl(alertCheckLimitRepository);
+    }
 
     @BeforeEach
     void setUp() {

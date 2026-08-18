@@ -11,7 +11,7 @@ import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreValidatorService;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,21 +28,15 @@ import java.util.stream.Collectors;
  * 不含交易或資料變更，僅提供唯讀驗證與解析，供 CompensationRestoreService 於破壞性操作前呼叫。
  */
 @Service
+@RequiredArgsConstructor
 public class CompensationRestoreValidatorService implements ICompensationRestoreValidatorService {
 
     public static final int MAX_BINDINGS = 1000;
 
-    @Autowired
-    private IUserProjectSkillDataAccess userProjectSkillDataAccess;
-
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-
-    @Autowired
-    private ISkillDataAccess skillDataAccess;
-
-    @Autowired
-    private ISkillLevelDataAccess skillLevelDataAccess;
+    private final IUserProjectSkillDataAccess userProjectSkillDataAccess;
+    private final IUserProjectDataAccess userProjectDataAccess;
+    private final ISkillDataAccess skillDataAccess;
+    private final ISkillLevelDataAccess skillLevelDataAccess;
 
     @Override
     public boolean isBindingsAlreadyRestored(UUID projectId, List<BindingSnapshot> bindings) {

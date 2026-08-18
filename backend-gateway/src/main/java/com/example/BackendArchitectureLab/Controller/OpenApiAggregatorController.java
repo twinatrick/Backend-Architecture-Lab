@@ -6,9 +6,9 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.info.Info;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
+@RequiredArgsConstructor
 public class OpenApiAggregatorController {
 
     private static final Map<String, String> SERVICE_PATHS = Map.of(
@@ -45,8 +46,7 @@ public class OpenApiAggregatorController {
     private static final Logger log = LoggerFactory.getLogger(OpenApiAggregatorController.class);
     private static final ObjectMapper swaggerMapper = Json.mapper();
 
-    @Autowired
-    private DiscoveryClient discoveryClient;
+    private final DiscoveryClient discoveryClient;
     private final WebClient webClient = WebClient.create();
 
     @GetMapping(value = "/v3/api-docs-merged", produces = MediaType.APPLICATION_JSON_VALUE)

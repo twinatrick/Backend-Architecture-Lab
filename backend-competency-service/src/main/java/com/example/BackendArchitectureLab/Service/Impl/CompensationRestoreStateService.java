@@ -2,8 +2,8 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ICompensationRestoreLogDataAccess;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreStateService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -21,14 +21,13 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CompensationRestoreStateService implements ICompensationRestoreStateService {
 
-    @Autowired
-    private ICompensationRestoreLogDataAccess restoreLogRepository;
+    private final ICompensationRestoreLogDataAccess restoreLogRepository;
 
-    @Autowired
     @Lazy
-    private CompensationRestoreStateService self;
+    private final CompensationRestoreStateService self;
 
     @Override
     @Transactional
@@ -50,6 +49,10 @@ public class CompensationRestoreStateService implements ICompensationRestoreStat
         }
     }
 
+    private CompensationRestoreStateService getSelf() {
+        return self != null ? self : this;
+    }
+
     @Override
     public void scheduleMarkRestoreFailed(UUID eventId, String ownerId, Long fencingVersion, Exception e) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -58,13 +61,13 @@ public class CompensationRestoreStateService implements ICompensationRestoreStat
                 @Override
                 public void afterCompletion(int status) {
                     if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                        self.markRestoreFailed(eventId, ownerId, fencingVersion, reason);
+                        getSelf().markRestoreFailed(eventId, ownerId, fencingVersion, reason);
                     }
                 }
             });
         } else {
             // 非交易環境（如單元測試直接呼叫）下無同步機制可用，直接標記 FAILED
-            self.markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
+            getSelf().markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
         }
     }
 }

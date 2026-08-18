@@ -1,9 +1,11 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
+import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -16,7 +18,7 @@ class GitHubModelsServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new GitHubModelsService();
+        service = new GitHubModelsService(new RestTemplate(), new Gson());
         setField(service, "apiKey", "gh-test-key");
         setField(service, "apiUrl", "https://models.inference.ai.azure.com/chat/completions");
         setField(service, "model", "gpt-4o");

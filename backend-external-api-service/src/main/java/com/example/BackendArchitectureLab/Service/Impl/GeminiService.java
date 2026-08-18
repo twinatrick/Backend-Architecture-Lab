@@ -6,8 +6,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +26,7 @@ import java.util.Map;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class GeminiService implements IAiService {
 
     private static final int MAX_RETRIES = 2;
@@ -43,10 +44,8 @@ public class GeminiService implements IAiService {
             "4. 所有欄位內容請以繁體中文填寫。\n" +
             "5. 範例：[{\"title\":\"軟體工程師\",\"url\":\"https://...\",\"description\":\"開發後端服務\",\"requirements\":\"熟悉Java\",\"responsibilities\":\"API開發\",\"salaryRange\":\"面議\"}]";
 
-    @Autowired
-    private RestTemplate restTemplate;
-    @Autowired
-    private Gson gson;
+    private final RestTemplate restTemplate;
+    private final Gson gson;
 
     @Value("${gemini.api.key}")
     private String apiKey;

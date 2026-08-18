@@ -1,8 +1,10 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
+import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.Field;
 
@@ -14,7 +16,7 @@ class GroqServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new GroqService();
+        service = new GroqService(new RestTemplate(), new Gson());
         setField(service, "apiKey", "groq-test-key");
         setField(service, "apiUrl", "https://api.groq.com/openai/v1/chat/completions");
         setField(service, "model", "llama3-70b-8192");

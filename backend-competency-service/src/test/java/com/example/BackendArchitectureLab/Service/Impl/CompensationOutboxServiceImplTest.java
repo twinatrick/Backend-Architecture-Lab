@@ -29,14 +29,13 @@ class CompensationOutboxServiceImplTest {
     @Mock
     private ICompensationOutboxEventDataAccess outboxRepository;
 
-    @InjectMocks
     private CompensationOutboxServiceImpl compensationOutboxService;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(compensationOutboxService, "objectMapper", objectMapper);
+        compensationOutboxService = new CompensationOutboxServiceImpl(outboxRepository, objectMapper);
     }
 
     @Test

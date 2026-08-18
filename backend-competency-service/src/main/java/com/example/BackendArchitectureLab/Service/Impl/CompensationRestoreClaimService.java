@@ -7,9 +7,9 @@ import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -30,13 +30,11 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CompensationRestoreClaimService implements ICompensationRestoreClaimService {
 
-    @Autowired
-    private ICompensationRestoreLogDataAccess restoreLogRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ICompensationRestoreLogDataAccess restoreLogRepository;
+    private final ObjectMapper objectMapper;
 
     @Value("${compensation.restore.lease-seconds:300}")
     private long restoreLeaseSeconds;

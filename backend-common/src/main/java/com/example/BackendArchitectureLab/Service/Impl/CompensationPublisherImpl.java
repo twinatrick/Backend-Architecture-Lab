@@ -2,8 +2,8 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Service.ICompensationPublisher;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -17,14 +17,14 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
 @ConditionalOnBean(name = "compensationKafkaTemplate")
 public class CompensationPublisherImpl implements ICompensationPublisher {
 
     private static final String TOPIC = "transaction-compensation";
 
-    @Autowired
-    private KafkaTemplate<String, CompensationEvent> compensationKafkaTemplate;
+    private final KafkaTemplate<String, CompensationEvent> compensationKafkaTemplate;
 
     @Override
     public CompletableFuture<Void> publish(CompensationEvent event) {

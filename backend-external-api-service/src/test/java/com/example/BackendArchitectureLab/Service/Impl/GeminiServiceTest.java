@@ -1,11 +1,12 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
 import com.example.BackendArchitectureLab.Service.IAiService;
+import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -19,8 +20,7 @@ class GeminiServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new GeminiService();
-        setField(service, "gson", new Gson());
+        service = new GeminiService(new RestTemplate(), new Gson());
         setField(service, "apiKey", "gemini-test-key");
         setField(service, "apiUrl", "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent");
     }

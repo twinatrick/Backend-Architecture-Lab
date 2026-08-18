@@ -7,9 +7,9 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,15 +22,14 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/user/bindings/job")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "User Job Bindings", description = "使用者職缺綁定自助服務相關 API")
 public class UserJobBindingController {
 
     private static final Logger log = LoggerFactory.getLogger(UserJobBindingController.class);
 
-    @Autowired
-    private IUserJobLinkService userJobLinkService;
-    @Autowired
-    private SecurityUtil securityUtil;
+    private final IUserJobLinkService userJobLinkService;
+    private final SecurityUtil securityUtil;
 
     @PostMapping("/add/{jobPostingId}")
     @ApiOperationBadRequest(summary = "綁定職缺", description = "當前使用者綁定一筆職缺。")

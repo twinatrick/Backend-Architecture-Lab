@@ -9,8 +9,8 @@ import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,19 +25,15 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ExternalSyncCommandServiceImpl implements IExternalSyncCommandService {
 
     @Value("${external-sync.enabled:false}")
     private boolean syncEnabled;
 
-    @Autowired
-    private IExternalSyncCommandDataAccess commandRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private ICompensationOutboxService compensationOutboxService;
+    private final IExternalSyncCommandDataAccess commandRepository;
+    private final ObjectMapper objectMapper;
+    private final ICompensationOutboxService compensationOutboxService;
 
     @Override
     public boolean isEnabled() {

@@ -4,8 +4,8 @@ import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
 import com.example.BackendArchitectureLab.Service.CompensationEventProcessor;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -29,13 +29,11 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CompensationLeaseReclaimer {
 
-    @Autowired
-    private ICompensationEventLogDataAccess eventLogRepository;
-
-    @Autowired
-    private CompensationEventProcessor compensationEventProcessor;
+    private final ICompensationEventLogDataAccess eventLogRepository;
+    private final CompensationEventProcessor compensationEventProcessor;
 
     @Value("${compensation.consumer.lease-seconds:300}")
     private long leaseSeconds;

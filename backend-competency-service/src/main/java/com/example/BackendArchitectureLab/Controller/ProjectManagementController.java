@@ -9,7 +9,7 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
 import com.example.BackendArchitectureLab.Vo.ProjectSkillBindRequest;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,12 +20,11 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/project")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Project Management", description = "專案管理（管理層）相關 API")
 public class ProjectManagementController {
-    @Autowired
-    private IProjectUserBindingService projectUserBindingService;
-    @Autowired
-    private ISkillService skillService;
+    private final IProjectUserBindingService projectUserBindingService;
+    private final ISkillService skillService;
 
     @PostMapping("/bindSkill")
     @Deprecated

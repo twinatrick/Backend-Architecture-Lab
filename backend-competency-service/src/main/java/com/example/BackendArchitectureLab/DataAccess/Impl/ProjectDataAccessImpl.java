@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Repository.ProjectRepository;
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.DataAccess.specification.ProjectSpecification;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,10 +21,10 @@ import java.util.UUID;
  * 封裝 Project 相關的數據庫操作,內部使用 JPA Repository
  */
 @Component
+@RequiredArgsConstructor
 public class ProjectDataAccessImpl implements IProjectDataAccess {
     
-    @Autowired
-    private ProjectRepository projectRepository;
+    private final ProjectRepository projectRepository;
     
     @Override
     public Project save(Project project) {

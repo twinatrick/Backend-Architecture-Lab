@@ -13,7 +13,7 @@ import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -25,6 +25,7 @@ import java.util.UUID;
  * ProjectQueryService - 專案查詢業務邏輯服務
  */
 @Service
+@RequiredArgsConstructor
 public class ProjectQueryService implements IProjectQueryService {
 
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
@@ -32,16 +33,11 @@ public class ProjectQueryService implements IProjectQueryService {
             "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-    @Autowired
-    private SecurityUtil securityUtil;
-    @Autowired
-    private ProjectMapper projectMapper;
+    private final TransactionExecutor transactionExecutor;
+    private final IProjectDataAccess projectDataAccess;
+    private final IUserProjectDataAccess userProjectDataAccess;
+    private final SecurityUtil securityUtil;
+    private final ProjectMapper projectMapper;
 
     /**
      * 查詢所有專案

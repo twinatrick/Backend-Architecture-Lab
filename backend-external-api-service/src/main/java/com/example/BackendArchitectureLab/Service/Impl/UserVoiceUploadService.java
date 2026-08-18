@@ -14,10 +14,11 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.VoiceUploadSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVoiceUploadVo;
 import com.example.BackendArchitectureLab.Vo.VoiceTranslationVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,35 +32,22 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class UserVoiceUploadService implements IUserVoiceUploadService {
 
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
             "id", "fileName", "fileSize", "duration", "status", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private IUserVoiceUploadDataAccess userVoiceUploadDataAccess;
-
-    @Autowired
-    private IVoiceTranslationDataAccess voiceTranslationDataAccess;
-
-    @Autowired
-    private UserVoiceUploadMapper uploadMapper;
-
-    @Autowired
-    private VoiceTranslationMapper translationMapper;
-
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-
-    @Autowired
-    private CacheManager cacheManager;
-
-    @Autowired
-    private IUserVoiceUploadService self;
+    private final IUserVoiceUploadDataAccess userVoiceUploadDataAccess;
+    private final IVoiceTranslationDataAccess voiceTranslationDataAccess;
+    private final UserVoiceUploadMapper uploadMapper;
+    private final VoiceTranslationMapper translationMapper;
+    private final TransactionExecutor transactionExecutor;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final CacheManager cacheManager;
+    @Lazy
+    private final IUserVoiceUploadService self;
 
     @Override
     @Transactional

@@ -23,7 +23,7 @@ import com.linecorp.bot.client.MessageContentResponse;
 import com.linecorp.bot.model.ReplyMessage;
 import com.linecorp.bot.model.message.AudioMessage;
 import com.linecorp.bot.model.message.TextMessage;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -35,39 +35,23 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class LineGfService implements ILineGfService {
 
-    @Autowired
     @Qualifier("gfLineMessagingClient")
-    private LineMessagingClient messagingClient;
-
-    @Autowired
+    private final LineMessagingClient messagingClient;
     @Qualifier("gfLineBlobClient")
-    private LineBlobClient blobClient;
-
-    @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
-
-    @Autowired
-    private ITtsService ttsService;
-
-    @Autowired
-    private ISttService sttService;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
-
-    @Autowired
-    private ILineGfSessionDataAccess sessionDataAccess;
-
-    @Autowired
-    private GfSessionMapper gfSessionMapper;
+    private final LineBlobClient blobClient;
+    private final AiPyServiceFeignClient aiPyServiceFeignClient;
+    private final ITtsService ttsService;
+    private final ISttService sttService;
+    private final IUsageTrackService usageTrackService;
+    private final ILineGfSessionDataAccess sessionDataAccess;
+    private final GfSessionMapper gfSessionMapper;
+    private final ObjectMapper objectMapper;
 
     @Value("${OUT_URL:}")
     private String outUrl;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Override
     public void handleText(String replyToken, String text, String userId) {

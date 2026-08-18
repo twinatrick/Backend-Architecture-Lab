@@ -62,22 +62,21 @@ class CompensationEventProcessorTest {
     void setUp() {
         eventId = UUID.randomUUID();
 
-        CompensationPayloadService payloadService = new CompensationPayloadService();
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
-        ReflectionTestUtils.setField(payloadService, "objectMapper", mapper);
+        CompensationPayloadService payloadService = new CompensationPayloadService(mapper);
 
-        CompensationStateService stateService = new CompensationStateService();
-        ReflectionTestUtils.setField(stateService, "eventLogRepository", eventLogRepository);
+        CompensationStateService stateService = new CompensationStateService(eventLogRepository);
         ReflectionTestUtils.setField(stateService, "retryBackoffMs", 60_000L);
 
-        CompensationExecutionService executionService = new CompensationExecutionService();
-        ReflectionTestUtils.setField(executionService, "compensationStrategies", List.of(strategy));
+        CompensationExecutionService executionService = new CompensationExecutionService(List.of(strategy));
 
-        ReflectionTestUtils.setField(compensationEventProcessor, "eventLogRepository", eventLogRepository);
-        ReflectionTestUtils.setField(compensationEventProcessor, "payloadService", payloadService);
-        ReflectionTestUtils.setField(compensationEventProcessor, "stateService", stateService);
-        ReflectionTestUtils.setField(compensationEventProcessor, "executionService", executionService);
+        compensationEventProcessor = new CompensationEventProcessor(
+                eventLogRepository,
+                payloadService,
+                stateService,
+                executionService
+        );
         ReflectionTestUtils.setField(compensationEventProcessor, "leaseSeconds", 300L);
         ReflectionTestUtils.setField(compensationEventProcessor, "maxAttempts", 5);
 

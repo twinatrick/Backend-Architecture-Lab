@@ -4,19 +4,17 @@ import com.example.BackendArchitectureLab.Vo.VoiceDiaryVo;
 import com.example.BackendArchitectureLab.Mapper.VoiceDiaryMapper;
 import com.example.BackendArchitectureLab.Repository.VoiceDiaryRepository;
 import com.example.BackendArchitectureLab.Service.IVoiceDiaryService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class VoiceDiaryService implements IVoiceDiaryService {
 
-    @Autowired
-    private VoiceDiaryRepository voiceDiaryRepository;
-
-    @Autowired
-    private VoiceDiaryMapper voiceDiaryMapper;
+    private final VoiceDiaryRepository voiceDiaryRepository;
+    private final VoiceDiaryMapper voiceDiaryMapper;
 
     @Override
     public List<VoiceDiaryVo> findByUserId(String userId) {

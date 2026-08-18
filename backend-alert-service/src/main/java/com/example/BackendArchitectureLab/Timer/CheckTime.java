@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Timer;
 
 import com.example.BackendArchitectureLab.Service.ICheckApiService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -11,10 +11,10 @@ import java.util.Date;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CheckTime {
 
-    @Autowired
-    private ICheckApiService checkApiService;
+    private final ICheckApiService checkApiService;
 
     @Scheduled(cron = "0 30 * * * *")
     public void runCheckApi() {

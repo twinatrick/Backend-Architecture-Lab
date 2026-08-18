@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ApiUsageLogVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.IApiUsageLogService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,10 +19,10 @@ import java.util.Map;
 @RestController
 @RequestMapping("/external/usage")
 @ApiControllerTag(name = "API Usage", description = "API 使用記錄查詢相關 API")
+@RequiredArgsConstructor
 public class UsageController {
 
-    @Autowired
-    private IApiUsageLogService apiUsageLogService;
+    private final IApiUsageLogService apiUsageLogService;
 
     @GetMapping
     @ApiOperationOk(summary = "依時間區間查詢使用記錄", description = "依開始與結束時間查詢 API 使用記錄，可依服務篩選。")

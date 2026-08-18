@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Service.ITtsRefAudioService;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -12,10 +12,10 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 @Service
+@RequiredArgsConstructor
 public class TtsRefAudioService implements ITtsRefAudioService {
 
-    @Autowired
-    private MinioClient minioClient;
+    private final MinioClient minioClient;
 
     @Value("${minio.bucket}")
     private String bucket;

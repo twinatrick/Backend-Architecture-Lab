@@ -22,18 +22,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(CompanyWebsiteDataAccessImpl.class)
 class CompanyWebsiteDataAccessImplTest {
 
-    @Autowired
-    private CompanyWebsiteRepository companyWebsiteRepository;
-
-    @Autowired
-    private CompanyRepository companyRepository;
-
-    @Autowired
-    private ICompanyWebsiteDataAccess companyWebsiteDataAccess;
+    private final CompanyWebsiteRepository companyWebsiteRepository;
+    private final CompanyRepository companyRepository;
+    private final ICompanyWebsiteDataAccess companyWebsiteDataAccess;
     private Company testCompany;
+
+    @Autowired
+    public CompanyWebsiteDataAccessImplTest(CompanyWebsiteRepository companyWebsiteRepository,
+                                           CompanyRepository companyRepository) {
+        this.companyWebsiteRepository = companyWebsiteRepository;
+        this.companyRepository = companyRepository;
+        this.companyWebsiteDataAccess = new CompanyWebsiteDataAccessImpl(companyWebsiteRepository);
+    }
 
     @BeforeEach
     void setUp() {

@@ -28,17 +28,19 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(SkillLevelDataAccessImpl.class)
 class SkillLevelDataAccessImplTest {
 
-    @Autowired
-    private ISkillLevelDataAccess skillLevelDataAccess;
+    private final ISkillLevelDataAccess skillLevelDataAccess;
+    private final SkillLevelRepository skillLevelRepository;
+    private final SkillRepository skillRepository;
 
     @Autowired
-    private SkillLevelRepository skillLevelRepository;
-
-    @Autowired
-    private SkillRepository skillRepository;
+    public SkillLevelDataAccessImplTest(SkillLevelRepository skillLevelRepository,
+                                        SkillRepository skillRepository) {
+        this.skillLevelRepository = skillLevelRepository;
+        this.skillRepository = skillRepository;
+        this.skillLevelDataAccess = new SkillLevelDataAccessImpl(skillLevelRepository);
+    }
 
     @BeforeEach
     void setUp() {

@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Repository.AlertCheckLimitRepository;
 import com.example.BackendArchitectureLab.DataAccess.IAlertCheckLimitDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.specification.AlertCheckLimitSpecification;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -18,10 +18,10 @@ import java.util.List;
  * Delegates to Spring Data JPA AlertCheckLimitRepository.
  */
 @Component
+@RequiredArgsConstructor
 public class AlertCheckLimitDataAccessImpl implements IAlertCheckLimitDataAccess {
 
-    @Autowired
-    private AlertCheckLimitRepository alertCheckLimitRepository;
+    private final AlertCheckLimitRepository alertCheckLimitRepository;
 
     @Override
     public List<AlertCheckLimit> findAll() {

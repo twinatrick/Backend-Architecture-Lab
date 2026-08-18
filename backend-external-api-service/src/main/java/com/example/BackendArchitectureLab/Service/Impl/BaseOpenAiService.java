@@ -6,8 +6,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@RequiredArgsConstructor
 public abstract class BaseOpenAiService implements IAiService {
 
     protected static final int MAX_RETRIES = 2;
@@ -37,10 +38,8 @@ public abstract class BaseOpenAiService implements IAiService {
             "4. 所有欄位內容請以繁體中文填寫。\n" +
             "5. 範例：[{\"title\":\"軟體工程師\",\"url\":\"https://...\",\"description\":\"開發後端服務\",\"requirements\":\"熟悉Java\",\"responsibilities\":\"API開發\",\"salaryRange\":\"面議\"}]";
 
-    @Autowired
-    protected RestTemplate restTemplate;
-    @Autowired
-    protected Gson gson;
+    protected final RestTemplate restTemplate;
+    protected final Gson gson;
 
     protected abstract String getApiKey();
     protected abstract String getApiUrl();

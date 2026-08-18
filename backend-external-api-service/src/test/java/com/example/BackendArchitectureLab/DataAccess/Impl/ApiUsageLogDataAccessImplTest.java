@@ -25,8 +25,7 @@ class ApiUsageLogDataAccessImplTest {
 
     @BeforeEach
     void setUp() {
-        dataAccess = new ApiUsageLogDataAccessImpl();
-        ReflectionTestUtils.setField(dataAccess, "apiUsageLogRepository", apiUsageLogRepository);
+        dataAccess = new ApiUsageLogDataAccessImpl(apiUsageLogRepository);
     }
 
     @Test

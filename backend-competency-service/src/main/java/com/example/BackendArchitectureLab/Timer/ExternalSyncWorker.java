@@ -8,8 +8,8 @@ import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,6 +32,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ExternalSyncWorker {
 
     private static final long[] DEFAULT_BACKOFF_SECONDS = {5L, 15L, 30L, 60L, 300L};
@@ -51,17 +52,10 @@ public class ExternalSyncWorker {
     @Value("${external-sync.backoff-seconds:5,15,30,60,300}")
     private List<Long> backoffSeconds;
 
-    @Autowired
-    private IExternalSyncCommandDataAccess commandRepository;
-
-    @Autowired
-    private IExternalSyncService externalSyncService;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private IExternalSyncCommandService externalSyncCommandService;
+    private final IExternalSyncCommandDataAccess commandRepository;
+    private final IExternalSyncService externalSyncService;
+    private final ObjectMapper objectMapper;
+    private final IExternalSyncCommandService externalSyncCommandService;
 
     /**
      * 啟動時驗證租約組態不變式：

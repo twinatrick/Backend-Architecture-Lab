@@ -16,8 +16,8 @@ import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -38,26 +38,19 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class JobPostingService implements IJobPostingService {
 
-    @Autowired
-    private IJobPostingDataAccess jobPostingDataAccess;
-    @Autowired
-    private ICompanyDataAccess companyDataAccess;
-    @Autowired
-    private JobPostingMapper jobPostingMapper;
-    @Autowired
-    private CompositeJobCrawler jobCrawler;
-    @Autowired
-    private ExternalApiServiceFeignClient aiServiceFeignClient;
-    @Autowired
-    private CacheManager cacheManager;
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
+    private final IJobPostingDataAccess jobPostingDataAccess;
+    private final ICompanyDataAccess companyDataAccess;
+    private final JobPostingMapper jobPostingMapper;
+    private final CompositeJobCrawler jobCrawler;
+    private final ExternalApiServiceFeignClient aiServiceFeignClient;
+    private final CacheManager cacheManager;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Lazy
-    @Autowired
-    private IJobPostingService self;
+    private final IJobPostingService self;
 
     @Override
     @Transactional

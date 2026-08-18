@@ -2,8 +2,8 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Service.CompensationEventProcessor;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
@@ -13,10 +13,10 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CompensationConsumer {
 
-    @Autowired
-    private CompensationEventProcessor eventProcessor;
+    private final CompensationEventProcessor eventProcessor;
 
     @KafkaListener(topics = "transaction-compensation", containerFactory = "compensationKafkaListenerContainerFactory")
     public void handleCompensation(CompensationEvent event) {

@@ -3,8 +3,8 @@ package com.example.BackendArchitectureLab.Timer;
 import com.example.BackendArchitectureLab.Entity.CompensationOutboxEvent;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationOutboxEventDataAccess;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +19,10 @@ import java.util.List;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CompensationOutboxMonitor {
 
-    @Autowired
-    private ICompensationOutboxEventDataAccess outboxEventRepository;
+    private final ICompensationOutboxEventDataAccess outboxEventRepository;
 
     @Scheduled(fixedDelayString = "${compensation.monitor.interval-ms:60000}")
     @Transactional

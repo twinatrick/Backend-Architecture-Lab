@@ -10,7 +10,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.CacheEvict;
@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
 @Service
+@RequiredArgsConstructor
 public class UserService implements IUserService {
 
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
@@ -34,17 +35,11 @@ public class UserService implements IUserService {
             "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-
-    @Autowired
-    private IUserDataAccess userDataAccess;
-    @Autowired
-    private IRoleService roleService;
-    @Autowired
-    private UserMapper userMapper;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final TransactionExecutor transactionExecutor;
+    private final IUserDataAccess userDataAccess;
+    private final IRoleService roleService;
+    private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
     @Transactional
     @Caching(put = {
         @CachePut(value = "users", key = "#result.id"),

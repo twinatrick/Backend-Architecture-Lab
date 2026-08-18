@@ -1,9 +1,11 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
+import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 
@@ -19,6 +21,10 @@ public class GitHubModelsService extends BaseOpenAiService {
 
     @Value("${github.models.api.model}")
     private String model;
+
+    public GitHubModelsService(RestTemplate restTemplate, Gson gson) {
+        super(restTemplate, gson);
+    }
 
     @Override
     protected String getApiKey() {

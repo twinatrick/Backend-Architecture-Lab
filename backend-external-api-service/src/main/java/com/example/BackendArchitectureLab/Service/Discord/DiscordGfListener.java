@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import lombok.RequiredArgsConstructor;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Webhook;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
@@ -28,7 +29,6 @@ import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.utils.FileUpload;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -42,31 +42,17 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
+@RequiredArgsConstructor
 public class DiscordGfListener extends ListenerAdapter {
 
-    @Autowired
-    private DiscordGfSessionRepository sessionRepository;
-
-    @Autowired
-    private GfSessionMapper gfSessionMapper;
-
-    @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
-
-    @Autowired
-    private MinioClient minioClient;
-
-    @Autowired
-    private ITtsService ttsService;
-
-    @Autowired
-    private ISttService sttService;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final DiscordGfSessionRepository sessionRepository;
+    private final GfSessionMapper gfSessionMapper;
+    private final AiPyServiceFeignClient aiPyServiceFeignClient;
+    private final IUsageTrackService usageTrackService;
+    private final MinioClient minioClient;
+    private final ITtsService ttsService;
+    private final ISttService sttService;
+    private final ObjectMapper objectMapper;
 
     @Value("${minio.bucket}")
     private String bucket;

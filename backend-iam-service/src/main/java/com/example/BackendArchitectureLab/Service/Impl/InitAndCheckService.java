@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Service.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -12,18 +12,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class InitAndCheckService implements IInitAndCheckService {
-    @Autowired
-    private IRoleService roleService;
-
-    @Autowired
-    private IUserService userService;
-
-    @Autowired
-    private IFunctionQueryService functionQueryService;
-
-    @Autowired
-    private IFunctionCommandService functionCommandService;
+    private final IRoleService roleService;
+    private final IUserService userService;
+    private final IFunctionQueryService functionQueryService;
+    private final IFunctionCommandService functionCommandService;
 
     @Override
     public void initAndCheck() {

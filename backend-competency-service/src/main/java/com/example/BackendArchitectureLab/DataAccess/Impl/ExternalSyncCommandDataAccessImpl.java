@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.IExternalSyncCommandDataAccess;
 import com.example.BackendArchitectureLab.Entity.ExternalSyncCommand;
 import com.example.BackendArchitectureLab.Repository.ExternalSyncCommandRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
@@ -16,10 +16,10 @@ import java.util.UUID;
  * ExternalSyncCommandDataAccessImpl - IExternalSyncCommandDataAccess 實作（薄委派 ExternalSyncCommandRepository）。
  */
 @Component
+@RequiredArgsConstructor
 public class ExternalSyncCommandDataAccessImpl implements IExternalSyncCommandDataAccess {
 
-    @Autowired
-    private ExternalSyncCommandRepository repository;
+    private final ExternalSyncCommandRepository repository;
 
     @Override
     public ExternalSyncCommand save(ExternalSyncCommand entity) {

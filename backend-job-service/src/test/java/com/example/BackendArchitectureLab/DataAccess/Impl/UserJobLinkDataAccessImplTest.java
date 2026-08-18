@@ -24,22 +24,24 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(UserJobLinkDataAccessImpl.class)
 class UserJobLinkDataAccessImplTest {
 
-    @Autowired
-    private UserJobLinkRepository userJobLinkRepository;
-
-    @Autowired
-    private JobPostingRepository jobPostingRepository;
-
-    @Autowired
-    private CompanyRepository companyRepository;
-
-    @Autowired
-    private IUserJobLinkDataAccess userJobLinkDataAccess;
+    private final UserJobLinkRepository userJobLinkRepository;
+    private final JobPostingRepository jobPostingRepository;
+    private final CompanyRepository companyRepository;
+    private final IUserJobLinkDataAccess userJobLinkDataAccess;
     private UUID testUserId;
     private JobPosting testJobPosting;
+
+    @Autowired
+    public UserJobLinkDataAccessImplTest(UserJobLinkRepository userJobLinkRepository,
+                                        JobPostingRepository jobPostingRepository,
+                                        CompanyRepository companyRepository) {
+        this.userJobLinkRepository = userJobLinkRepository;
+        this.jobPostingRepository = jobPostingRepository;
+        this.companyRepository = companyRepository;
+        this.userJobLinkDataAccess = new UserJobLinkDataAccessImpl(userJobLinkRepository);
+    }
 
     @BeforeEach
     void setUp() {

@@ -26,7 +26,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserSkillDataAccess;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -52,6 +52,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class SkillService implements ISkillService {
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
             "id", "name", "description", "createdBy", "updatedBy", "createdTime", "updatedTime"
@@ -60,32 +61,20 @@ public class SkillService implements ISkillService {
             "id", "levelValue", "title", "description", "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private ISkillDataAccess skillDataAccess;
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
-    @Autowired
-    private ISkillLevelDataAccess skillLevelDataAccess;
-    @Autowired
-    private IUserSkillDataAccess userSkillDataAccess;
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-    @Autowired
-    private IProjectSkillDataAccess projectSkillDataAccess;
-    @Autowired
-    private SkillMapper skillMapper;
-    @Autowired
-    private CacheManager cacheManager;
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-    @Autowired
-    private SecurityUtil securityUtil;
-    @Autowired
-    private IUserGateway userGateway;
+    private final ISkillDataAccess skillDataAccess;
+    private final IProjectDataAccess projectDataAccess;
+    private final ISkillLevelDataAccess skillLevelDataAccess;
+    private final IUserSkillDataAccess userSkillDataAccess;
+    private final IUserProjectDataAccess userProjectDataAccess;
+    private final IProjectSkillDataAccess projectSkillDataAccess;
+    private final SkillMapper skillMapper;
+    private final CacheManager cacheManager;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final SecurityUtil securityUtil;
+    private final IUserGateway userGateway;
 
-@Lazy
-    @Autowired
-    private SkillService self;
+    @Lazy
+    private final SkillService self;
 
     @Override
     public SkillVo addSkill(SkillVo skillVo) {

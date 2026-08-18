@@ -18,7 +18,7 @@ import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.RoleFunction;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
@@ -42,34 +42,23 @@ import java.util.stream.Collectors;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
 @Service
+@RequiredArgsConstructor
 public class RoleService implements IRoleService {
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
             "id", "name", "description", "permissions",
             "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-
-    @Autowired
-    private IRoleDataAccess roleDataAccess;
-    @Autowired
-    private IRoleFunctionDataAccess roleFunctionDataAccess;
-    @Autowired
-    private IFunctionDataAccess functionDataAccess;
-    @Autowired
-    private IUserDataAccess userDataAccess;
-    @Autowired
-    private IUserRoleDataAccess userRoleDataAccess;
-    @Autowired
-    private RoleMapper roleMapper;
-    @Autowired
-    private FunctionMapper functionMapper;
-    @Autowired
-    private UserMapper userMapper;
-
-    @Autowired
-    private CacheManager cacheManager;
+    private final TransactionExecutor transactionExecutor;
+    private final IRoleDataAccess roleDataAccess;
+    private final IRoleFunctionDataAccess roleFunctionDataAccess;
+    private final IFunctionDataAccess functionDataAccess;
+    private final IUserDataAccess userDataAccess;
+    private final IUserRoleDataAccess userRoleDataAccess;
+    private final RoleMapper roleMapper;
+    private final FunctionMapper functionMapper;
+    private final UserMapper userMapper;
+    private final CacheManager cacheManager;
 
     @Override
     @Transactional
