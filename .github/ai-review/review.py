@@ -18,8 +18,8 @@ REVIEW_MARKER = "<!-- ai-review-gate -->"
 DEFAULT_MODEL_CANDIDATES = [
     "llama-3.1-8b-instant",
     "llama-3.3-70b-versatile",
-    "qwen/qwen3.6-27b",
     "openai/gpt-oss-120b",
+    "qwen/qwen3.6-27b",
     "openai/gpt-oss-20b",
 ]
 ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
@@ -281,8 +281,8 @@ def parse_retry_after(response) -> float:
 def calculate_backoff_delay(
     attempt: int,
     retry_after: float = 0.0,
-    base_delay: float = 2.0,
-    max_delay: float = 60.0,
+    base_delay: float = 2.5,
+    max_delay: float = 90.0,
     jitter_range: tuple = (0.5, 1.5),
 ) -> float:
     exponential_delay = base_delay * (2 ** max(0, attempt - 1))
@@ -304,7 +304,7 @@ def get_candidate_models() -> list:
     return candidates
 
 
-def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
+def chat_completion(prompt: str, max_retries_per_model: int = 9) -> str:
     global ACTIVE_MODEL_CANDIDATES
     api_key = get_groq_api_key()
     candidates = get_candidate_models()
@@ -352,7 +352,7 @@ def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
                 # 處理 429 速率限制指數退避重試
                 if status_code == 429:
                     raw_retry_after = parse_retry_after(response)
-                    wait_seconds = calculate_backoff_delay(attempt, raw_retry_after)
+                    wait_seconds = calculate_backoff_delay(attempt, raw_retry_after, base_delay=2.5, max_delay=90.0)
                     if attempt < max_retries_per_model:
                         print(f"模型 {model_name} 達到速率限制 (429)，指數退避等待 {wait_seconds:.1f} 秒後重試（第 {attempt}/{max_retries_per_model} 次）...")
                         time.sleep(wait_seconds)
@@ -362,24 +362,37 @@ def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
                     if model_name in ACTIVE_MODEL_CANDIDATES:
                         ACTIVE_MODEL_CANDIDATES.remove(model_name)
                         ACTIVE_MODEL_CANDIDATES.append(model_name)
+                    time.sleep(3.0)
                     break
 
-                # 處理 400 JSON 模式校驗失敗：降級為一般文字模式重試
+                # 處理 400 JSON 模式校驗失敗：延後退避並降級為一般文字模式重試
                 if status_code == 400 and use_json_mode and "json_validate_failed" in response.text:
-                    print(f"模型 {model_name} JSON 模式校驗失敗，降級為純文字模式並重試...")
+                    wait_seconds = calculate_backoff_delay(attempt, 0.0, base_delay=3.0, max_delay=30.0)
+                    print(f"模型 {model_name} JSON 模式校驗失敗 (400)，延後等待 {wait_seconds:.1f} 秒後降級為純文字模式並重試...")
                     use_json_mode = False
-                    time.sleep(1.0)
+                    time.sleep(wait_seconds)
                     continue
 
+                # 其他 400 格式錯誤：延後降級該模型並冷卻切換
+                if status_code == 400:
+                    print(f"模型 {model_name} 請求參數或格式錯誤 (400)：{reason_msg}，降級至備援清單尾端並切換下一個模型。")
+                    if model_name in ACTIVE_MODEL_CANDIDATES:
+                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                        ACTIVE_MODEL_CANDIDATES.append(model_name)
+                    time.sleep(3.0)
+                    break
+
                 print(f"模型 {model_name} 請求失敗：{reason_msg}")
+                time.sleep(3.0)
                 break
             except requests.RequestException as exc:
                 error_details.append((model_name, str(exc)))
                 print(f"模型 {model_name} 連線異常：{exc}")
                 if attempt < max_retries_per_model:
-                    wait_seconds = calculate_backoff_delay(attempt, 2.0)
+                    wait_seconds = calculate_backoff_delay(attempt, 2.0, base_delay=2.5, max_delay=90.0)
                     time.sleep(wait_seconds)
                     continue
+                time.sleep(3.0)
                 break
 
     raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
@@ -498,8 +511,8 @@ def main():
     results = []
     for index, (scope, paths) in enumerate(batches, 1):
         if index > 1:
-            print(f"批次間隔節流：等待 3 秒以平滑 API 速率限制...")
-            time.sleep(3.0)
+            print(f"批次間隔節流：等待 5 秒以平滑 API 速率限制...")
+            time.sleep(5.0)
 
         relevant_rules_list = []
         rule_lines = rules_text.splitlines()
@@ -520,6 +533,9 @@ def main():
         prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
+
+【長度與格式約束】
+各欄位描述務必簡潔扼要，單一 Finding 不得贅述；若無違規，findings 輸出空陣列 []。確保回應在 1000 Tokens 內結束。
 
 【Review Contract】
 {contract_text[:1500]}

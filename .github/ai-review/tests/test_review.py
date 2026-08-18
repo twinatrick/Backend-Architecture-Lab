@@ -254,26 +254,53 @@ def test_chat_completion_downgrades_on_400_json_validate_failed():
         # Verify 2nd attempt did not have response_format
         second_payload = mock_post.call_args_list[1][1]["json"]
         assert "response_format" not in second_payload
-        mock_sleep.assert_called_once_with(1.0)
+        mock_sleep.assert_called_once()
+        called_sleep_time = mock_sleep.call_args[0][0]
+        assert 3.0 <= called_sleep_time <= 5.0
 
 
 def test_calculate_backoff_delay_exponential_growth():
-    delay_1 = review.calculate_backoff_delay(attempt=1, retry_after=0.0, base_delay=2.0, jitter_range=(0.0, 0.0))
-    delay_2 = review.calculate_backoff_delay(attempt=2, retry_after=0.0, base_delay=2.0, jitter_range=(0.0, 0.0))
-    delay_3 = review.calculate_backoff_delay(attempt=3, retry_after=0.0, base_delay=2.0, jitter_range=(0.0, 0.0))
-    assert delay_1 == 2.0
-    assert delay_2 == 4.0
-    assert delay_3 == 8.0
+    delay_1 = review.calculate_backoff_delay(attempt=1, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
+    delay_2 = review.calculate_backoff_delay(attempt=2, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
+    delay_3 = review.calculate_backoff_delay(attempt=3, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
+    assert delay_1 == 2.5
+    assert delay_2 == 5.0
+    assert delay_3 == 10.0
 
 
 def test_calculate_backoff_delay_respects_retry_after():
-    delay = review.calculate_backoff_delay(attempt=1, retry_after=12.5, base_delay=2.0, jitter_range=(0.0, 0.0))
+    delay = review.calculate_backoff_delay(attempt=1, retry_after=12.5, base_delay=2.5, jitter_range=(0.0, 0.0))
     assert delay == 12.5
 
 
 def test_calculate_backoff_delay_capped_at_max_delay():
-    delay = review.calculate_backoff_delay(attempt=10, retry_after=100.0, max_delay=60.0, jitter_range=(0.0, 0.0))
-    assert delay == 60.0
+    delay = review.calculate_backoff_delay(attempt=10, retry_after=100.0, max_delay=90.0, jitter_range=(0.0, 0.0))
+    assert delay == 90.0
+
+
+def test_chat_completion_demotes_model_on_persistent_400():
+    review.ACTIVE_MODEL_CANDIDATES = ["model-400-fail", "model-ok"]
+
+    mock_resp_400 = MagicMock()
+    mock_resp_400.ok = False
+    mock_resp_400.status_code = 400
+    mock_resp_400.headers = {}
+    mock_resp_400.text = "invalid_request_error"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "demote-400", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["model-400-fail", "model-ok"]), \
+         patch("requests.post", side_effect=[mock_resp_400, mock_resp_ok]), \
+         patch("time.sleep"):
+        result = review.chat_completion("test demote on 400", max_retries_per_model=1)
+        assert result == '{"batch": "demote-400", "findings": []}'
+        assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-ok"
+        assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-400-fail"
 
 
 def test_chat_completion_adaptive_model_promotion_and_demotion():
