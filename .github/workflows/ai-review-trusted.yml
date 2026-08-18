@@ -34,7 +34,6 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           REPO: ${{ github.repository }}
           EVENT_PATH: ${{ github.event_path }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 .github/ai-review/review.py
 
       - name: Upload final report
