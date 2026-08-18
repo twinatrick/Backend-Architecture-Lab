@@ -1,974 +1,572 @@
 # Backend Architecture Validation Platform
 
-> Personal Backend Architecture Validation Platform
+> 個人後端架構設計、技術驗證與工程實踐平台
 
-本專案並非教學範例，而是作為後端架構設計、技術驗證與工程實踐的平台，持續驗證企業級系統常見設計模式、系統架構與開發流程。
+本專案並非單純的教學範例，而是作為後端架構設計、技術驗證與工程實踐的平台，持續驗證企業級分散式系統常見的設計模式、系統架構與開發流程。
 
-專案以 Java 21 與 Spring Boot 3 為核心，整合 Authentication、Authorization、Cache、Event-Driven Architecture、Real-Time Notification、AI Integration 與 CI/CD Automation 等常見企業級技術。
-
-透過實際開發驗證大型系統常見技術選型、架構設計與工程實務，並持續擴充作為個人技術研究平台。
+專案以 **Java 21** 與 **Spring Boot 3.4.2** 為核心，搭配 **Python 3.11 FastAPI** 獨立 AI 側車，全面整合 Authentication、Authorization、Multi-Level Cache、Event-Driven Architecture (EDA)、Real-Time Notification、AI Integration、Transactional Outbox、SAGA 分散式事務補償、JMeter 500 併發效能壓測與 CI/CD Automation 等企業級核心技術。
 
 ---
 
-## Architecture Highlights
+## 系統核心亮點 (Architecture Highlights)
 
-- Spring Security + JWT Authentication
-- Annotation-based RBAC Authorization
-- Redis Multi-Level Cache Strategy
-- Kafka Event-Driven Architecture
-- Kafka-based Cache Stats Monitoring
-- WebSocket Real-Time Notification
-- JPA Specification Dynamic Query
-- Docker Compose Development Environment
-- GitHub Actions CI Pipeline
-- AI-assisted Code Review
-- Unit Test + JaCoCo Coverage Validation
-- Micrometer + Prometheus (alert-service)
-- Grafana (基礎配置，無預設儀表板)
-
----
-
-## Engineering Practices
-
-- Git Flow Branch Strategy
-- Pull Request Workflow
-- GitHub Actions Continuous Integration
-- Automated Unit Testing
-- JaCoCo Coverage Validation
-- AI Code Review Before Merge
-- Docker-based Development Environment
-- Environment Variable Management
-- Centralized Exception Handling
-- Layered Architecture Design
+- 🛡️ **安全與權限**：Spring Security + JWT 雙來源解析（Header + Cookie）+ 宣告式動態三層 RBAC 權限模型（`@RequirePermission`）+ IAM 防自我 Feign 死鎖本地校驗。
+- 🚪 **網關與隔離**：Spring Cloud Gateway 統一入口 + 動態 OpenAPI 聚合器（`/v3/api-docs-merged`）+ 內部端點防護過濾器（阻擋外部直連 `/inner/`）。
+- ⚡ **快取防穿透**：六層快取防禦機制（Null Marker + Redisson 布隆過濾器 + 本機公平信號量 + 請求合併 Request Collapsing + Redisson 分散式互斥鎖 + 隨機 Jitter 抖動），涵蓋 19 個 Cache Names。
+- 🔄 **分散式事務與補償**：Durable Command + Transactional Outbox + Lease/Fencing Token + SAGA 補償機制，具備原子 CAS 領取、指數退避重試、死信佇列（DLT）與自動還原閉環。
+- 📬 **事件驅動架構**：Kafka 4 大主題（告警推播 `socketSend`、分散式補償 `transaction-compensation`、死信隔離 `transaction-compensation.DLT`、快取統計 `cache-stats`）。
+- 📡 **即時通訊廣播**：Jakarta WebSocket (`/ws/alarm`) 搭配 Kafka Fan-out 跨節點廣播推送。
+- 🤖 **AI 深度整合**：
+  - **Python 側車 (`backend-ai-py`)**：Faster-Whisper (CUDA 12 DLLs 動態加載) + Sherpa-ONNX SenseVoice 雙引擎 STT、PyAnnote 語者分離 Conda 獨立子進程隔離、GPT-SoVITS + Sherpa-ONNX 雙引擎 TTS、Ollama 本地 LLM SSE 串流。
+  - **Java 整合中心**：LINE Bot 串流端點、Discord Bot 動態 Webhook 偽裝、多模型瀑布級聯降級（Gemini 2.0 Flash → Groq → DeepSeek → GitHub Models）。
+- 📊 **可觀測性與指標**：全微服務標準繼承 Micrometer + Prometheus (`/actuator/prometheus`) 與 Grafana。
+- 🧪 **極致品質保證**：
+  - GitHub Actions 雙軌自動化 CI（Java 嚴格要求 BUNDLE 覆蓋率 $\ge 80\%$ + Python Ruff/Pytest + 獨立 AI Code Review）。
+  - 完整 JMeter 500 併發壓力測試套件（含 10 個 SQL 大量測試數據生成腳本與效能報告）。
+  - 嚴格代碼規範：全面建構子注入（`@RequiredArgsConstructor` + `private final`）、Mapper 僅限 Service Impl、Controller 嚴禁出現 Entity、禁止完全限定名稱 (FQN)。
 
 ---
 
-## 專案目的
+# 一、 微服務架構概覽 (Architecture & Topology)
 
-此專案用於整理與實作企業級系統常見後端架構與平台功能，包含：
+本專案採用 **Database-per-Service** 架構，由 7 個可獨立運行的服務（6 個 Java 微服務 + 1 個 Python FastAPI 側車）與 1 個共用基礎模組組成：
 
-### Security
+```
++---------------------------------------------------------------------------------------------------+
+|                                      API Gateway (Port: 8000)                                     |
+|           [路由轉發 / StripPrefix=1] [內部端點阻擋 InnerEndpointBlockFilter] [OpenAPI 聚合]       |
++---------------------------------------------------------------------------------------------------+
+       │                       │                       │                       │
+       ▼ (/api/auth, /api/users,...) ▼ (/api/skill, /api/project,...) ▼ (/api/job-posting,...) ▼ (/api/alertCheckLimit,...)
++-----------------------+ +-----------------------+ +-----------------------+ +-----------------------+
+|  backend-iam-service  | |backend-competency-svc | |  backend-job-service  | | backend-alert-service |
+|     (Port: 8002)      | |     (Port: 8004)      | |     (Port: 8006)      | |     (Port: 8008)      |
+|  DB: iam_service      | | DB: competency_service| | DB: job_service       | | DB: alert_service     |
++-----------------------+ +-----------------------+ +-----------------------+ +-----------------------+
+       ▲                       ▲                                                       │ (Kafka: socketSend)
+       │ (Feign: /role/inner)  │ (Feign: /users/inner)                                 ▼
+       │                       │                                            +-------------------------+
+       │                       │                                            | AlarmWebSocket (/ws/...) |
+       │                       │                                            +-------------------------+
++---------------------------------------------------+
+|           backend-external-api-service            |
+|                   (Port: 8007)                    |
+|             DB: external_api_service              |
+|   [LINE Webhook / Discord JDA / 多模型 AI 代理]   |
++---------------------------------------------------+
+       │ (Feign: AiPyServiceFeignClient, 直連 Port 5001)
+       ▼
++---------------------------------------------------------------------------------------------------+
+|                                backend-ai-py (FastAPI Sidecar, Port: 5001)                        |
+|   [Faster-Whisper (STT)] [Sherpa-ONNX (STT/TTS)] [GPT-SoVITS (TTS)] [Ollama (Chat)] [PyAnnote]    |
++---------------------------------------------------------------------------------------------------+
+```
 
-- JWT Authentication
-- Spring Security
-- RBAC Permission Model
+### 微服務清單與職責劃分
 
-### Architecture
-
-- Redis Cache
-- Kafka Event-Driven Architecture
-- WebSocket Real-Time Notification
-- Dynamic Query Specification
-
-### Infrastructure
-
-- Docker Compose
-- GitHub Actions
-- AI Code Review
-- Environment Configuration
-
-### AI Integration
-
-- 多大語言模型整合 (Gemini, Groq, DeepSeek, GitHub Models, Ollama)
-- faster-whisper STT 語音辨識 (Python 側車)
-- GPT-SoVIT TTS 語音合成 (Python 側車)
-- 本地 NLP 整合 (繁簡轉換、中日文拼音與注音轉換)
+| 微服務模組 | 基礎埠號 | 資料庫名稱 | 核心職責與技術要點 |
+|---|:---:|:---:|---|
+| **`backend-gateway`** | `8000` | - | 系統統一對外入口，負責動態路由轉發、路徑前綴剝除 (`StripPrefix=1`)、內部端點隔離 (`InnerEndpointBlockFilter` 攔截 `/inner/`)、跨域 CORS 與 OpenAPI 規格動態聚合 (`/v3/api-docs-merged`)。 |
+| **`backend-iam-service`** | `8002` | `iam_service` | 身分識別與存取管理。提供 JWT 簽發驗證、超級使用者初始化、動態權限字典維護，以及防止自我 Feign 調用的本地權限校驗器 (`LocalPermissionValidatorImpl`)。 |
+| **`backend-competency-service`** | `8004` | `competency_service` | 職能與專案管理。涵蓋技能庫、技能等級、專案綁定，以及包含 Transactional Outbox、租約鎖定、Fencing Token 與 SAGA 回滾在內的全套分散式事務補償引擎。 |
+| **`backend-job-service`** | `8006` | `job_service` | 企業與職缺媒合服務。提供企業資訊、職缺發布、個人職缺收藏，並整合 Jsoup/Selenium 爬蟲抓取與 AI 職缺結構化分析。 |
+| **`backend-external-api-service`** | `8007` | `external_api_service` | 外部整合與 AI 代理中心。提供 LINE/Discord 雙平台機器人（女友對話、語音日記）、MinIO 語音儲存串流端點、Bot 動態配置與 API 用量成本審計。 |
+| **`backend-alert-service`** | `8008` | `alert_service` | 即時水情監控與告警服務。提供感測器數據分析、告警閥值比對、Kafka 事件消費、WebSocket 跨節點推播，以及跨服務快取指標統計聚合 (`/cache-stats`)。 |
+| **`backend-common`** | - | - | 基礎共用模組。提供 `BaseEntity` 審計實體、Feign Clients 定義、JWT 安全過濾器、三層權限切面 (`PermissionCheck`)、六層快取防穿透管理器與全域例外處理。 |
+| **`backend-ai-py`** | `5001` | - | Python FastAPI AI 側車。提供 Faster-Whisper / SenseVoice 語音辨識、GPT-SoVITS / Sherpa-ONNX 語音合成、PyAnnote 語者分離 Conda 子進程隔離與 Ollama SSE 串流推論。 |
 
 ---
 
-並模擬具備：
+# 二、 核心資料模型與 Entity 清冊 (Data Models & JPA Entities)
 
-- 使用者管理
-- 權限管理
-- 技能管理
-- 專案管理
-- 職缺管理
-- AI 文件處理
-- 即時告警通知
+全專案遵循物件導向與審計規範，所有 JPA 實體均繼承自 `com.example.BackendArchitectureLab.Entity.BaseEntity`，預設具備：
+- `id` (UUID 主鍵，自動生成)
+- `created_by` / `created_time` (建立者與建立時間)
+- `updated_by` / `updated_time` (更新者與更新時間)
 
-等企業管理平台常見業務情境。
+### 完整 30 個 JPA Entity 清冊
 
-# 架構實作總覽
-
-本章說明本專案**在架構層面實際實作了什麼**——每個架構元件做什麼、為何存在、程式碼在哪，讓接手者可快速掌握全貌。詳細規則見《開發規範.md》。
-
-## 1. 微服務拆分（8 個模組）
-
-本專案不是單體應用，而是以「模組為單位獨立部署」的微服務，根目錄下的每個 `backend-*` 模組都是一個可獨立啟動的服務：
-
-| 模組 | 職責 | 對外埠 |
-|------|------|--------|
-| backend-gateway | 統一入口，路由轉發 + 內部端點防護 + OpenAPI 聚合 | 8000 |
-| backend-iam-service | 使用者認證、角色/權限管理、權限字典建立 | 8002 |
-| backend-competency-service | 技能、技能等級、專案管理 | 8004 |
-| backend-job-service | 公司、職缺管理、職缺爬取分析 | 8006 |
-| backend-external-api-service | 外部整合（LINE/Discord bot）、AI 代理、語音日記、上傳 | 8007 |
-| backend-alert-service | 水情資料、告警門檻、即時告警推送 | 8008 |
-| backend-common | 共用程式碼（Feign Client、Vo、例外處理、Config） | - |
-| backend-ai-py | Python AI 側車（STT 語音辨識、TTS、Chat），獨立於 Java 之外 | 5001 |
-
-**設計原因**：各服務只操作自己領域的資料表（Database-per-Service），避免單一資料庫被多個服務同時修改的耦合；跨服務的資料一律走 Feign 呼叫（見下節），不直接查對方資料庫。
-
-## 2. 服務間通訊：Feign（4 個 Client）
-
-跨服務呼叫統一使用 OpenFeign，Client 集中定義於 `com.example.BackendArchitectureLab.Feign`（backend-common），實際呼叫方向如下：
-
-- `UserServiceFeignClient`（→ IAM `/users/inner/*`）：competency / job / external 查詢使用者
-- `AiPyServiceFeignClient`（→ backend-ai-py：`/stt`、`/tts`、`/chat`）：external 呼叫 Python AI（STT/TTS/Chat）
-- `ExternalApiServiceFeignClient`（→ external `/job/*` 等）：job 呼叫 AI 分析職缺
-- `PermissionCheckFeignClient`（→ IAM `/role/inner/validate`）：驗證 `@RequirePermission`
-
-> 註：Feign 套件內另有非 Feign Client 的 `UserGatewayImpl`（`IUserGateway` 的實作，`@Autowired(required=false)` 注入 `UserServiceFeignClient`）；`SecurityUtil` 位於 `Util` 套件。
-
-所有對內呼叫路徑均以 `/inner` 結尾（Python 側車 API `/stt`、`/tts`、`/chat` 因係直連獨立埠口不經 Gateway 而不在此限），且 Gateway 有 `com.example.BackendArchitectureLab.Filter.InnerEndpointBlockFilter` 阻擋外部直接訪問 `/inner`，確保只有服務間能呼叫。禁止幽靈 Feign（定義卻沒被使用），檢查方式見《開發規範.md》§5。
-
-## 3. 集中權限驗證（IAM 為唯一權限源）
-
-**實作方式**：前端登入取得 JWT → 各服務收到請求後，業務服務透過 `PermissionCheckFeignClient` 呼叫 IAM 的 `/role/inner/validate`（`com.example.BackendArchitectureLab.Controller.PermissionInternalController`）驗證權限；IAM 自己則直接用本機 `Aop.LocalPermissionValidator`（避免自我 Feign 呼叫）。
-
-**權限模型**：三層結構 `{微服務}/{資源層}/{動作層}`，以 `@RequirePermission` 註記在 Controller 方法上（如 `@RequirePermission("Edit")`）。權限字典在 IAM 啟動時由 `com.example.BackendArchitectureLab.Service.Impl.InitAndCheckService` 自動補建，即使開發中新增權限不註冊也會自動建立。
-
-## 4. Kafka 非同步事件（3 大主題）
-
-Kafka 用於解耦跨服務事件，目前有三大主題（Broker 位址由 KafkaConfig 自動依環境判斷，本機 `localhost:9092`、Docker 內 `kafka:9092`）：
-
-- `socketSend`：告警即時推送。`AlarmKafkaPublisher`（alert）發佈 → `KafkaConsumerService` 接收 → WebSocket 推給前端
-- `transaction-compensation`：分散式事務補償（Transactional Outbox 模式）。`ProjectUserBindingService.rebindProjectMemberSkills`（competency）先將事件寫入 `compensation_outbox_event` 表（與業務交易同 commit，rollback 時一併消失），由 `Timer/CompensationOutboxWorker` 排程（預設每 5 秒）批次經 `CompensationPublisherImpl` 發佈 → `CompensationConsumer`（competency）以 `eventId` 冪等去重處理；`CompensationEvent` 含 transactionId/eventId/eventVersion/action/status；狀態機：`TRANSACTION_STARTED` → `COMMITTED` / `FAILED`，業務失敗時同一 `REQUIRES_NEW` 交易內寫入 `FAILED` 與 `COMPENSATION_REQUIRED` → 消費端執行補償（成功即 `COMPENSATED` 語意，失敗以持久化 `FAILED` 呈現並交由 Kafka retry）
-- `cache-stats`：快取命中統計。`KafkaCacheStatsPublisher` 發佈 → alert-service 的 `CacheStatsController` 暴露查詢
-
-消費者群組預設 `myGroup`（`KafkaConfig`），補償事件另用硬編碼 `compensation-group`（`KafkaCompensationConfig`）；採 at-least-once 語意；容器設有 `DefaultErrorHandler` 處理失敗批次。
-
-## 5. Redis 多層快取（+ 穿透防護）
-
-**機制**：透過 Spring 註解式快取（`@Cacheable` / `@CacheEvict`）將熱門查詢結果存進 Redis，避免每請求打 DB。全專案 43 處 `@Cacheable`，涵蓋使用者、角色、功能、技能、專案、職缺、水情資料、告警門檻等（詳細清單見《開發規範.md》與 `com.example.BackendArchitectureLab.Config.RedisConfig`）。
-
-**設計到穿透防護**：`CachePenetrationProtectionCache` 以 Semaphore 限流入站，並用 Redisson 分散式鎖保護快取重建，避免大量並發同時打到 DB（實測 500 併發下保護有效）。安全處理由 GlobalExceptionHandler 統一轉成 HTTP 回應，Controller 層不自己 catch 拼回應。
-
-**清單型快取的陷阱**：直接回傳 `List` 的 `@Cacheable` 有型別擦除問題，因此包了一層 `CacheListWrapper` 容器再存入 Redis（`com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper`），並在 RedisConfig 註冊 Jackson 序列化器。
-
-## 6. WebSocket 即時告警
-
-前端透過 WebSocket 訂閱告警，後端 `AlarmKafkaPublisher`（Kafka `socketSend` 主題）→ `KafkaConsumerService` 消費 → 透過 WebSocket 推送給瀏覽器。告警消費者使用與補償一致的重試政策（`DefaultErrorHandler` + `FixedBackOff(1000ms, 4)`，共 5 次嘗試；先前為失敗即丟棄）。
-
-## 7. Gateway 統一出入口（統一防護）
-
-所有前端請求一律經 `backend-gateway`（埠 8000）轉發到各微服務，Gateway 除了路由，還做了兩件事：
-- **InnerEndpointBlockFilter**：阻擋外部直連 `/inner` 內部 API
-- **OpenAPI 聚合**：把各服務的 Swagger 文件聚合在單一入口
-
-## 8. Python AI 側車服務 backend-ai-py
-
-AI 語音功能以 Python 實作成獨立服務（FastAPI，埠 5001），不經 Gateway，由 Java 的 external-api-service 用 `AiPyServiceFeignClient` 直接呼叫 Python 端點（`/stt`、`/stt/whisper`、`/stt/sensevoice`、`/tts`、`/chat`）。功能：STT（Whisper / SenseVoice）、語者分離（pyannote）、TTS 排版、Chat。環境需 conda 環境 backend-ai-py，啟動指令見 §「Python 環境」。
+| 模組名稱 | 實體類別完整路徑 | 對應資料表 | 實體類型 | 業務用途與核心約束 |
+|---|---|---|:---:|---|
+| **common** | `com.example.BackendArchitectureLab.Entity.BaseEntity` | - | MappedSuperclass | 全系統基礎審計實體 (UUID + 審計欄位)。 |
+| **iam-service** | `com.example.BackendArchitectureLab.Entity.User` | `user` | 主實體 | 系統使用者帳號 (`email` 唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.Role` | `role` | 主實體 | 角色定義 (`name` 唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.Function` | `function` | 主實體 | 階層式功能權限樹 (`parent` 支援樹狀結構)。 |
+| | `com.example.BackendArchitectureLab.Entity.UserRole` | `user_role` | 關聯表 | 使用者與角色關聯 (`user_id, role_id` 複合唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.RoleFunction` | `role_function` | 關聯表 | 角色與功能權限關聯 (`role_id, function_id` 複合唯一約束)。 |
+| **competency-service** | `com.example.BackendArchitectureLab.Entity.Skill` | `skill` | 主實體 | 技能定義字典 (`name` 唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.SkillLevel` | `skill_level` | 主實體 | 技能熟練度等級 (`skill_id, level_value` 複合唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.Project` | `project` | 主實體 | 專案專案資訊。 |
+| | `com.example.BackendArchitectureLab.Entity.UserSkill` | `user_skill` | 關聯表 | 使用者個人技能庫 (`user_id, skill_id` 複合唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.ProjectSkill` | `project_skill` | 關聯表 | 專案所需技能清單 (`project_id, skill_id` 複合唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.UserProject` | `user_project` | 關聯表 | 專案成員關聯 (`user_id, project_id` 複合唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.UserProjectSkill` | `user_project_skill` | 關聯表 | 成員專案技能等級 (`user_id, project_id, skill_id` 複合唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.CompensationOutboxEvent` | `compensation_outbox_event` | 事務表 | Transactional Outbox 事件發布佇列與重試狀態。 |
+| | `com.example.BackendArchitectureLab.Entity.CompensationEventLog` | `compensation_event_log` | 事務表 | 消費端冪等去重日誌、CAS 狀態機與 Fencing Token。 |
+| | `com.example.BackendArchitectureLab.Entity.CompensationRestoreLog` | `compensation_restore_log` | 審計表 | 專案成員技能資料回滾與還原稽核記錄。 |
+| | `com.example.BackendArchitectureLab.Entity.ExternalSyncCommand` | `external_sync_command` | 事務表 | 外部系統同步命令持久化、租約控制與防重佇列。 |
+| **job-service** | `com.example.BackendArchitectureLab.Entity.Company` | `company` | 主實體 | 企業公司基本資料。 |
+| | `com.example.BackendArchitectureLab.Entity.CompanyWebsite` | `company_website` | 子實體 | 企業官方網站與徵才網址列表。 |
+| | `com.example.BackendArchitectureLab.Entity.JobPosting` | `job_posting` | 主實體 | 職缺詳細資訊與 AI 結構化分析結果。 |
+| | `com.example.BackendArchitectureLab.Entity.UserJobLink` | `user_job_link` | 關聯表 | 使用者職缺收藏與備註 (`user_id, job_posting_id` 複合唯一約束)。 |
+| **external-api-service** | `com.example.BackendArchitectureLab.Entity.BotConfig` | `bot_config` | 主實體 | 平台機器人全域參數、每日用量預算與警報閥值。 |
+| | `com.example.BackendArchitectureLab.Entity.ApiUsageLog` | `api_usage_log` | 審計表 | 外部 API / LLM 呼叫紀錄與成本估算日誌。 |
+| | `com.example.BackendArchitectureLab.Entity.VoiceDiary` | `voice_diary` | 主實體 | 語音日記轉譯文本、語言與音訊來源。 |
+| | `com.example.BackendArchitectureLab.Entity.LineGfSession` | `line_gf_session` | 主實體 | LINE 女友對話狀態、Prompt 與歷史上下文 (`user_id` 唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.DiscordGfSession` | `discord_gf_session` | 主實體 | Discord 女友對話狀態與頻道設定 (`channel_id, user_id` 唯一)。 |
+| | `com.example.BackendArchitectureLab.Entity.DiscordSubscription` | `discord_subscription` | 主實體 | Discord 頻道 Webhook 訂閱與推播設定。 |
+| | `com.example.BackendArchitectureLab.Entity.UserVoiceUpload` | `user_voice_upload` | 主實體 | 使用者語音檔案上傳記錄與處理狀態。 |
+| | `com.example.BackendArchitectureLab.Entity.VoiceTranslation` | `voice_translation` | 子實體 | 多語系語音轉譯與辨識結果明細。 |
+| **alert-service** | `com.example.BackendArchitectureLab.Entity.AquarkData` | `aquark_data` | 主實體 | Aquark 感測器水情歷史時序監測資料。 |
+| | `com.example.BackendArchitectureLab.Entity.AlertCheckLimit` | `alert_check_limit` | 主實體 | 水質指標告警上限與監控閥值設定 (`table_name, column_name` 唯一)。 |
 
 ---
 
-# Java 21 Spring Boot 常見技術 實作方法
+# 三、 API 介面清單與 Gateway 路由規則 (API Catalog & Routing)
 
-通用後端範例專案，整合使用者/角色/權限、專案/技能管理、資料查詢與告警設定等常見後端需求，並提供 REST API、WebSocket 與 Kafka
-Consumer，且已實作註解式角色權限控管機制。
+### 1. 路由規則與隔離機制
+* **外部存取規則**：外部客戶端請求統一發送至 Gateway（埠號 `8000`），URL 前綴一律為 `/api/*`。Gateway 透過 `StripPrefix=1` 剝除 `/api` 後轉發至後端微服務。
+* **內部端點隔離保護 (`InnerEndpointBlockFilter`)**：
+  所有微服務間 RPC 調用端點一律命名為 `/inner/`（如 `/users/inner/*`、`/role/inner/*`、`/ai/inner/*`）。Gateway 在 `@Order(-100)` 攔截外部所有匹配 `.*/inner(/.*)?` 的請求並直接回傳 **HTTP 404 Not Found**，確保內部介面絕不對外暴露。
 
-## 技術棧
+### 2. 完整 62 個 API 端點清單
 
-- Java 21
-- Spring Boot 3.4.2
-- Spring Web / Spring Data JPA
-- PostgreSQL / Redis
-- Kafka + Zookeeper
-- WebSocket
-- Springdoc OpenAPI (Swagger UI)
-- JUnit 5 / Mockito / H2 (測試)
+#### (1) backend-gateway (埠號: 8000)
+| HTTP 方法與子路徑 | 內部直接存取路徑 | Gateway 對外存取路徑 | 端點類型 | 說明 |
+|---|---|---|:---:|---|
+| `GET /v3/api-docs-merged` | `/v3/api-docs-merged` | `/v3/api-docs-merged` | **Public** | 動態聚合全微服務之 OpenAPI 規格文檔。 |
 
-## 系統架構
+#### (2) backend-iam-service (埠號: 8002, 路由: `/api/auth/**`, `/api/users/**`, `/api/role/**`, `/api/function/**`)
+| Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
+|---|---|---|---|:---:|---|
+| `AuthController` | `POST /signup` | `/auth/signup` | `/api/auth/signup` | **Public** | 註冊新使用者 (`@Ignore`)。 |
+| | `POST /login` | `/auth/login` | `/api/auth/login` | **Public** | 登入取得 JWT Token (`@Ignore`)。 |
+| | `POST /superuser` | `/auth/superuser` | `/api/auth/superuser` | **Public** | 透過 Superuser Key 初始化系統管理者。 |
+| `UserController` | `POST /create` | `/users/create` | `/api/users/create` | **Protected** | `Create` 權限。 |
+| | `GET /infoVo` | `/users/infoVo` | `/api/users/infoVo` | **Protected** | 取得當前登入使用者詳細資料。 |
+| | `GET /{id}` | `/users/{id}` | `/api/users/{id}` | **Protected** | `View` 權限。 |
+| | `GET /getAllUser` | `/users/getAllUser` | `/api/users/getAllUser` | **Protected** | `View` 權限。 |
+| | `POST /saveUser` | `/users/saveUser` | `/api/users/saveUser` | **Protected** | `Edit` 權限。 |
+| | `POST /{userId}/roles/rebind` | `/users/{userId}/roles/rebind` | `/api/users/{userId}/roles/rebind` | **Protected** | `Edit` 權限（重新綁定使用者角色）。 |
+| | `POST /search` | `/users/search` | `/api/users/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
+| `UserInternalController` | `GET /{id}` | `/users/inner/{id}` | *Gateway 阻擋* | **Internal** | Feign 查詢使用者是否存在與詳情。 |
+| | `POST /by-email` | `/users/inner/by-email` | *Gateway 阻擋* | **Internal** | Feign 依 Email 取得使用者。 |
+| | `GET /exists/{id}` | `/users/inner/exists/{id}` | *Gateway 阻擋* | **Internal** | Feign 檢查使用者 ID 存在性。 |
+| | `GET /by-email-exists` | `/users/inner/by-email-exists` | *Gateway 阻擋* | **Internal** | Feign 檢查 Email 存在性。 |
+| `RoleController` | `POST /add` | `/role/add` | `/api/role/add` | **Protected** | `Edit` 權限。 |
+| | `POST /addWithFunctions` | `/role/addWithFunctions` | `/api/role/addWithFunctions` | **Protected** | `Edit` 權限。 |
+| | `POST /get` | `/role/get` | `/api/role/get` | **Protected** | `View` 權限。 |
+| | `POST /update` | `/role/update` | `/api/role/update` | **Protected** | `Edit` 權限。 |
+| | `POST /updateWithFunctions` | `/role/updateWithFunctions` | `/api/role/updateWithFunctions` | **Protected** | `Edit` 權限。 |
+| | `POST /delete` | `/role/delete` | `/api/role/delete` | **Protected** | `Edit` 權限。 |
+| | `POST /roleBindFunction` | `/role/roleBindFunction` | `/api/role/roleBindFunction` | **Protected** | `Edit` 權限。 |
+| | `POST /functionBindRole` | `/role/functionBindRole` | `/api/role/functionBindRole` | **Protected** | `Edit` 權限。 |
+| | `POST /roleBindUser` | `/role/roleBindUser` | `/api/role/roleBindUser` | **Protected** | `Edit` 權限。 |
+| | `POST /userBindRole` | `/role/userBindRole` | `/api/role/userBindRole` | **Protected** | `Edit` 權限。 |
+| | `POST /roleUnbindUser` | `/role/roleUnbindUser` | `/api/role/roleUnbindUser` | **Protected** | `Edit` 權限。 |
+| | `POST /userUnbindRole` | `/role/userUnbindRole` | `/api/role/userUnbindRole` | **Protected** | `Edit` 權限。 |
+| | `POST /roleUnbindFunction` | `/role/roleUnbindFunction` | `/api/role/roleUnbindFunction` | **Protected** | `Edit` 權限。 |
+| | `POST /functionUnbindRole` | `/role/functionUnbindRole` | `/api/role/functionUnbindRole` | **Protected** | `Edit` 權限。 |
+| | `POST /getFunctionByRole` | `/role/getFunctionByRole` | `/api/role/getFunctionByRole` | **Protected** | `View` 權限。 |
+| | `POST /getRoleByFunction` | `/role/getRoleByFunction` | `/api/role/getRoleByFunction` | **Protected** | `View` 權限。 |
+| | `POST /getRoleByUser` | `/role/getRoleByUser` | `/api/role/getRoleByUser` | **Protected** | `View` 權限。 |
+| | `POST /getUserByRole` | `/role/getUserByRole` | `/api/role/getUserByRole` | **Protected** | `View` 權限。 |
+| | `POST /search` | `/role/search` | `/api/role/search` | **Protected** | `View` 權限。 |
+| `FunctionController` | `POST /add` | `/function/add` | `/api/function/add` | **Protected** | `Edit` 權限。 |
+| | `POST /update` | `/function/update` | `/api/function/update` | **Protected** | `Edit` 權限。 |
+| | `POST /delete` | `/function/delete` | `/api/function/delete` | **Protected** | `Edit` 權限。 |
+| | `GET /get` | `/function/get` | `/api/function/get` | **Protected** | `View` 權限。 |
+| | `POST /saveAllFunction` | `/function/saveAllFunction` | `/api/function/saveAllFunction` | **Protected** | `Edit` 權限。 |
+| | `POST /search` | `/function/search` | `/api/function/search` | **Protected** | `View` 權限。 |
+| `PermissionInternalController` | `GET /all` | `/role/inner/all` | *Gateway 阻擋* | **Internal** | Feign 獲取全部角色。 |
+| | `GET /by-name/{name}` | `/role/inner/by-name/{name}` | *Gateway 阻擋* | **Internal** | Feign 依名稱查詢角色。 |
+| | `POST /user-bind-role` | `/role/inner/user-bind-role` | *Gateway 阻擋* | **Internal** | Feign 使用者角色綁定。 |
+| | `POST /validate` | `/role/inner/validate` | *Gateway 阻擋* | **Internal** | Feign 動態校驗三層權限。 |
 
-### 微服務內部三層架構設計
+#### (3) backend-competency-service (埠號: 8004, 路由: `/api/skill/**`, `/api/project/**`, `/api/user/bindings/**`)
+| Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
+|---|---|---|---|:---:|---|
+| `SkillController` | `POST /add` | `/skill/add` | `/api/skill/add` | **Protected** | `Edit` 權限。 |
+| | `GET /get` | `/skill/get` | `/api/skill/get` | **Protected** | `View` 權限。 |
+| | `POST /update` | `/skill/update` | `/api/skill/update` | **Protected** | `Edit` 權限。 |
+| | `POST /delete` | `/skill/delete` | `/api/skill/delete` | **Protected** | `Edit` 權限。 |
+| | `POST /search` | `/skill/search` | `/api/skill/search` | **Protected** | `View` 權限。 |
+| | `GET /current` | `/skill/current` | `/api/skill/current` | **Protected** | `View` 權限（查詢當前使用者技能）。 |
+| | `POST /current/search` | `/skill/current/search` | `/api/skill/current/search` | **Protected** | `View` 權限。 |
+| `SkillLevelController` | `POST /add` | `/skill/level/add` | `/api/skill/level/add` | **Protected** | `Edit` 權限。 |
+| | `GET /get/{skillId}` | `/skill/level/get/{skillId}` | `/api/skill/level/get/{skillId}` | **Protected** | `View` 權限。 |
+| | `POST /update` | `/skill/level/update` | `/api/skill/level/update` | **Protected** | `Edit` 權限。 |
+| | `POST /delete` | `/skill/level/delete` | `/api/skill/level/delete` | **Protected** | `Edit` 權限。 |
+| | `POST /search` | `/skill/level/search` | `/api/skill/level/search` | **Protected** | `View` 權限。 |
+| `PersonalSkillController` | `POST /add` | `/skill/personal/add` | `/api/skill/personal/add` | **Protected** | `Edit` 權限（個人技能新增）。 |
+| | `POST /update` | `/skill/personal/update` | `/api/skill/personal/update` | **Protected** | `Edit` 權限。 |
+| | `POST /update-level` | `/skill/personal/update-level` | `/api/skill/personal/update-level` | **Protected** | `Edit` 權限。 |
+| | `POST /delete` | `/skill/personal/delete` | `/api/skill/personal/delete` | **Protected** | `Edit` 權限。 |
+| `ProjectController` | `POST /add` | `/project/add` | `/api/project/add` | **Protected** | `Edit` 權限。 |
+| | `GET /get` | `/project/get` | `/api/project/get` | **Protected** | `View` 權限。 |
+| | `POST /update` | `/project/update` | `/api/project/update` | **Protected** | `Edit` 權限。 |
+| | `POST /delete` | `/project/delete` | `/api/project/delete` | **Protected** | `Edit` 權限。 |
+| | `GET /{projectId}/skills` | `/project/{projectId}/skills` | `/api/project/{projectId}/skills` | **Protected** | `View` 權限。 |
+| | `POST /search` | `/project/search` | `/api/project/search` | **Protected** | `View` 權限。 |
+| | `GET /current` | `/project/current` | `/api/project/current` | **Protected** | `View` 權限（查詢當前使用者專案）。 |
+| | `POST /current/search` | `/project/current/search` | `/api/project/current/search` | **Protected** | `View` 權限。 |
+| `PersonalProjectController` | `POST /add` | `/project/personal/add` | `/api/project/personal/add` | **Protected** | `Edit` 權限（個人專案管理）。 |
+| | `PUT /update/{projectId}` | `/project/personal/update/{projectId}` | `/api/project/personal/update/{projectId}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /delete/{projectId}` | `/project/personal/delete/{projectId}` | `/api/project/personal/delete/{projectId}` | **Protected** | `Edit` 權限。 |
+| | `GET /{projectId}/skills` | `/project/personal/{projectId}/skills` | `/api/project/personal/{projectId}/skills` | **Protected** | `View` 權限。 |
+| | `POST /{projectId}/skill/bind` | `/project/personal/{projectId}/skill/bind` | `/api/project/personal/{projectId}/skill/bind` | **Protected** | `Edit` 權限。 |
+| | `PUT /{projectId}/skill/{skillId}/level` | `/project/personal/{projectId}/skill/{skillId}/level` | `/api/project/personal/{projectId}/skill/{skillId}/level` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{projectId}/skill/{skillId}` | `/project/personal/{projectId}/skill/{skillId}` | `/api/project/personal/{projectId}/skill/{skillId}` | **Protected** | `Edit` 權限。 |
+| `ProjectManagementController` | `POST /bindSkill` | `/project/bindSkill` | `/api/project/bindSkill` | **Protected** | `Edit` 權限。 |
+| | `GET /{projectId}/member-skills` | `/project/{projectId}/member-skills` | `/api/project/{projectId}/member-skills` | **Protected** | `View` 權限。 |
+| `ProjectAdminController` | `POST /user-project/rebind` | `/project/admin/bindings/user-project/rebind` | `/api/project/admin/bindings/user-project/rebind` | **Protected** | `Edit` 權限（覆蓋式綁定）。 |
+| | `POST /user-skill/rebind` | `/project/admin/bindings/user-skill/rebind` | `/api/project/admin/bindings/user-skill/rebind` | **Protected** | `Edit` 權限。 |
+| | `POST /project-skill/rebind` | `/project/admin/bindings/project-skill/rebind` | `/api/project/admin/bindings/project-skill/rebind` | **Protected** | `Edit` 權限。 |
+| | `POST /project-members-skills/rebind` | `/project/admin/bindings/project-members-skills/rebind` | `/api/project/admin/bindings/project-members-skills/rebind` | **Protected** | `Edit` 權限（觸發 SAGA 外部同步與 Outbox 事務補償）。 |
+| `UserBindingController` | `POST /skill/rebind` | `/user/bindings/skill/rebind` | `/api/user/bindings/skill/rebind` | **Protected** | `Edit` 權限。 |
+| | `POST /project/{projectId}/skill/rebind` | `/user/bindings/project/{projectId}/skill/rebind` | `/api/user/bindings/project/{projectId}/skill/rebind` | **Protected** | `Edit` 權限。 |
 
-本專案各個微服務內部所共同遵循的統一程式碼分層規範，以確保開發品質與職責分離（圖中以 Alert Service 的內部非同步/告警機制為例）：
+#### (4) backend-job-service (埠號: 8006, 路由: `/api/company/**`, `/api/job-posting/**`, `/api/user-job-link/**`, `/api/user/bindings/job/**`)
+| Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
+|---|---|---|---|:---:|---|
+| `CompanyController` | `POST /add` | `/company/add` | `/api/company/add` | **Protected** | `Edit` 權限。 |
+| | `GET /get` | `/company/get` | `/api/company/get` | **Protected** | `View` 權限。 |
+| | `GET /get/{id}` | `/company/get/{id}` | `/api/company/get/{id}` | **Protected** | `View` 權限。 |
+| | `PUT /update` | `/company/update` | `/api/company/update` | **Protected** | `Edit` 權限。 |
+| | `POST /search` | `/company/search` | `/api/company/search` | **Protected** | `View` 權限。 |
+| | `DELETE /delete/{id}` | `/company/delete/{id}` | `/api/company/delete/{id}` | **Protected** | `Edit` 權限。 |
+| `JobPostingController` | `POST /add` | `/job-posting/add` | `/api/job-posting/add` | **Protected** | `Edit` 權限。 |
+| | `GET /get` | `/job-posting/get` | `/api/job-posting/get` | **Protected** | `View` 權限。 |
+| | `GET /get/{id}` | `/job-posting/get/{id}` | `/api/job-posting/get/{id}` | **Protected** | `View` 權限。 |
+| | `GET /company/{companyId}` | `/job-posting/company/{companyId}` | `/api/job-posting/company/{companyId}` | **Protected** | `View` 權限。 |
+| | `PUT /update` | `/job-posting/update` | `/api/job-posting/update` | **Protected** | `Edit` 權限。 |
+| | `DELETE /delete/{id}` | `/job-posting/delete/{id}` | `/api/job-posting/delete/{id}` | **Protected** | `Edit` 權限。 |
+| | `POST /scrape/{companyId}` | `/job-posting/scrape/{companyId}` | `/api/job-posting/scrape/{companyId}` | **Protected** | `Scrape` 權限（啟動爬蟲與 AI 分析）。 |
+| | `POST /search` | `/job-posting/search` | `/api/job-posting/search` | **Protected** | `View` 權限。 |
+| `UserJobLinkController` | `POST /add` | `/user-job-link/add` | `/api/user-job-link/add` | **Protected** | `Edit` 權限。 |
+| | `PUT /update` | `/user-job-link/update` | `/api/user-job-link/update` | **Protected** | `Edit` 權限。 |
+| | `GET /get` | `/user-job-link/get` | `/api/user-job-link/get` | **Protected** | `View` 權限。 |
+| | `GET /get/{id}` | `/user-job-link/get/{id}` | `/api/user-job-link/get/{id}` | **Protected** | `View` 權限。 |
+| | `GET /user/{userId}` | `/user-job-link/user/{userId}` | `/api/user-job-link/user/{userId}` | **Protected** | `View` 權限。 |
+| | `GET /job-posting/{jobPostingId}` | `/user-job-link/job-posting/{jobPostingId}` | `/api/user-job-link/job-posting/{jobPostingId}` | **Protected** | `View` 權限。 |
+| | `DELETE /delete/{id}` | `/user-job-link/delete/{id}` | `/api/user-job-link/delete/{id}` | **Protected** | `Edit` 權限。 |
+| `UserJobBindingController` | `POST /add/{jobPostingId}` | `/user/bindings/job/add/{jobPostingId}` | `/api/user/bindings/job/add/{jobPostingId}` | **Protected** | 當前登入使用者收藏職缺。 |
+| | `DELETE /{jobPostingId}` | `/user/bindings/job/{jobPostingId}` | `/api/user/bindings/job/{jobPostingId}` | **Protected** | 當前登入使用者取消收藏。 |
+| | `GET ` | `/user/bindings/job` | `/api/user/bindings/job` | **Protected** | 查詢當前登入使用者收藏職缺清單。 |
 
-```mermaid
-graph TB
-    Client[前端客戶端] -->|HTTP/REST| Controller[Controller 層]
-    Client -->|WebSocket| WS[AlarmWebSocket]
+#### (5) backend-external-api-service (埠號: 8007, 路由: `/api/stt/**`, `/api/ai/**`, `/api/external/**`, `/api/voice-uploads/**`)
+| Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
+|---|---|---|---|:---:|---|
+| `DiaryController` | `GET ` | `/external/diary` | `/api/external/diary` | **Protected** | 查詢當前使用者語音日記。 |
+| `ConfigController` | `GET ` | `/external/config` | `/api/external/config` | **Protected** | `View` 權限（機器人全域設定）。 |
+| | `GET /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `View` 權限。 |
+| | `POST ` | `/external/config` | `/api/external/config` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `Edit` 權限。 |
+| `VoiceUploadController` | `POST ` | `/api/voice-uploads` | `/api/voice-uploads` | **Protected** | 上傳使用者語音檔案。 |
+| | `GET /{id}` | `/api/voice-uploads/{id}` | `/api/voice-uploads/{id}` | **Protected** | 取得特定語音上傳狀態與明細。 |
+| | `POST /current/search` | `/api/voice-uploads/current/search` | `/api/voice-uploads/current/search` | **Protected** | 搜尋當前使用者之語音上傳紀錄。 |
+| | `POST /{id}/translations` | `/api/voice-uploads/{id}/translations` | `/api/voice-uploads/{id}/translations` | **Protected** | 執行/新增語音轉譯任務。 |
+| | `GET /{id}/translations` | `/api/voice-uploads/{id}/translations` | `/api/voice-uploads/{id}/translations` | **Protected** | 取得轉譯多語系結果。 |
+| `UsageController` | `GET ` | `/external/usage` | `/api/external/usage` | **Protected** | 查詢 API 呼叫用量記錄。 |
+| | `GET /summary` | `/external/usage/summary` | `/api/external/usage/summary` | **Protected** | 取得 API 用量與成本統計摘要。 |
+| `TtsRefAudioController` | `POST /external/tts/ref-audio` | `/external/tts/ref-audio` | `/api/external/tts/ref-audio` | **Public** | 上傳 GPT-SoVITS 參考音訊 (`@Ignore`)。 |
+| `SttController` | `POST /whisper` | `/stt/whisper` | `/api/stt/whisper` | **Protected** | 指定 Faster-Whisper 轉錄。 |
+| | `POST /sensevoice` | `/stt/sensevoice` | `/api/stt/sensevoice` | **Protected** | 指定 SenseVoice 轉錄。 |
+| `LineWebhookController` | `POST /external/line/callback` | `/external/line/callback` | `/api/external/line/callback` | **Public** | LINE 女友機器人 Webhook 回呼 (`@Ignore`)。 |
+| | `POST /external/line/diary/callback` | `/external/line/diary/callback` | `/api/external/line/diary/callback` | **Public** | LINE 語音日記 Webhook 回呼 (`@Ignore`)。 |
+| | `GET /external/public/audio/stream/{fileName}` | `/external/public/audio/stream/{fileName}` | `/api/external/public/audio/stream/{fileName}` | **Public** | LINE 音訊公開串流播放端點 (`@Ignore`)。 |
+| `LearnController` | `POST /{lan}/{mode}` | `/stt/v1/{lan}/{mode}` | `/api/stt/v1/{lan}/{mode}` | **Protected** | 語音轉文字 + 本地 NLP 拼音注音轉換。 |
+| `AiInternalController` | `POST /analyze-jobs` | `/ai/inner/analyze-jobs` | *Gateway 阻擋* | **Internal** | Feign 多模型瀑布分析職缺資料。 |
 
-    subgraph "應用層"
-        Controller --> Service[Service 層]
-        AOP[AOP 認證攔截] -.-> Controller
-    end
+#### (6) backend-alert-service (埠號: 8008, 路由: `/api/alertCheckLimit/**`, `/api/aquarkData/**`, `/api/cache-stats`)
+| Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
+|---|---|---|---|:---:|---|
+| `AlertCheckLimitController` | `POST /add` | `/alertCheckLimit/add` | `/api/alertCheckLimit/add` | **Protected** | `Edit` 權限。 |
+| | `GET /get` | `/alertCheckLimit/get` | `/api/alertCheckLimit/get` | **Protected** | `View` 權限。 |
+| | `POST /update` | `/alertCheckLimit/update` | `/api/alertCheckLimit/update` | **Protected** | `Edit` 權限。 |
+| | `POST /delete` | `/alertCheckLimit/delete` | `/api/alertCheckLimit/delete` | **Protected** | `Edit` 權限。 |
+| | `POST /search` | `/alertCheckLimit/search` | `/api/alertCheckLimit/search` | **Protected** | `View` 權限。 |
+| `AquarkDataController` | `POST /getData` | `/aquarkData/getData` | `/api/aquarkData/getData` | **Protected** | `View` 權限（查詢感測器時序資料）。 |
+| | `GET /getColumnNameList` | `/aquarkData/getColumnNameList` | `/api/aquarkData/getColumnNameList` | **Protected** | `View` 權限。 |
+| | `POST /getAverage` | `/aquarkData/getAverage` | `/api/aquarkData/getAverage` | **Public** | 計算數值平均值 (`@Ignore`)。 |
+| `CacheStatsController` | `GET ` | `/cache-stats` | `/api/cache-stats` | **Protected** | 查詢全微服務聚合之快取指標與命中率。 |
 
-    subgraph "資料存取層"
-        Service --> DataAccess[DataAccess 介面]
-        DataAccess --> DataAccessImpl[DataAccess 實作]
-        DataAccessImpl --> Repository[JPA Repository]
-    end
+#### (7) backend-ai-py (FastAPI 側車, 埠號: 5001, 僅供 Java 微服務內部調用)
+| 模組 / Router | HTTP 方法與子路徑 | 內部直接路徑 | 對外狀態 | 說明 |
+|---|---|---|:---:|---|
+| `main.py` | `GET /health` | `/health` | **Public** | 側車健康檢查端點。 |
+| `routers/stt.py` | `POST /stt` | `/stt` | **Internal** | 預設 STT 轉錄端點（接收 MinIO Object Key）。 |
+| | `POST /stt/whisper` | `/stt/whisper` | **Internal** | 指定 Faster-Whisper 推論。 |
+| | `POST /stt/sensevoice` | `/stt/sensevoice` | **Internal** | 指定 SenseVoice 離線純 CPU 推論。 |
+| `routers/tts.py` | `POST /tts` | `/tts` | **Internal** | 語音合成（GPT-SoVITS 音色克隆 / Sherpa 備援）。 |
+| `routers/chat.py` | `POST /chat` | `/chat` | **Internal** | Ollama LLM 對話推論（支援 SSE 串流）。 |
 
-    subgraph "基礎設施"
-        Repository --> DB[(PostgreSQL)]
-        Service --> Cache[(Redis 快取)]
-        Service --> KafkaProducer[Kafka Producer]
-        KafkaProducer --> KafkaTopic[Kafka Topic: socketSend]
-        KafkaTopic --> KafkaConsumer[Kafka Consumer]
-        KafkaConsumer --> WS
-    end
+---
 
-    Timer[定時任務] --> Service
-    ExternalAPI[外部 Aquark API] --> Timer
+# 四、 安全、AOP 與權限設計 (Security, AOP & Authentication)
+
+### 1. 動態三層 RBAC 權限模型
+全系統採用宣告式註解 `@RequirePermission` 進行精細化權限控制。`com.example.BackendArchitectureLab.Aop.PermissionCheck` 切面會在執行 Controller 前動態解析三層權限：
+1. **第一層（微服務名）**：自動讀取 `spring.application.name`，去除 `-service` 或 `-api` 並轉為 PascalCase（例如 `iam-service` $\to$ `Iam`）。
+2. **第二層（資源層）**：優先讀取方法級或類別級 `@RequirePermission(layer=...)`；若未宣告則自動解析 Controller 類名並去除 `Controller` 後綴（例如 `RoleController` $\to$ `Role`）。
+3. **第三層（動作層）**：讀取 `@RequirePermission(value=...)`（例如 `Query`、`Edit`、`SuperAdmin`）。
+
+### 2. IAM 服務防死鎖本地校驗架構 (`LocalPermissionValidator`)
+* **一般微服務**：透過 `DefaultPermissionValidator` 呼叫 Feign Client `PermissionCheckFeignClient`，向 IAM 服務的 `/role/inner/validate` 發送驗證請求。
+* **IAM 服務本身**：透過 `com.example.BackendArchitectureLab.Service.Impl.LocalPermissionValidatorImpl` 覆寫抽象類別，直接查詢本地資料庫 Repository，**徹底杜絕 IAM 服務在執行自身權限校驗時發起自我 Feign 呼叫而導致的連線池死鎖與線程耗盡**。
+
+### 3. JWT 雙來源解析 (`JwtAuthenticationFilter`)
+安全過濾器支援雙通道憑證解析，自動適配 Web 前端與後台管理介面：
+1. **HTTP Authorization Header**：`Bearer <token>`。
+2. **HTTP Cookie**：`v3-admin-vite-token-key=<token>`。
+過濾器透過 `jose4j` 解析 Claims，構建 Spring Security 的 `UsernamePasswordAuthenticationToken` 並注入 `SecurityContextHolder`。
+
+### 4. 動態公開路徑掃描 (`IgnoreUrlsProvider`)
+實作 `InitializingBean`，於 Spring Boot 啟動時動態掃描所有標註 `@Ignore` 的 Controller 端點，自動合併預設白名單（`/swagger-ui/**`, `/v3/api-docs/**`, `/*/inner/**`, `/actuator/**`）並注入 Spring Security 的 `permitAll()`，免除手動維護白名單之繁瑣。
+
+### 5. Feign 鏈路憑證透明轉發 (`FeignConfig.bearerTokenInterceptor`)
+在微服務跨服務調用時，`RequestInterceptor` 自動從當前線程的 `RequestContextHolder` 提取原 HTTP Request 的 `Authorization` Header 並轉發給下游服務，確保分散式鏈路中的使用者身分上下文不中斷。
+
+---
+
+# 五、 分散式事務補償與外部同步架構 (SAGA & Outbox)
+
+在 `backend-competency-service` 中，專案實作了企業級 **Durable Command + Transactional Outbox + Lease/Fencing Token + SAGA 補償機制**：
+
+```
+[ ProjectAdminController: rebindProjectMemberSkills ]
+                         │
+                         ├─ 1. 在同一資料庫交易內更新業務資料
+                         ├─ 2. 寫入 external_sync_command (狀態: PENDING)
+                         └─ 3. 寫入 compensation_outbox_event (狀態: TRANSACTION_STARTED / COMMITTED)
+                                                 │
+                                 ┌───────────────┴───────────────┐
+                                 ▼                               ▼
+                 [ ExternalSyncWorker 排程 ]      [ CompensationOutboxWorker 排程 ]
+                         │                                       │
+     (原子 CAS 領取: PROCESSING, 租約 lock, fencingVersion++)    (CAS 領取並平行發布至 Kafka)
+                         │                                       │
+            ┌────────────┴────────────┐                          ▼
+            ▼                         ▼               Kafka Topic: "transaction-compensation"
+      [ 呼叫外部同步 ]          [ 重試超限 (>=5) ]                │
+            │                         │                          ▼
+     [ 成功: SENT ]            [ 標記: DEAD ]            [ CompensationConsumer ]
+                                      │                          │
+                                      ▼                          ├─ event_id 原子去重 (冪等領取)
+                       [ 觸發 SAGA 補償事件入隊 ] ───────────────┼─ 驗證 Fencing Token 代數
+                                                                 ├─ 執行 ICompensationRestoreService (完全還原)
+                                                                 └─ 寫入 compensation_restore_log
 ```
 
-### 告警通知流程
+### 1. 外部同步狀態機與租約控制 (`ExternalSyncWorker`)
+* **狀態機流轉**：`PENDING` $\to$ `PROCESSING` $\to$ `SENT`（成功）；若失敗則依指數退避策略（`5s, 15s, 30s, 60s, 300s`）進入 `FAILED` 排定 `nextAttemptAt`。
+* **原子 CAS 搶佔**：透過 SQL 條件更新領取到期命令，同時原子遞增 `attemptCount` 與 `fencingVersion`，並寫入 `leaseUntil` 租約過期時間。
+* **啟動保護 Fail-Fast 不變式校驗**：
+  在 `@PostConstruct validateConfiguration()` 中強制校驗：`lease-seconds`（預設 300s）必須大於 `batch-size`（20） $\times$ `operation-timeout-seconds`（10s）= 200s，若不符合則拒絕啟動，防止批次序列執行時租約提前失效引發併發衝突。
 
-```mermaid
-sequenceDiagram
-    participant Timer as 定時任務 (每小時)
-    participant API as 外部 Aquark API
-    participant Service as CheckApiService
-    participant DB as PostgreSQL
-    participant Redis as Redis 快取
-    participant Kafka as Kafka Producer
-    participant Topic as Kafka Topic
-    participant Consumer as Kafka Consumer
-    participant WS as WebSocket
-    participant Frontend as 前端客戶端
-    Timer ->> API: 拉取感測器資料
-    API -->> Service: 回傳資料
-    Service ->> DB: 寫入/更新資料
-    Service ->> Redis: 讀取告警閾值
-    Redis -->> Service: 回傳閾值設定
-    Service ->> Service: 比對數值與閾值
-    alt 超過閾值
-        Service ->> Kafka: 發送告警訊息
-        Kafka ->> Topic: 寫入 socketSend
-        Topic ->> Consumer: 消費訊息
-        Consumer ->> WS: 廣播告警
-        WS ->> Frontend: 推送至所有連線客戶端
-    end
+### 2. 補償閉環與 SAGA 還原機制
+* 當外部同步重試次數達上限（5 次）時，狀態轉為 `DEAD`，並將 `PROJECT_MEMBER_SKILLS_REBIND` 補償事件寫入 Outbox 表。
+* `CompensationOutboxWorker` 平行發布事件至 Kafka Topic `"transaction-compensation"`。
+* `CompensationConsumer` 在同一交易內檢查 `event_id` 唯一約束、Fencing Token 代數與悲觀鎖（`PESSIMISTIC_WRITE`），透過本機 `ICompensationRestoreService` 將專案成員技能還原至前置快照（`beforeState`），達成端到端資料一致性。
+* 補償引擎（含 `CompensationOutboxWorker`、`CompensationConsumer`、`CompensationMonitor`、`CompensationOutboxMonitor`、`CompensationLeaseReclaimer`）**已全數統一重構至 `backend-competency-service`**，消除跨服務反向依賴。
+
+### 3. Kafka Topics 與事件流一覽
+
+| Topic 名稱 | 發布者 (Publisher) | 消費者 (Consumer) | 說明與用途 |
+|---|---|---|---|
+| **`socketSend`** | `AlarmKafkaPublisher` (`alert-service`) | `KafkaConsumerService` (`alert-service`, group: `myGroup`) | 即時水情告警推播至前端 WebSocket。 |
+| **`cache-stats`** | `KafkaCacheStatsPublisher` (`backend-common`) | `CacheStatsConsumer` (`alert-service`, group: `myGroup`) | 快取命中率、Miss 與布隆過濾器阻擋統計聚合至 Redis Hash (`cache:stats:*`)。 |
+| **`transaction-compensation`** | `CompensationPublisherImpl` (`competency-service`) | `CompensationConsumer` (`competency-service`, group: `compensation-group`) | 分散式事務補償事件消費與資料回滾。 |
+| **`transaction-compensation.DLT`** | `KafkaCompensationConfig` 死信發布器 | 人工運維介入 | 永久不可重試（如版本不相容）或重試耗盡之死信佇列。 |
+
+---
+
+# 六、 高併發快取防穿透架構 (High-Concurrency Caching)
+
+本專案實作了嚴格的 **六層快取防禦機制 (`CachePenetrationProtectionCache`)**，並由 `BloomFilterInitializer` 於系統啟動時動態預熱資料庫主鍵至 Redisson `RBloomFilter`：
+
+```
+[ 客戶端請求 (Search / Get API) ]
+                 │
+                 ▼
+       ┌───────────────────┐
+       │ 1. Null Marker    │ ── (若命中空值標記) ──► 回傳 null (不打 DB)
+       └─────────┬─────────┘
+                 │ (非空值標記)
+                 ▼
+       ┌───────────────────┐
+       │ 2. Bloom Filter   │ ── (布隆過濾器判定不存在) ──► 拒絕查詢 / 拋出 404 (不打 DB)
+       └─────────┬─────────┘
+                 │ (判定可能存在)
+                 ▼
+       ┌───────────────────┐
+       │ 3. 讀取 Redis     │ ── (快取命中) ──► 回傳資料
+       └─────────┬─────────┘
+                 │ (快取未命中 Miss)
+                 ▼
+       ┌───────────────────┐
+       │ 4. Request        │ ── (同 Key 高併發請求合併為單一 CompletableFuture)
+       │    Collapsing     │
+       └─────────┬─────────┘
+                 │
+                 ▼
+       ┌───────────────────┐
+       │ 5. Semaphore(10)  │ ── (本機公平信號量排隊，限制最大並行打庫線程數為 10)
+       └─────────┬─────────┘
+                 │
+                 ▼
+       ┌───────────────────┐
+       │ 6. Redisson RLock │ ── (分散式互斥鎖 + Double-Check + 資料庫查詢回填快取)
+       └───────────────────┘
 ```
 
-### 快取監控統計流程 🆕
+### 19 個 Cache Names 與 TTL / Jitter 配置表
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant App as 應用服務 (IAM/Competency/Job)
-    participant Kafka as Kafka Topic: "cache-stats"
-    participant Alert as Alert Service (CacheStatsConsumer)
-    participant Redis as Redis (cache:stats:*)
-    participant Client as 監控前端 / 管理員
-    participant Ctrl as CacheStatsController
+系統在 `com.example.BackendArchitectureLab.Config.RedisConfig` 中為各業務資料精細化配置了快取存活時間（TTL）與隨機 Jitter 抖動（預設最大 30%），徹底杜絕快取雪崩：
 
-    App ->> App: 觸發快取事件 (Hit / Miss / Bloom Filter 阻擋)
-    App ->> Kafka: 發送 CacheStatsEvent (cacheName, field)
-    Kafka -->> Alert: 消費事件訊息
-    Alert ->> Redis: 更新統計數據 (HINCRBY cacheName field)
-    
-    rect rgb(240, 248, 255)
-        note right of Ctrl: 監控查詢流程
-        Client ->> Ctrl: GET /cache-stats
-        Ctrl ->> Redis: 讀取統計資料
-        Redis -->> Ctrl: 回傳統計數據
-        Ctrl -->> Client: 結構化 JSON 統計回傳
-    end
+| Cache Name | 配置 TTL | 抖動防護 (Jitter) | 作用領域與業務對象 |
+|---|:---:|:---:|---|
+| `users` | 2 小時 | + 隨機 Jitter | 使用者基本資料、Email 與動態條件搜尋快取。 |
+| `alertCheckLimit` | 1 小時 | + 隨機 Jitter | 水情告警閥值設定快取。 |
+| `aquarkData` | 1 小時 | + 隨機 Jitter | 感測器水情歷史時序資料快取。 |
+| `skills` | 24 小時 | + 隨機 Jitter | 技能定義與技能列表快取。 |
+| `skillLevels` | 24 小時 | + 隨機 Jitter | 技能等級列表快取。 |
+| `roles` | 6 小時 | + 隨機 Jitter | 角色定義與角色清單快取。 |
+| `roleFunctions` | 6 小時 | + 隨機 Jitter | 角色對應之功能權限列表快取。 |
+| `functions` | 24 小時 | + 隨機 Jitter | 系統功能權限清單快取。 |
+| `companies` | 6 小時 | + 隨機 Jitter | 企業公司資訊快取。 |
+| `jobPostings` | 1 小時 | + 隨機 Jitter | 職缺清單與搜尋結果快取。 |
+| `projectSkills` | 30 分鐘 | + 隨機 Jitter | 專案所需技能關聯快取。 |
+| `projectMemberSkills` | 30 分鐘 | + 隨機 Jitter | 專案成員技能關聯快取。 |
+| `projects` | 10 分鐘 | + 隨機 Jitter | 專案基本資料與個人專案清單快取。 |
+| `currentUserSkills` | 10 分鐘 | + 隨機 Jitter | 當前登入使用者技能清單快取。 |
+| `userJobLinks` | 10 分鐘 | + 隨機 Jitter | 使用者收藏職缺清單快取。 |
+| `userRoles` | 10 分鐘 | + 隨機 Jitter | 使用者角色綁定關聯快取。 |
+| `aquarkDataAvg` | 30 分鐘 | + 隨機 Jitter | 水質指標平均值運算快取。 |
+| `userVoiceUploads` | 10 分鐘 | + 隨機 Jitter | 使用者語音上傳任務與狀態快取。 |
+| `voiceTranslations` | 10 分鐘 | + 隨機 Jitter | 語音轉譯多語系結果快取。 |
+
+---
+
+# 七、 AI 語音與大腦推論架構 (AI Sidecar & Bot Pipelines)
+
+### 1. Python AI 側車隔離與 DLL 動態加載 (`backend-ai-py`)
+- **PyAnnote 語者分離之 Conda 子進程隔離**：
+  為避免 Windows 環境下 CTranslate2/sherpa-onnx 與 PyTorch/PyAnnote 引發 OpenMP/CUDA DLL 重複加載衝突（`KMP_DUPLICATE_LIB_OK` 崩潰），系統透過 `services/diarization_service.py` 調用獨立 Conda 環境 (`pyannote-env`) 執行子進程，HuggingFace Token 透過環境變數注入，杜絕敏感資訊洩漏於命令列。
+- **CUDA 12 DLLs 動態註冊**：
+  `_register_whisper_dll_dirs()` 動態探索 `nvidia.*`, `ctranslate2`, `onnxruntime` 安裝目錄並加入 `os.add_dll_directory`，預載入 `cudart64_12.dll`, `cublas64_12.dll`, `cudnn64_9.dll`。
+- **STT 雙引擎容錯**：Faster-Whisper (`large-v3-turbo`，支援 CUDA/CPU 自動降級) + Sherpa-ONNX SenseVoice（離線純 CPU 5 語系快速轉譯）。
+- **TTS 雙引擎容錯**：GPT-SoVITS（遠端 HTTP API 音色克隆） $\to$ 逾時（60s）或斷線自動降級至本地離線 Sherpa-ONNX (`breeze2-vits.onnx`)。
+- **本地 NLP 台灣繁體轉換**：透過 `opencc` (`s2twp.json`) 自動將辨識結果轉為繁體中文與台灣慣用語，並支援小說體對話排版。
+- **Ollama SSE 串流推論**：透過 `StreamingResponse` 提供 `text/event-stream` 即時 Token 流式輸出。
+
+### 2. LINE & Discord 機器人音訊處理管線
 ```
-
-### 基礎設施拓撲
-
-```mermaid
-graph LR
-    subgraph "Docker Compose 服務"
-        PG[(PostgreSQL<br/>port: 5432)]
-        RD[(Redis<br/>port: 6379)]
-        ZK[(Zookeeper<br/>port: 2181)]
-        KF[(Kafka<br/>port: 9092)]
-        MINIO[(MinIO<br/>port: 9000/9001)]
-    end
-
-    subgraph "微服務 (port)"
-        GW[Gateway<br/>8000]
-        IAM[IAM Service<br/>8002]
-        COMP[Competency Service<br/>8004]
-        JOB[Job Service<br/>8006]
-        EXT[External API Service<br/>8007]
-        ALT[Alert Service<br/>8008]
-    end
-
-    subgraph "Python Sidecar"
-        AIPY[AI-PY Service<br/>5001]
-    end
-
-    subgraph "Nacos 服務發現"
-        NC((Nacos<br/>8848))
-    end
-
-    NC -.-> GW & IAM & COMP & JOB & EXT & ALT & AIPY
-
-    GW --> IAM & COMP & JOB & EXT & ALT
-    EXT -->|Feign Client| AIPY
-    IAM & COMP & JOB & ALT --> PG
-    IAM & COMP & JOB & ALT --> RD
-    IAM & COMP & JOB & EXT & ALT --> KF
-    KF --> ZK
-    EXT & AIPY -.-> MINIO
+[ LINE / Discord 語音訊息 ] ──► [ MinIO 音訊儲存 ] ──► [ Python STT 轉譯 ]
+                                                              │
+[ LINE 音訊播放 / Discord Webhook ] ◄── [ Python TTS 合成 ] ◄── [ Chat 大腦 (LLM) ]
+                                             │
+                                   (動作過濾器: 移除 (動作) 與 *心理*)
 ```
+- **LINE 串流播放避坑設計**：提供 `@Ignore` 公開串流端點 `GET /external/public/audio/stream/{fileName}`，回傳 `Content-Disposition: inline`，解決 LINE App 無法直接播放 MinIO Presigned URL 的問題。
+- **Discord Bot 動態 Webhook 偽裝**：女友機器人動態於頻道建立 Webhook，以自訂名稱與頭像發送文字與語音附件 (`reply.wav`)。
+- **多模型瀑布級聯降級 (`CompositeAiService`)**：職缺爬蟲分析支援自動容錯切換：`Google Gemini (gemini-2.0-flash)` $\to$ `Groq (llama-3.3-70b)` $\to$ `DeepSeek (deepseek-v4-flash)` $\to$ `GitHub Models (gpt-4o-mini)`。
 
-### 資料模型
+---
 
-系統採用分散式資料庫設計（Database-per-Service），各微服務資料庫完全隔離。按微服務業務領域將資料模型劃分為 4 大核心領域：
+# 八、 WebSocket 即時告警架構 (Alert WebSocket)
 
-#### 1. 身份與權限管理領域 (IAM Service)
+- **通訊協定與端點**：標準 Jakarta WebSocket（JSR-356），端點為 `/ws/alarm`。
+- **分散式跨節點推播**：
+  1. 水情定時排程拉取感測器數據並比對閥值，超過上限時由 `AlarmKafkaPublisher` 發布至 Kafka Topic `"socketSend"`。
+  2. 微服務叢集各節點的 `KafkaConsumerService` 收到事件後，由 `AlarmWebSocket.broadcast()` 透過非同步 `session.getAsyncRemote().sendText(...)` 推送給當前連線的所有前端客戶端。
 
-```mermaid
-erDiagram
-    USER ||--o{ USER_ROLE: "has"
-    ROLE ||--o{ USER_ROLE: "assigned"
-    ROLE ||--o{ ROLE_FUNCTION: "grants"
-    FUNCTION ||--o{ ROLE_FUNCTION: "granted_to"
+---
 
-    USER {
-        uuid id PK
-        string email UK "唯一"
-        string name
-        boolean disabled
-    }
+# 九、 品質保證 (Quality)、CI/CD 與 500 併發壓力測試
 
-    ROLE {
-        uuid id PK
-        string name
-        string description
-    }
+### 1. GitHub Actions CI 雙軌驗證
+- **Java CI**：JDK 21 + `./mvnw test jacoco:check`，強制要求 **BUNDLE 覆蓋率 $\ge 80\%$**。
+- **Python CI**：Python 3.11 + `ruff check` + `ruff format --check` + `pytest backend-ai-py`（28+ 測試）。
+- **AI Code Review**：獨立之 `ai-review-trigger.yml` 與 `ai-review-trusted.yml` 提供自動化 PR 程式碼審查。
+- **映像檔建置**：Docker Buildx 多架構建置與 Docker Hub 自動推送。
 
-    FUNCTION {
-        uuid id PK
-        string name
-        string parent "父功能"
-        integer type
-    }
+### 2. JMeter 500 併發壓力測試套件 (`stress-test/`)
+- **資料庫一鍵初始化**：`init-dbs.sql` 一鍵建立 5 大獨立資料庫。
+- **10 個 SQL 大量測試數據生成腳本**：包含 50,003 筆使用者、50,000 個專案、200,000 筆水質時序數據（具備 `ON CONFLICT` 冪等防重特性）。
+- **4 大壓測場景 (`.jmx`)**：
+  - `test-iam.jmx`：500 併發，高頻讀取（Login / Users Search / Role / Function）。
+  - `test-competency.jmx`：500 併發，80% 讀取 + 20% 寫入（Skill Search / Project Search / Personal Skill Add）。
+  - `test-job.jmx`：500 併發，80% 讀取 + 20% 寫入（Company Search / Job Search / Company Add）。
+  - `test-alert.jmx`：200 併發，水情時序數據查詢。
+- **自動化執行腳本**：`run-with-cache.ps1` 與 `run-without-cache.ps1`，自動統計 P50/P90/P95/P99 延遲並產出報告。
 
-    USER_ROLE {
-        uuid id PK
-        uuid user_id FK "UK(user_id,role_id)"
-        uuid role_id FK "UK(user_id,role_id)"
-    }
+### 3. 程式碼規範 (Architecture Conventions)
+- **建構子注入**：全面採用 Lombok `@RequiredArgsConstructor` + `private final`，生產程式碼嚴禁 `@Autowired` 欄位注入。
+- **嚴格分層**：Mapper 僅限於 Service Impl 層使用；Service 介面一律回傳 Vo；Controller 嚴禁出現 JPA Entity。
+- **禁止長路徑完全限定名稱 (FQN)**：原始碼檔案一律在頂部顯式 `import`，程式碼內部僅使用簡潔類別名稱 (Simple Name)。
 
-    ROLE_FUNCTION {
-        uuid id PK
-        uuid role_id FK
-        uuid function_id FK
-    }
-```
+---
 
-#### 2. 能力與專案管理領域 (Competency Service)
+# 十、 重要設定與環境變數對照表 (.env.example)
 
-能力與專案管理領域涵蓋技能管理、專案管理以及專案成員技能等子模組。
+根目錄 `.env.example` 涵蓋全系統所需之關鍵環境變數：
 
-##### A. 技能管理子模組
+| 變數類別 | 環境變數名稱 | 預設 / 範例值 | 影響與配置用途 |
+|---|---|---|---|
+| **基礎網路** | `SERVER_PORT` | `8000` | Gateway 服務監聽埠號。 |
+| | `APP_IN_DOCKER` | `false` | 若後端運行於 Docker 容器設為 `true`（Redis/Kafka 自動解析為容器名稱）。 |
+| **PostgreSQL** | `POSTGRES_PORT` | `5432` | 資料庫對外埠號。 |
+| | `POSTGRES_USER` / `PASSWORD` | `postgres` / `your_postgres_password` | 資料庫登入認證（Compose 預設回退 `verYs3cret`）。 |
+| **Redis** | `REDIS_PORT` | `6379` | Redis 埠號。 |
+| | `REDIS_PASSWORD` | `your_redis_password` | Redis 連線密碼。 |
+| | `REDIS_CACHE_TTL_HOURS` | `1` | 快取預設存活時間（小時）。 |
+| **Kafka** | `KAFKA_PORT` | `9092` | Kafka Broker 埠號。 |
+| | `KAFKA_ADVERTISED_HOST` | `localhost` | Kafka Advertised Listener Host。 |
+| **MinIO** | `MINIO_API_PORT` / `CONSOLE_PORT` | `9000` / `9001` | S3 API 與 Web 控制台埠號。 |
+| | `MINIO_URL` | `http://localhost:9000` | 後端連線 MinIO 端點。 |
+| | `MINIO_ACCESS_KEY` / `SECRET_KEY` | `minioadmin` / `your_minio_password` | MinIO 存取密鑰。 |
+| **JWT 安全** | `JWT_SECRET_USE` | `change_to_your_jwt_secret` | JWT 簽名金鑰（至少 256 bits）。 |
+| | `JWT_EXPIRATION_MINUTES` | `1440` | JWT 有效期限（24 小時）。 |
+| **外部 AI 金鑰** | `GEMINI_API_KEY` | `""` | Google Gemini API 金鑰（預設模型 `gemini-2.0-flash`）。 |
+| | `DEEPSEEK_API_KEY` | `""` | DeepSeek API 金鑰 (`deepseek-v4-flash`)。 |
+| | `GROQ_API_KEY` | `""` | Groq API 金鑰 (`llama-3.3-70b-versatile`)。 |
+| | `GITHUB_MODELS_API_KEY` | `""` | GitHub Models API 金鑰 (`gpt-4o-mini`)。 |
+| **社群 Bot** | `LINE_CHANNEL_SECRET` / `TOKEN` | `""` | LINE 通用 Channel Secret 與 Token。 |
+| | `DISCORD_GF_TOKEN` / `DIARY_TOKEN`| `""` | Discord 女友與語音日記 Bot Token。 |
+| **Python Sidecar** | `AI_PY_PORT` | `5001` | Python FastAPI 側車監聽埠號。 |
+| | `WHISPER_MODEL_SIZE` | `large-v3-turbo` | Faster-Whisper 模型規格。 |
+| | `WHISPER_DEVICE` | `cuda` (無 GPU 可設 `cpu`) | Whisper 推論裝置。 |
+| | `GPT_SOVIT_URL` | `http://127.0.0.1:9880/tts` | GPT-SoVITS 語音合成端點。 |
+| | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama LLM 服務端點（模型 `gemma4:31b-cloud`）。 |
+| **壓力測試** | `JMETER_BIN` | `C:\path\to\jmeter\bin\jmeter.bat` | Apache JMeter 執行檔路徑。 |
 
-```mermaid
-erDiagram
-    SKILL ||--o{ SKILL_LEVEL: "has_levels"
-    USER ||--o{ USER_SKILL: "owns"
-    SKILL ||--o{ USER_SKILL: "learned"
-    SKILL_LEVEL ||--o{ USER_SKILL: "at_level"
+---
 
-    SKILL {
-        uuid id PK
-        string name
-        string description
-    }
+# 十一、 快速啟動指南 (Quick Start)
 
-    SKILL_LEVEL {
-        uuid id PK
-        uuid skill_id FK "UK(skill_id,level_value)"
-        integer level_value "UK(skill_id,level_value)"
-        string title
-        string description
-    }
-
-    USER_SKILL {
-        uuid id PK
-        uuid user_id FK "UK(user_id,skill_id)"
-        uuid skill_id FK "UK(user_id,skill_id)"
-        uuid skill_level_id FK
-    }
-```
-
-##### B. 專案管理子模組
-
-```mermaid
-erDiagram
-    PROJECT ||--o{ PROJECT_SKILL: "requires"
-    PROJECT ||--o{ USER_PROJECT: "has_members"
-    USER ||--o{ USER_PROJECT: "member_of"
-    SKILL ||--o{ PROJECT_SKILL: "required"
-    SKILL_LEVEL ||--o{ PROJECT_SKILL: "level"
-
-    PROJECT {
-        uuid id PK
-        string name
-        string description
-    }
-
-    PROJECT_SKILL {
-        uuid id PK
-        uuid project_id FK "UK(project_id,skill_id)"
-        uuid skill_id FK "UK(project_id,skill_id)"
-        uuid skill_level_id FK
-    }
-
-    USER_PROJECT {
-        uuid id PK
-        uuid user_id FK "UK(user_id,project_id)"
-        uuid project_id FK "UK(user_id,project_id)"
-    }
-```
-
-##### C. 專案成員技能子模組 🆕
-
-```mermaid
-erDiagram
-    USER ||--o{ USER_PROJECT_SKILL: "exhibits"
-    PROJECT ||--o{ USER_PROJECT_SKILL: "member_skills"
-    SKILL ||--o{ USER_PROJECT_SKILL: "used"
-    SKILL_LEVEL ||--o{ USER_PROJECT_SKILL: "level"
-
-    USER_PROJECT_SKILL {
-        uuid id PK
-        uuid user_id FK "UK(user_id,project_id,skill_id)"
-        uuid project_id FK "UK(user_id,project_id,skill_id)"
-        uuid skill_id FK "UK(user_id,project_id,skill_id)"
-        uuid skill_level_id FK
-    }
-```
-
-#### 3. 企業與職缺管理領域 (Job Service) 🆕
-
-```mermaid
-erDiagram
-    COMPANY ||--o{ COMPANY_WEBSITE: "has"
-    COMPANY ||--o{ JOB_POSTING: "has"
-    USER ||--o{ USER_JOB_LINK: "saves"
-    JOB_POSTING ||--o{ USER_JOB_LINK: "linked"
-
-    COMPANY {
-        uuid id PK
-        string name
-        string description
-        date last_scraped_at
-    }
-
-    COMPANY_WEBSITE {
-        uuid id PK
-        uuid company_id FK
-        string url
-    }
-
-    JOB_POSTING {
-        uuid id PK
-        uuid company_id FK
-        string title
-        string url
-        text description
-        text requirements
-        text responsibilities
-        string salary_range
-        date posted_date
-        text gemini_analysis
-    }
-
-    USER_JOB_LINK {
-        uuid id PK
-        uuid user_id FK "UK(user_id,job_posting_id)"
-        uuid job_posting_id FK "UK(user_id,job_posting_id)"
-        text user_notes
-    }
-```
-
-#### 4. 外部與 AI 代理服務領域 (External API Service) 🆕
-
-```mermaid
-erDiagram
-    LINE_GF_SESSION {
-        uuid id PK
-        string user_id UK "唯一"
-        boolean active
-        string prompt
-        boolean voice_enabled
-        string voice_sample_key
-        string voice_sample_text
-        boolean pending_prompt
-        string gf_name
-        string gf_avatar_url
-        string conversation_history
-    }
-
-    DISCORD_GF_SESSION {
-        uuid id PK
-        string guild_id
-        string channel_id
-        string user_id
-        boolean active
-        string prompt
-        boolean voice_enabled
-        string voice_sample_key
-        string voice_sample_text
-        string gf_name
-        string gf_avatar_url
-        string conversation_history
-    }
-
-    DISCORD_SUBSCRIPTION {
-        uuid id PK
-        string guild_id
-        string channel_id
-        string bot_type
-        string webhook_url
-        string webhook_id
-    }
-
-    BOT_CONFIG {
-        uuid id PK
-        string platform
-        string config_key
-        string config_value
-        string description
-        decimal cost_limit_daily
-        decimal cost_alert_at
-    }
-
-    API_USAGE_LOG {
-        uuid id PK
-        string service
-        string call_type
-        string input_unit
-        integer input_amount
-        decimal estimated_cost
-        string user_id
-    }
-
-    VOICE_DIARY {
-        uuid id PK
-        string user_id
-        string audio_url
-        string transcript
-        string language
-        string source
-    }
-```
-
-**核心資料表說明**：
-
-| 資料表 | 類型 | 歸屬微服務 | 用途 | 唯一約束 |
-|---|---|---|---|---|
-| `user` | 主實體 | `backend-iam-service` | 使用者資訊 | email |
-| `role` | 主實體 | `backend-iam-service` | 角色定義 | - |
-| `function` | 主實體 | `backend-iam-service` | 功能權限（樹狀結構） | - |
-| `user_role` | 關聯表 | `backend-iam-service` | 使用者角色綁定 | (user_id, role_id) |
-| `role_function` | 關聯表 | `backend-iam-service` | 角色權限綁定 | - |
-| `skill` | 主實體 | `backend-competency-service` | 技能定義 | - |
-| `skill_level` | 主實體 | `backend-competency-service` | 技能等級（隸屬於技能） | (skill_id, level_value) |
-| `project` | 主實體 | `backend-competency-service` | 專案資訊 | - |
-| `user_skill` | 關聯表 | `backend-competency-service` | 使用者個人技能庫 | (user_id, skill_id) |
-| `project_skill` | 關聯表 | `backend-competency-service` | 專案技能需求 | (project_id, skill_id) |
-| `user_project` | 關聯表 | `backend-competency-service` | 專案成員 | (user_id, project_id) |
-| `user_project_skill` | 關聯表 | `backend-competency-service` | 🆕 專案成員技能（使用者在特定專案的技能等級） | (user_id, project_id, skill_id) |
-| `company` | 主實體 | `backend-job-service` | 公司/企業資訊 | - |
-| `company_website` | 子實體 | `backend-job-service` | 🆕 企業相關網站連結（一對多關聯） | - |
-| `job_posting` | 主實體 | `backend-job-service` | 職缺資訊（含 Gemini 分析結果） | - |
-| `user_job_link` | 關聯表 | `backend-job-service` | 使用者儲存的職缺（個人收藏） | (user_id, job_posting_id) |
-| `line_gf_session` | 主實體 | `backend-external-api-service` | LINE 女友聊天會話狀態 | user_id |
-| `discord_gf_session` | 主實體 | `backend-external-api-service` | Discord 女友聊天會話狀態 | (channel_id, user_id) |
-| `discord_subscription`| 主實體 | `backend-external-api-service` | Discord Webhook 訂閱設定 | - |
-| `bot_config` | 主實體 | `backend-external-api-service` | 平台與機器人全局設定、用量水位 | - |
-| `api_usage_log` | 審計表 | `backend-external-api-service` | 外部 API 呼叫用量與估算成本記錄 | - |
-| `voice_diary` | 主實體 | `backend-external-api-service` | 語音日記轉譯記錄與音訊網址 | - |
-
-**資料模型設計特點**：
-
-- ✅ 所有 Entity 繼承 `BaseEntity`，自動擁有 `id` (UUID)
-  、審計欄位 (`created_by`, `created_time`, `updated_by`, `updated_time`)
-- ✅ 使用複合唯一約束防止重複綁定關係
-- ✅ `user_project_skill` 為四向關聯表，支援「使用者在不同專案展現不同技能等級」的業務場景
-- ✅ `skill_level` 與 `skill` 為一對多關係，確保等級定義與技能綁定
-- ✅ `function` 支援樹狀結構（parent 欄位），實現階層式功能選單
-
-## 服務名稱變更記錄
-
-| 原名稱 | 新名稱 | 說明 |
-|-------|-------|------|
-| `backend-ai-service` | `backend-external-api-service` | 擴增職責為外部整合中心（LINE/Discord/Config/AI 代理） |
-| `backend-project-skill-service` | `backend-competency-service` | 更貼近領域意涵：Competency = 技能 + 能力管理 |
-
-## Database-per-Service
-
-為實現微服務資料隔離，每個服務擁有獨立的 PostgreSQL 資料庫：
-
-| 資料庫名稱 | 歸屬服務 | 主要 Entity |
-|-----------|---------|------------|
-| `iam_service` | backend-iam-service | User, Role, Function, UserRole, RoleFunction |
-| `competency_service` | backend-competency-service | Project, Skill, SkillLevel, UserSkill, UserProject, ProjectSkill, UserProjectSkill |
-| `job_service` | backend-job-service | Company, JobPosting, CompanyWebsite, UserJobLink |
-| `external_api_service` | backend-external-api-service | VoiceDiary, BotConfig, ApiUsageLog, LineGfSession, DiscordGfSession, DiscordSubscription |
-| `alert_service` | backend-alert-service | AquarkData, AlertCheckLimit |
-
-## Python AI 側車服務 (`backend-ai-py`)
-
-為了解決 Java 生態在 AI 推論方面的限制（語音辨識、語音合成、LLM Chat），引入 Python 側車架構：
-
-- **語言**：Python 3.11 + FastAPI
-- **服務名**：`ai-py-service`（Nacos 註冊）
-- **Port**：`5001`
-- **不經 Gateway**：由 `backend-external-api-service` 透過 Feign Client 直接內部呼叫
-- **功能**：
-  - **STT**：faster-whisper 語音辨識（SenseVoice 可選）
-  - **TTS**：GPT-SoVIT HTTP API（主） + sherpa-onnx（備援）
-  - **Chat**：Ollama API 聊天（不含 LangChain / Milvus / RAG）
-  - **語者分離**：pyannote-audio 將多語者音訊拆分成單人音軌，再個別辨識
-
-### Python 環境建置
-
+### 步驟 0：環境變數設定
 ```bash
-# 建立 conda 環境（backend-ai-py，Python 3.11）並安裝全部依賴（fastapi/uvicorn/faster-whisper/minio 等）
-conda env create -f backend-ai-py/environment.yml
-conda activate backend-ai-py
-
-# 啟動服務（需先啟動 Docker 基礎設施與 Nacos，供服務註冊）
-conda run -n backend-ai-py uvicorn main:app --port 5001
-```
-
-語者分離（pyannote-audio）需額外 conda 環境 `pyannote-env`（涉及 CUDA 版 PyTorch），完整步驟見 [`docs/archive/backend-ai-py 語者分離環境安裝說明.md`](docs/archive/backend-ai-py 語者分離環境安裝說明.md)。
-
-## 技術選型說明
-
-| 技術                    | 用途           | 選型原因                                            |
-|-----------------------|--------------|-------------------------------------------------|
-| **Java 21**           | 程式語言         | LTS 版本，支援虛擬執行緒、Record Patterns 等新特性             |
-| **Spring Boot 3.4.2** | 核心框架         | 生態系完整、自動配置簡化開發、內建 Actuator 監控                   |
-| **Spring Data JPA**   | ORM 框架       | 減少樣板程式碼、支援 Specification 動態查詢、與 Spring 生態無縫整合   |
-| **PostgreSQL**        | 關聯式資料庫       | 開源、支援 JSONB/UUID/陣列等進階型別、效能優異                   |
-| **Redis**             | 快取層          | 高效能、支援多種資料結構、Spring Cache 原生整合                  |
-| **Kafka**             | 非同步訊息佇列      | 高吞吐、持久化、支援消費者群組，適合事件驅動架構                        |
-| **WebSocket**         | 即時通訊         | 全雙工通訊，適合告警即時推送場景                                |
-| **jose4j**            | JWT 處理       | 支援 JWS/JWE 標準、API 設計清晰、安全性高                     |
-| **MapStruct**         | Vo 映射        | 編譯期產生程式碼、效能優於反射、型別安全                            |
-| **Lombok**            | 程式碼簡化        | 減少 getter/setter/constructor 樣板程式碼              |
-| **Jsoup**             | HTML 解析與網頁爬蟲 | 輕量級靜態頁面爬取，支援 CSS Selector 與 DOM 操作，適合結構化頁面      |
-| **Selenium**          | 動態網頁爬蟲       | 瀏覽器自動化工具，處理 JavaScript 渲染頁面，作為 Jsoup 的 fallback |
-| **Kuromoji**          | 日文 NLP 工具    | 日文形態素分析與片假名拼音萃取                                 |
-| **Pinyin4j/Bopomofo** | 中文拼音/注音轉換   | 中文字轉漢語拼音及注音符號轉換引擎                               |
-| **opencc4j**          | 簡繁中文轉換      | STT 辨識結果由簡體轉換為繁體中文輸出                             |
-| **Gemini API**        | AI 智能分析      | Google Gemini REST API，用於從爬取內容中結構化萃取職缺資訊        |
-| **Groq API**          | AI 模型推論（備援）  | 低延遲推論晶片 LPU，作為 Gemini 備援方案                        |
-| **DeepSeek API**      | AI 模型推論（備援）  | 開源大語言模型 API，作為 Gemini 備援方案                        |
-| **GitHub Models API** | AI 模型推論（備援）  | 透過 Azure AI 存取多種模型，作為 Gemini 備援方案                 |
-| **Gson**              | JSON 序列化     | Google 官方 JSON 庫，用於 Gemini API 請求/回應處理          |
-| **Docker Compose**    | 本地開發環境       | 一鍵啟動所有依賴服務、環境一致性高                               |
-| **JUnit 5 + Mockito** | 測試框架         | 業界標準、支援參數化測試、Mock 功能完善                          |
-| **JaCoCo**            | 覆蓋率工具        | 與 Maven 無縫整合、支援 XML/HTML 報告                     |
-
-## 功能模組拆分
-
-| 模組          | 說明                                                    | 主要端點                          |
-|-------------|-------------------------------------------------------|-------------------------------|
-| **認證授權模組**  | JWT 簽發與驗證、RBAC 權限模型 (User → Role → Function)          | `/auth/login`, `/auth/signup` |
-| **使用者管理模組** | 使用者 CRUD、技能綁定、專案綁定、角色綁定、分頁搜尋                          | `/users/*`                    |
-| **專案管理模組**  | 一般/個人專案管理、技能綁定、成員技能管理、擁有者權限控制                         | `/project/*`                  |
-| **技能管理模組**  | 技能/等級 CRUD、個人/專案維度技能管理                                | `/skill/*`                    |
-| **角色與功能模組** | 角色/功能 CRUD、雙向綁定、階層式功能選單                               | `/role/*`, `/function/*`      |
-| **管理者綁定模組** | 統一管理使用者-專案、使用者-技能、專案-技能、專案成員技能等多對多綁定關係，採用完整覆蓋式 API 設計 | `/admin/bindings/*`           |
-| **公司管理模組**  | 公司 CRUD，作為職缺的隸屬企業                                     | `/company/*`                  |
-| **職缺管理模組**  | 職缺 CRUD、依公司查詢、爬蟲結果儲存                                  | `/job-posting/*`              |
-| **爬蟲分析模組**  | Jsoup/Selenium 複合爬蟲抓取公司網站 + Gemini API 智能分析職缺資訊       | `內部服務`                        |
-| **AI 語音辨識模組**| 透過 Java 整合 Python sidecar (faster-whisper) 進行高效率語音辨識、支援 LINE 音訊流程與 MinIO 雲端儲存，並提供中日文羅馬音/注音/拼音轉換 | `/stt/v1/*` 與 `POST /stt`（Python 側車，經 `AiPyServiceFeignClient`） |
-| **Python TTS 模組** | 透過 Python sidecar (GPT-SoVIT) 提供語音合成，儲存至 MinIO 回傳 URL | `POST /tts`（Python 側車，經 `AiPyServiceFeignClient`） |
-| **Ollama Chat 模組** | 透過 Python sidecar 呼叫 Ollama 語言模型，支援同步/串流 | `POST /chat`（Python 側車，經 `AiPyServiceFeignClient`） |
-| **告警通知模組**  | 定時拉取外部資料、閾值比對、Kafka 非同步推送、WebSocket 即時通知              | `/alertCheckLimit/*`          |
-| **資料查詢模組**  | Aquark 感測器資料查詢、動態條件過濾、Redis 快取                        | `/aquarkData/*`               |
-| **快取統計監控模組** | Kafka-based 快取命中/未命中/Bloom Filter 阻擋統計，聚合至 Redis Hash 提供查詢 | `/cache-stats`                |
-| **LINE Bot 模組** | LINE Messaging API 整合，支援文字/音訊訊息處理、用量追蹤 | `/api/external/line/callback` |
-| **Discord Bot 模組** | Java Discord API (JDA) 整合，支援 Slash 指令啟用女友對話、提示詞設定、語音回覆、自訂女友名稱與頭像 | 內部 WebSocket 連線 |
-| **外部 Config 管理** | 動態配置管理（平台 + 金鑰），支援用量限制設定 | `/api/external/config/**` |
-| **用量追蹤模組** | 各服務呼叫記錄、成本估算、每日額度檢查 | `/api/external/usage/**` |
-
-## 工程實踐
-
-### 層級架構設計
-- Controller → Service → DataAccess Interface → DataAccessImpl → Repository → JPA/Hibernate
-- DataAccess 層將資料存取邏輯從 Service 中分離，便於測試與替換實作。
-
-### 模組依賴隔離 (Dependency Isolation)
-為了解決微服務架構中常見的全域依賴過重問題（Jar Hell）與啟動效能問題，專案實作了嚴格的依賴隔離策略：
-- Parent POM (`pom.xml`) 僅負責版本管理 (`<dependencyManagement>`) 與極少數的全域基礎依賴（如 Lombok, MapStruct 等）。
-- 各微服務子模組依照其領域職責（例如：`backend-job-service` 需要爬蟲工具、`backend-external-api-service` 需要語音辨識與 NLP 套件），各自明確宣告所需的 `<dependencies>`，徹底避免無用類別庫的強迫載入，顯著降低不需要該依賴之服務（如 API Gateway）的啟動時間與編譯體積。
-
-### 快取策略
-
-- 使用 Spring Cache 抽象層（`@Cacheable` / `@CachePut` / `@CacheEvict`），Redis JSON 序列化
-- 三層級 TTL 策略：參考資料（6-24h）、業務資料（30m-6h）、使用者資料（10-30m）
-- 支援快取穿透防護（Bloom Filter + Null Value）、雪崩防護（TTL 隨機化 + 分散式鎖 + `sync=true`）、清單安全包裝（`CacheListWrapper`）及快取統計監控（Kafka-based）
-- 詳盡的策略說明、TTL 配置、Evict 策略與實作細節請見 [`docs/archive/redis快取策略.md`](docs/archive/redis快取策略.md)
-
-**快取是怎麼運作的？** 全專案共有 43 處 `@Cacheable`，散佈在 User / Role / Function / Skill / Project / JobPosting / Company / UserJobLink / AquarkData / AlertCheckLimit 等 Service 上。為了讓第一次讀的人能看懂，重點說明三件事：
-
-1. **Key 設計**：與業務語意一致，例如 `'user:...'`、`'all'`、`'byuser:'`、`'search:'+query`，避免 Key 碰撞。
-2. **清單安全包裝**：直接快取 `List` 會有型別擦除問題，所以回傳清單的方法都改用 `com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper` 包裹。
-3. **穿透/雪崩防護**：高併發查詢同一把快取 Key 時（如 Search API），若快取 miss 所有人都會同時打到 DB。`CachePenetrationProtectionCache` 用 Semaphore（預設容量 10）限流 + Redisson 分散式鎖保護，只讓一個執行緒去 DB 載入再回填快取。500 併發壓力測試中此機制防止了 DB 擊穿（但同時產生了「Semaphore 排隊 30 秒超時」的副作用，詳見 [未來優化](#未來優化)）。
-
-### 非同步事件處理
-
-- 整合 Kafka 消息佇列，構建高性能、低延遲的事件驅動與非同步解耦架構
-- 涵蓋即時告警廣播 (`socketSend`)、分散式交易補償 (`transaction-compensation`) 以及跨服務快取指標監控 (`cache-stats`) 三大核心業務
-- 支援消費者群組負載均衡（預設 `myGroup`）、批量拉取消費與 Spring Kafka 自動化重試及異常處理（`DefaultErrorHandler`）
-
-**三大主題的實作位置**：
-
-| 主題 | 誰發佈 | 誰消費 | 目的 |
-|------|--------|--------|------|
-| `socketSend` | `AlarmKafkaPublisher`（alert）| `KafkaConsumerService` | 告警即時推送到 WebSocket |
-| `transaction-compensation` | `CompensationOutboxServiceImpl`（competency，由 `ProjectUserBindingService.rebindProjectMemberSkills` 觸發寫入 Outbox）→ `CompensationPublisherImpl`（common） | `CompensationConsumer`（competency） | 分散式事務補償（Outbox + eventId 冪等 + eventVersion 版本化） |
-| `cache-stats` | `KafkaCacheStatsPublisher`（common） | `CacheStatsConsumer`（alert） | 快取命中/Bloom 阻擋統計聚合至 Redis Hash，供 `/cache-stats` 查詢 |
-
-消費者群組預設 `myGroup`（`KafkaConfig`），補償事件另用 `compensation-group`（`KafkaCompensationConfig`）；執行時依環境自動解析 Broker（本機 `localhost:9092`、Docker 內 `kafka:9092`）。
-
-**分散式交易補償（Transactional Outbox）**：
-
-```
-rebindProjectMemberSkills (competency)
-  ├─ 產生 transactionId + 狀態摘要
-  ├─ validateUsersExist（交易外 Feign 驗證）
-  ├─ doRebindProjectMemberSkills（@Transactional）
-  │   ├─ 寫入業務資料 + enqueue TRANSACTION_STARTED（同交易）
-  │   ├─ 寫入業務資料 + enqueue COMMITTED（同交易 commit；rollback 則一併消失）
-  │   └─ commit
-  ├─ 失敗 → rollback 後以 REQUIRES_NEW 寫入 enqueue FAILED（失敗事實）+ enqueue COMPENSATION_REQUIRED（補償請求）
-  └─ CompensationOutboxWorker @Scheduled（預設 5 秒）
-      ├─ findPendingDue（PENDING/FAILED 到期，或 PROCESSING 租約過期）→ claimEvent（CAS 搶佔
-      │   + attemptCount 遞增 + 新租約，多實例安全）
-       ├─ publish(event).get(10s) 等 Kafka ACK → 成功 SENT
-       └─ 失敗 → FAILED + nextAttemptAt（指數退避）→ 超過 ${compensation.outbox.max-attempts:5} 次 → DEAD
-            └─ CompensationConsumer (competency)：saveAndFlush 原子領取（event_id 唯一鍵）→ PROCESSING（帶租約）
-                 → 僅 COMPENSATION_REQUIRED 才委派 CompensationStrategy 執行補償，其餘狀態僅記錄
-```
-
-- **可靠性**：`TRANSACTION_STARTED` 與 `COMMITTED` 皆與業務資料**同一交易 commit**（rollback 時一併消失），杜絕「業務成功但 COMMITTED 未建立」的缺口；失敗時在 rollback 後以 `REQUIRES_NEW` 寫入 `FAILED`（失敗事實）。Kafka ACK 前不會標記已送達；發送失敗的事件保留於 Outbox 表，以指數退避重試（5s → 15s → 30s → 1m → 5m），超過 `compensation.outbox.max-attempts`（預設 5 次）標記 `DEAD` 供人工查核
-- **Outbox 傳遞狀態機**：`PENDING → PROCESSING → SENT`（Kafka ACK 後）；失敗回 `FAILED`（記錄 attemptCount / errorMessage / nextAttemptAt 後到期重試）→ 超限 `DEAD`；`claimEvent` 以條件式 UPDATE（CAS）保證多實例不重複發送；`PROCESSING` 但租約（`compensation.outbox.lease-seconds`，預設 300 秒）過期 → 可由任一實例 reclaim（release crash recovery，不卡死）；`attemptCount` 於每次 claim 時遞增（3 次 = 3 次發送嘗試）。`CompensationOutboxWorker` 以**可組態並行度**（`compensation.outbox.publish-parallelism`，預設 4，實際 `min(批次筆數, 並行度)`）平行發佈整批事件，避免串行 `publish().get(ackTimeoutSeconds)` 讓單一慢 Kafka 拖垮整批——批次最差等待由 `batchSize × ackTimeout`（最壞 200s）降至約等於 `ackTimeout`（10s），降低過長佔用 scheduler thread 打穿租約的風險
-- **冪等**：傳遞契約為 **At-Least-Once**（非 Exactly-Once）：允許「Kafka ACK → JVM crash → SENT 尚未寫入 DB → 租約過期 → reclaim 重新發送」的 crash window，同一 `eventId` 可能被發送兩次。消費端以 `compensation_event_log`（`event_id` 唯一鍵）原子領取去重（event-level deduplication）：插入成功取得處理權，衝突則依狀態處理（PROCESSED 跳過 / FAILED 以 `retryClaim` CAS 重試 / PROCESSING 且租約未到期跳過）。**注意：event log 去重僅保證 Consumer 不重複執行，無法保證業務 side effect 的 exactly-once**——租約過期不代表前一個 Worker 一定失敗（可能仍在執行），`CompensationStrategy` 實作**必須以 `eventId` 或等效冪等鍵自行設計為冪等**（尤其未來執行 REST / DB 寫入 / 外部服務呼叫等不可逆副作用時）
-- **消費端處理狀態機**：`PROCESSING → PROCESSED`；執行暫時性失敗 → `FAILED`（記錄 lastError 與 attemptCount）並拋出異常以觸發 Kafka 重試；若重試次數達到 `compensation.consumer.max-attempts: 5`，則改標記為 `DEAD` 終態且不再 rethrow 異常（防止 Kafka 和處理器重複 retryClaim 打架）；`PROCESSING` 但租約（`compensation.consumer.lease-seconds`，預設 300 秒）已到期 → 其他實例以 `reclaimLease` CAS 接手（crash recovery，不再卡死）。**終態寫入皆以 `markState` 條件式 UPDATE（CAS）執行**（WHERE `eventId + ownerId + fencingVersion + status = PROCESSING`）：`CompensationEventLog` 無 `@Version`，改以帶 token 的 SQL CAS 保證只有**目前最新一代持有者**能將終態（`PROCESSED` / `FAILED` / `DEAD`）寫入——舊 worker 租約到期被接管後若回頭寫終態，因 token（ownerId/fencingVersion）已不符而被拒絕（updated=0 → `log.warn` 不覆寫），杜絕 stale worker 用舊 attemptCount/fence 覆蓋新持有者認領狀態的終態寫入競態。`markProcessed` 一併清空 `nextAttemptAt`，`markDead` 亦清空（DEAD 不再重試）
-- **過期租約回收排程 + FAILED 事件重試迴圈**：`CompensationLeaseReclaimer`（competency，`@Scheduled` 預設 60 秒，可調 `compensation.consumer.reclaim-delay-ms`）**兩階段掃描**：① 租約已過期的 `PROCESSING` 紀錄（`findTop50ByStatusAndLeaseUntilBefore`）、② 已達 `nextAttemptAt` 的 `FAILED` 紀錄（`findTop50ByStatusAndNextAttemptAtBefore`，每次至多 50 筆）。前者以 `reclaimLease` CAS、後者以 `retryClaim` CAS 重新認領（皆產生新 `ownerId` 並使 `fencingVersion` 遞增），再從 stored `payload` 反序列化並呼叫 `processReclaimed` 重跑補償；單一事件失敗僅 `log.warn` 不中斷整批。`markFailed` 會寫入 `nextAttemptAt = now + retryBackoffMs * attemptCount`（線性退避，`compensation.consumer.retry-backoff-ms` 預設 60000）——確保 **FAILED 事件即使 Kafka 已無 redelivery 也能被排程重新領取**（閉環：reclaimer 奪取 → transient 失敗 → FAILED → nextAttemptAt 到期 → retryClaim → 再次執行，重試耗盡仍由 `maxAttempts` 封存 `DEAD`）。`payload` 欄位於 `claimEventLog` 認領時序列化完整 `CompensationEvent` 存入，且**所有回復路徑統一以 persisted payload 為 authoritative source**（含 `retryClaim` 重試與租約過期 `reclaimLease` 接手，皆由 `replayFromPersistedPayload` 反序列化）；persisted payload 損毀無法還原時直接標記 `DEAD` 分流，不退回 Kafka 重新投遞的 payload，避免同一 `eventId` 兩套內容不一致
-- **消費端重試政策**：由 Kafka `DefaultErrorHandler`（`FixedBackOff(1000ms, 4)`，共 5 次嘗試）負責重試。永久型錯誤（如 `UnsupportedEventVersionException`、`UnsupportedCompensationActionException`、`CompensationConflictException`、`IllegalArgumentException`）已列入 `addNotRetryableExceptions`，會直接轉發至死信佇列 `transaction-compensation.DLT`，不進行重複嘗試，確保 offset 乾淨不卡死。**`retryClaim` 亦以 `nextAttemptAt` 為 guard**（WHERE 含 `nextAttemptAt IS NULL OR nextAttemptAt <= :now`，且認領成功後清空）——Kafka 每 1 秒的 redelivery 不會繞過 `markFailed` 設定的線性退避，只有退避到期（或從未設定退避）的 `FAILED` 事件才可被重新領取，與 outbox 側 `claimEvent` 的 `nextAttemptAt <= CURRENT_TIMESTAMP` 行為一致
-- **監控告警**：`CompensationMonitor`（alert）定期（預設 60 秒）掃描滯留 `FAILED` 的消費事件並記錄 `log.info`，而對於重試耗盡或已隔離於死信（`DEAD`）的補償事件，為防止全表掃描，使用限制筆數的 Bounded 查詢，並透過 `lastAlertedAt` 實施 1 小時頻率控制（避免每分鐘 log.error 重複洗板）；`CompensationOutboxMonitor`（competency）同週期以 Bounded 查詢（`findTop20ByDeliveryStatusOrderByUpdatedTimeDesc`，至多 20 筆）掃描重試耗盡的 `DEAD` Outbox 事件並以 `lastAlertedAt` 實施 1 小時頻率控制後 `log.error` 告警，供人工介入
-- **補償語意**：閉環已建立——業務失敗時 Producer 以單一 `REQUIRES_NEW` 交易寫入 `FAILED`（失敗事實）與 `COMPENSATION_REQUIRED`（補償請求，兩者同 commit），Consumer 僅對 `COMPENSATION_REQUIRED` 事件執行補償（成功即為 `COMPENSATED` 語意；執行失敗則標記持久化 `FAILED` 並 rethrow 交由 Kafka 重試）；`TRANSACTION_STARTED / COMMITTED / FAILED / COMPENSATED` 事件僅記錄後標記完成，不觸發補償；找不到對應 Strategy 的動作拋出 `UnsupportedCompensationActionException` 視為永久型錯誤分流至 DLT 供人工查核，不進行無效重試
-- **策略架構**：補償動作透過 `CompensationStrategy` 介面委派（目前為 `ProjectMemberSkillsRebindCompensationStrategy`）；`PROJECT_MEMBER_SKILLS_REBIND` 採取實體「完全擦除並重建」還原模式。原先由 `alert-service` 透過 `CompetencyServiceFeignClient` 遠程呼叫還原 API，**現已將整套補償引擎（含 Kafka Consumer、Reclaimer 監控與 Strategy）全部搬遷至 `competency-service` 內部**。這樣徹底消除了微服務間的反向依賴循環，並將破壞性的還原操作轉換為 **JVM 本機 Service 直接呼叫**（不再對外暴露 `/project/inner/skills/restore` 終端點，Strategy 改以建構子注入（Constructor Injection）本機 `ICompensationRestoreService`，契合專案開發慣例，並以 `eventId` 作為去重鍵寫入本機 `compensation_restore_log` 去重紀錄）。——啟動時缺 bean 即 fail fast，杜絕生產環境靜默 `null` 失效。**Fencing Token 全鏈路**：`CompensationEventProcessor` 於 `claimEventLog` 認領時產生新 `ownerId`（UUID）並使 `fencingVersion` 單調遞增（認領即 1），經 `CompensationStrategy.compensate` 原樣傳遞給本機 `ICompensationRestoreService.restoreMemberSkills`，認領紀錄（`compensation_restore_log`）一併記下該 token，形成「最新一代持有者才能執行還原並標記結果」的端到端守衛。還原 API 以 `compensation_restore_log` 的 `eventId` 主鍵 + `@Version` 樂觀鎖進行 DB 層級原子認領（INSERT 撞鍵 → `DataIntegrityViolationException` 拒絕；已存在 PROCESSING 且租約未到期 → 拒絕；`FAILED` 或 `PROCESSING` 租約到期之接管皆要求新 `fencingVersion` 嚴格更大才由 `takeOverClaim` CAS 接手，stale token 一律拒絕——兩條路徑共用相同代數不變式）。**Token 的 DB 級 fencing**：破壞性刪除前以 `findByIdForUpdate` 對 `compensation_restore_log` row 持 `PESSIMISTIC_WRITE` 悲觀鎖至外層交易 commit，同時再次驗證 token——鎖定後 `takeOverClaim` CAS 會被資料列鎖阻塞，待 commit 後其 predicate（狀態已非可接管）重新評估即失敗，使舊 token 在 DB 層真正失效，封閉 check-then-act 的 TOCTOU 窗口。**結果標記**：`markRestoreSuccess` 改為於同一還原交易內呼叫（`REQUIRED` 加入外層交易，取代 `REQUIRES_NEW` + `afterCommit`，與還原資料同 commit、同 rollback）——commit 失敗時 SUCCESS 一併回滾（log 維持 PROCESSING，租約到期由 reclaimer 回收重試），杜絕「log=SUCCESS 但實際未還原」，同時消除「restore 已 commit 但 SUCCESS 標記遺失」的 crash window；版本守衛失敗時若目前綁定已等於還原目標則直接冪等標記 SUCCESS（crash window 復原，不重跑破壞性還原）。`markRestoreFailed` 於 `afterCompletion`（狀態非 COMMITTED）觸發並以 `REQUIRES_NEW` 獨立 commit——成功路徑因已持有該認領列悲觀鎖、同交易更新不會死鎖，失敗路徑延後標記則避免持鎖交易內開新交易更新同 row 造成死鎖。`markRestoreState` 以 `ownerId + fencingVersion` 為條件 CAS（token 已被更新代數接管 → 不覆寫並 `log.warn`），確保只有最新一代持有者能標記結果，並記錄 `lastError`。並以 snapshot 快照攜帶的專案樂觀鎖 `@Version`（`expectedVersion`）作並發守衛：先快速比對版本，通過後 touch Project 使 `@Version` 於 commit 時執行 CAS 比對，封閉 TOCTOU 窗口，保障補償在並行場景下絕不覆蓋最新合法修改
-- **版本化**：`eventVersion` 標記事件 schema 版本（目前 1）；Consumer 拒絕不支援的版本（`eventVersion != 1` 拋出 `UnsupportedEventVersionException`，不重試直接分流至 DLT 死信佇列）以防版本不相容
-- **事件狀態機**：`TRANSACTION_STARTED → COMMITTED / FAILED`；業務失敗閉環 `FAILED → COMPENSATION_REQUIRED → COMPENSATED`（補償執行暫時性失敗以 `FAILED` 呈現，重試耗盡以 `DEAD` 呈現，永久錯誤直接 DLT，不另設 domain status）
-- **發佈邊界與配置**：職責分離——業務 Service 僅依賴 `ICompensationOutboxService`（4 個 enqueue 寫入 Outbox，不碰 Kafka）；Kafka 發佈只由 `CompensationOutboxWorker`（Timer 套件，`@Scheduled` 預設 5 秒）透過 `ICompensationPublisher`（僅 `publish` 單一方法）執行。Worker 全部政策可配置：`compensation.outbox.flush-delay-ms`（預設 5000）、`max-attempts`（5）、`lease-seconds`（300）、`batch-size`（20）、`ack-timeout-seconds`（10）、`backoff-seconds`（預設 5,15,30,60,300，逗號分隔）
-
-### Spring Security 認證攔截
-
-- 整合 `spring-boot-starter-security`，使用 `SecurityFilterChain` 與自訂 `JwtAuthenticationFilter`
-- JWT 驗證失敗直接回傳 401，不進入業務邏輯
-- 通過驗證後將 CustomUserDetails 物件注入 `SecurityContextHolder` 供後續存取
-- 利用 `IgnoreUrlsProvider` 動態掃描 `@Ingnore` 註解，自動配置 `permitAll()` 規則，並保留原本簡潔的開發體驗
-- 透過 `@RequirePermission({"System", "Function", "View"})` 註解在 Controller 方法上，宣告「模組 + 功能 + 操作」三層權限，
-  由 AOP 攔截器自動檢查當前使用者的角色是否具備對應功能權限
-- 登入機制改用 Spring Security 內建之 `AuthenticationManager` 處理密碼比對
-- 密碼儲存與驗證改用 `DelegatingPasswordEncoder`：預設使用 `bcrypt` 進行加密 (新密碼會帶有 `{bcrypt}` 前綴)
-  ，同時向下相容舊資料庫中未帶前綴的裸 bcrypt 密碼，保有未來無縫切換其他加密演算法 (如 Argon2) 的擴充彈性
-
-### 動態查詢
-
-- 使用 JPA Specification 實現分頁與多條件搜尋
-- 複雜查詢 (AquarkData) 使用 Criteria API 動態建構
-
-### Vo 映射
-
-- MapStruct 編譯期產生映射程式碼，效能優於反射
-- 支援 `@AfterMapping` 處理複雜轉換 (如權限解析)
-
-### 測試與覆蓋率
-
-- JUnit 5 + Mockito 單元測試
-- H2 in-memory database 隔離測試環境
-- JaCoCo 覆蓋率要求 ≥ 80% (排除介面、Entity、Vo 等樣板層)
-
-### Docker Compose 本地開發
-
-- 一鍵啟動 PostgreSQL、Redis、Kafka、Zookeeper、MinIO 等服務
-- 環境變數模板化 (`.env.example`)，便於團隊協作
-
-### 統一例外處理
-
-- `GlobalExceptionHandler` 集中處理所有異常
-- 標準化回應格式：`ResponseType<T>` (code, data, message, errorType)
-- 自訂 `AppException` 支援 HTTP 狀態碼與錯誤型別設定
-
-
-## CI/CD Pipeline
-
-專案導入 GitHub Actions 建立 Pull Request 自動化驗證流程。
-
-### Pull Request Flow
-
-    Developer
-    ↓
-    Create Pull Request
-    ↓
-    GitHub Actions
-    ↓
-    Maven Build
-    ↓
-    Unit Test
-    ↓
-    JaCoCo Coverage Check
-    ↓
-    AI Code Review
-    ↓
-    Merge Validation
-    ↓
-    Approve & Merge
-## 未來優化方向
-
-> 來源：500 併發壓力測試（`stress-test/壓力測試結果.md`）。核心矛盾：**Search API 的快取加速與 Semaphore 穿透防護互相衝突**——`@Cacheable(sync=true)` 在快取全 miss 時，所有請求同時排隊等 Semaphore(10) 重建快取，30 秒超時直接回 500；反而「不加快取」時錯誤率 0%。三方案比較：
-
-| 方案 | 作法 | 結果 |
-|------|------|------|
-| **A（推薦）** | 移除 Search 類非單筆查詢的 `@Cacheable` | 徹底消除排隊，換取無快取但穩定（錯誤率 0%） |
-| B | Semaphore 容量調高至 50/100 | 減少排隊但治標不治本，仍有超時風險 |
-| C | `sync=false`（關閉同步回填） | 並發回填改為各自寫入，失去合併請求效益，需搭配 TTL 隨機化 |
-
-- 若未來採虛擬執行緒（Virtual Threads），需注意 Carrier Pinning 對 Semaphore/鎖的影響。
-- 其餘方向（向量檢索 Milvus、多 Agent 協作等）見下方 Roadmap。
-
-## Roadmap
-
-### Infrastructure
-
-- [x] Prometheus Metrics (僅 alert-service)
-- [x] Grafana (基礎配置，無預設儀表板)
-- [ ] Centralized Logging
-- [ ] ELK Stack
-
-### Architecture
-
-- [ ] Outbox Pattern
-- [ ] Distributed Lock
-- [ ] Event Replay Mechanism
-- [ ] Saga Pattern Evaluation
-
-### Quality
-
-- [ ] Testcontainers Integration Test
-- [ ] SonarQube Static Analysis
-- [ ] Performance Benchmark
-- [ ] Security Audit Automation
-
-### AI Integration
-
-- [ ] Python AI 側車服務 (`backend-ai-py`) 向量檢索優化 (評估 Milvus 向量資料庫整合)
-- [ ] Multi-Agent 協作與複雜任務流調度
-
-## 提供的介面類型
-
-- REST API
-- WebSocket
-- Kafka Consumer
-
-## 🤖 AI 語音辨識功能 (STT) 說明
-
-本專案採用 **Java + Python 協作架構**，將語音推論交由 Python 側車服務 (`backend-ai-py`) 執行。透過高效率的 `faster-whisper` 推論引擎，不僅提升了辨識速度，也消除了 Java 原生 JNI 與 FFmpeg 轉檔庫的複雜依賴。
-
-### 運作架構
-
-```mermaid
-graph LR
-    Client[客戶端/LINE/Discord] -->|1. 上傳音訊| JavaService[Java Web 服務]
-    JavaService -->|2. OpenFeign 調用 POST /stt| PyService[Python AI-PY 服務]
-    PyService -->|3. 轉 WAV & faster-whisper 推論| PyService
-    PyService -->|4. 上傳音訊| MinIO[(MinIO 儲存)]
-    PyService -.->|5. 回傳辨識文字與 MinIO URL| JavaService
-    JavaService -->|6. 本地 NLP 拼音轉換| JavaService
-    JavaService -.->|7. 回傳結果| Client
-```
-
-1. **音訊上傳與中繼**：Java 服務接收音訊檔案後，不進行本地轉檔，直接透過 Feign Client 將音訊原始位元組轉發至 Python 側車服務 (`backend-ai-py`) 的 `/stt` 端點。
-2. **高效推論與雲端儲存**：Python 服務將音訊自動轉為標準 16kHz WAV 格式，使用 `faster-whisper` 執行語音轉文字（STT），同時將音訊自動上傳至 MinIO 物件儲存，並計算音訊長度。
-3. **本地 NLP 拼音轉換**：Java 服務接收到 Python 回傳的文字後，使用 JVM 本地 NLP 引擎（如 `opencc4j`, `Pinyin4j`, `Kuromoji`）完成繁簡轉換、注音、漢語拼音或日文羅馬拼音的精密轉換，最終回傳。
-
----
-
-### 提供之 API 介面
-
-#### 1. 前端/拼音轉換整合介面：`POST /stt/v1/{lan}/{mode}`
-由 Java `LearnController` 提供，整合了 STT 與本地 NLP 拼音注音轉換：
-* **路徑參數**:
-  * `lan`: 辨識目標語言。支援 `zh` (繁體中文), `ja` (日文)
-  * `mode`: 拼音輸出模式。支援 `pinyin` (拼音), `zhuyin` (注音), `romaji` (日文羅馬拼音), `none` (不輸出拼音)
-* **請求參數**:
-  * `file`: 音訊檔案 (MultipartFile，支援 MP3/WAV/M4A/AMR 等)
-* **CURL 測試範例**:
-  ```bash
-  curl -X POST "http://localhost:8000/stt/v1/zh/zhuyin" \
-       -H "Content-Type: multipart/form-data" \
-       -F "file=@/path/to/your/audio.mp3"
-  ```
-
-#### 2. 內部語音辨識介面：`AiPyServiceFeignClient` → `POST /stt`（Python 側車）
-STT 由 Java `AiPyServiceFeignClient`（backend-common）直接呼叫 Python 側車（不經 Gateway），供 Discord Bot、LINE Bot 等背景服務取得辨識結果與音訊檔案儲存 URL（`AiInternalController` 僅提供 `/ai/inner/analyze-jobs`）：
-* **請求參數 (Query Param)**:
-  * `object_key`: MinIO 物件鍵（音訊已預先上傳至 MinIO）
-  * `language`: 辨識目標語言 (String，預設 `zh`)
-  * `provider`: 引擎選擇 (`whisper` / `sensevoice`，可選)；另有 `recognizeWithWhisper` / `recognizeWithSenseVoice` 分別對應 `/stt/whisper`、`/stt/sensevoice`
-* **回應格式 (SttResponseVo)**:
-  ```json
-  {
-    "text": "語音辨識內容",
-    "language": "zh",
-    "duration_sec": 4.52,
-    "audio_url": "http://localhost:9000/ai-audio/stt/2026/06/xxx.wav"
-  }
-  ```
-
----
-
-### Python 側端模型與推論設定
-
-可在 Python 側車服務中的 `.env` 檔案中設定以下參數來調校 `faster-whisper`：
-* `WHISPER_MODEL_SIZE`: 模型大小。預設為 `base`（支援 `tiny`, `small`, `medium`, `large-v3` 等）。
-* `WHISPER_DEVICE`: 運作裝置。預設為 `cpu`（若有 NVIDIA 顯卡可設為 `cuda`）。
-* `WHISPER_COMPUTE_TYPE`: 計算精度。預設為 `int8`（如使用 GPU 可改為 `float16` 以提升推論速度）。
-
-## 啟動方式
-
-本專案採用微服務架構，啟動流程分為「基礎設施」→「微服務」兩階段。
-
-### Phase 0：前置準備
-
-```bash
-# 1. 複製環境變數模板
 cp .env.example .env
-# 編輯 .env 填入必要的 API Key（GEMINI_API_KEY, GROQ_API_KEY 等）
+# 編輯 .env 填入各項 API Key 與資料庫密碼
 ```
 
-### Phase 1：啟動基礎設施
-
-使用 Docker Compose 啟動 PostgreSQL、Redis、Kafka、MinIO、Nacos 等依賴服務：
-
+### 步驟 1：啟動 Docker 基礎設施
 ```bash
 docker compose -f compose.yaml up -d
 ```
+> 初始化會自動執行 `init-dbs.sql`，建立 5 個微服務獨立資料庫。
 
-### Phase 2：啟動 Python AI 側車服務
-
-Python 側車服務 (AI-PY) 提供 STT/TTS/Chat 功能，不經 Gateway，由 External API Service 直接呼叫：
-
+### 步驟 2：啟動 Python AI 側車服務
 ```bash
+conda env create -f backend-ai-py/environment.yml  # 首次建立環境
 conda run -n backend-ai-py uvicorn main:app --port 5001
 ```
 
-### Phase 3：啟動微服務
-
-**選項 B：個別啟動（開發除錯）**
-
-依序在獨立終端機中執行：
-
+### 步驟 3：啟動 Java 後端微服務
+依序在獨立終端機啟動微服務（IAM 優先啟動以建立權限字典，Gateway 最後啟動）：
 ```bash
-# 啟動順序：iam-service → 其他服務 → gateway（最後）
 ./mvnw spring-boot:run -pl backend-iam-service
 ./mvnw spring-boot:run -pl backend-competency-service
 ./mvnw spring-boot:run -pl backend-job-service
@@ -977,1097 +575,60 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 ./mvnw spring-boot:run -pl backend-gateway
 ```
 
-### 服務埠一覽
-
-| 服務 | Port | 說明 |
-|------|------|------|
-| Gateway | `8000` | API 入口閘道 |
-| IAM Service | `8002` | 身分識別與授權 |
-| Competency Service | `8004` | 專案與技能管理 (原 Project-Skill Service) |
-| Job Service | `8006` | 職缺管理 |
-| External API Service | `8007` | 外部整合、AI 代理、LINE/Discord Bot (原 AI Service) |
-| Alert Service | `8008` | 告警通知 |
-| AI-PY Service | `5001` | Python 側車服務 (STT/TTS/Chat，不經 Gateway) |
-| Nacos | `8848` | 服務發現主控台 |
-
-### 外部服務入口 (LINE Bot / Discord Bot)
-
-LINE Bot 與 Discord Bot 的完整設定說明（Webhook URL、Token 申請、頻道訂閱）請見 [`docs/archive/外部入口說明.md`](docs/archive/外部入口說明.md)
-
-#### 所需外部服務與憑證變數
-
-| 服務 | 用途 | 必要環境變數 | 啟動條件 |
-|------|------|--------------|----------|
-| **LINE** | GF / Diary 聊天機器人（Webhook 回呼 LINE 伺服器） | `LINE_CHANNEL_*`、`LINE_DIARY_CHANNEL_*`（Channel Secret / Token） | 需 ngrok 對外轉發至 Gateway `8000` |
-| **Discord** | GF / Diary 機器人（WebSocket 長連線，不需對外 Webhook） | `DISCORD_GF_TOKEN`、`DISCORD_DIARY_TOKEN` | 直接可用 |
-| **ngrok** | 將本機 Gateway 對外暴露供 LINE 回呼 | -（安裝：`winget install ngrok`，啟動：`ngrok http 8010`） | 僅 LINE 需要 |
-| **Ollama** | Python 側車 Chat 能力的本地 LLM | - | `localhost:11434`（如 gemma2 等模型） |
-| **GPT-SoVIT** | TTS 語音合成（主選） | - | `http://127.0.0.1:9880/tts`（亦有 sherpa-onnx 備援） |
-| **backend-ai-py** | Python AI 側車（STT/TTS/Chat） | - | `conda env backend-ai-py` + `uvicorn main:app --port 5001` |
-
-> 注意：缺任一服務時系統仍可啟動（對應功能會回「未啟用」），資料庫/Redis/Kafka 等基礎設施必需。LINE 語音回覆目前關閉（`LineGfService.voiceEnable`），因免費 ngrok 會攔截音訊。
-
-### Docker 內啟動 Gateway
-
-若需將 Gateway 部署至 Docker：
-
-```bash
-# 使用 dockerBuild.bat（建置映像 + 啟動基礎設施）
-.\dockerBuild.bat
-
-# 或手動建置與執行
-docker build -t backend-gateway:latest .
-docker run -p 8000:8000 --network my_network backend-gateway:latest
-```
-
-### Kafka 連線設定
-
-| 執行環境 | 設定值 |
-|---------|--------|
-| 本機開發 | `KAFKA_ADVERTISED_HOST=localhost`（預設） |
-| Docker 內執行 | `APP_IN_DOCKER=true`（自動切換為 `kafka:9092`） |
-
-## 重要設定
-
-- Gateway 埠：`8000`
-- JWT Secret：`jwt.secret.use`
-- PostgreSQL：`localhost:5432`
-- Redis：`localhost:6379`
-- Kafka：`localhost:9092`
-- Gemini API：需設定 `GEMINI_API_KEY` 環境變數（`.env` 或系統環境變數），API
-  端點預設 `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`
-
-可在 `compose.yaml` 查看各服務連線設定。
-
-## 常見問題排除
-
-### Kafka 連線失敗
-
-**症狀：**
-
-```
-ERROR o.a.k.c.NetworkClient - Connection to node -1 (localhost/127.0.0.1:9092) could not be established
-```
-
-**原因與解決方案：**
-
-| 執行環境       | 原因                   | 解決方案                                 |
-|------------|----------------------|--------------------------------------|
-| 本機開發       | Kafka 廣播地址設定為容器名稱    | 設定 `KAFKA_ADVERTISED_HOST=localhost` |
-| Docker 內執行 | 應用程式無法解析 `localhost` | 設定 `APP_IN_DOCKER=true`              |
-| 混合環境       | 網路隔離                 | 檢查 Docker network 設定                 |
-
-**驗證步驟：**
-
-```bash
-# 1. 確認 Kafka 容器運行中
-docker ps | grep kafka
-
-# 2. 測試 Kafka 可達性
-docker exec -it kafka kafka-topics --bootstrap-server kafka:9092 --list
-
-# 3. 檢查應用程式日誌
-tail -f logs/spring.log | grep kafka
-```
+### 步驟 4：存取 OpenAPI / Swagger UI
+開啟瀏覽器訪問 Gateway 聚合文檔：
+- **Swagger UI**：`http://localhost:8000/swagger-ui/index.html`
+- **OpenAPI 聚合 JSON**：`http://localhost:8000/v3/api-docs-merged`
 
 ---
 
-### Redis 連線問題
+# 十二、 常見問題排除 (Troubleshooting)
 
-**症狀：**
+### 1. Kafka 連線失敗 (`Connection could not be established`)
+- **本機執行**：確認 `.env` 設定 `KAFKA_ADVERTISED_HOST=localhost`。
+- **Docker 容器內執行**：設定 `APP_IN_DOCKER=true`，系統將自動切換為 `kafka:9092`。
 
-```
-io.lettuce.core.RedisConnectionException: Unable to connect to localhost:6379
-```
+### 2. Redis 連線逾時或認證失敗
+- 檢查 `compose.yaml` 與 `application.yml` 的密碼配置是否一致。
+- 透過容器命令驗證連線：`docker exec -it redis_container redis-cli ping`（預期回傳 `PONG`）。
 
-**解決步驟：**
+### 3. PostgreSQL 資料庫不存在 (`database "xxx" does not exist`)
+- 若非透過 Docker Compose 首次啟動，請手動執行 `init-dbs.sql` 建立 5 個獨立 Database：
+  ```bash
+  docker exec -i postgres_db_backend psql -U postgres < init-dbs.sql
+  ```
 
-```bash
-# 1. 確認 Redis 運行中
-docker ps | grep redis
-
-# 2. 測試 Redis 連線
-docker exec -it redis_container redis-cli ping
-# 預期回應：PONG
-
-# 3. 若啟用密碼，測試認證
-docker exec -it redis_container redis-cli -a redisPd ping
-```
-
-**注意事項：**
-
-- 預設 Redis **未啟用密碼**（compose.yaml line 25 已註解）
-- 若要啟用密碼，取消註解 `compose.yaml` line 25
+### 4. WebSocket 連線失敗 (`ws://localhost:8000/ws/alarm`)
+- 若透過反向代理，請確保 Nginx 配置了 `Upgrade` 與 `Connection "upgrade"` 標頭。
+- 確認 `backend-alert-service` 正常運作且 Kafka Broker 可達。
 
 ---
 
-### PostgreSQL 連線錯誤
-
-**症狀 1：資料庫不存在**
-
-```
-PSQLException: FATAL: database "xxx" does not exist
-```
-
-**解決方案：**
-
-```bash
-# 進入 PostgreSQL 容器
-docker exec -it postgres_db_backend psql -U postgres
-
-# 建立資料庫（若需要）
-CREATE DATABASE your_db_name;
-```
-
-**症狀 2：密碼認證失敗**
-
-```
-PSQLException: FATAL: password authentication failed for user "postgres"
-```
-
-**檢查項目：**
-
-1. 確認 `.env` 中的 `POSTGRES_PASSWORD` 與 `application.yml` 一致
-2. 檢查 `SPRING_DATASOURCE_PASSWORD` 環境變數
-3. 若修改密碼後，需重啟容器：
-   ```bash
-   docker compose down -v  # -v 會刪除 volume，慎用
-   docker compose up -d
-   ```
-
----
-
-### JPA DDL 自動更新問題
-
-**症狀：**
-
-```
-Caused by: org.hibernate.tool.schema.spi.SchemaManagementException: Unable to execute schema management to JDBC target
-```
-
-**檢查項目：**
-
-1. 確認使用者有 DDL 權限（CREATE TABLE, ALTER TABLE）
-2. 檢查 `application.yml` 中的 `spring.jpa.hibernate.ddl-auto` 設定
-    - `update`：自動更新 schema（開發環境）
-    - `validate`：僅驗證 schema（生產環境建議）
-    - `none`：不執行任何操作
-
-**生產環境建議：**
-
-- 改用 Flyway 或 Liquibase 管理資料庫版本
-- 禁用 Hibernate DDL 自動更新
-
----
-
-### WebSocket 連線失敗
-
-**症狀：**
-前端無法建立 WebSocket 連線
-
-**檢查項目：**
-
-```javascript
-// 前端連線範例
-const ws = new WebSocket('ws://localhost:8000/ws/alarm');
-
-ws.onopen = () => console.log('Connected');
-ws.onerror = (error) => console.error('Connection failed:', error);
-```
-
-**常見原因：**
-
-1. CORS 設定錯誤（檢查 `WebSocketConfig.java`）
-2. 防火牆阻擋 WebSocket 連線
-3. Nginx 反向代理需額外設定：
-   ```nginx
-   location /ws/ {
-       proxy_pass http://backend:8000;
-       proxy_http_version 1.1;
-       proxy_set_header Upgrade $http_upgrade;
-       proxy_set_header Connection "upgrade";
-   }
-   ```
-
-## 安全性配置指南
-
-### 🚨 生產環境必改項目
-
-以下配置項目**絕對不可**使用預設值，否則存在嚴重安全風險：
-
-#### 1. JWT Secret Key
-
-**風險等級：** 🔴 **嚴重**
-
-**預設值（開發用）：**
-
-```yaml
-jwt:
-  secret:
-    use: secretsecretsecretsecretsecretll  # ⚠️ 生產環境禁止使用
-```
-
-**生產環境設定：**
-
-```bash
-# 生成強隨機密鑰（至少 256 bits）
-openssl rand -base64 32
-
-# 設定環境變數
-export JWT_SECRET_USE="你生成的隨機密鑰"
-```
-
-**Kubernetes Secret 範例：**
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: backend-secrets
-type: Opaque
-data:
-  jwt-secret: <base64-encoded-secret>
-```
-
----
-
-#### 2. 資料庫密碼
-
-**風險等級：** 🔴 **嚴重**
-
-**不安全的做法：**
-
-```yaml
-# ❌ 密碼寫死在 application.yml
-spring:
-  datasource:
-    password: verYs3cret
-```
-
-**安全做法：**
-
-```bash
-# 使用環境變數
-export SPRING_DATASOURCE_PASSWORD="$(openssl rand -base64 24)"
-
-# 或使用 Secrets Manager（AWS/GCP/Azure）
-# AWS 範例：
-export SPRING_DATASOURCE_PASSWORD="$(aws secretsmanager get-secret-value --secret-id db-password --query SecretString --output text)"
-```
-
-**PostgreSQL 密碼強度建議：**
-
-- 長度 ≥ 16 字元
-- 包含大小寫字母、數字、特殊符號
-- 避免使用字典單字
-
----
-
-#### 3. Redis 密碼保護
-
-**目前狀態：** ⚠️ **未啟用密碼**
-
-**啟用步驟：**
-
-1. 修改 `compose.yaml`（取消註解 line 25）：
-
-```yaml
-redis:
-  # 選項 A：直接寫密碼（不建議）
-  # command: redis-server --requirepass redisPd
-  # 選項 B：使用環境變數（建議）
-  command: redis-server --requirepass ${REDIS_PASSWORD}
-```
-
-2. 修改 `application.yml`：
-
-```yaml
-spring:
-  data:
-    redis:
-      password: ${REDIS_PASSWORD:redisPd}
-```
-
-3. 生產環境密碼生成：
-
-```bash
-export REDIS_PASSWORD="$(openssl rand -base64 20)"
-```
-
----
-
-#### 4. Super User Key
-
-**風險等級：** 🟡 **中等**
-
-**用途：** 建立管理員帳號的一次性密鑰
-
-**設定：**
-
-```bash
-# 生產環境設定唯一密鑰
-export SUPERUSER_KEY="$(uuidgen)-$(openssl rand -base64 16)"
-```
-
-**使用後建議：**
-
-- 建立管理員帳號後，立即更換或刪除此密鑰
-- 記錄使用日誌以供審計
-
----
-
-### 🛡️ 建議啟用的安全機制
-
-#### 1. API Rate Limiting（速率限制）
-
-**目的：** 防止 API 濫用與 DDoS 攻擊
-
-**實作選項：**
-
-**選項 A：使用 Bucket4j + Spring Cache**
-
-```xml
-
-<dependency>
-    <groupId>com.bucket4j</groupId>
-    <artifactId>bucket4j-core</artifactId>
-    <version>8.7.0</version>
-</dependency>
-```
-
-**選項 B：使用 Spring Cloud Gateway（若引入）**
-
-```yaml
-spring:
-  cloud:
-    gateway:
-      routes:
-        - id: backend
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10  # 每秒補充 10 個 token
-                redis-rate-limiter.burstCapacity: 20  # 最多累積 20 個 token
-```
-
-**建議限制：**
-
-- 未認證請求：10 req/min
-- 已認證使用者：100 req/min
-- 管理員：1000 req/min
-
----
-
-#### 2. CORS 細部控制
-
-**目前狀態：** 需檢查 `WebSocketConfig.java` 與 Security 配置
-
-**生產環境配置範例：**
-
-```java
-
-@Configuration
-public class CorsConfig {
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-
-        // ❌ 不安全：允許所有來源
-        // config.addAllowedOrigin("*");
-
-        // ✅ 安全：明確指定允許的來源
-        config.setAllowedOrigins(Arrays.asList(
-                "https://yourdomain.com",
-                "https://app.yourdomain.com"
-        ));
-
-        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE"));
-        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
-        config.setAllowCredentials(true);
-        config.setMaxAge(3600L);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return source;
-    }
-}
-```
-
----
-
-#### 3. 輸入驗證統一處理
-
-**檢查項目：**
-
-✅ **已實作：**
-
-- 統一例外處理（`GlobalExceptionHandler`）
-- 標準化回應格式（`ResponseType<T>`）
-
-⚠️ **建議補強：**
-
-**Controller 層驗證：**
-
-```java
-
-@PostMapping("/signup")
-public ResponseType<Token> signup(@Valid @RequestBody SignupRequest request) {
-    // @Valid 觸發 Bean Validation
-}
-```
-
-**Vo 驗證規則：**
-
-```java
-public class SignupRequest {
-    @NotBlank(message = "Email cannot be blank")
-    @Email(message = "Invalid email format")
-    private String email;
-
-    @NotBlank
-    @Size(min = 8, message = "Password must be at least 8 characters")
-    @Pattern(regexp = "^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d).*$",
-            message = "Password must contain uppercase, lowercase, and digit")
-    private String password;
-}
-```
-
-**全域驗證例外處理：**
-
-```java
-
-@ExceptionHandler(MethodArgumentNotValidException.class)
-public ResponseEntity<ResponseType<?>> handleValidationExceptions(
-        MethodArgumentNotValidException ex) {
-    Map<String, String> errors = new HashMap<>();
-    ex.getBindingResult().getFieldErrors().forEach(error ->
-            errors.put(error.getField(), error.getDefaultMessage())
-    );
-    return ResponseEntity.badRequest()
-            .body(new ResponseType<>(-1, errors, "Validation failed"));
-}
-```
-
----
-
-#### 4. SQL Injection 防護
-
-**目前狀態：** ✅ 已使用 JPA，風險較低
-
-**需注意：**
-
-- 檢查是否有使用 `@Query` 與 native query
-- 若有，確保使用參數綁定而非字串拼接
-
-**不安全範例：**
-
-```java
-// ❌ 危險：SQL Injection 風險
-@Query(value = "SELECT * FROM users WHERE email = '" + email + "'", nativeQuery = true)
-User findByEmailUnsafe(String email);
-```
-
-**安全範例：**
-
-```java
-// ✅ 安全：使用參數綁定
-@Query(value = "SELECT * FROM users WHERE email = :email", nativeQuery = true)
-User findByEmailSafe(@Param("email") String email);
-```
-
-**檢查指令：**
-
-```bash
-# 搜尋專案中的 native query
-grep -r "@Query.*nativeQuery.*true" src/
-```
-
----
-
-#### 5. 敏感資料遮罩（日誌輸出）
-
-**風險：** 密碼、Token 等敏感資料可能被記錄在日誌中
-
-**解決方案：**
-
-**選項 A：使用 Logback 遮罩規則**
-
-```xml
-<!-- logback-spring.xml -->
-<configuration>
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
-            <layout class="ch.qos.logback.classic.PatternLayout">
-                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-            </layout>
-            <charset>UTF-8</charset>
-        </encoder>
-        <filter class="com.example.BackendArchitectureLab.Filter.SensitiveDataMaskingFilter"/>
-    </appender>
-</configuration>
-```
-
-**選項 B：Vo 層面遮罩**
-
-```java
-
-@Data
-public class UserVo {
-    private String email;
-
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)  // 僅接受輸入，不輸出
-    private String password;
-
-    @Override
-    public String toString() {
-        return "UserVo{email='" + email + "', password='***'}";
-    }
-}
-```
-
----
-
-### 🔍 安全性檢查清單
-
-部署前請確認以下項目：
-
-#### 基本安全
-
-- [ ] JWT Secret 已更換為強隨機密鑰（≥256 bits）
-- [ ] 資料庫密碼已更換且符合強度要求
-- [ ] Redis 已啟用密碼保護
-- [ ] Super User Key 已設定唯一值
-
-#### 網路安全
-
-- [ ] CORS 已限制允許的 Origin（不使用 `*`）
-- [ ] API 已啟用 Rate Limiting
-- [ ] HTTPS 已啟用（生產環境）
-- [ ] WebSocket 使用 WSS（HTTPS 環境）
-
-#### 應用安全
-
-- [ ] 所有 Vo 已加上 `@Valid` 驗證
-- [ ] 密碼驗證規則已設定（長度、複雜度）
-- [ ] 敏感資料不會出現在日誌中
-- [ ] SQL Injection 防護已檢查（native query）
-
-#### 基礎設施
-
-- [ ] Docker 容器以非 root 使用者執行
-- [ ] 資料庫僅允許特定 IP 連線
-- [ ] Redis 僅允許 localhost 連線（或設定防火牆）
-- [ ] Kafka 已設定認證（SASL）（若對外暴露）
-
-#### 監控與審計
-
-- [ ] 已設定登入失敗警報
-- [ ] 已記錄敏感操作日誌（建立管理員、修改權限）
-- [ ] 已設定異常流量監控
-- [ ] 已建立事件響應流程
-
----
-
-### 📚 延伸閱讀
-
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Spring Security 官方文件](https://spring.io/projects/spring-security)
-- [CWE-521: Weak Password Requirements](https://cwe.mitre.org/data/definitions/521.html)
-- [JWT 最佳實踐](https://datatracker.ietf.org/doc/html/rfc8725)
-
-## Swagger
-
-- `http://localhost:8000/swagger-ui/index.html`
-
-## 測試策略
-
-本專案採用分層測試策略，確保各層級功能正確性。
-
-### 測試分層架構
-
-```
-┌─────────────────────────────────────────┐
-│  E2E 測試（未來規劃）                     │  ← API 測試、整合測試
-├─────────────────────────────────────────┤
-│  Service 層測試（單元測試）                │  ← 業務邏輯測試
-├─────────────────────────────────────────┤
-│  DataAccess 層測試（@DataJpaTest）        │  ← 資料存取測試
-├─────────────────────────────────────────┤
-│  Repository 層（Spring Data JPA）         │  ← 基本 CRUD（無需測試）
-└─────────────────────────────────────────┘
-```
-
----
-
-### 1. 資料層測試（DataAccess Layer）
-
-**測試框架：** `@DataJpaTest` + H2 in-memory database
-
-**特性：**
-
-- ✅ 自動配置 H2 記憶體資料庫
-- ✅ 自動回滾事務（每個測試互不影響）
-- ✅ 僅載入 JPA 相關元件（快速啟動）
-- ✅ 支援 Specification 動態查詢測試
-
-**範例檔案：**
-
-- `UserDataAccessImplTest.java`
-- `ProjectDataAccessImplTest.java`
-- `AquarkDataDataAccessImplTest.java`
-
-**執行資料層測試：**
-
-```bash
-# 執行所有資料層測試
-./mvnw test -Dtest="*DataAccessImplTest"
-
-# 執行特定測試類別
-./mvnw test -Dtest="UserDataAccessImplTest"
-```
-
-**測試範例：**
-
-```java
-
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class UserDataAccessImplTest {
-
-    @Autowired
-    private UserRepository userRepository;
-
-    private UserDataAccessImpl userDataAccess;
-
-    @BeforeEach
-    void setUp() {
-        userDataAccess = new UserDataAccessImpl(userRepository);
-    }
-
-    @Test
-    @DisplayName("應該能夠根據 email 查詢使用者")
-    void shouldFindUserByEmail() {
-        // Given
-        User user = new User();
-        user.setEmail("test@example.com");
-        user.setName("Test User");
-        userRepository.save(user);
-
-        // When
-        Optional<User> result = userDataAccess.findByEmail("test@example.com");
-
-        // Then
-        assertThat(result).isPresent();
-        assertThat(result.get().getEmail()).isEqualTo("test@example.com");
-    }
-
-    @Test
-    @DisplayName("應該能夠使用 Specification 進行複雜查詢")
-    void shouldFindUsersWithSpecification() {
-        // Given
-        User user1 = new User();
-        user1.setEmail("active@example.com");
-        user1.setDisabled(false);
-        userRepository.save(user1);
-
-        User user2 = new User();
-        user2.setEmail("disabled@example.com");
-        user2.setDisabled(true);
-        userRepository.save(user2);
-
-        // When
-        Specification<User> spec = (root, query, cb) ->
-                cb.equal(root.get("disabled"), false);
-        Page<User> result = userDataAccess.findAll(spec, PageRequest.of(0, 10));
-
-        // Then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getEmail()).isEqualTo("active@example.com");
-    }
-}
-```
-
-**為何需要測試 DataAccess 層？**
-
-1. ✅ 驗證複雜的 Specification 查詢邏輯
-2. ✅ 確保資料庫約束正確（unique, foreign key）
-3. ✅ 測試審計欄位自動填充（created_by, updated_by）
-4. ✅ 驗證自訂 Query 方法（`@Query` 註解）
-
----
-
-### 2. Service 層測試（單元測試）
-
-**測試框架：** JUnit 5 + Mockito
-
-**特性：**
-
-- ✅ 使用 Mock 隔離依賴
-- ✅ 測試業務邏輯正確性
-- ✅ 快速執行（無需啟動 Spring 容器）
-
-**範例檔案：**
-
-- `UserServiceTest.java`
-
-**執行 Service 層測試：**
-
-```bash
-# 執行所有 Service 測試
-./mvnw test -Dtest="*ServiceTest"
-```
-
-**測試範例：**
-
-```java
-
-@ExtendWith(MockitoExtension.class)
-class UserServiceTest {
-
-    @Mock
-    private IUserDataAccess userDataAccess;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
-
-    @InjectMocks
-    private UserService userService;
-
-    @Test
-    @DisplayName("建立使用者時應該加密密碼")
-    void shouldEncryptPasswordWhenCreatingUser() {
-        // Given
-        UserVo userVo = new UserVo();
-        userVo.setEmail("test@example.com");
-        userVo.setPassword("plainPassword");
-
-        when(passwordEncoder.encode("plainPassword")).thenReturn("$2a$10$encrypted");
-        when(userDataAccess.save(any())).thenAnswer(i -> i.getArgument(0));
-
-        // When
-        UserVo result = userService.createUser(userVo);
-
-        // Then
-        verify(passwordEncoder).encode("plainPassword");
-        assertThat(result.getPassword()).isEqualTo("$2a$10$encrypted");
-    }
-}
-```
-
----
-
-### 3. 整合測試（未來規劃）
-
-**建議使用：** Testcontainers + RestAssured
-
-**Testcontainers 優勢：**
-
-- ✅ 使用真實的 PostgreSQL/Redis/Kafka 容器
-- ✅ 避免 H2 與 PostgreSQL 行為差異
-- ✅ 更接近生產環境
-
-**規劃範例：**
-
-```java
-
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class UserIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:latest")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test");
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
-
-    @Test
-    void shouldCreateUserEndToEnd() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                            "email": "test@example.com",
-                            "password": "Test1234"
-                        }
-                        """)
-                .when()
-                .post("/auth/signup")
-                .then()
-                .statusCode(200)
-                .body("data.accessToken", notNullValue());
-    }
-}
-```
-
-**引入 Testcontainers：**
-
-```xml
-
-<dependencies>
-    <dependency>
-        <groupId>org.testcontainers</groupId>
-        <artifactId>testcontainers</artifactId>
-        <version>1.19.8</version>
-        <scope>test</scope>
-    </dependency>
-    <dependency>
-        <groupId>org.testcontainers</groupId>
-        <artifactId>postgresql</artifactId>
-        <version>1.19.8</version>
-        <scope>test</scope>
-    </dependency>
-</dependencies>
-```
-
----
-
-### 測試覆蓋率要求
-
-**目標覆蓋率：** ≥ 80%（BUNDLE 級別）
-
-**排除項目：**
-
-- Controller 層（透過整合測試驗證）
-- Entity、Vo（資料類別）
-- Mapper（MapStruct 自動生成）
-- Config、Filter、WebSocket（配置類別）
-
-**執行測試與生成報告：**
-
-```bash
-# 執行所有測試
-./mvnw test
-
-# 生成覆蓋率報告
-./mvnw jacoco:report
-
-# 檢查覆蓋率是否達標（會驗證 80% 門檻）
-./mvnw jacoco:check
-```
-
-**排除範圍與原因：**
-
-為了確保測試覆蓋率指標（80% BUNDLE 級別）能真實反映核心商務邏輯的健壯性，專案在 `pom.xml` 中排除了無業務邏輯、或高度依賴外部基礎設施與第三方平台的程式碼。具體排除範圍與工程原因如下：
-
-#### 1. 分層與通用架構（全域排除）
-
-| 排除路徑 (相對於 Base Package) | 原因說明 |
-| :--- | :--- |
-| `Controller/**` | 對外 API 路由與控制器層。主要負責 HTTP 請求映射、參數校驗與響應封裝，應由整合測試或端到端測試涵蓋，單元測試在此層效益極低。 |
-| `Entity/**`、`Vo/**` | 純資料載體模型（POJO / DTO / VO）。僅包含自動生成的 Getter/Setter/Constructor，無任何核心商務邏輯，予以排除。 |
-| `Mapper/**`、`Util/*Mapper.class` | MapStruct 編譯期自動生成的物件轉換實作（如 Vo ↔ Entity 轉換類），無需為自動生成代碼進行單元測試。 |
-| `Repository/**` | Spring Data JPA 介面定義。其實作由 Spring 框架動態代理生成，測試重點在於資料庫整合，而非單元測試。 |
-| `DataAccess/I*.class`、`Service/I*.class` | 介面（Interface）定義。純方法聲明，不包含任何具體實作程式碼。 |
-| `DataAccess/specification/**` | JPA 動態查詢 Specification 構造器。高度依賴真實 Database 執行環境，不適合在 mock 環境下進行單元測試。 |
-| `Config/**`、`Annotation/**` | Spring 系統配置與自訂註解。包含資料庫連接池、JSON 序列化、Redis 序列化與全域 Bean 配置，需完整 IoC 容器支援。 |
-| `Aop/**`、`Filter/**`、`WebSocket/**`、`Timer/**` | Spring 基礎設施與切面。包含日誌 AOP、過濾器、WebSocket 連線管理、定時任務觸發器，需要完整 Servlet 容器與中介軟體模擬。 |
-| `Security/**` | Spring Security 安全過濾鏈配置。包含密碼加密、權限校驗與 Token 驗證，需模擬完整安全上下文，更適合進行端到端整合測試。 |
-| `Exception/**` | 全域與自訂異常定義。僅承載異常狀態碼與訊息定義，無核心業務邏輯。 |
-| `**/*Application.class` | 微服務啟動引導類（SpringBootApplication）。僅包含 `main` 方法引導 Spring 容器啟動，無任何商務邏輯。 |
-
-#### 2. 特定業務與第三方/外部依賴（模組排除）
-
-| 排除路徑 (相對於 Base Package) | 原因說明 |
-| :--- | :--- |
-| `Crawler/**` | 網頁爬蟲模組。需向外部目標網站（如 Job 平台）發送真實 HTTP 請求並解析 HTML，極易因外部網站改版或連線逾時導致測試失效。 |
-| `Impl/*AiService.class`、`Impl/*Service.class` (AI 相關) | 多大語言模型整合服務。包括 `BaseOpenAiService`、`GeminiService`、`DeepSeekService`、`GroqService`、`GitHubModelsService`、`CompositeAiService`、`ChatService`、`TtsService`、`SttService`、`TtsRefAudioService`。高度依賴外部第三方 API 端點或 Python 側車服務，缺乏真實端點或網絡模擬時無法通過驗證。 |
-| `Impl/LineWebhookService.class`、`Impl/LineGfService.class`、`Impl/LineGfRichMenuService.class`、`Impl/LineDiaryService.class` | LINE 機器人生態與日記應用。深度耦合 LINE 官方 Webhook 回調與外部 AI 模型。 |
-| `Impl/VoiceDiaryService.class`、`Impl/BotConfigService.class`、`Impl/ApiUsageLogService.class` | 語音日記與機器人配置。與外部 Bot 控制及 AI 語音處理流程高頻互動，並非純粹的核心領域業務邏輯。 |
-| `Impl/LearnService.class` | 學習路徑規劃服務。內部深度耦合 AI 計算邏輯與複雜第三方外部呼叫，難以進行純粹的單元 Mock 隔離。 |
-| `Impl/UsageTrackService.class` | AI 額度與 API 呼叫計量監控。與 AI 計算模組高度耦合。 |
-| `Impl/CacheStatsConsumer.class` | Kafka 快取統計事件消費者。高度依賴真實 Kafka Broker 與 Zookeeper 等基礎設施。 |
-| `Service/Discord/**` | Discord 機器人生態。高度依賴 Discord 官方 WebSocket 連線與 SDK 回調，無 Broker 模擬則無法驗證。 |
-
-**檢視覆蓋率報告：**
-
-```bash
-# Windows
-start target/site/jacoco/index.html
-
-# Linux/Mac
-open target/site/jacoco/index.html
-```
-
-**覆蓋率報告位置：**
-
-```
-target/
-└── site/
-    └── jacoco/
-        ├── index.html          ← 總覽
-        ├── jacoco.xml          ← CI/CD 用
-        └── com.example.BackendArchitectureLab/
-            ├── Service/
-            │   └── Impl/
-            │       └── UserService.html
-            └── DataAccess/
-                └── Impl/
-                    └── UserDataAccessImpl.html
-```
-
----
-
-### 測試最佳實踐
-
-#### 1. 測試命名規範
-
-```java
-// ✅ 好的命名（清楚描述測試意圖）
-@Test
-@DisplayName("當 email 已存在時，應該拋出 AppException")
-void shouldThrowExceptionWhenEmailAlreadyExists() {
-}
-
-// ❌ 不好的命名
-@Test
-void test1() {
-}
-```
-
-#### 2. Given-When-Then 模式
-
-```java
-
-@Test
-void shouldCalculateCorrectly() {
-    // Given - 準備測試資料
-    User user = new User();
-    user.setEmail("test@example.com");
-
-    // When - 執行待測試方法
-    UserVo result = userService.createUser(user);
-
-    // Then - 驗證結果
-    assertThat(result.getEmail()).isEqualTo("test@example.com");
-}
-```
-
-#### 3. 使用 AssertJ 提升可讀性
-
-```java
-
-@Test
-void shouldDemonstrateAssertJVsJUnit() {
-    List<String> emails = List.of("a@test.com", "b@test.com", "c@test.com");
-
-    // ✅ AssertJ（流暢 API）
-    assertThat(emails)
-            .hasSize(3)
-            .containsExactly("a@test.com", "b@test.com", "c@test.com");
-
-    // ❌ JUnit 原生（較不直觀）
-    assertEquals(3, emails.size());
-    assertEquals("a@test.com", emails.get(0));
-}
-```
-
----
-
-### MyBatis 未來使用時的測試策略
-
-**若未來引入 MyBatis 處理複雜查詢：**
-
-#### 1. Mapper XML 測試
-
-```java
-
-@MybatisTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class UserMapperTest {
-
-    @Autowired
-    private UserMapper userMapper;
-
-    @Test
-    @DisplayName("應該能夠執行複雜的多表 Join 查詢")
-    void shouldPerformComplexJoinQuery() {
-        // Given
-        // ... 準備測試資料
-
-        // When
-        List<UserProjectVo> result = userMapper.findUsersWithProjects(params);
-
-        // Then
-        assertThat(result).isNotEmpty();
-    }
-}
-```
-
-#### 2. 動態 SQL 測試
-
-```xml
-<!-- UserMapper.xml -->
-<select id="findUsersWithDynamicConditions" resultType="User">
-    SELECT * FROM users
-    WHERE 1=1
-    <if test="email != null">
-        AND email = #{email}
-    </if>
-    <if test="disabled != null">
-        AND disabled = #{disabled}
-    </if>
-</select>
-```
-
-```java
-
-@Test
-@DisplayName("動態 SQL 應該正確組合條件")
-void shouldBuildDynamicSqlCorrectly() {
-    // Test with email only
-    Map<String, Object> params1 = Map.of("email", "test@example.com");
-    List<User> result1 = userMapper.findUsersWithDynamicConditions(params1);
-
-    // Test with both conditions
-    Map<String, Object> params2 = Map.of(
-            "email", "test@example.com",
-            "disabled", false
-    );
-    List<User> result2 = userMapper.findUsersWithDynamicConditions(params2);
-
-    assertThat(result1).hasSizeGreaterThan(result2);
-}
-```
-
----
-
-### CI/CD 整合
-
-**GitHub Actions 範例：**
-
-```yaml
-name: Test
-
-on: [ push, pull_request ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v3
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Run tests
-        run: ./mvnw test
-
-      - name: Generate coverage report
-        run: ./mvnw jacoco:report
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./target/site/jacoco/jacoco.xml
-```
+# 十三、 開發藍圖與驗證狀態 (Roadmap & Status)
+
+### Infrastructure & Operations
+- [x] Prometheus Metrics (`/actuator/prometheus` 全微服務標準整合)
+- [x] Grafana 儀表板整合支援
+- [x] Docker Compose 一鍵啟動環境
+- [ ] Centralized Logging (ELK / Loki Stack)
+
+### Architecture & Distributed Patterns
+- [x] Transactional Outbox Pattern (`compensation_outbox_event`)
+- [x] Redisson Distributed Mutex Lock (六層快取防穿透)
+- [x] Lease-based Fencing Token 租約控制與 CAS 狀態機
+- [x] SAGA 分散式事務補償與自動還原閉環
+- [x] Event-Driven Architecture (Kafka 4 大主題)
+
+### Quality & Benchmark
+- [x] Unit Test + JaCoCo Coverage Check (BUNDLE $\ge 80\%$)
+- [x] JMeter 500 併發壓力測試套件與 SQL 數據生成器 (`stress-test/`)
+- [x] GitHub Actions 雙軌 CI + AI Code Review
+- [ ] Testcontainers 端到端整合測試
+
+### AI Integration
+- [x] Faster-Whisper / SenseVoice 雙引擎語音辨識 (STT)
+- [x] GPT-SoVITS / Sherpa-ONNX 雙引擎語音合成 (TTS)
+- [x] PyAnnote 語者分離 Conda 獨立子進程隔離
+- [x] 多模型瀑布級聯降級 (Gemini 2.0 Flash → Groq → DeepSeek → GitHub Models)
+- [x] LINE / Discord 雙平台智慧助理與語音串流
+- [ ] Milvus 向量檢索與 RAG 知識庫整合
