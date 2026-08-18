@@ -1,8 +1,9 @@
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / ".github/ai-review"))
+AI_REVIEW_DIR = Path(__file__).resolve().parents[1]
+if str(AI_REVIEW_DIR) not in sys.path:
+    sys.path.insert(0, str(AI_REVIEW_DIR))
 from engine import deduplicate
 
 

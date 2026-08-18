@@ -1,170 +1,386 @@
 import json
 import os
 from pathlib import Path
+import sys
 import requests
 from engine import evaluate, load_policy, validate_finding
 
 ROOT = Path(__file__).resolve().parents[2]
-REPO = os.environ["REPO"]
-EVENT_PATH = os.environ["EVENT_PATH"]
-GH_TOKEN = os.environ.get("GH_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+REPO = os.environ.get("REPO", "")
+EVENT_PATH = os.environ.get("EVENT_PATH", "")
+GH_TOKEN = os.environ.get("GH_TOKEN", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+REVIEW_MARKER = "<!-- ai-review-gate -->"
 
-if not GH_TOKEN or not GROQ_API_KEY:
-    raise SystemExit("Required trusted secrets are not configured.")
 
-headers = {
-    "Authorization": f"Bearer {GH_TOKEN}",
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-}
+def get_repo():
+    return os.environ.get("REPO") or REPO
 
-def gh_get(url, **kwargs):
-    response = requests.get(url, headers=headers, timeout=30, **kwargs)
+
+def get_gh_token():
+    return os.environ.get("GH_TOKEN") or GH_TOKEN
+
+
+def get_groq_api_key():
+    return os.environ.get("GROQ_API_KEY") or GROQ_API_KEY
+
+
+def get_event_path():
+    return os.environ.get("EVENT_PATH") or EVENT_PATH
+
+
+def get_github_headers():
+    return {
+        "Authorization": f"Bearer {get_gh_token()}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def gh_get(url, params=None):
+    response = requests.get(
+        url,
+        headers=get_github_headers(),
+        params=params,
+        timeout=30,
+    )
     response.raise_for_status()
     return response.json()
 
-def load_json(path):
-    return json.loads(path.read_text(encoding="utf-8"))
 
 def resolve_pr_number(event):
-    pr = event.get("pull_request") or {}
-    if pr.get("number"):
-        return int(pr["number"])
+    pull_request = event.get("pull_request") or {}
+    if pull_request.get("number"):
+        return int(pull_request["number"])
 
     workflow_run = event.get("workflow_run") or {}
     pull_requests = workflow_run.get("pull_requests") or event.get("pull_requests") or []
     if pull_requests and pull_requests[0].get("number"):
         return int(pull_requests[0]["number"])
 
-    raise SystemExit("No PR associated with GitHub event.")
+    inputs = event.get("inputs") or {}
+    if inputs.get("pr_number"):
+        try:
+            return int(inputs["pr_number"])
+        except ValueError:
+            pass
 
-def publish_review(pr_number, body, event="COMMENT"):
-    marker = "<!-- ai-review-gate -->"
-    body = body.rstrip() + "\n\n" + marker
-    reviews = gh_get(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/reviews", params={"per_page": 100})
-    existing = next((r for r in reviews if marker in (r.get("body") or "")), None)
-    payload = {"body": body, "event": event}
-    if existing:
-        # GitHub does not provide an update endpoint for submitted reviews.
-        # Keep the latest result as a new formal PR review rather than falling
-        # back to an Issue comment, so the Review UI remains authoritative.
-        pass
-    response = requests.post(
-        f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/reviews",
-        headers=headers,
-        json=payload,
+    head_sha = workflow_run.get("head_sha") or event.get("after")
+    repo_name = get_repo()
+    token_value = get_gh_token()
+    if head_sha and repo_name and token_value:
+        try:
+            commits_url = f"https://api.github.com/repos/{repo_name}/commits/{head_sha}/pulls"
+            associated_pulls = gh_get(commits_url)
+            if associated_pulls and associated_pulls[0].get("number"):
+                return int(associated_pulls[0]["number"])
+        except requests.RequestException as exc:
+            print(f"無法透過 Commit SHA 查詢關聯 PR：{exc}")
+
+    raise SystemExit("無法從 GitHub 事件或環境中解析對應的 Pull Request 編號。")
+
+
+def post_issue_comment(pr_number, body):
+    repo_name = get_repo()
+    marked_body = body.rstrip() + "\n\n" + REVIEW_MARKER
+    comments_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
+    try:
+        existing_comments = gh_get(comments_url, params={"per_page": 100})
+        existing = next(
+            (comment for comment in existing_comments if REVIEW_MARKER in (comment.get("body") or "")),
+            None,
+        )
+        if existing:
+            comment_id = existing["id"]
+            patch_url = f"https://api.github.com/repos/{repo_name}/issues/comments/{comment_id}"
+            response = requests.patch(
+                patch_url,
+                headers=get_github_headers(),
+                json={"body": marked_body},
+                timeout=30,
+            )
+            response.raise_for_status()
+            print(f"成功更新現有 PR Issue 留言（ID: {comment_id}）")
+            return response.json()
+        else:
+            response = requests.post(
+                comments_url,
+                headers=get_github_headers(),
+                json={"body": marked_body},
+                timeout=30,
+            )
+            response.raise_for_status()
+            print(f"成功在 PR #{pr_number} 建立新 Issue 留言")
+            return response.json()
+    except requests.RequestException as exc:
+        print(f"發布/更新 PR Issue 留言時發生錯誤：{exc}")
+        return None
+
+
+def post_pr_review(pr_number, body, event_type="COMMENT"):
+    repo_name = get_repo()
+    review_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
+    payload = {"body": body, "event": event_type}
+    try:
+        response = requests.post(
+            review_url,
+            headers=get_github_headers(),
+            json=payload,
+            timeout=30,
+        )
+        if response.status_code == 422:
+            print("PR Review API 回傳 422（例如無法審查自身 PR），已由 Issue 留言保障可見性。")
+            return None
+        response.raise_for_status()
+        print(f"成功提交 PR Review（狀態：{event_type}）")
+        return response.json()
+    except requests.RequestException as exc:
+        print(f"提交 PR Review 時發生錯誤：{exc}")
+        return None
+
+
+def publish_review(pr_number, body, decision="COMMENT"):
+    post_issue_comment(pr_number, body)
+    review_event = "APPROVE" if decision == "APPROVE" else ("REQUEST_CHANGES" if decision == "REQUEST_CHANGES" else "COMMENT")
+    post_pr_review(pr_number, body, review_event)
+
+
+def publish_failure_report(pr_number, title, reason, details=None):
+    report = [
+        "# AI Architecture & Security Review",
+        "",
+        "## 審查結果",
+        "REQUEST_CHANGES",
+        "",
+        f"## 🔴 {title}",
+        f"**原因**：{reason}",
+        "",
+    ]
+    if details:
+        report.append("**詳細資訊**：")
+        if isinstance(details, list):
+            for detail_item in details:
+                if isinstance(detail_item, (tuple, list)) and len(detail_item) == 2:
+                    report.append(f"- `{detail_item[0]}`：{detail_item[1]}")
+                else:
+                    report.append(f"- {detail_item}")
+        else:
+            report.append(f"```\n{details}\n```")
+        report.append("")
+    report.extend([
+        "這是 fail-closed 行為：AI Review 遭遇錯誤或未完成時不得產生 APPROVE。請檢查 CI 日誌或修復相關設定後重新觸發。",
+        "",
+        "## 執行原則",
+        "- 所有自然語言內容使用繁體中文。",
+        "- AI Provider 或執行失敗不會被當成 Review PASS。",
+        "- 保持 PR 流程透明，隨時留存診斷 Message。",
+    ])
+    body = "\n".join(report)
+    if pr_number:
+        publish_review(pr_number, body, "REQUEST_CHANGES")
+    return body
+
+
+def get_available_models():
+    api_key = get_groq_api_key()
+    response = requests.get(
+        "https://api.groq.com/openai/v1/models",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
         timeout=30,
     )
     response.raise_for_status()
+    model_entries = response.json().get("data", [])
+    return {model_item.get("id") for model_item in model_entries}
 
-def provider_failure(pr_number, attempted, details):
-    body = """# AI Architecture & Security Review
-
-## 審查結果
-REQUEST_CHANGES
-
-## 🔴 Review 執行失敗
-本次 AI Review 無法取得可用的 AI Provider，因此不能視為 Review 通過。
-
-**原因**：所有已配置的 Groq 模型都無法使用。
-
-**已嘗試模型**：
-""" + "\n".join(f"- `{model}`：{reason}" for model, reason in details) + """
-
-這是 fail-closed 行為：AI Review 不可用時不得產生 APPROVE。請修復 Provider / Model 設定後重新執行 CI。
-
-## 執行原則
-- 所有自然語言內容使用繁體中文。
-- AI Provider 失敗不會被當成 Review PASS。
-- GitHub PR 會留下正式的 Pull Request Review。
-"""
-    publish_review(pr_number, body, "REQUEST_CHANGES")
-    raise SystemExit(f"AI provider unavailable: {attempted}")
-
-def get_available_models():
-    response = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}, timeout=30)
-    response.raise_for_status()
-    return {item.get("id") for item in response.json().get("data", [])}
 
 def chat_completion(prompt):
-    candidates = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b"]
+    api_key = get_groq_api_key()
+    candidates = [
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.6-27b",
+        "openai/gpt-oss-20b",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+    ]
     try:
-        available = get_available_models()
-        candidates = [model for model in candidates if model in available]
+        available_models = get_available_models()
+        filtered_candidates = [candidate for candidate in candidates if candidate in available_models]
+        if filtered_candidates:
+            candidates = filtered_candidates
     except requests.RequestException as exc:
-        print(f"Unable to enumerate Groq models: {exc}; trying configured candidates directly.")
-    attempted, details = [], []
-    for model in candidates:
-        attempted.append(model)
+        print(f"無法列舉 Groq 可用模型清單：{exc}，直接依序嘗試備援候選模型。")
+
+    attempted_models = []
+    error_details = []
+    for model_name in candidates:
+        attempted_models.append(model_name)
         try:
-            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}, json={"model": model, "messages":[{"role":"system","content":"你必須使用繁體中文。只輸出合法 JSON。不得捏造 Finding。"},{"role":"user","content":prompt}],"temperature":0.1}, timeout=120)
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": "你必須使用繁體中文。只輸出合法 JSON。不得捏造 Finding。"},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.1,
+                },
+                timeout=120,
+            )
             if response.ok:
-                print(f"Using Groq model: {model}")
+                print(f"使用 Groq 模型：{model_name}")
                 return response.json()["choices"][0]["message"]["content"]
-            reason = f"HTTP {response.status_code}: {response.text[:300]}"
-            details.append((model, reason)); print(f"Model {model} failed: {reason}")
+            reason_msg = f"HTTP {response.status_code}: {response.text[:300]}"
+            error_details.append((model_name, reason_msg))
+            print(f"模型 {model_name} 請求失敗：{reason_msg}")
         except requests.RequestException as exc:
-            details.append((model, str(exc))); print(f"Model {model} request failed: {exc}")
-    raise RuntimeError(json.dumps(details, ensure_ascii=False))
+            error_details.append((model_name, str(exc)))
+            print(f"模型 {model_name} 連線異常：{exc}")
 
-event = load_json(Path(EVENT_PATH))
-pr_number = resolve_pr_number(event)
-pr = gh_get(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}")
-if pr.get("state") != "open":
-    raise SystemExit("PR is not open; refusing to publish a new review gate.")
+    raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
 
-files, page = [], 1
-while True:
-    chunk = gh_get(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/files", params={"per_page":100,"page":page})
-    files.extend(chunk)
-    if len(chunk) < 100: break
-    page += 1
-changed = [item["filename"] for item in files]
-if not changed: raise SystemExit("PR contains no changed files.")
 
-rules = (ROOT / "開發規範.md").read_text(encoding="utf-8")
-contract = (ROOT / ".github/AI_REVIEW.md").read_text(encoding="utf-8")
-policy = load_policy()
-groups = {k: [] for k in ("ci","security-api","business","data","integration","python","other")}
-for filename in changed:
-    path = filename.lower()
-    if path.startswith(".github/"): groups["ci"].append(filename)
-    elif path.endswith(".py"): groups["python"].append(filename)
-    elif any(x in path for x in ("controller","security","permission","auth","openapi")): groups["security-api"].append(filename)
-    elif any(x in path for x in ("feign","client","integration","external")): groups["integration"].append(filename)
-    elif any(x in path for x in ("repository","entity","dao","migration","mapper")): groups["data"].append(filename)
-    elif any(x in path for x in ("service","domain","usecase")): groups["business"].append(filename)
-    else: groups["other"].append(filename)
+def main():
+    if not get_gh_token() or not get_groq_api_key():
+        raise SystemExit("未配置必要的信任密鑰（GH_TOKEN 或 GROQ_API_KEY）。")
 
-max_chars, batches = 24000, []
-for scope, paths in groups.items():
-    if not paths: continue
-    current, size = [], 0
-    for filename in paths:
-        item = next(x for x in files if x["filename"] == filename)
-        cost = len(filename) + max(len(item.get("patch") or ""), 1000)
-        if current and size + cost > max_chars:
-            batches.append((scope,current)); current=[]; size=0
-        current.append(filename); size += cost
-    if current: batches.append((scope,current))
-expected = [filename for _, paths in batches for filename in paths]
-if sorted(expected) != sorted(changed) or len(expected) != len(set(expected)): raise SystemExit("Coverage planning mismatch: every changed file must belong to exactly one batch.")
+    event_path_str = get_event_path()
+    if not event_path_str or not Path(event_path_str).exists():
+        raise SystemExit(f"找不到 GitHub 事件檔案：{event_path_str}")
 
-keywords = {"ci":("GitHub Actions","workflow","permissions","Secrets","GITHUB_TOKEN","pull_request","shell","artifact","cache","supply-chain"),"security-api":("BOLA","權限","OpenAPI","Controller","IAM","Security","API"),"business":("SOLID","DRY","KISS","YAGNI","Service","架構"),"data":("Repository","Entity","DataAccess","資料庫","EntityManager","Entity"),"integration":("Feign","跨服務","外部","Microservice","Client"),"python":("Python","Ruff","Exception","Type Hint","snake_case"),"other":("CI","規範","品質")}
-results=[]
-for index,(scope,paths) in enumerate(batches,1):
-    relevant=[]; rule_lines=rules.splitlines()
-    for i,line in enumerate(rule_lines):
-        if any(k.lower() in line.lower() for k in keywords[scope]): relevant.extend(rule_lines[max(0,i-2):min(len(rule_lines),i+14)])
-    relevant_rules="\n".join(dict.fromkeys(relevant))[:12000] or rules[:7000]
-    diff="\n\n".join(f"diff -- {item['filename']}\n{item.get('patch') or '[GitHub did not provide a patch; review metadata only]'}" for item in files if item["filename"] in paths)[:26000]
-    prompt=f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
+    event = json.loads(Path(event_path_str).read_text(encoding="utf-8"))
+    pr_number = resolve_pr_number(event)
+
+    try:
+        pull_request_data = gh_get(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}")
+    except requests.RequestException as exc:
+        publish_failure_report(pr_number, "無法取得 PR 資訊", str(exc))
+        raise SystemExit(f"無法取得 PR 資訊：{exc}")
+
+    if pull_request_data.get("state") != "open":
+        print(f"PR #{pr_number} 目前非開啟狀態（state: {pull_request_data.get('state')}），略過審查發布。")
+        return
+
+    files = []
+    page = 1
+    try:
+        while True:
+            file_chunk = gh_get(
+                f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/files",
+                params={"per_page": 100, "page": page},
+            )
+            files.extend(file_chunk)
+            if len(file_chunk) < 100:
+                break
+            page += 1
+    except requests.RequestException as exc:
+        publish_failure_report(pr_number, "無法取得 PR 變更檔案清單", str(exc))
+        raise SystemExit(f"無法取得 PR 變更檔案清單：{exc}")
+
+    changed_files = [item["filename"] for item in files]
+    if not changed_files:
+        print(f"PR #{pr_number} 未包含任何變更檔案。")
+        return
+
+    rules_path = ROOT / "開發規範.md"
+    contract_path = ROOT / ".github/AI_REVIEW.md"
+    rules_text = rules_path.read_text(encoding="utf-8") if rules_path.exists() else ""
+    contract_text = contract_path.read_text(encoding="utf-8") if contract_path.exists() else ""
+    policy = load_policy()
+
+    groups = {
+        "ci": [],
+        "security-api": [],
+        "business": [],
+        "data": [],
+        "integration": [],
+        "python": [],
+        "other": [],
+    }
+    for filename in changed_files:
+        path_lower = filename.lower()
+        if path_lower.startswith(".github/"):
+            groups["ci"].append(filename)
+        elif path_lower.endswith(".py"):
+            groups["python"].append(filename)
+        elif any(token in path_lower for token in ("controller", "security", "permission", "auth", "openapi")):
+            groups["security-api"].append(filename)
+        elif any(token in path_lower for token in ("feign", "client", "integration", "external")):
+            groups["integration"].append(filename)
+        elif any(token in path_lower for token in ("repository", "entity", "dao", "migration", "mapper")):
+            groups["data"].append(filename)
+        elif any(token in path_lower for token in ("service", "domain", "usecase")):
+            groups["business"].append(filename)
+        else:
+            groups["other"].append(filename)
+
+    max_chars = 24000
+    batches = []
+    for scope, paths in groups.items():
+        if not paths:
+            continue
+        current_batch = []
+        current_size = 0
+        for filename in paths:
+            file_item = next(item for item in files if item["filename"] == filename)
+            patch_content = file_item.get("patch") or ""
+            cost = len(filename) + max(len(patch_content), 1000)
+            if current_batch and current_size + cost > max_chars:
+                batches.append((scope, current_batch))
+                current_batch = []
+                current_size = 0
+            current_batch.append(filename)
+            current_size += cost
+        if current_batch:
+            batches.append((scope, current_batch))
+
+    expected_files = [filename for _, paths in batches for filename in paths]
+    if sorted(expected_files) != sorted(changed_files) or len(expected_files) != len(set(expected_files)):
+        mismatch_msg = "覆蓋範圍規劃不符：每個變更檔案必須屬於且僅屬於一個批次。"
+        publish_failure_report(pr_number, "批次檔案規劃異常", mismatch_msg)
+        raise SystemExit(mismatch_msg)
+
+    keywords = {
+        "ci": ("GitHub Actions", "workflow", "permissions", "Secrets", "GITHUB_TOKEN", "pull_request", "shell", "artifact", "cache", "supply-chain"),
+        "security-api": ("BOLA", "權限", "OpenAPI", "Controller", "IAM", "Security", "API"),
+        "business": ("SOLID", "DRY", "KISS", "YAGNI", "Service", "架構"),
+        "data": ("Repository", "Entity", "DataAccess", "資料庫", "EntityManager", "Entity"),
+        "integration": ("Feign", "跨服務", "外部", "Microservice", "Client"),
+        "python": ("Python", "Ruff", "Exception", "Type Hint", "snake_case"),
+        "other": ("CI", "規範", "品質"),
+    }
+
+    results = []
+    for index, (scope, paths) in enumerate(batches, 1):
+        relevant_rules_list = []
+        rule_lines = rules_text.splitlines()
+        for line_index, line_content in enumerate(rule_lines):
+            if any(keyword.lower() in line_content.lower() for keyword in keywords[scope]):
+                start_pos = max(0, line_index - 2)
+                end_pos = min(len(rule_lines), line_index + 14)
+                relevant_rules_list.extend(rule_lines[start_pos:end_pos])
+        relevant_rules = "\n".join(dict.fromkeys(relevant_rules_list))[:12000] or rules_text[:7000]
+
+        diff_parts = []
+        for file_item in files:
+            if file_item["filename"] in paths:
+                patch_text = file_item.get("patch") or "[GitHub did not provide a patch; review metadata only]"
+                diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
+        diff = "\n\n".join(diff_parts)[:26000]
+
+        prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
 
 【Review Contract】
-{contract[:9000]}
+{contract_text[:9000]}
 
 【相關規範】
 {relevant_rules}
@@ -180,30 +396,115 @@ for index,(scope,paths) in enumerate(batches,1):
 只審查本批次。必須有程式碼或 workflow 證據才能提出 Finding。不得提出與本 PR 無關的既有技術債或純風格建議。CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Action pinning、artifact/cache、fail-open 與 Review bypass。
 
 只輸出合法 JSON，不得輸出 markdown：
-{{"batch":"{scope}-{index}","files_reviewed":{json.dumps(paths,ensure_ascii=False)},"findings":[{{"severity":"CRITICAL|HIGH|MEDIUM|LOW","confidence":"HIGH|MEDIUM|LOW","location":"file:line","rule":"繁體中文規範依據","problem":"繁體中文問題","evidence":"繁體中文證據","risk":"繁體中文風險","recommendation":"繁體中文修正建議"}}],"passed_checks":["繁體中文"],"coverage":"COMPLETE"}}
+{{"batch":"{scope}-{index}","files_reviewed":{json.dumps(paths, ensure_ascii=False)},"findings":[{{"severity":"CRITICAL|HIGH|MEDIUM|LOW","confidence":"HIGH|MEDIUM|LOW","location":"file:line","rule":"繁體中文規範依據","problem":"繁體中文問題","evidence":"繁體中文證據","risk":"繁體中文風險","recommendation":"繁體中文修正建議"}}],"passed_checks":["繁體中文"],"coverage":"COMPLETE"}}
 
-不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定.'''
-    try: text=chat_completion(prompt).strip()
-    except RuntimeError as exc: provider_failure(pr_number,"Groq",json.loads(str(exc)))
-    if text.startswith("```"): text=text.split("\n",1)[1].rsplit("```",1)[0].strip()
-    data=json.loads(text)
-    if data.get("coverage")!="COMPLETE" or data.get("files_reviewed")!=paths: raise SystemExit(f"Batch coverage validation failed: {scope}-{index}")
-    for finding in data.get("findings",[]):
-        if not validate_finding(finding,policy): raise SystemExit(f"Invalid finding schema in {scope}-{index}")
-    results.append(data)
+不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定。'''
 
-reviewed=[filename for data in results for filename in data["files_reviewed"]]
-findings=[finding for data in results for finding in data.get("findings",[])]
-passed=[check for data in results for check in data.get("passed_checks",[])]
-result=evaluate(findings,expected,reviewed,policy); decision=result["decision"]; unique=result["findings"]; blocking=result["blocking_findings"]
-report=["# AI Code Review","",f"## 審查結果\n{decision}","",f"已審查 {len(changed)} 個變更檔案、{len(results)} 個批次；共 {len(unique)} 個 Finding，其中 {len(blocking)} 個阻擋項目。",""]
-if unique:
-    report.append("## Findings")
-    for finding in unique: report += ["",f"### [{finding['severity']}] {finding['problem']}",f"**位置**：`{finding['location']}`",f"**規範依據**：{finding['rule']}",f"**證據**：{finding['evidence']}",f"**風險**：{finding['risk']}",f"**修正建議**：{finding['recommendation']}",f"**信心度**：{finding['confidence']}"]
-else: report += ["## Findings","無。"]
-report += ["","## 已通過檢查"]+[f"- {item}" for item in sorted(set(passed))]+["","## 審查結論","本次 Review 由分批 AI 分析，並由 deterministic engine 與 policy 統一計算阻擋條件。"]
-body="\n".join(report); publish_review(pr_number,body,decision)
-Path("review.md").write_text(body+"\n",encoding="utf-8")
-Path("ai-review.json").write_text(json.dumps({"decision":decision,"findings":unique,"blocking_findings":blocking,"batches":len(results),"files_reviewed":changed},ensure_ascii=False,indent=2),encoding="utf-8")
-print(body)
-if decision=="REQUEST_CHANGES": raise SystemExit(1)
+        try:
+            text_output = chat_completion(prompt).strip()
+        except RuntimeError as exc:
+            error_details = json.loads(str(exc))
+            publish_failure_report(
+                pr_number,
+                "AI Provider 呼叫失敗",
+                "所有已配置的 Groq 模型均無法取得有效回應。",
+                error_details,
+            )
+            raise SystemExit(f"AI Provider 無法使用：{error_details}")
+
+        if text_output.startswith("```"):
+            text_output = text_output.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+        try:
+            batch_data = json.loads(text_output)
+        except json.JSONDecodeError as exc:
+            publish_failure_report(
+                pr_number,
+                "AI 模型輸出非合法 JSON",
+                f"批次 {scope}-{index} 模型輸出解析失敗：{exc}",
+                text_output[:500],
+            )
+            raise SystemExit(f"批次 {scope}-{index} JSON 解析失敗：{exc}")
+
+        if batch_data.get("coverage") != "COMPLETE" or batch_data.get("files_reviewed") != paths:
+            cov_err = f"批次覆蓋範圍驗證失敗：{scope}-{index}"
+            publish_failure_report(pr_number, "批次覆蓋範圍不符", cov_err)
+            raise SystemExit(cov_err)
+
+        for finding in batch_data.get("findings", []):
+            if not validate_finding(finding, policy):
+                schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式驗證。"
+                publish_failure_report(pr_number, "Finding 格式驗證失敗", schema_err, finding)
+                raise SystemExit(schema_err)
+
+        results.append(batch_data)
+
+    reviewed_files = [filename for data in results for filename in data["files_reviewed"]]
+    findings = [finding for data in results for finding in data.get("findings", [])]
+    passed_checks = [check for data in results for check in data.get("passed_checks", [])]
+
+    evaluation_result = evaluate(findings, expected_files, reviewed_files, policy)
+    decision = evaluation_result["decision"]
+    unique_findings = evaluation_result["findings"]
+    blocking_findings = evaluation_result["blocking_findings"]
+
+    report = [
+        "# AI Code Review",
+        "",
+        f"## 審查結果\n{decision}",
+        "",
+        f"已審查 {len(changed_files)} 個變更檔案、{len(results)} 個批次；共 {len(unique_findings)} 個 Finding，其中 {len(blocking_findings)} 個阻擋項目。",
+        "",
+    ]
+    if unique_findings:
+        report.append("## Findings")
+        for finding in unique_findings:
+            report.extend([
+                "",
+                f"### [{finding['severity']}] {finding['problem']}",
+                f"**位置**：`{finding['location']}`",
+                f"**規範依據**：{finding['rule']}",
+                f"**證據**：{finding['evidence']}",
+                f"**風險**：{finding['risk']}",
+                f"**修正建議**：{finding['recommendation']}",
+                f"**信心度**：{finding['confidence']}",
+            ])
+    else:
+        report.extend(["## Findings", "無。"])
+
+    report.extend([
+        "",
+        "## 已通過檢查",
+    ])
+    for item in sorted(set(passed_checks)):
+        report.append(f"- {item}")
+    report.extend([
+        "",
+        "## 審查結論",
+        "本次 Review 由分批 AI 分析，並由 deterministic engine 與 policy 統一計算阻擋條件。",
+    ])
+
+    body = "\n".join(report)
+    publish_review(pr_number, body, decision)
+    Path("review.md").write_text(body + "\n", encoding="utf-8")
+    Path("ai-review.json").write_text(
+        json.dumps(
+            {
+                "decision": decision,
+                "findings": unique_findings,
+                "blocking_findings": blocking_findings,
+                "batches": len(results),
+                "files_reviewed": changed_files,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(body)
+    if decision == "REQUEST_CHANGES":
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
