@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import requests
 from engine import evaluate, load_policy, validate_finding
@@ -196,6 +197,38 @@ def get_available_models():
     return {model_item.get("id") for model_item in model_entries}
 
 
+def extract_json_payload(raw_text: str) -> dict:
+    if not raw_text or not isinstance(raw_text, str):
+        raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
+
+    cleaned = raw_text.strip()
+
+    if "<think>" in cleaned.lower():
+        cleaned = re.sub(r"(?i)<think>[\s\S]*?</think>", "", cleaned).strip()
+        if "<think>" in cleaned.lower():
+            parts = re.split(r"(?i)</think>", cleaned)
+            if len(parts) > 1:
+                cleaned = parts[-1].strip()
+            else:
+                cleaned = re.sub(r"(?i)^<think>[\s\S]*?(?=\{)", "", cleaned).strip()
+
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    start_idx = cleaned.find("{")
+    end_idx = cleaned.rfind("}")
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        json_sub = cleaned[start_idx : end_idx + 1].strip()
+        return json.loads(json_sub)
+
+    return json.loads(cleaned)
+
+
 def chat_completion(prompt):
     api_key = get_groq_api_key()
     candidates = [
@@ -227,10 +260,11 @@ def chat_completion(prompt):
                 json={
                     "model": model_name,
                     "messages": [
-                        {"role": "system", "content": "你必須使用繁體中文。只輸出合法 JSON。不得捏造 Finding。"},
+                        {"role": "system", "content": "你必須使用繁體中文。只輸出合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤或 Markdown。不得捏造 Finding。"},
                         {"role": "user", "content": prompt},
                     ],
                     "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
                 },
                 timeout=120,
             )
@@ -412,11 +446,8 @@ def main():
             )
             raise SystemExit(f"AI Provider 無法使用：{error_details}")
 
-        if text_output.startswith("```"):
-            text_output = text_output.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-
         try:
-            batch_data = json.loads(text_output)
+            batch_data = extract_json_payload(text_output)
         except json.JSONDecodeError as exc:
             publish_failure_report(
                 pr_number,

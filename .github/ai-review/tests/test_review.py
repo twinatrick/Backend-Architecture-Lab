@@ -91,3 +91,50 @@ def test_publish_failure_report_generates_markdown_and_publishes():
         assert "model-a" in body
         assert "model-b" in body
         mock_publish.assert_called_once_with(42, body, "REQUEST_CHANGES")
+
+
+def test_extract_json_payload_clean_json():
+    raw = '{"batch": "ci-1", "coverage": "COMPLETE", "files_reviewed": ["test.java"], "findings": []}'
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+    assert parsed["coverage"] == "COMPLETE"
+
+
+def test_extract_json_payload_with_think_tag():
+    raw = """<think>
+Here's a thinking process:
+1. Review the diff.
+2. Formulate JSON.
+</think>
+{"batch": "ci-1", "coverage": "COMPLETE", "files_reviewed": ["test.java"], "findings": []}"""
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+    assert parsed["coverage"] == "COMPLETE"
+
+
+def test_extract_json_payload_with_markdown_codeblock():
+    raw = """```json
+{"batch": "ci-1", "coverage": "COMPLETE", "files_reviewed": ["test.java"], "findings": []}
+```"""
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+    assert parsed["coverage"] == "COMPLETE"
+
+
+def test_extract_json_payload_with_think_and_surrounding_prose():
+    raw = """<think>
+Analysis steps...
+</think>
+Here is the review result:
+{"batch": "ci-1", "coverage": "COMPLETE", "files_reviewed": ["test.java"], "findings": []}
+Hope this helps!"""
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+    assert parsed["coverage"] == "COMPLETE"
+
+
+def test_extract_json_payload_invalid_json_raises():
+    raw = "<think>thinking</think>Not a json at all"
+    with pytest.raises(json.JSONDecodeError):
+        review.extract_json_payload(raw)
+
