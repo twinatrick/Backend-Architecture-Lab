@@ -1,14 +1,16 @@
 name: AI Architecture & Security Review
 
 # Trusted execution boundary:
-# - Triggered by the secret-free PR workflow.
-# - Must live on the protected default branch before it is trusted with GROQ_API_KEY.
+# - Triggered by the same PR lifecycle as the other CI workflows.
+# - Runs only the trusted workflow source from the default branch.
 # - Never checks out or executes PR code; PR content is read through the GitHub API.
+# - Secret-backed review is isolated from untrusted PR code.
 
 on:
-  workflow_run:
-    workflows: ["AI Review Trigger"]
-    types: [completed]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [master, main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,7 +19,6 @@ permissions:
 
 jobs:
   review:
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: apikey
     steps:
@@ -37,7 +38,7 @@ jobs:
 
       - name: Upload final report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ai-review-final
           path: |
