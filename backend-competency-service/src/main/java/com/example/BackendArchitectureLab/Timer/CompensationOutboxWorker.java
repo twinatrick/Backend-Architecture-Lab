@@ -17,11 +17,11 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -63,6 +63,7 @@ public class CompensationOutboxWorker {
     private final ICompensationPublisher compensationPublisher;
     private final ObjectMapper objectMapper;
     private final ExecutorService compensationOutboxPublisherPool;
+    private volatile Semaphore publishSemaphore;
 
     /**
      * 啟動時驗證租約組態不變式：
@@ -74,6 +75,7 @@ public class CompensationOutboxWorker {
     @PostConstruct
     void validateConfiguration() {
         int poolSize = Math.max(1, publishParallelism);
+        this.publishSemaphore = new Semaphore(poolSize);
         int expectedWaves = Math.max(1, (batchSize + poolSize - 1) / poolSize);
         long worstCaseWaitSeconds = (expectedWaves + 1) * ackTimeoutSeconds + 1L;
         if (leaseSeconds < worstCaseWaitSeconds + 60L) {
@@ -84,13 +86,22 @@ public class CompensationOutboxWorker {
         }
     }
 
+    private Semaphore getPublishSemaphore() {
+        if (publishSemaphore == null) {
+            synchronized (this) {
+                if (publishSemaphore == null) {
+                    publishSemaphore = new Semaphore(Math.max(1, publishParallelism));
+                }
+            }
+        }
+        return publishSemaphore;
+    }
+
     /**
      * 批次發佈尚未送達的事件（預設每 5 秒執行一次）。
-     * 並行度完全由 {@code CompensationOutboxThreadPoolConfig} 提供的固定執行緒池
-     * （size = {@code compensation.outbox.publish-parallelism}，application-scoped）決定，
-     * 本方法不再重複計算；僅依批次大小與執行緒池大小估算最壞完成時間，作為
-     * 批次整體等待的保守逾時（每筆各自等待 ACK 至 ackTimeoutSeconds，逾時殘留工作
-     * 由 daemon 執行緒背景收尾，避免單一轉發壅塞把整個批次拖到打穿租約）。
+     * 並行任務於 Java 21 虛擬執行緒執行器中執行，並由內部 {@link Semaphore} 嚴格約束最大 Kafka 發布併發度
+     * （上限為 {@code compensation.outbox.publish-parallelism}），確保高併發下不衝擊下游 Broker 與資料庫；
+     * 依批次大小與許可數估算最壞完成時間作為批次整體等待的保守逾時。
      */
     @Scheduled(fixedDelayString = "${compensation.outbox.flush-delay-ms:5000}")
     public void flushPendingEvents() {
@@ -128,37 +139,49 @@ public class CompensationOutboxWorker {
      * 任何例外皆由 handleDeliveryFailure 以帶 ownerId + fencingVersion 的原子 UPDATE 標記 FAILED/DEAD，不向上拋出。
      */
     private void publishOne(CompensationOutboxEvent outbox) {
-        Date now = new Date();
-        String ownerId = UUID.randomUUID().toString();
-        int claimed = outboxRepository.claimEvent(
-                outbox.getId(),
-                List.of(CompensationOutboxDeliveryStatus.PENDING,
-                        CompensationOutboxDeliveryStatus.FAILED,
-                        CompensationOutboxDeliveryStatus.PROCESSING),
-                CompensationOutboxDeliveryStatus.PROCESSING,
-                ownerId,
-                now,
-                new Date(now.getTime() + leaseSeconds * 1000L));
-        if (claimed == 0) {
-            return;
-        }
-        // claim 後重新讀取最新狀態（attemptCount 與 fencingVersion 已由 claim 原子遞增），避免使用陳舊資料
-        CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
-        if (fresh == null) {
-            return;
-        }
-        Long fencingVersion = fresh.getFencingVersion();
+        Semaphore semaphore = getPublishSemaphore();
         try {
-            CompensationEvent event = objectMapper.readValue(fresh.getPayload(), CompensationEvent.class);
-            compensationPublisher.publish(event).get(ackTimeoutSeconds, TimeUnit.SECONDS);
-            outboxRepository.markSent(fresh.getId(),
-                    ownerId,
-                    fencingVersion,
-                    CompensationOutboxDeliveryStatus.SENT,
+            semaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Outbox publish interrupted while acquiring concurrency permit", e);
+            return;
+        }
+        try {
+            Date now = new Date();
+            String ownerId = UUID.randomUUID().toString();
+            int claimed = outboxRepository.claimEvent(
+                    outbox.getId(),
+                    List.of(CompensationOutboxDeliveryStatus.PENDING,
+                            CompensationOutboxDeliveryStatus.FAILED,
+                            CompensationOutboxDeliveryStatus.PROCESSING),
                     CompensationOutboxDeliveryStatus.PROCESSING,
-                    new Date());
-        } catch (Exception e) {
-            handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
+                    ownerId,
+                    now,
+                    new Date(now.getTime() + leaseSeconds * 1000L));
+            if (claimed == 0) {
+                return;
+            }
+            // claim 後重新讀取最新狀態（attemptCount 與 fencingVersion 已由 claim 原子遞增），避免使用陳舊資料
+            CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
+            if (fresh == null) {
+                return;
+            }
+            Long fencingVersion = fresh.getFencingVersion();
+            try {
+                CompensationEvent event = objectMapper.readValue(fresh.getPayload(), CompensationEvent.class);
+                compensationPublisher.publish(event).get(ackTimeoutSeconds, TimeUnit.SECONDS);
+                outboxRepository.markSent(fresh.getId(),
+                        ownerId,
+                        fencingVersion,
+                        CompensationOutboxDeliveryStatus.SENT,
+                        CompensationOutboxDeliveryStatus.PROCESSING,
+                        new Date());
+            } catch (Exception e) {
+                handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
+            }
+        } finally {
+            semaphore.release();
         }
     }
 

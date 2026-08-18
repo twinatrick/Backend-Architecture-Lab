@@ -59,4 +59,12 @@ class BloomFilterDataAccessImplTest {
         assertThrows(IllegalStateException.class, () -> dataAccess.findAllEntityIds("User"));
         verify(entityManagerFactory, never()).createEntityManager();
     }
+
+    @Test
+    void findAllEntityIds_WhenEntityNameInvalid_ThrowsIllegalArgumentException() {
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds("User; DROP TABLE users;"));
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds("User-Name"));
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds(null));
+        verify(emfProvider, never()).getIfAvailable();
+    }
 }

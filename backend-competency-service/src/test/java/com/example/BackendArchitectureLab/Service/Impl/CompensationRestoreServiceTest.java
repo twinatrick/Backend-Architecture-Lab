@@ -673,6 +673,40 @@ class CompensationRestoreServiceTest {
     }
 
     @Test
+    void testRestoreMemberSkills_shouldThrow_whenNullBindingSnapshotElement() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setVersion(1L);
+
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setProjectId(projectId);
+        claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+
+        List<BindingSnapshot> listWithNull = new ArrayList<>();
+        listWithNull.add(null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId,
+                        fencingVersion, listWithNull));
+
+        assertTrue(ex.getMessage().contains("Binding snapshot element must not be null"));
+        verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString());
+    }
+
+    @Test
     void testClaimRestoreEvent_shouldReturnFalse_whenDuplicateKeyViolation() {
         UUID eventId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();

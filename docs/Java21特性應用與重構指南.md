@@ -123,13 +123,17 @@ public class CompensationValidatorExample {
         }
     }
 
-    // ✅ 重構後：Record Pattern 一行完成解構與型別綁定
-    public void validateModern(List<Object> snapshotList) {
-        for (Object obj : snapshotList) {
-            if (obj instanceof BindingSnapshot(UUID userId, UUID skillId, UUID levelId)) {
-                if (userId == null || skillId == null || levelId == null) {
-                    throw new CustomException(CustomExceptionType.COMPENSATION_INVALID_PAYLOAD);
-                }
+    // ✅ 重構後：Fail-Fast 檢驗 + Record Pattern / Accessor 安全存取
+    public void validateModern(List<BindingSnapshot> snapshotList) {
+        for (BindingSnapshot binding : snapshotList) {
+            if (binding == null) {
+                throw new IllegalArgumentException("Binding snapshot element must not be null");
+            }
+            UUID userId = binding.userId();
+            UUID skillId = binding.skillId();
+            UUID levelId = binding.levelId();
+            if (userId == null || skillId == null || levelId == null) {
+                throw new IllegalArgumentException("Invalid binding payload");
             }
         }
     }
@@ -288,9 +292,9 @@ Java 21 正式發布的虛擬執行緒是輕量級執行緒，由 JVM 在使用�
 #### 專案應用實例
 1. **全局 Spring Boot 啟用**：
    - 各微服務 `application.yml` 中均配置 `spring.threads.virtual.enabled: true`。
-2. **Outbox 非同步補償執行緒池重構**：
-   - **檔案**：`com.example.BackendArchitectureLab.Config.CompensationOutboxThreadPoolConfig`
-   - **說明**：專案補償事件廣播主要為 Kafka 網路發布 I/O，透過虛擬執行緒執行器消除固定執行緒池佇列飽和與執行緒數限制。
+2. **Outbox 非同步補償執行緒池重構與 Semaphore 流量塑形**：
+   - **檔案**：`com.example.BackendArchitectureLab.Config.CompensationOutboxThreadPoolConfig` 與 `com.example.BackendArchitectureLab.Timer.CompensationOutboxWorker`
+   - **說明**：專案補償事件廣播主要為 Kafka 網路發布 I/O，透過虛擬執行緒執行器消除固定執行緒池佇列飽和與平臺執行緒數限制。同時在 `CompensationOutboxWorker` 內部採用 `Semaphore(publishParallelism)` 進行併發度約束，確保批次執行時不會瞬間打爆 Broker 或搶佔過多 DB 連線，並使租約最壞完成時間公式與實際執行併發嚴格對齊。
 
 ```java
 @Configuration

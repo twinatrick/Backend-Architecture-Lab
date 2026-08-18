@@ -47,7 +47,9 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
         Set<List<UUID>> targetSet = new HashSet<>();
         if (bindings != null) {
             for (BindingSnapshot b : bindings) {
-                targetSet.add(List.of(b.getUserId(), b.getSkillId(), b.getLevelId()));
+                if (b != null && b.userId() != null && b.skillId() != null && b.levelId() != null) {
+                    targetSet.add(List.of(b.userId(), b.skillId(), b.levelId()));
+                }
             }
         }
         return currentSet.equals(targetSet);
@@ -64,20 +66,25 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                     "Bindings count " + bindings.size() + " exceeds maximum allowed limit of " + MAX_BINDINGS);
         }
 
-        // 1. 記憶體去重校驗：同一成員不可綁定重複技能
+        // 1. 記憶體去重校驗：同一成員不可綁定重複技能（Fail-fast 拒絕 null 與非法元素）
         Set<String> seenUserSkill = new HashSet<>();
         for (BindingSnapshot binding : bindings) {
-            if (binding instanceof BindingSnapshot(UUID userId, UUID skillId, UUID levelId)) {
-                if (userId == null || skillId == null || levelId == null) {
-                    throw new IllegalArgumentException(
-                            "Invalid binding snapshot: userId/skillId/levelId must not be null, got " + binding);
-                }
+            if (binding == null) {
+                throw new IllegalArgumentException("Binding snapshot element must not be null");
+            }
+            UUID userId = binding.userId();
+            UUID skillId = binding.skillId();
+            UUID levelId = binding.levelId();
 
-                String userSkillKey = userId + ":" + skillId;
-                if (!seenUserSkill.add(userSkillKey)) {
-                    throw new IllegalArgumentException(
-                            "Duplicate binding snapshot detected for user " + userId + " and skill " + skillId);
-                }
+            if (userId == null || skillId == null || levelId == null) {
+                throw new IllegalArgumentException(
+                        "Invalid binding snapshot: userId/skillId/levelId must not be null, got " + binding);
+            }
+
+            String userSkillKey = userId + ":" + skillId;
+            if (!seenUserSkill.add(userSkillKey)) {
+                throw new IllegalArgumentException(
+                        "Duplicate binding snapshot detected for user " + userId + " and skill " + skillId);
             }
         }
 
@@ -89,22 +96,24 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
 
         // 3. 驗證技能與等級是否存在且匹配
         for (BindingSnapshot binding : bindings) {
-            if (binding instanceof BindingSnapshot(UUID userId, UUID skillId, UUID levelId)) {
-                if (!memberUserIds.contains(userId)) {
-                    throw new IllegalArgumentException(
-                            "User " + userId + " is not a member of project " + projectId);
-                }
+            UUID userId = binding.userId();
+            UUID skillId = binding.skillId();
+            UUID levelId = binding.levelId();
 
-                Skill skill = skillDataAccess.findById(skillId)
-                        .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
+            if (!memberUserIds.contains(userId)) {
+                throw new IllegalArgumentException(
+                        "User " + userId + " is not a member of project " + projectId);
+            }
 
-                SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
-                        .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
+            Skill skill = skillDataAccess.findById(skillId)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
 
-                if (!skillLevel.getSkill().getId().equals(skillId)) {
-                    throw new IllegalArgumentException(
-                            "Skill level " + levelId + " does not belong to skill " + skillId);
-                }
+            SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
+
+            if (!skillLevel.getSkill().getId().equals(skillId)) {
+                throw new IllegalArgumentException(
+                        "Skill level " + levelId + " does not belong to skill " + skillId);
             }
         }
     }
