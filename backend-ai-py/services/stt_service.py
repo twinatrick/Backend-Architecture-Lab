@@ -48,13 +48,13 @@ class SttService:
     @staticmethod
     def _cleanup(paths) -> None:
         """清理暫存檔案，失敗僅記錄不影響主流程。"""
-        for p in paths:
-            if p and os.path.exists(p):
+        for file_path in paths:
+            if file_path and os.path.exists(file_path):
                 try:
-                    os.remove(p)
+                    os.remove(file_path)
                 except OSError as exc:
                     # 暫存檔清理失敗不影響辨識結果，僅記錄供排查
-                    logger.warning("[STT] 暫存檔清理失敗 %s: %s", p, exc)
+                    logger.warning("[STT] 暫存檔清理失敗 %s: %s", file_path, exc)
 
 
 stt_service = SttService()

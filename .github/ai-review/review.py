@@ -1,10 +1,12 @@
 import json
 import os
 from pathlib import Path
+import random
 import re
 import sys
+import time
 import requests
-from engine import evaluate, load_policy, validate_finding
+from engine import evaluate, load_policy, validate_coverage, validate_finding
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO = os.environ.get("REPO", "")
@@ -12,6 +14,15 @@ EVENT_PATH = os.environ.get("EVENT_PATH", "")
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
+
+DEFAULT_MODEL_CANDIDATES = [
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-20b",
+]
+ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
 
 
 def get_repo():
@@ -28,6 +39,21 @@ def get_groq_api_key():
 
 def get_event_path():
     return os.environ.get("EVENT_PATH") or EVENT_PATH
+
+
+def normalize_path(path_str: str) -> str:
+    if not isinstance(path_str, str):
+        return ""
+    normalized = path_str.strip().replace("\\", "/")
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def normalize_paths(path_list) -> list:
+    if not isinstance(path_list, list):
+        return []
+    return [normalize_path(p) for p in path_list if normalize_path(p)]
 
 
 def get_github_headers():
@@ -229,54 +255,145 @@ def extract_json_payload(raw_text: str) -> dict:
     return json.loads(cleaned)
 
 
-def chat_completion(prompt):
-    api_key = get_groq_api_key()
-    candidates = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "qwen/qwen3.6-27b",
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
-    ]
+def parse_retry_after(response) -> float:
+    header_val = response.headers.get("retry-after") if hasattr(response, "headers") and response.headers else None
+    if header_val:
+        try:
+            return float(header_val)
+        except ValueError:
+            pass
+    try:
+        err_text = response.text if hasattr(response, "text") and response.text else ""
+        match_ms = re.search(r"try again in (\d+(?:\.\d+)?)\s*ms", err_text, re.IGNORECASE)
+        if match_ms:
+            return float(match_ms.group(1)) / 1000.0
+        match_s = re.search(r"try again in (\d+(?:\.\d+)?)\s*s\b", err_text, re.IGNORECASE)
+        if match_s:
+            return float(match_s.group(1))
+        match_m = re.search(r"try again in (\d+(?:\.\d+)?)\s*m\b", err_text, re.IGNORECASE)
+        if match_m:
+            return float(match_m.group(1)) * 60.0
+    except Exception:
+        pass
+    return 5.0
+
+
+def calculate_backoff_delay(
+    attempt: int,
+    retry_after: float = 0.0,
+    base_delay: float = 2.5,
+    max_delay: float = 90.0,
+    jitter_range: tuple = (0.5, 1.5),
+) -> float:
+    exponential_delay = base_delay * (2 ** max(0, attempt - 1))
+    effective_delay = max(retry_after, exponential_delay)
+    jitter = random.uniform(jitter_range[0], jitter_range[1])
+    return min(effective_delay + jitter, max_delay)
+
+
+def get_candidate_models() -> list:
+    global ACTIVE_MODEL_CANDIDATES
+    candidates = list(ACTIVE_MODEL_CANDIDATES)
     try:
         available_models = get_available_models()
-        filtered_candidates = [candidate for candidate in candidates if candidate in available_models]
+        filtered_candidates = [model for model in candidates if model in available_models]
         if filtered_candidates:
-            candidates = filtered_candidates
+            return filtered_candidates
     except requests.RequestException as exc:
         print(f"無法列舉 Groq 可用模型清單：{exc}，直接依序嘗試備援候選模型。")
+    return candidates
+
+
+def chat_completion(prompt: str, max_retries_per_model: int = 9) -> str:
+    global ACTIVE_MODEL_CANDIDATES
+    api_key = get_groq_api_key()
+    candidates = get_candidate_models()
 
     attempted_models = []
     error_details = []
     for model_name in candidates:
         attempted_models.append(model_name)
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
+        use_json_mode = True
+        for attempt in range(1, max_retries_per_model + 1):
+            try:
+                request_payload = {
                     "model": model_name,
                     "messages": [
                         {"role": "system", "content": "你必須使用繁體中文。只輸出合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤或 Markdown。不得捏造 Finding。"},
                         {"role": "user", "content": prompt},
                     ],
                     "temperature": 0.1,
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=120,
-            )
-            if response.ok:
-                print(f"使用 Groq 模型：{model_name}")
-                return response.json()["choices"][0]["message"]["content"]
-            reason_msg = f"HTTP {response.status_code}: {response.text[:300]}"
-            error_details.append((model_name, reason_msg))
-            print(f"模型 {model_name} 請求失敗：{reason_msg}")
-        except requests.RequestException as exc:
-            error_details.append((model_name, str(exc)))
-            print(f"模型 {model_name} 連線異常：{exc}")
+                    "max_tokens": 4096,
+                }
+                if use_json_mode:
+                    request_payload["response_format"] = {"type": "json_object"}
+
+                response = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=request_payload,
+                    timeout=120,
+                )
+                if response.ok:
+                    print(f"使用 Groq 模型：{model_name}")
+                    # 自適應調度：將運作成功的模型提升為第一優先順位
+                    if model_name in ACTIVE_MODEL_CANDIDATES:
+                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                        ACTIVE_MODEL_CANDIDATES.insert(0, model_name)
+                    return response.json()["choices"][0]["message"]["content"]
+
+                status_code = response.status_code
+                reason_msg = f"HTTP {status_code}: {response.text[:300]}"
+                error_details.append((model_name, reason_msg))
+
+                # 處理 429 速率限制指數退避重試
+                if status_code == 429:
+                    raw_retry_after = parse_retry_after(response)
+                    wait_seconds = calculate_backoff_delay(attempt, raw_retry_after, base_delay=2.5, max_delay=90.0)
+                    if attempt < max_retries_per_model:
+                        print(f"模型 {model_name} 達到速率限制 (429)，指數退避等待 {wait_seconds:.1f} 秒後重試（第 {attempt}/{max_retries_per_model} 次）...")
+                        time.sleep(wait_seconds)
+                        continue
+
+                    print(f"模型 {model_name} 達到重試上限且額度已滿，降級至備援清單尾端並切換下一個模型。")
+                    if model_name in ACTIVE_MODEL_CANDIDATES:
+                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                        ACTIVE_MODEL_CANDIDATES.append(model_name)
+                    time.sleep(3.0)
+                    break
+
+                # 處理 400 JSON 模式校驗失敗：延後退避並降級為一般文字模式重試
+                if status_code == 400 and use_json_mode and "json_validate_failed" in response.text:
+                    wait_seconds = calculate_backoff_delay(attempt, 0.0, base_delay=3.0, max_delay=30.0)
+                    print(f"模型 {model_name} JSON 模式校驗失敗 (400)，延後等待 {wait_seconds:.1f} 秒後降級為純文字模式並重試...")
+                    use_json_mode = False
+                    time.sleep(wait_seconds)
+                    continue
+
+                # 其他 400 格式錯誤：延後降級該模型並冷卻切換
+                if status_code == 400:
+                    print(f"模型 {model_name} 請求參數或格式錯誤 (400)：{reason_msg}，降級至備援清單尾端並切換下一個模型。")
+                    if model_name in ACTIVE_MODEL_CANDIDATES:
+                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                        ACTIVE_MODEL_CANDIDATES.append(model_name)
+                    time.sleep(3.0)
+                    break
+
+                print(f"模型 {model_name} 請求失敗：{reason_msg}")
+                time.sleep(3.0)
+                break
+            except requests.RequestException as exc:
+                error_details.append((model_name, str(exc)))
+                print(f"模型 {model_name} 連線異常：{exc}")
+                if attempt < max_retries_per_model:
+                    wait_seconds = calculate_backoff_delay(attempt, 2.0, base_delay=2.5, max_delay=90.0)
+                    time.sleep(wait_seconds)
+                    continue
+                time.sleep(3.0)
+                break
 
     raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
 
@@ -393,6 +510,10 @@ def main():
 
     results = []
     for index, (scope, paths) in enumerate(batches, 1):
+        if index > 1:
+            print(f"批次間隔節流：等待 5 秒以平滑 API 速率限制...")
+            time.sleep(5.0)
+
         relevant_rules_list = []
         rule_lines = rules_text.splitlines()
         for line_index, line_content in enumerate(rule_lines):
@@ -400,26 +521,29 @@ def main():
                 start_pos = max(0, line_index - 2)
                 end_pos = min(len(rule_lines), line_index + 14)
                 relevant_rules_list.extend(rule_lines[start_pos:end_pos])
-        relevant_rules = "\n".join(dict.fromkeys(relevant_rules_list))[:3500] or rules_text[:2500]
+        relevant_rules = "\n".join(dict.fromkeys(relevant_rules_list))[:2000] or rules_text[:1500]
 
         diff_parts = []
         for file_item in files:
             if file_item["filename"] in paths:
                 patch_text = file_item.get("patch") or "[GitHub did not provide a patch; review metadata only]"
                 diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
-        diff = "\n\n".join(diff_parts)[:7000]
+        diff = "\n\n".join(diff_parts)[:6000]
 
         prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
 
+【長度與格式約束】
+各欄位描述務必簡潔扼要，單一 Finding 不得贅述；若無違規，findings 輸出空陣列 []。確保回應在 1000 Tokens 內結束。
+
 【Review Contract】
-{contract_text[:2500]}
+{contract_text[:1500]}
 
 【相關規範】
 {relevant_rules}
 
-【本批次檔案】
+【本批次檔案】（files_reviewed 欄位必須完整包含下列所有路徑字串，不可修改或遺漏）
 {chr(10).join(paths)}
 
 【PR Diff】
@@ -457,8 +581,18 @@ def main():
             )
             raise SystemExit(f"批次 {scope}-{index} JSON 解析失敗：{exc}")
 
-        if batch_data.get("coverage") != "COMPLETE" or batch_data.get("files_reviewed") != paths:
-            cov_err = f"批次覆蓋範圍驗證失敗：{scope}-{index}"
+        norm_expected_paths = normalize_paths(paths)
+        raw_reviewed_paths = batch_data.get("files_reviewed")
+        norm_reviewed_paths = normalize_paths(raw_reviewed_paths)
+        coverage_status = str(batch_data.get("coverage", "")).strip().upper()
+
+        if coverage_status != "COMPLETE" or not validate_coverage(norm_expected_paths, norm_reviewed_paths):
+            cov_err = (
+                f"批次覆蓋範圍驗證失敗：{scope}-{index}\n"
+                f"- 預期檔案：{paths}\n"
+                f"- 模型回傳檔案：{raw_reviewed_paths}\n"
+                f"- 覆蓋標記：{batch_data.get('coverage')}"
+            )
             publish_failure_report(pr_number, "批次覆蓋範圍不符", cov_err)
             raise SystemExit(cov_err)
 
@@ -470,11 +604,12 @@ def main():
 
         results.append(batch_data)
 
-    reviewed_files = [filename for data in results for filename in data["files_reviewed"]]
+    reviewed_files = [filename for data in results for filename in normalize_paths(data.get("files_reviewed", []))]
     findings = [finding for data in results for finding in data.get("findings", [])]
     passed_checks = [check for data in results for check in data.get("passed_checks", [])]
 
-    evaluation_result = evaluate(findings, expected_files, reviewed_files, policy)
+    expected_all_files = normalize_paths(expected_files)
+    evaluation_result = evaluate(findings, expected_all_files, reviewed_files, policy)
     decision = evaluation_result["decision"]
     unique_findings = evaluation_result["findings"]
     blocking_findings = evaluation_result["blocking_findings"]

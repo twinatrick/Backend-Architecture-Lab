@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -24,6 +25,7 @@ sys.modules["minio.error"] = MagicMock(MinioError=_FakeMinioError)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from services.gpt_sovits_client import GptSovitsClient  # noqa: E402
+from services.stt_service import SttService  # noqa: E402
 from services.tts_exceptions import GptSovitsError  # noqa: E402
 from services.tts_exceptions import TtsTimeoutError  # noqa: E402
 from services.tts_service import TtsService  # noqa: E402
@@ -160,10 +162,6 @@ def test_tts_service_fallback_cleans_temp_file():
 
 
 def test_cleanup_oserror_does_not_raise():
-    import tempfile
-
-    from services.stt_service import SttService
-
     tmp_file = tempfile.NamedTemporaryFile(delete=False)
     tmp_file.close()
 

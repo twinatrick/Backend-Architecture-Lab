@@ -138,3 +138,195 @@ def test_extract_json_payload_invalid_json_raises():
     with pytest.raises(json.JSONDecodeError):
         review.extract_json_payload(raw)
 
+
+def test_normalize_path_and_paths():
+    assert review.normalize_path("  ./foo/bar.py  ") == "foo/bar.py"
+    assert review.normalize_path("foo\\bar.py") == "foo/bar.py"
+    assert review.normalize_path("") == ""
+    assert review.normalize_path(None) == ""
+    assert review.normalize_paths([" ./a.py ", "b\\c.py", ""]) == ["a.py", "b/c.py"]
+    assert review.normalize_paths(None) == []
+
+
+def test_validate_coverage_with_order_and_normalization():
+    expected = [".github/ai-review/review.py", ".github/ai-review/tests/test_review.py"]
+    reviewed_reversed = ["./.github/ai-review/tests/test_review.py", " .github/ai-review/review.py "]
+    norm_expected = review.normalize_paths(expected)
+    norm_reviewed = review.normalize_paths(reviewed_reversed)
+    assert review.validate_coverage(norm_expected, norm_reviewed)
+
+
+def test_validate_coverage_fails_when_missing_or_extra():
+    expected = ["a.py", "b.py"]
+    norm_expected = review.normalize_paths(expected)
+    assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py"]))
+    assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py", "b.py", "c.py"]))
+    assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py", "a.py"]))
+
+
+def test_parse_retry_after_from_header():
+    mock_resp = MagicMock()
+    mock_resp.headers = {"retry-after": "8.5"}
+    assert review.parse_retry_after(mock_resp) == 8.5
+
+
+def test_parse_retry_after_from_text_seconds():
+    mock_resp = MagicMock()
+    mock_resp.headers = {}
+    mock_resp.text = '{"error":{"message":"Rate limit reached. Please try again in 10.4175s."}}'
+    assert review.parse_retry_after(mock_resp) == 10.4175
+
+
+def test_parse_retry_after_from_text_milliseconds():
+    mock_resp = MagicMock()
+    mock_resp.headers = {}
+    mock_resp.text = '{"error":{"message":"Rate limit reached. Please try again in 500ms."}}'
+    assert review.parse_retry_after(mock_resp) == 0.5
+
+
+def test_parse_retry_after_fallback():
+    mock_resp = MagicMock()
+    mock_resp.headers = {}
+    mock_resp.text = "Internal error without retry hints"
+    assert review.parse_retry_after(mock_resp) == 5.0
+
+
+def test_chat_completion_success_on_first_try():
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    mock_resp.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "test", "findings": []}'}}]
+    }
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["llama-3.3-70b-versatile"]), \
+         patch("requests.post", return_value=mock_resp) as mock_post:
+        result = review.chat_completion("test prompt")
+        assert result == '{"batch": "test", "findings": []}'
+        assert mock_post.call_count == 1
+        payload = mock_post.call_args[1]["json"]
+        assert payload["max_tokens"] == 4096
+        assert payload["response_format"] == {"type": "json_object"}
+
+
+def test_chat_completion_retries_on_429_then_succeeds():
+    mock_resp_429 = MagicMock()
+    mock_resp_429.ok = False
+    mock_resp_429.status_code = 429
+    mock_resp_429.headers = {"retry-after": "2"}
+    mock_resp_429.text = "Rate limit reached"
+
+    mock_resp_200 = MagicMock()
+    mock_resp_200.ok = True
+    mock_resp_200.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "test-retry", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["llama-3.3-70b-versatile"]), \
+         patch("requests.post", side_effect=[mock_resp_429, mock_resp_200]) as mock_post, \
+         patch("time.sleep") as mock_sleep:
+        result = review.chat_completion("test prompt", max_retries_per_model=2)
+        assert result == '{"batch": "test-retry", "findings": []}'
+        assert mock_post.call_count == 2
+        mock_sleep.assert_called_once()
+
+
+def test_chat_completion_downgrades_on_400_json_validate_failed():
+    mock_resp_400 = MagicMock()
+    mock_resp_400.ok = False
+    mock_resp_400.status_code = 400
+    mock_resp_400.headers = {}
+    mock_resp_400.text = '{"error":{"message":"json_validate_failed: failed to validate json schema"}}'
+
+    mock_resp_200 = MagicMock()
+    mock_resp_200.ok = True
+    mock_resp_200.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "fallback-text", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["qwen/qwen3.6-27b"]), \
+         patch("requests.post", side_effect=[mock_resp_400, mock_resp_200]) as mock_post, \
+         patch("time.sleep") as mock_sleep:
+        result = review.chat_completion("test prompt", max_retries_per_model=2)
+        assert result == '{"batch": "fallback-text", "findings": []}'
+        assert mock_post.call_count == 2
+        # Verify 2nd attempt did not have response_format
+        second_payload = mock_post.call_args_list[1][1]["json"]
+        assert "response_format" not in second_payload
+        mock_sleep.assert_called_once()
+        called_sleep_time = mock_sleep.call_args[0][0]
+        assert 3.0 <= called_sleep_time <= 5.0
+
+
+def test_calculate_backoff_delay_exponential_growth():
+    delay_1 = review.calculate_backoff_delay(attempt=1, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
+    delay_2 = review.calculate_backoff_delay(attempt=2, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
+    delay_3 = review.calculate_backoff_delay(attempt=3, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
+    assert delay_1 == 2.5
+    assert delay_2 == 5.0
+    assert delay_3 == 10.0
+
+
+def test_calculate_backoff_delay_respects_retry_after():
+    delay = review.calculate_backoff_delay(attempt=1, retry_after=12.5, base_delay=2.5, jitter_range=(0.0, 0.0))
+    assert delay == 12.5
+
+
+def test_calculate_backoff_delay_capped_at_max_delay():
+    delay = review.calculate_backoff_delay(attempt=10, retry_after=100.0, max_delay=90.0, jitter_range=(0.0, 0.0))
+    assert delay == 90.0
+
+
+def test_chat_completion_demotes_model_on_persistent_400():
+    review.ACTIVE_MODEL_CANDIDATES = ["model-400-fail", "model-ok"]
+
+    mock_resp_400 = MagicMock()
+    mock_resp_400.ok = False
+    mock_resp_400.status_code = 400
+    mock_resp_400.headers = {}
+    mock_resp_400.text = "invalid_request_error"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "demote-400", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["model-400-fail", "model-ok"]), \
+         patch("requests.post", side_effect=[mock_resp_400, mock_resp_ok]), \
+         patch("time.sleep"):
+        result = review.chat_completion("test demote on 400", max_retries_per_model=1)
+        assert result == '{"batch": "demote-400", "findings": []}'
+        assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-ok"
+        assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-400-fail"
+
+
+def test_chat_completion_adaptive_model_promotion_and_demotion():
+    review.ACTIVE_MODEL_CANDIDATES = ["model-fail", "model-ok"]
+
+    mock_resp_fail = MagicMock()
+    mock_resp_fail.ok = False
+    mock_resp_fail.status_code = 429
+    mock_resp_fail.headers = {}
+    mock_resp_fail.text = "Rate limit reached"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "adaptive", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["model-fail", "model-ok"]), \
+         patch("requests.post", side_effect=[mock_resp_fail, mock_resp_ok]), \
+         patch("time.sleep"):
+        result = review.chat_completion("test adaptive", max_retries_per_model=1)
+        assert result == '{"batch": "adaptive", "findings": []}'
+        # model-ok should now be promoted to the front, and model-fail demoted to back
+        assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-ok"
+        assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-fail"
+
+
+

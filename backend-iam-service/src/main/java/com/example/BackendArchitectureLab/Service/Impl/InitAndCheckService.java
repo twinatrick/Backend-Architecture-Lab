@@ -105,7 +105,9 @@ public class InitAndCheckService implements IInitAndCheckService {
                 List.of("Alert", "AlertLimit", "Edit"),
                 // ExternalApi
                 List.of("ExternalApi", "VoiceUpload", "View"),
-                List.of("ExternalApi", "VoiceUpload", "Edit")
+                List.of("ExternalApi", "VoiceUpload", "Edit"),
+                List.of("ExternalApi", "BotConfig", "View"),
+                List.of("ExternalApi", "BotConfig", "Edit")
         ).forEach(entry -> allFunctionList.add(new ArrayList<>(entry)));
 
         for (List<String> functionListStr : allFunctionList) {

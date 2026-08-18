@@ -80,6 +80,8 @@ class CompensationRestoreServiceTest {
         compensationRestoreService = new CompensationRestoreService(
                 projectDataAccess,
                 userProjectSkillDataAccess,
+                skillDataAccess,
+                skillLevelDataAccess,
                 claimService,
                 validatorService,
                 stateService

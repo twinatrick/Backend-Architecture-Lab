@@ -1,7 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
-import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.Service.ICompensationStateService;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * CompensationStateService - {@link ICompensationStateService} 實作。
@@ -28,44 +28,44 @@ public class CompensationStateService implements ICompensationStateService {
     private long retryBackoffMs;
 
     @Override
-    public void markProcessed(CompensationEventLog entry) {
+    public void markProcessed(UUID eventId, String ownerId, Long fencingVersion) {
         int updated = eventLogRepository.markState(
-                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
+                eventId, ownerId, fencingVersion,
                 CompensationEventLogStatus.PROCESSING,
                 CompensationEventLogStatus.PROCESSED,
                 new Date(), null, null, null);
         if (updated != 1) {
             log.warn("markState skipped (stale token or status changed), processed result not committed: eventId={}",
-                    entry.getEventId());
+                    eventId);
         }
     }
 
     @Override
-    public void markFailed(CompensationEventLog entry, String errorMessage) {
+    public void markFailed(UUID eventId, String ownerId, Long fencingVersion, int attemptCount, String errorMessage) {
         Date now = new Date();
         int updated = eventLogRepository.markState(
-                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
+                eventId, ownerId, fencingVersion,
                 CompensationEventLogStatus.PROCESSING,
                 CompensationEventLogStatus.FAILED,
                 null, now, truncate(errorMessage),
-                new Date(now.getTime() + retryBackoffMs * entry.getAttemptCount()));
+                new Date(now.getTime() + retryBackoffMs * attemptCount));
         if (updated != 1) {
             log.warn("markState skipped (stale token or status changed), failed result not committed: eventId={}",
-                    entry.getEventId());
+                    eventId);
         }
     }
 
     @Override
-    public void markDead(CompensationEventLog entry, String errorMessage) {
+    public void markDead(UUID eventId, String ownerId, Long fencingVersion, String errorMessage) {
         Date now = new Date();
         int updated = eventLogRepository.markState(
-                entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(),
+                eventId, ownerId, fencingVersion,
                 CompensationEventLogStatus.PROCESSING,
                 CompensationEventLogStatus.DEAD,
                 null, now, truncate(errorMessage), null);
         if (updated != 1) {
             log.warn("markState skipped (stale token or status changed), dead result not committed: eventId={}",
-                    entry.getEventId());
+                    eventId);
         }
     }
 

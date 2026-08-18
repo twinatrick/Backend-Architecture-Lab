@@ -160,7 +160,7 @@ public class CompensationEventProcessor {
         } catch (RuntimeException e) {
             log.error("Persisted compensation event payload is corrupt, quarantine in DEAD status: eventId={}",
                     entry.getEventId(), e);
-            stateService.markDead(entry, e.getMessage());
+            stateService.markDead(entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(), e.getMessage());
             throw e;
         }
     }
@@ -252,30 +252,30 @@ public class CompensationEventProcessor {
     private void processEntry(CompensationEventLog entry, CompensationEvent event) {
         try {
             if (!CompensationStatus.COMPENSATION_REQUIRED.equals(event.getStatus())) {
-                stateService.markProcessed(entry);
+                stateService.markProcessed(entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion());
                 return;
             }
             log.warn("Executing compensation for transaction {} action {} with owner {} fence {}",
                     event.getTransactionId(), event.getAction(), entry.getOwnerId(), entry.getFencingVersion());
             executionService.execute(event, entry.getOwnerId(), entry.getFencingVersion());
-            stateService.markProcessed(entry);
+            stateService.markProcessed(entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion());
         } catch (Exception e) {
             if (executionService.isNonRetryable(e)) {
                 log.error("Compensation failed with non-retryable error. Quarantine in DEAD status: eventId={}",
                         event.getEventId(), e);
-                stateService.markDead(entry, e.getMessage());
+                stateService.markDead(entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(), e.getMessage());
                 throw e; // 仍 rethrow：讓 Kafka 錯誤處理器識別為 non-retryable，直接轉發 DLT
             } else if (entry.getAttemptCount() >= maxAttempts) {
                 log.error("Compensation failed and reached max attempts ({}). Quarantine in DEAD status: eventId={}",
                         maxAttempts, event.getEventId(), e);
-                stateService.markDead(entry, e.getMessage());
+                stateService.markDead(entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(), e.getMessage());
                 throw new CompensationDeadEventException(
                         "Compensation event reached max attempts and was quarantined in DEAD: eventId="
                                 + event.getEventId(), e); // 向外 rethrow：Kafka 錯誤處理器識別為不可重試，直接轉發 DLT
             } else {
                 log.warn("Compensation failed, will retry: eventId={}, attempt={}",
                         event.getEventId(), entry.getAttemptCount(), e);
-                stateService.markFailed(entry, e.getMessage());
+                stateService.markFailed(entry.getEventId(), entry.getOwnerId(), entry.getFencingVersion(), entry.getAttemptCount(), e.getMessage());
                 throw e; // 拋出異常，觸發 Kafka 重試/redelivery
             }
         }
