@@ -33,23 +33,23 @@
 
 ```mermaid
 graph TB
-    Client[客戶端 Web / App / LINE / Discord] -->|HTTP / REST| GW[API Gateway<br/>Port: 8000]
-    Client -->|WebSocket| WS[AlarmWebSocket<br/>Port: 8008]
+    Client["客戶端 Web / App / LINE / Discord"] -->|HTTP / REST| GW["API Gateway<br/>Port: 8000"]
+    Client -->|WebSocket| WS["AlarmWebSocket<br/>Port: 8008"]
 
     subgraph "服務註冊中心"
-        NC((Nacos 註冊中心<br/>Port: 8848))
+        NC(("Nacos 註冊中心<br/>Port: 8848"))
     end
 
     subgraph "微服務群 (Spring Boot 3.4 / Java 21)"
-        GW -->|/api/auth/**, /api/users/**| IAM[IAM Service<br/>Port: 8002]
-        GW -->|/api/skill/**, /api/project/**| COMP[Competency Service<br/>Port: 8004]
-        GW -->|/api/company/**, /api/job-posting/**| JOB[Job Service<br/>Port: 8006]
-        GW -->|/api/external/**, /api/stt/**| EXT[External API Service<br/>Port: 8007]
-        GW -->|/api/aquarkData/**, /api/cache-stats| ALT[Alert Service<br/>Port: 8008]
+        GW -->|/api/auth/**, /api/users/**| IAM["IAM Service<br/>Port: 8002"]
+        GW -->|/api/skill/**, /api/project/**| COMP["Competency Service<br/>Port: 8004"]
+        GW -->|/api/company/**, /api/job-posting/**| JOB["Job Service<br/>Port: 8006"]
+        GW -->|/api/external/**, /api/stt/**| EXT["External API Service<br/>Port: 8007"]
+        GW -->|/api/aquarkData/**, /api/cache-stats| ALT["Alert Service<br/>Port: 8008"]
     end
 
     subgraph "Python AI 側車 (FastAPI / Python 3.11)"
-        AIPY[AI-PY Service<br/>Port: 5001]
+        AIPY["AI-PY Service<br/>Port: 5001"]
     end
 
     NC -.-> GW & IAM & COMP & JOB & EXT & ALT & AIPY
@@ -62,10 +62,10 @@ graph TB
     EXT -->|Feign OpenFeign| AIPY
 
     subgraph "基礎設施 (Docker Compose)"
-        PG[(PostgreSQL 16<br/>5 個獨立 DB)]
-        RD[(Redis 7<br/>快取與布隆過濾器)]
-        KF[(Kafka 集群<br/>Port: 9092)]
-        MINIO[(MinIO S3<br/>Port: 9000/9001)]
+        PG[("PostgreSQL 16<br/>5 個獨立 DB")]
+        RD[("Redis 7<br/>快取與布隆過濾器")]
+        KF[("Kafka 集群<br/>Port: 9092")]
+        MINIO[("MinIO S3<br/>Port: 9000/9001")]
     end
 
     IAM & COMP & JOB & EXT & ALT --> PG
@@ -95,29 +95,29 @@ graph TB
 
 ```mermaid
 graph TB
-    Client[客戶端請求] -->|HTTP REST| Filter[Security / JWT 過濾器]
-    Filter --> Controller[Controller 層<br/>僅接收/回傳 Vo，嚴禁出現 Entity]
+    Client["客戶端請求"] -->|HTTP REST| Filter["Security / JWT 過濾器"]
+    Filter --> Controller["Controller 層<br/>僅接收/回傳 Vo，嚴禁出現 Entity"]
 
     subgraph "AOP 與切面保護"
-        AOP[PermissionCheck 切面<br/>動態校驗三層權限] -.-> Controller
+        AOP["PermissionCheck 切面<br/>動態校驗三層權限"] -.-> Controller
     end
 
     subgraph "業務邏輯層 (Service)"
-        Controller --> ServiceIntf[Service 介面<br/>定義業務契約]
-        ServiceIntf --> ServiceImpl[Service 實作層 (ServiceImpl)<br/>執行交易、快取註解與業務規則]
-        ServiceImpl --> Mapper[MapStruct Mapper<br/>Vo ↔ Entity 雙向安全轉換]
+        Controller --> ServiceIntf["Service 介面<br/>定義業務契約"]
+        ServiceIntf --> ServiceImpl["Service 實作層 (ServiceImpl)<br/>執行交易、快取註解與業務規則"]
+        ServiceImpl --> Mapper["MapStruct Mapper<br/>Vo ↔ Entity 雙向安全轉換"]
     end
 
     subgraph "資料存取層 (Data Access)"
-        ServiceImpl --> DataAccessIntf[DataAccess 介面]
-        DataAccessIntf --> DataAccessImpl[DataAccess 實作]
-        DataAccessImpl --> Repo[JPA Repository / Spring Data]
+        ServiceImpl --> DataAccessIntf["DataAccess 介面"]
+        DataAccessIntf --> DataAccessImpl["DataAccess 實作"]
+        DataAccessImpl --> Repo["JPA Repository / Spring Data"]
     end
 
     subgraph "持久化與外部整合"
-        Repo --> DB[(PostgreSQL)]
-        ServiceImpl --> RedisCache[(Redis 防穿透快取)]
-        ServiceImpl --> KafkaProducer[Kafka 事件發布]
+        Repo --> DB[("PostgreSQL")]
+        ServiceImpl --> RedisCache[("Redis 防穿透快取")]
+        ServiceImpl --> KafkaProducer["Kafka 事件發布"]
     end
 ```
 
@@ -599,14 +599,14 @@ erDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as 客戶端
-    participant GW as API Gateway (8000)
-    participant Filter as JwtAuthenticationFilter
-    participant AOP as PermissionCheck 切面 (@Order 2)
-    participant Validator as LocalPermissionValidator
-    participant IAMRepo as IAM 本地 Repository
-    participant IAMFeign as PermissionCheckFeignClient
-    participant Controller as 目標微服務 Controller
+    actor Client as "客戶端"
+    participant GW as "API Gateway (8000)"
+    participant Filter as "JwtAuthenticationFilter"
+    participant AOP as "PermissionCheck 切面 (@Order 2)"
+    participant Validator as "LocalPermissionValidator"
+    participant IAMRepo as "IAM 本地 Repository"
+    participant IAMFeign as "PermissionCheckFeignClient"
+    participant Controller as "目標微服務 Controller"
 
     Client ->> GW: HTTP Request (帶 Authorization Header 或 Cookie)
     GW ->> Filter: 轉發 Request (/api/* 剝除為 /*)
@@ -652,15 +652,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as 管理員
-    participant Ctrl as ProjectAdminController
-    participant DB as Competency PostgreSQL
-    participant SyncWorker as ExternalSyncWorker (Timer)
-    participant ExtAPI as 外部系統 (External API)
-    participant OutboxWorker as CompensationOutboxWorker (Timer)
-    participant Kafka as Kafka ("transaction-compensation")
-    participant Consumer as CompensationConsumer
-    participant RestoreSvc as ICompensationRestoreService
+    actor Admin as "管理員"
+    participant Ctrl as "ProjectAdminController"
+    participant DB as "Competency PostgreSQL"
+    participant SyncWorker as "ExternalSyncWorker (Timer)"
+    participant ExtAPI as "外部系統 (External API)"
+    participant OutboxWorker as "CompensationOutboxWorker (Timer)"
+    participant Kafka as "Kafka (transaction-compensation)"
+    participant Consumer as "CompensationConsumer"
+    participant RestoreSvc as "ICompensationRestoreService"
 
     Admin ->> Ctrl: POST /api/project/admin/bindings/project-members-skills/rebind
     activate Ctrl
@@ -718,29 +718,29 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    Start[客戶端查詢請求] --> Layer1{1. Null Marker 檢查}
-    Layer1 -->|命中空值標記| ReturnNull[回傳 null / 404<br/>(直接阻擋，不打 DB)]
-    Layer1 -->|無空值標記| Layer2{2. 布隆過濾器過濾<br/>Redisson RBloomFilter}
+    Start["客戶端查詢請求"] --> Layer1{"1. Null Marker 檢查"}
+    Layer1 -->|命中空值標記| ReturnNull["回傳 null / 404<br/>(直接阻擋，不打 DB)"]
+    Layer1 -->|無空值標記| Layer2{"2. 布隆過濾器過濾<br/>Redisson RBloomFilter"}
     
-    Layer2 -->|判定 Key 不存在| BlockBloom[拒絕查詢並記錄指標<br/>(防惡意隨機 Key 穿透)]
-    Layer2 -->|判定 Key 可能存在| Layer3{3. 讀取 Redis 快取}
+    Layer2 -->|判定 Key 不存在| BlockBloom["拒絕查詢並記錄指標<br/>(防惡意隨機 Key 穿透)"]
+    Layer2 -->|判定 Key 可能存在| Layer3{"3. 讀取 Redis 快取"}
     
-    Layer3 -->|快取命中 Hit| ReturnData[回傳快取資料<br/>(非同步發送 hit 指標)]
-    Layer3 -->|快取未命中 Miss| Layer4[4. 請求合併<br/>Request Collapsing]
+    Layer3 -->|快取命中 Hit| ReturnData["回傳快取資料<br/>(非同步發送 hit 指標)"]
+    Layer3 -->|快取未命中 Miss| Layer4["4. 請求合併<br/>Request Collapsing"]
     
-    Layer4 --> Layer5[5. 本機公平信號量<br/>Semaphore 限制最大 10 個並行]
-    Layer5 --> Layer6{6. Redisson 分散式互斥鎖<br/>RLock tryLock}
+    Layer4 --> Layer5["5. 本機公平信號量<br/>Semaphore 限制最大 10 個並行"]
+    Layer5 --> Layer6{"6. Redisson 分散式互斥鎖<br/>RLock tryLock"}
     
-    Layer6 -->|獲取鎖 (Leader)| DoubleCheck{雙重檢查 Redis}
+    Layer6 -->|獲取鎖 Leader| DoubleCheck{"雙重檢查 Redis"}
     DoubleCheck -->|已由前執行緒回填| ReturnData
-    DoubleCheck -->|確認無資料| QueryDB[(查詢 PostgreSQL 資料庫)]
+    DoubleCheck -->|確認無資料| QueryDB[("查詢 PostgreSQL 資料庫")]
     
-    QueryDB -->|查有資料| SetCache[回填 Redis 快取<br/>TTL + 隨機 Jitter 抖動]
-    QueryDB -->|查無資料| SetNullMarker[寫入 Redis Null Marker<br/>預設 TTL 5 分鐘]
-    SetCache --> ReleaseLock[釋放 RLock 與信號量] --> ReturnData
+    QueryDB -->|查有資料| SetCache["回填 Redis 快取<br/>TTL + 隨機 Jitter 抖動"]
+    QueryDB -->|查無資料| SetNullMarker["寫入 Redis Null Marker<br/>預設 TTL 5 分鐘"]
+    SetCache --> ReleaseLock["釋放 RLock 與信號量"] --> ReturnData
     SetNullMarker --> ReleaseLock --> ReturnNull
 
-    Layer6 -->|未獲取鎖 (Follower)| PollRedis[輪詢 Redis 快取<br/>每 200ms 重試，最長 30s]
+    Layer6 -->|未獲取鎖 Follower| PollRedis["輪詢 Redis 快取<br/>每 200ms 重試，最長 30s"]
     PollRedis --> ReturnData
 ```
 
@@ -777,12 +777,12 @@ graph TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant App as 各業務微服務 (IAM / Comp / Job)
-    participant Kafka as Kafka Topic: "cache-stats"
-    participant Consumer as CacheStatsConsumer (Alert)
-    participant Redis as Redis Hash ("cache:stats:*")
-    participant Admin as 監控後台 / 管理員
-    participant Ctrl as CacheStatsController
+    participant App as "各業務微服務 (IAM / Comp / Job)"
+    participant Kafka as "Kafka Topic: cache-stats"
+    participant Consumer as "CacheStatsConsumer (Alert)"
+    participant Redis as "Redis Hash (cache:stats:*)"
+    participant Admin as "監控後台 / 管理員"
+    participant Ctrl as "CacheStatsController"
 
     App ->> App: 觸發快取事件 (Hit / Miss / Bloom Filter 阻擋)
     App ->> Kafka: 非同步發送 CacheStatsEvent (cacheName, metricType)
@@ -807,18 +807,18 @@ sequenceDiagram
 
 ```mermaid
 graph LR
-    Client[客戶端語音輸入] -->|1. 上傳音訊| JavaWeb[Java External API Service]
-    JavaWeb -->|2. Feign 調用 POST /stt| PySidecar[Python AI-PY Sidecar<br/>Port: 5001]
+    Client["客戶端語音輸入"] -->|1. 上傳音訊| JavaWeb["Java External API Service"]
+    JavaWeb -->|2. Feign 調用 POST /stt| PySidecar["Python AI-PY Sidecar<br/>Port: 5001"]
 
     subgraph "Python AI-PY 雙引擎 STT 管線"
-        PySidecar -->|主引擎 (GPU/CUDA 12)| Whisper[Faster-Whisper<br/>large-v3-turbo]
-        PySidecar -->|備援引擎 (純 CPU 離線)| SenseVoice[Sherpa-ONNX SenseVoice<br/>中英日韓粵 5 語系]
-        PySidecar -->|獨立 Conda 子進程隔離| PyAnnote[PyAnnote 3.1 語者分離<br/>pyannote-env 環境]
+        PySidecar -->|主引擎 GPU CUDA 12| Whisper["Faster-Whisper<br/>large-v3-turbo"]
+        PySidecar -->|備援引擎 純 CPU 離線| SenseVoice["Sherpa-ONNX SenseVoice<br/>中英日韓粵 5 語系"]
+        PySidecar -->|獨立 Conda 子進程隔離| PyAnnote["PyAnnote 3.1 語者分離<br/>pyannote-env 環境"]
     end
 
-    Whisper & SenseVoice -->|3. 上傳轉存音訊| MinIO[(MinIO S3 儲存)]
-    PyAnnote -->|4. 小說體/對話排版| Formatter[Transcript Formatter]
-    Formatter -->|5. 台灣習慣用語轉換| OpenCC[OpenCC 繁體轉換<br/>s2twp.json]
+    Whisper & SenseVoice -->|3. 上傳轉存音訊| MinIO[("MinIO S3 儲存")]
+    PyAnnote -->|4. 小說體/對話排版| Formatter["Transcript Formatter"]
+    Formatter -->|5. 台灣習慣用語轉換| OpenCC["OpenCC 繁體轉換<br/>s2twp.json"]
     OpenCC -.->|6. 回傳結構化逐字稿| JavaWeb
     JavaWeb -.->|7. 輸出結果| Client
 ```
@@ -830,14 +830,14 @@ graph LR
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as 使用者 (LINE / Discord)
-    participant Webhook as Webhook 接收端
-    participant JavaBot as LineGfService / DiscordGfListener
-    participant MinIO as MinIO S3 儲存庫
-    participant STT as Python AI-PY (STT 轉譯)
-    participant LLM as 多模型大腦 (CompositeAiService)
-    participant TTS as Python AI-PY (TTS 合成)
-    participant ClientApp as LINE App / Discord Client
+    actor User as "使用者 (LINE / Discord)"
+    participant Webhook as "Webhook 接收端"
+    participant JavaBot as "LineGfService / DiscordGfListener"
+    participant MinIO as "MinIO S3 儲存庫"
+    participant STT as "Python AI-PY (STT 轉譯)"
+    participant LLM as "多模型大腦 (CompositeAiService)"
+    participant TTS as "Python AI-PY (TTS 合成)"
+    participant ClientApp as "LINE App / Discord Client"
 
     User ->> Webhook: 發送語音訊息 / 文字訊息
     Webhook ->> JavaBot: Webhook 簽名驗證與事件分發
@@ -877,16 +877,16 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Timer as 水情定時排程 (Timer)
-    participant Aquark as Aquark 監測硬體 API
-    participant Service as CheckApiService (Alert)
-    participant DB as alert_service DB
-    participant LimitCache as Redis 閥值快取
-    participant KafkaPub as AlarmKafkaPublisher
-    participant Kafka as Kafka Topic: "socketSend"
-    participant Consumer as KafkaConsumerService
-    participant WS as AlarmWebSocket (/ws/alarm)
-    actor Frontend as 前端監控看板
+    participant Timer as "水情定時排程 (Timer)"
+    participant Aquark as "Aquark 監測硬體 API"
+    participant Service as "CheckApiService (Alert)"
+    participant DB as "alert_service DB"
+    participant LimitCache as "Redis 閥值快取"
+    participant KafkaPub as "AlarmKafkaPublisher"
+    participant Kafka as "Kafka Topic: socketSend"
+    participant Consumer as "KafkaConsumerService"
+    participant WS as "AlarmWebSocket (/ws/alarm)"
+    actor Frontend as "前端監控看板"
 
     Timer ->> Aquark: 定時拉取即時感測水質數據
     Aquark -->> Service: 回傳水溫、pH、溶氧量、濁度數據
