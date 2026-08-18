@@ -28,16 +28,23 @@ def load_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 def resolve_pr_number(event):
-    # Current trusted workflow uses pull_request. Keep workflow_run compatibility.
+    # Primary contract: pull_request event.
     pr = event.get("pull_request") or {}
     if pr.get("number"):
-        return pr["number"]
-    pull_requests = event.get("pull_requests") or []
-    if pull_requests and pull_requests[0].get("number"):
-        return pull_requests[0]["number"]
+        return int(pr["number"])
+
+    # Explicit PR number supplied by the trusted workflow is the authoritative
+    # fallback and keeps the resolver independent of workflow_run payloads.
     env_number = os.environ.get("PR_NUMBER")
     if env_number and env_number.isdigit():
         return int(env_number)
+
+    # Backward compatibility for the legacy workflow_run event shape.
+    workflow_run = event.get("workflow_run") or {}
+    pull_requests = workflow_run.get("pull_requests") or event.get("pull_requests") or []
+    if pull_requests and pull_requests[0].get("number"):
+        return int(pull_requests[0]["number"])
+
     raise SystemExit("No PR associated with GitHub event.")
 
 def publish_review(pr_number, body, event="COMMENT"):
