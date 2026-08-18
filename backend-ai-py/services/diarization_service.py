@@ -41,7 +41,8 @@ def _get_gpu_vram_gb() -> float:
         )
         vram_mb = float(res.stdout.strip().split("\n")[0])
         return vram_mb / 1024.0
-    except Exception:
+    except Exception as exc:
+        logger.warning("[STT] 查詢 GPU VRAM 失敗: %s", exc)
         return 0.0
 
 

@@ -36,7 +36,7 @@ public class ProjectManagementController {
     }
 
     @GetMapping("/{projectId}/member-skills")
-    @RequirePermission("Edit")
+    @RequirePermission("View")
     @ApiOperationOk(
             summary = "取得專案成員技能",
             description = "取得專案所有成員在此專案中的技能等級綁定，供編輯專案時回填既有資料"

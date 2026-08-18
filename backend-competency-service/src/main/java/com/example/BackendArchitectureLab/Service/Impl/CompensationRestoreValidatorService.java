@@ -4,7 +4,6 @@ import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
-import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
@@ -14,18 +13,15 @@ import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * CompensationRestoreValidatorService - 補償還原的綁定驗證與冪等比對實作（M-02 拆分）。
- * 不含交易或資料變更，僅提供唯讀驗證與解析，供 CompensationRestoreService 於破壞性操作前呼叫。
+ * 不含交易或資料變更，僅提供唯讀驗證，供 CompensationRestoreService 於破壞性操作前呼叫。
  */
 @Service
 @RequiredArgsConstructor
@@ -58,10 +54,9 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
     }
 
     @Override
-    public List<UserProjectSkill> resolveBindingsForRestore(UUID projectId, Project project,
-                                                            List<BindingSnapshot> bindings) {
-        if (bindings == null) {
-            return List.of();
+    public void validateBindingsForRestore(UUID projectId, List<BindingSnapshot> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            return;
         }
 
         if (bindings.size() > MAX_BINDINGS) {
@@ -94,11 +89,7 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                 ? projectMembers.stream().map(UserProject::getUserId).collect(Collectors.toSet())
                 : Set.of();
 
-        // 3. 快取解析已查詢之技能與等級，減少重複查詢
-        Map<UUID, Skill> skillCache = new HashMap<>();
-        Map<UUID, SkillLevel> skillLevelCache = new HashMap<>();
-
-        List<UserProjectSkill> resolved = new ArrayList<>(bindings.size());
+        // 3. 驗證技能與等級是否存在且匹配
         for (BindingSnapshot binding : bindings) {
             UUID userId = binding.getUserId();
             UUID skillId = binding.getSkillId();
@@ -109,26 +100,16 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                         "User " + userId + " is not a member of project " + projectId);
             }
 
-            Skill skill = skillCache.computeIfAbsent(skillId, id ->
-                    skillDataAccess.findById(id)
-                            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + id)));
+            Skill skill = skillDataAccess.findById(skillId)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
 
-            SkillLevel skillLevel = skillLevelCache.computeIfAbsent(levelId, id ->
-                    skillLevelDataAccess.findById(id)
-                            .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + id)));
+            SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
 
             if (!skillLevel.getSkill().getId().equals(skillId)) {
                 throw new IllegalArgumentException(
                         "Skill level " + levelId + " does not belong to skill " + skillId);
             }
-
-            UserProjectSkill entity = new UserProjectSkill();
-            entity.setUserId(userId);
-            entity.setProject(project);
-            entity.setSkill(skill);
-            entity.setSkillLevel(skillLevel);
-            resolved.add(entity);
         }
-        return resolved;
     }
 }

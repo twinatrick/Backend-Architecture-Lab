@@ -1,8 +1,12 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectSkillDataAccess;
 import com.example.BackendArchitectureLab.Entity.Project;
+import com.example.BackendArchitectureLab.Entity.Skill;
+import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreClaimService;
@@ -35,6 +39,8 @@ public class CompensationRestoreService implements ICompensationRestoreService {
 
     private final IProjectDataAccess projectDataAccess;
     private final IUserProjectSkillDataAccess userProjectSkillDataAccess;
+    private final ISkillDataAccess skillDataAccess;
+    private final ISkillLevelDataAccess skillLevelDataAccess;
     private final ICompensationRestoreClaimService claimService;
     private final ICompensationRestoreValidatorService validatorService;
     private final ICompensationRestoreStateService stateService;
@@ -60,11 +66,11 @@ public class CompensationRestoreService implements ICompensationRestoreService {
             Project project = projectDataAccess.findById(projectId)
                     .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
 
-            // 2.5 破壞性操作前驗證並解析 payload（方案 B 含 membership 驗證）。
+            // 2.5 破壞性操作前驗證 payload（方案 B 含 membership 驗證）。
             //     確保後續 reconcile 比對與 DELETE 前所有綁定皆合法：malformed 或非成員的 payload
             //     在此拋 IllegalArgumentException（事件直接轉 DEAD / FAILED），避免在 List.of(...)
             //     reconcile 比對或 DELETE 之後才拋出 NPE，白白執行一輪 DELETE→INSERT→rollback（P3 修復）。
-            List<UserProjectSkill> resolvedBindings = validatorService.resolveBindingsForRestore(projectId, project, bindings);
+            validatorService.validateBindingsForRestore(projectId, bindings);
 
             if (!expectedVersion.equals(project.getVersion())) {
                 // C-01 crash window 復原：先前 restore 資料已 commit 成功 but SUCCESS 標記遺失時
@@ -102,9 +108,20 @@ public class CompensationRestoreService implements ICompensationRestoreService {
             // 5. 刪除該專案目前的技能綁定
             userProjectSkillDataAccess.deleteByProjectId(projectId);
 
-            // 6. 還原（直接重用 resolveBindingsForRestore 已解析並驗證的 entity，不再重查 skill/level，DRY）
-            for (UserProjectSkill binding : resolvedBindings) {
-                userProjectSkillDataAccess.save(binding);
+            // 6. 還原
+            if (bindings != null) {
+                for (BindingSnapshot binding : bindings) {
+                    Skill skill = skillDataAccess.findById(binding.getSkillId())
+                            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + binding.getSkillId()));
+                    SkillLevel skillLevel = skillLevelDataAccess.findById(binding.getLevelId())
+                            .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + binding.getLevelId()));
+                    UserProjectSkill entity = new UserProjectSkill();
+                    entity.setUserId(binding.getUserId());
+                    entity.setProject(project);
+                    entity.setSkill(skill);
+                    entity.setSkillLevel(skillLevel);
+                    userProjectSkillDataAccess.save(entity);
+                }
             }
 
             // 7. 還原成功：於同一交易內標記 SUCCESS（StateService.markRestoreSuccess 以 REQUIRED 加入現行交易），

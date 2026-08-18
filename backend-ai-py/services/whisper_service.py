@@ -44,19 +44,19 @@ def _register_whisper_dll_dirs() -> None:
             continue
         for root, dirs, files in os.walk(base):
             depth = root[len(base) :].count(os.sep) if root.startswith(base) else 0
-            if any(f.lower().endswith(".dll") for f in files):
+            if any(filename.lower().endswith(".dll") for filename in files):
                 extra_dirs.add(root)
             if depth >= 2:
                 dirs[:] = []
 
     registered = []
-    for d in sorted(extra_dirs):
+    for dll_dir in sorted(extra_dirs):
         try:
-            os.add_dll_directory(d)
-            registered.append(d)
+            os.add_dll_directory(dll_dir)
+            registered.append(dll_dir)
         except (OSError, ValueError) as exc:
             # 單一目錄註冊失敗不影響其他目錄，僅記錄
-            logger.warning("[Whisper] DLL 目錄註冊失敗 %s: %s", d, exc)
+            logger.warning("[Whisper] DLL 目錄註冊失敗 %s: %s", dll_dir, exc)
 
     # 預先載入 CUDA runtime 相關 DLL 進進程，避免 ctranslate2 延遲載入失敗
     if registered:

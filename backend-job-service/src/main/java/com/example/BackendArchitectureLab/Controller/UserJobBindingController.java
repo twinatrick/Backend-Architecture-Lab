@@ -46,7 +46,7 @@ public class UserJobBindingController {
         UUID currentUserId = securityUtil.requireCurrentUserId();
         log.info("User {} unbinding job {}", currentUserId, jobPostingId);
         userJobLinkService.removeJobFromCurrentUser(currentUserId.toString(), jobPostingId);
-        return ResponseType.Success("職解除綁定成功");
+        return ResponseType.Success("職缺解除綁定成功");
     }
 
     @GetMapping
