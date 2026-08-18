@@ -6,7 +6,7 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,10 +22,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/external/config")
 @ApiControllerTag(name = "Bot Config", description = "Bot 設定管理相關 API")
+@RequiredArgsConstructor
 public class ConfigController {
 
-    @Autowired
-    private IBotConfigService botConfigService;
+    private final IBotConfigService botConfigService;
 
     @GetMapping
     @ApiOperationOk(summary = "取得所有 Bot 設定", description = "回傳所有 Bot 設定。")

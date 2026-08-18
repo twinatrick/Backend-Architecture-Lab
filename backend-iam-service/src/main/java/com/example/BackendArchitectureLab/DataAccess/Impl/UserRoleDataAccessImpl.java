@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserRoleDataAccess;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -16,10 +16,10 @@ import java.util.UUID;
  * Delegates to Spring Data JPA UserRoleRepository.
  */
 @Component
+@RequiredArgsConstructor
 public class UserRoleDataAccessImpl implements IUserRoleDataAccess {
 
-    @Autowired
-    private UserRoleRepository userRoleRepository;
+    private final UserRoleRepository userRoleRepository;
 
     @Override
     public void deleteAllByUserInAndRoleIn(List<User> users, List<Role> roles) {

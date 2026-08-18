@@ -14,10 +14,11 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.VoiceUploadSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVoiceUploadVo;
 import com.example.BackendArchitectureLab.Vo.VoiceTranslationVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,29 +38,33 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
             "id", "fileName", "fileSize", "duration", "status", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private IUserVoiceUploadDataAccess userVoiceUploadDataAccess;
+    private final IUserVoiceUploadDataAccess userVoiceUploadDataAccess;
+    private final IVoiceTranslationDataAccess voiceTranslationDataAccess;
+    private final UserVoiceUploadMapper uploadMapper;
+    private final VoiceTranslationMapper translationMapper;
+    private final TransactionExecutor transactionExecutor;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final CacheManager cacheManager;
+    private final IUserVoiceUploadService self;
 
-    @Autowired
-    private IVoiceTranslationDataAccess voiceTranslationDataAccess;
-
-    @Autowired
-    private UserVoiceUploadMapper uploadMapper;
-
-    @Autowired
-    private VoiceTranslationMapper translationMapper;
-
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-
-    @Autowired
-    private CacheManager cacheManager;
-
-    @Autowired
-    private IUserVoiceUploadService self;
+    public UserVoiceUploadService(
+            IUserVoiceUploadDataAccess userVoiceUploadDataAccess,
+            IVoiceTranslationDataAccess voiceTranslationDataAccess,
+            UserVoiceUploadMapper uploadMapper,
+            VoiceTranslationMapper translationMapper,
+            TransactionExecutor transactionExecutor,
+            StringRedisTemplate stringRedisTemplate,
+            CacheManager cacheManager,
+            @Lazy IUserVoiceUploadService self) {
+        this.userVoiceUploadDataAccess = userVoiceUploadDataAccess;
+        this.voiceTranslationDataAccess = voiceTranslationDataAccess;
+        this.uploadMapper = uploadMapper;
+        this.translationMapper = translationMapper;
+        this.transactionExecutor = transactionExecutor;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.cacheManager = cacheManager;
+        this.self = self;
+    }
 
     @Override
     @Transactional

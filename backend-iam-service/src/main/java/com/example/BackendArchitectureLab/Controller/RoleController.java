@@ -15,7 +15,7 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,14 +25,12 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/role")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Roles", description = "角色與權限管理相關 API")
 public class RoleController {
-    @Autowired
-    private IRoleService roleService;
-    @Autowired
-    private IFunctionQueryService functionQueryService;
-    @Autowired
-    private IUserService userService;
+    private final IRoleService roleService;
+    private final IFunctionQueryService functionQueryService;
+    private final IUserService userService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

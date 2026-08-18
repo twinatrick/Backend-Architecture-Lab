@@ -23,7 +23,6 @@ import com.linecorp.bot.client.MessageContentResponse;
 import com.linecorp.bot.model.ReplyMessage;
 import com.linecorp.bot.model.message.AudioMessage;
 import com.linecorp.bot.model.message.TextMessage;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -37,37 +36,39 @@ import java.util.Optional;
 @Service
 public class LineGfService implements ILineGfService {
 
-    @Autowired
-    @Qualifier("gfLineMessagingClient")
-    private LineMessagingClient messagingClient;
-
-    @Autowired
-    @Qualifier("gfLineBlobClient")
-    private LineBlobClient blobClient;
-
-    @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
-
-    @Autowired
-    private ITtsService ttsService;
-
-    @Autowired
-    private ISttService sttService;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
-
-    @Autowired
-    private ILineGfSessionDataAccess sessionDataAccess;
-
-    @Autowired
-    private GfSessionMapper gfSessionMapper;
+    private final LineMessagingClient messagingClient;
+    private final LineBlobClient blobClient;
+    private final AiPyServiceFeignClient aiPyServiceFeignClient;
+    private final ITtsService ttsService;
+    private final ISttService sttService;
+    private final IUsageTrackService usageTrackService;
+    private final ILineGfSessionDataAccess sessionDataAccess;
+    private final GfSessionMapper gfSessionMapper;
+    private final ObjectMapper objectMapper;
 
     @Value("${OUT_URL:}")
     private String outUrl;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    public LineGfService(
+            @Qualifier("gfLineMessagingClient") LineMessagingClient messagingClient,
+            @Qualifier("gfLineBlobClient") LineBlobClient blobClient,
+            AiPyServiceFeignClient aiPyServiceFeignClient,
+            ITtsService ttsService,
+            ISttService sttService,
+            IUsageTrackService usageTrackService,
+            ILineGfSessionDataAccess sessionDataAccess,
+            GfSessionMapper gfSessionMapper,
+            ObjectMapper objectMapper) {
+        this.messagingClient = messagingClient;
+        this.blobClient = blobClient;
+        this.aiPyServiceFeignClient = aiPyServiceFeignClient;
+        this.ttsService = ttsService;
+        this.sttService = sttService;
+        this.usageTrackService = usageTrackService;
+        this.sessionDataAccess = sessionDataAccess;
+        this.gfSessionMapper = gfSessionMapper;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public void handleText(String replyToken, String text, String userId) {

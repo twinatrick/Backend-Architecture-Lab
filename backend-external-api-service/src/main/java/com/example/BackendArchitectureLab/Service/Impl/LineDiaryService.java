@@ -10,11 +10,13 @@ import com.linecorp.bot.client.LineMessagingClient;
 import com.linecorp.bot.client.MessageContentResponse;
 import com.linecorp.bot.model.ReplyMessage;
 import com.linecorp.bot.model.message.TextMessage;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class LineDiaryService implements ILineDiaryService {
 
     @Autowired(required = false)
@@ -25,11 +27,8 @@ public class LineDiaryService implements ILineDiaryService {
     @Qualifier("diaryLineBlobClient")
     private LineBlobClient blobClient;
 
-    @Autowired
-    private ISttService sttService;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
+    private final ISttService sttService;
+    private final IUsageTrackService usageTrackService;
 
     @Override
     public void handleText(String replyToken, String text) {

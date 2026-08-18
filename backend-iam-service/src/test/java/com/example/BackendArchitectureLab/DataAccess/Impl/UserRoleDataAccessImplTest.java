@@ -25,20 +25,22 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(UserRoleDataAccessImpl.class)
 class UserRoleDataAccessImplTest {
 
-    @Autowired
-    private UserRoleRepository userRoleRepository;
+    private final UserRoleRepository userRoleRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final IUserRoleDataAccess userRoleDataAccess;
 
     @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private RoleRepository roleRepository;
-
-    @Autowired
-    private IUserRoleDataAccess userRoleDataAccess;
+    public UserRoleDataAccessImplTest(UserRoleRepository userRoleRepository,
+                                      UserRepository userRepository,
+                                      RoleRepository roleRepository) {
+        this.userRoleRepository = userRoleRepository;
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.userRoleDataAccess = new UserRoleDataAccessImpl(userRoleRepository);
+    }
 
     @BeforeEach
     void setUp() {

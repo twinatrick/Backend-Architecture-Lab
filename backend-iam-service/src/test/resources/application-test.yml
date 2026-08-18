@@ -35,5 +35,5 @@ spring:
 # 日誌配置
 logging:
   level:
-    com.example.BackendArchitectureLab: DEBUG
+    com.example.BackendArchitectureLab: INFO
     org.springframework.test: INFO

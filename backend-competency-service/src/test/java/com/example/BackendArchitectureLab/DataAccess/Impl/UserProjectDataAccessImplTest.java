@@ -24,17 +24,19 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(UserProjectDataAccessImpl.class)
 class UserProjectDataAccessImplTest {
 
-    @Autowired
-    private UserProjectRepository userProjectRepository;
+    private final UserProjectRepository userProjectRepository;
+    private final ProjectRepository projectRepository;
+    private final IUserProjectDataAccess userProjectDataAccess;
 
     @Autowired
-    private ProjectRepository projectRepository;
-
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
+    public UserProjectDataAccessImplTest(UserProjectRepository userProjectRepository,
+                                         ProjectRepository projectRepository) {
+        this.userProjectRepository = userProjectRepository;
+        this.projectRepository = projectRepository;
+        this.userProjectDataAccess = new UserProjectDataAccessImpl(userProjectRepository);
+    }
 
     @BeforeEach
     void setUp() {

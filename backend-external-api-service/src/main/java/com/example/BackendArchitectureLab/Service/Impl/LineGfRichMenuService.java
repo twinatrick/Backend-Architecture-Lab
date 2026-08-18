@@ -12,7 +12,6 @@ import com.linecorp.bot.model.richmenu.RichMenuSize;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -27,13 +26,15 @@ public class LineGfRichMenuService implements ILineGfRichMenuService {
 
     private static final Logger log = LoggerFactory.getLogger(LineGfRichMenuService.class);
 
-    @Autowired
-    @Qualifier("gfLineMessagingClient")
-    private LineMessagingClient messagingClient;
+    private final LineMessagingClient messagingClient;
+    private final LineBlobClient blobClient;
 
-    @Autowired
-    @Qualifier("gfLineBlobClient")
-    private LineBlobClient blobClient;
+    public LineGfRichMenuService(
+            @Qualifier("gfLineMessagingClient") LineMessagingClient messagingClient,
+            @Qualifier("gfLineBlobClient") LineBlobClient blobClient) {
+        this.messagingClient = messagingClient;
+        this.blobClient = blobClient;
+    }
 
     @PostConstruct
     public void init() {

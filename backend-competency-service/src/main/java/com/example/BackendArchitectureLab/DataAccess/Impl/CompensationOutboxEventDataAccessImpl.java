@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationOutboxEventDataAccess;
 import com.example.BackendArchitectureLab.Entity.CompensationOutboxEvent;
 import com.example.BackendArchitectureLab.Repository.CompensationOutboxEventRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
@@ -16,10 +16,10 @@ import java.util.UUID;
  * CompensationOutboxEventDataAccessImpl - ICompensationOutboxEventDataAccess 實作（薄委派 CompensationOutboxEventRepository）。
  */
 @Component
+@RequiredArgsConstructor
 public class CompensationOutboxEventDataAccessImpl implements ICompensationOutboxEventDataAccess {
 
-    @Autowired
-    private CompensationOutboxEventRepository repository;
+    private final CompensationOutboxEventRepository repository;
 
     @Override
     public CompensationOutboxEvent save(CompensationOutboxEvent entity) {

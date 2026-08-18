@@ -8,7 +8,7 @@ import com.example.BackendArchitectureLab.DataAccess.IAlertCheckLimitDataAccess;
 import com.example.BackendArchitectureLab.Mapper.AlertCheckLimitMapper;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -21,19 +21,16 @@ import java.util.stream.Collectors;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
 @Service
+@RequiredArgsConstructor
 public class AlertCheckLimitService implements IAlertCheckLimitService {
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
             "id", "tableName", "columnName", "limitValue",
             "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-
-    @Autowired
-    private IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
-    @Autowired
-    private AlertCheckLimitMapper alertCheckLimitMapper;
+    private final TransactionExecutor transactionExecutor;
+    private final IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
+    private final AlertCheckLimitMapper alertCheckLimitMapper;
 
     @Override
     @Cacheable(value = "alertCheckLimit", key = "#tableName + '.' + #column", sync = true)

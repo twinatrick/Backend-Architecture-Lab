@@ -3,22 +3,21 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Aop.LocalPermissionValidator;
 import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Service.IRoleService;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/role/inner")
+@RequiredArgsConstructor
 public class PermissionInternalController {
     private static final Logger log = LoggerFactory.getLogger(PermissionInternalController.class);
 
-    @Autowired
-    private IRoleService roleService;
-    @Autowired
-    private LocalPermissionValidator localPermissionValidator;
+    private final IRoleService roleService;
+    private final LocalPermissionValidator localPermissionValidator;
 
     @GetMapping("/all")
     public List<RoleOutVo> getAllRoles() {

@@ -34,8 +34,7 @@ class UserVoiceUploadDataAccessImplTest {
 
     @BeforeEach
     void setUp() {
-        dataAccess = new UserVoiceUploadDataAccessImpl();
-        ReflectionTestUtils.setField(dataAccess, "userVoiceUploadRepository", userVoiceUploadRepository);
+        dataAccess = new UserVoiceUploadDataAccessImpl(userVoiceUploadRepository);
     }
 
     @Test

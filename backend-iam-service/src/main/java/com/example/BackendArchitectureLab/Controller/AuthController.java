@@ -13,8 +13,8 @@ import com.example.BackendArchitectureLab.Vo.SignupRequest;
 import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
 import com.example.BackendArchitectureLab.Vo.Response.Token;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.jose4j.lang.JoseException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,20 +29,17 @@ import java.util.HashMap;
 
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Auth", description = "身分驗證與註冊相關 API")
 public class AuthController {
 
-    @Autowired
-    private IAuthService authService;
+    private final IAuthService authService;
 
-    @Autowired
-    private HttpServletResponse httpResponse;
+    private final HttpServletResponse httpResponse;
 
-    @Autowired
-    private JwtAuthenticationToken jwtUtils;
+    private final JwtAuthenticationToken jwtUtils;
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
+    private final AuthenticationManager authenticationManager;
 
     @Ignore
     @PostMapping("/signup")

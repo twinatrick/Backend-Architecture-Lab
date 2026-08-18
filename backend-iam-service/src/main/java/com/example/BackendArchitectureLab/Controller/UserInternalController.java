@@ -3,16 +3,16 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IUserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/users/inner")
+@RequiredArgsConstructor
 public class UserInternalController {
-    @Autowired
-    private IUserService userService;
+    private final IUserService userService;
 
     @GetMapping("/{id}")
     public UserVo getUserById(@PathVariable UUID id) {

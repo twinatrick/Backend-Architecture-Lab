@@ -6,20 +6,18 @@ import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.BotConfigMapper;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class BotConfigService implements IBotConfigService {
 
-    @Autowired
-    private IBotConfigDataAccess botConfigDataAccess;
-
-    @Autowired
-    private BotConfigMapper botConfigMapper;
+    private final IBotConfigDataAccess botConfigDataAccess;
+    private final BotConfigMapper botConfigMapper;
 
     @Override
     public List<BotConfigVo> findAll() {

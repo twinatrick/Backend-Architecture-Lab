@@ -9,9 +9,9 @@ import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAc
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -51,22 +51,16 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CompensationEventProcessor {
 
     /** 目前唯一支援的事件 schema 版本 */
     private static final int SUPPORTED_EVENT_VERSION = 1;
 
-    @Autowired
-    private ICompensationEventLogDataAccess eventLogRepository;
-
-    @Autowired
-    private ICompensationPayloadService payloadService;
-
-    @Autowired
-    private ICompensationStateService stateService;
-
-    @Autowired
-    private ICompensationExecutionService executionService;
+    private final ICompensationEventLogDataAccess eventLogRepository;
+    private final ICompensationPayloadService payloadService;
+    private final ICompensationStateService stateService;
+    private final ICompensationExecutionService executionService;
 
     @Value("${compensation.consumer.lease-seconds:300}")
     private long leaseSeconds;

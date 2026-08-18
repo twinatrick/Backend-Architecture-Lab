@@ -9,17 +9,17 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequ
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 @RestController
 @RequestMapping("/alertCheckLimit")
+@RequiredArgsConstructor
 @RequirePermission(layer = "AlertLimit")
 @ApiControllerTag(name = "Alert Limits", description = "告警門檻管理相關 API")
 public class AlertCheckLimitController {
-    @Autowired
-    private IAlertCheckLimitService alertCheckLimitService;
+    private final IAlertCheckLimitService alertCheckLimitService;
     @PostMapping("/add")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "新增告警限制", description = "為資料表欄位建立或更新一筆告警限制。")

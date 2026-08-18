@@ -24,14 +24,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(RoleDataAccessImpl.class)
 class RoleDataAccessImplTest {
 
-    @Autowired
-    private RoleRepository roleRepository;
+    private final RoleRepository roleRepository;
+    private final IRoleDataAccess roleDataAccess;
 
     @Autowired
-    private IRoleDataAccess roleDataAccess;
+    public RoleDataAccessImplTest(RoleRepository roleRepository) {
+        this.roleRepository = roleRepository;
+        this.roleDataAccess = new RoleDataAccessImpl(roleRepository);
+    }
 
     @BeforeEach
     void setUp() {

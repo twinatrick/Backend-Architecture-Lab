@@ -41,14 +41,17 @@ class ExternalSyncCommandServiceImplTest {
     @Mock
     private ICompensationOutboxService compensationOutboxService;
 
-    @InjectMocks
     private ExternalSyncCommandServiceImpl externalSyncCommandService;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(externalSyncCommandService, "objectMapper", objectMapper);
+        externalSyncCommandService = new ExternalSyncCommandServiceImpl(
+                commandRepository,
+                objectMapper,
+                compensationOutboxService
+        );
     }
 
     @Test

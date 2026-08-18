@@ -11,8 +11,8 @@ import com.example.BackendArchitectureLab.Service.ICompensationRestoreStateServi
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreValidatorService;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
 import com.example.BackendArchitectureLab.Vo.CompensationRestoreResultVo;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,22 +30,14 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CompensationRestoreService implements ICompensationRestoreService {
 
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
-
-    @Autowired
-    private IUserProjectSkillDataAccess userProjectSkillDataAccess;
-
-    @Autowired
-    private ICompensationRestoreClaimService claimService;
-
-    @Autowired
-    private ICompensationRestoreValidatorService validatorService;
-
-    @Autowired
-    private ICompensationRestoreStateService stateService;
+    private final IProjectDataAccess projectDataAccess;
+    private final IUserProjectSkillDataAccess userProjectSkillDataAccess;
+    private final ICompensationRestoreClaimService claimService;
+    private final ICompensationRestoreValidatorService validatorService;
+    private final ICompensationRestoreStateService stateService;
 
     @Override
     @Transactional

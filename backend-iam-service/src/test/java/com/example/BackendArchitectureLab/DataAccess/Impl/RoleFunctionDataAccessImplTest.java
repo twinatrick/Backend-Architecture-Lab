@@ -25,17 +25,19 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(RoleFunctionDataAccessImpl.class)
 class RoleFunctionDataAccessImplTest {
 
-    @Autowired
-    private TestEntityManager entityManager;
+    private final TestEntityManager entityManager;
+    private final RoleFunctionRepository roleFunctionRepository;
+    private final IRoleFunctionDataAccess roleFunctionDataAccess;
 
     @Autowired
-    private RoleFunctionRepository roleFunctionRepository;
-
-    @Autowired
-    private IRoleFunctionDataAccess roleFunctionDataAccess;
+    public RoleFunctionDataAccessImplTest(TestEntityManager entityManager,
+                                          RoleFunctionRepository roleFunctionRepository) {
+        this.entityManager = entityManager;
+        this.roleFunctionRepository = roleFunctionRepository;
+        this.roleFunctionDataAccess = new RoleFunctionDataAccessImpl(roleFunctionRepository);
+    }
 
     @BeforeEach
     void setUp() {

@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Repository.RoleRepository;
 import com.example.BackendArchitectureLab.DataAccess.IRoleDataAccess;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.DataAccess.specification.RoleSpecification;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,10 +22,10 @@ import java.util.UUID;
  * Delegates to Spring Data JPA RoleRepository.
  */
 @Component
+@RequiredArgsConstructor
 public class RoleDataAccessImpl implements IRoleDataAccess {
 
-    @Autowired
-    private RoleRepository roleRepository;
+    private final RoleRepository roleRepository;
 
     @Override
     public List<Role> findRoleByIdIn(List<UUID> ids) {

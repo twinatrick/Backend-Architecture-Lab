@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.specification.CompanySpecif
 import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Repository.CompanyRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -20,10 +20,10 @@ import java.util.UUID;
  * Delegates to Spring Data JPA CompanyRepository.
  */
 @Component
+@RequiredArgsConstructor
 public class CompanyDataAccessImpl implements ICompanyDataAccess {
 
-    @Autowired
-    private CompanyRepository companyRepository;
+    private final CompanyRepository companyRepository;
 
     @Override
     public Company save(Company company) {

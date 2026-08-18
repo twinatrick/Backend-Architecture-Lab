@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationRestoreLogDataAccess;
 import com.example.BackendArchitectureLab.Entity.CompensationRestoreLog;
 import com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -14,10 +14,10 @@ import java.util.UUID;
  * CompensationRestoreLogDataAccessImpl - ICompensationRestoreLogDataAccess 實作（薄委派 CompensationRestoreLogRepository）。
  */
 @Component
+@RequiredArgsConstructor
 public class CompensationRestoreLogDataAccessImpl implements ICompensationRestoreLogDataAccess {
 
-    @Autowired
-    private CompensationRestoreLogRepository repository;
+    private final CompensationRestoreLogRepository repository;
 
     @Override
     public Optional<CompensationRestoreLog> findById(UUID eventId) {

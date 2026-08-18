@@ -34,11 +34,11 @@ class CompensationLeaseReclaimerTest {
     @Mock
     private CompensationEventProcessor compensationEventProcessor;
 
-    @InjectMocks
     private CompensationLeaseReclaimer compensationLeaseReclaimer;
 
     @BeforeEach
     void setUp() {
+        compensationLeaseReclaimer = new CompensationLeaseReclaimer(eventLogRepository, compensationEventProcessor);
         ReflectionTestUtils.setField(compensationLeaseReclaimer, "leaseSeconds", 300L);
     }
 

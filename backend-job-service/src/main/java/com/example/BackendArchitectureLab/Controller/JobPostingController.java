@@ -10,7 +10,7 @@ import com.example.BackendArchitectureLab.Vo.JobPostingVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,11 +25,11 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/job-posting")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Job Posting", description = "職缺管理相關 API")
 public class JobPostingController {
 
-    @Autowired
-    private IJobPostingService jobPostingService;
+    private final IJobPostingService jobPostingService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

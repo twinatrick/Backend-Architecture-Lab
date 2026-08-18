@@ -11,7 +11,7 @@ import io.minio.RemoveObjectArgs;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.http.Method;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,16 +20,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@RequiredArgsConstructor
 public class SttService implements ISttService {
 
-    @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
-
-    @Autowired
-    private MinioClient minioClient;
+    private final AiPyServiceFeignClient aiPyServiceFeignClient;
+    private final IUsageTrackService usageTrackService;
+    private final MinioClient minioClient;
 
     @Value("${minio.stt-bucket}")
     private String bucket;

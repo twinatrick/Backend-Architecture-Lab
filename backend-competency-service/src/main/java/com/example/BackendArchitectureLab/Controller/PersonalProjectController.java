@@ -13,7 +13,7 @@ import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,12 +28,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/project/personal")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Personal Projects", description = "個人專案管理相關 API")
 public class PersonalProjectController {
-    @Autowired
-    private IProjectCommandService projectCommandService;
-    @Autowired
-    private IProjectSkillService projectSkillService;
+    private final IProjectCommandService projectCommandService;
+    private final IProjectSkillService projectSkillService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

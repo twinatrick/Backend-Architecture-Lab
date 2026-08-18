@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -11,10 +11,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Component
+@RequiredArgsConstructor
 public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
 
-    @Autowired
-    private UserJobLinkRepository userJobLinkRepository;
+    private final UserJobLinkRepository userJobLinkRepository;
 
     @Override
     public UserJobLink save(UserJobLink userJobLink) {

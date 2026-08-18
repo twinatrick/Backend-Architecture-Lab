@@ -5,9 +5,9 @@ import com.example.BackendArchitectureLab.Service.ILineDiaryService;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
 import com.example.BackendArchitectureLab.Service.ILineWebhookService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,21 +22,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 public class LineWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(LineWebhookController.class);
 
-    @Autowired
-    private ILineGfService lineGfService;
-
-    @Autowired
-    private ILineDiaryService lineDiaryService;
-
-    @Autowired
-    private ILineWebhookService lineWebhookService;
-
-    @Autowired
-    private ITtsService ttsService;
+    private final ILineGfService lineGfService;
+    private final ILineDiaryService lineDiaryService;
+    private final ILineWebhookService lineWebhookService;
+    private final ITtsService ttsService;
 
     @Value("${line.gf.channel-secret:}")
     private String gfSecret;

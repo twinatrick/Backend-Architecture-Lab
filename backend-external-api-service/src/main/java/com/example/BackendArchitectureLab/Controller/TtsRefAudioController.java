@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ITtsRefAudioService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
+@RequiredArgsConstructor
 public class TtsRefAudioController {
 
-    @Autowired
-    private ITtsRefAudioService ttsRefAudioService;
+    private final ITtsRefAudioService ttsRefAudioService;
 
     @Ignore
     @PostMapping(value = "/external/tts/ref-audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

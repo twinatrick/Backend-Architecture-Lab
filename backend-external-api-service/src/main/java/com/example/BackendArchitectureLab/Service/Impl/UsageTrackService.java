@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.Config.BotConfigLoader;
 import com.example.BackendArchitectureLab.DataAccess.IApiUsageLogDataAccess;
 import com.example.BackendArchitectureLab.Entity.ApiUsageLog;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -16,13 +16,11 @@ import java.util.Date;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class UsageTrackService implements IUsageTrackService {
 
-    @Autowired
-    private IApiUsageLogDataAccess apiUsageLogDataAccess;
-
-    @Autowired
-    private BotConfigLoader botConfigLoader;
+    private final IApiUsageLogDataAccess apiUsageLogDataAccess;
+    private final BotConfigLoader botConfigLoader;
 
     private static final Map<String, BigDecimal> COST_PER_UNIT = Map.of(
             "stt", new BigDecimal("0.010"),

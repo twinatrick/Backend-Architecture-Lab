@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.IBotConfigDataAccess;
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Repository.BotConfigRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -15,10 +15,10 @@ import java.util.UUID;
  * 委派 BotConfigRepository 執行資料存取。
  */
 @Component
+@RequiredArgsConstructor
 public class BotConfigDataAccessImpl implements IBotConfigDataAccess {
 
-    @Autowired
-    private BotConfigRepository botConfigRepository;
+    private final BotConfigRepository botConfigRepository;
 
     @Override
     public List<BotConfig> findAll() {

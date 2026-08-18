@@ -28,8 +28,7 @@ class BotConfigDataAccessImplTest {
 
     @BeforeEach
     void setUp() {
-        dataAccess = new BotConfigDataAccessImpl();
-        ReflectionTestUtils.setField(dataAccess, "botConfigRepository", botConfigRepository);
+        dataAccess = new BotConfigDataAccessImpl(botConfigRepository);
     }
 
     @Test

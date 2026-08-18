@@ -65,28 +65,25 @@ class CompensationRestoreServiceTest {
 
     @BeforeEach
     void setUp() {
-        claimService = new CompensationRestoreClaimService();
-        validatorService = new CompensationRestoreValidatorService();
-        stateService = new CompensationRestoreStateService();
-        compensationRestoreService = new CompensationRestoreService();
-
-        ReflectionTestUtils.setField(claimService, "restoreLogRepository", restoreLogRepository);
-        ReflectionTestUtils.setField(claimService, "objectMapper", new ObjectMapper());
+        claimService = new CompensationRestoreClaimService(restoreLogRepository, new ObjectMapper());
         ReflectionTestUtils.setField(claimService, "restoreLeaseSeconds", 300L);
 
-        ReflectionTestUtils.setField(validatorService, "userProjectSkillDataAccess", userProjectSkillDataAccess);
-        ReflectionTestUtils.setField(validatorService, "userProjectDataAccess", userProjectDataAccess);
-        ReflectionTestUtils.setField(validatorService, "skillDataAccess", skillDataAccess);
-        ReflectionTestUtils.setField(validatorService, "skillLevelDataAccess", skillLevelDataAccess);
+        validatorService = new CompensationRestoreValidatorService(
+                userProjectSkillDataAccess,
+                userProjectDataAccess,
+                skillDataAccess,
+                skillLevelDataAccess
+        );
 
-        ReflectionTestUtils.setField(stateService, "restoreLogRepository", restoreLogRepository);
-        ReflectionTestUtils.setField(stateService, "self", stateService);
+        stateService = new CompensationRestoreStateService(restoreLogRepository, null);
 
-        ReflectionTestUtils.setField(compensationRestoreService, "projectDataAccess", projectDataAccess);
-        ReflectionTestUtils.setField(compensationRestoreService, "userProjectSkillDataAccess", userProjectSkillDataAccess);
-        ReflectionTestUtils.setField(compensationRestoreService, "claimService", claimService);
-        ReflectionTestUtils.setField(compensationRestoreService, "validatorService", validatorService);
-        ReflectionTestUtils.setField(compensationRestoreService, "stateService", stateService);
+        compensationRestoreService = new CompensationRestoreService(
+                projectDataAccess,
+                userProjectSkillDataAccess,
+                claimService,
+                validatorService,
+                stateService
+        );
     }
 
     @Test

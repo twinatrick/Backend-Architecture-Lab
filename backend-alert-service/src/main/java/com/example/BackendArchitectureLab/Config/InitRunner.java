@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Config;
 
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -12,11 +12,11 @@ import java.util.Arrays;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 @ConditionalOnProperty(value = "app.init.enabled", havingValue = "true", matchIfMissing = true)
 public class InitRunner {
 
-    @Autowired
-    private IAlertCheckLimitService alertCheckLimitService;
+    private final IAlertCheckLimitService alertCheckLimitService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {

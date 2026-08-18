@@ -18,8 +18,8 @@ import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.MemberSkillLevelVo;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -43,32 +43,21 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ProjectUserBindingService implements IProjectUserBindingService {
 
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-    @Autowired
-    private IUserProjectSkillDataAccess userProjectSkillDataAccess;
-    @Autowired
-    private ISkillDataAccess skillDataAccess;
-    @Autowired
-    private ISkillLevelDataAccess skillLevelDataAccess;
-    @Autowired
-    private CacheManager cacheManager;
-    @Autowired
-    private IUserGateway userGateway;
+    private final IProjectDataAccess projectDataAccess;
+    private final IUserProjectDataAccess userProjectDataAccess;
+    private final IUserProjectSkillDataAccess userProjectSkillDataAccess;
+    private final ISkillDataAccess skillDataAccess;
+    private final ISkillLevelDataAccess skillLevelDataAccess;
+    private final CacheManager cacheManager;
+    private final IUserGateway userGateway;
+    private final ICompensationOutboxService compensationOutboxService;
+    private final IExternalSyncCommandService externalSyncCommandService;
 
-    @Autowired
-    private ICompensationOutboxService compensationOutboxService;
-
-    @Autowired
-    private IExternalSyncCommandService externalSyncCommandService;
-
-    @Autowired
     @Lazy
-    private ProjectUserBindingService self;
+    private final ProjectUserBindingService self;
 
     /**
      * 綁定多個使用者到專案

@@ -5,8 +5,8 @@ import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Service.IFunctionHierarchyService;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -19,11 +19,10 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FunctionHierarchyService implements IFunctionHierarchyService {
-    @Autowired
-    private IFunctionDataAccess functionDataAccess;
-    @Autowired
-    private FunctionMapper functionMapper;
+    private final IFunctionDataAccess functionDataAccess;
+    private final FunctionMapper functionMapper;
 
     @Transactional
     @Override

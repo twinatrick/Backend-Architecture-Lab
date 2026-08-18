@@ -3,17 +3,17 @@ package com.example.BackendArchitectureLab.Config;
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Repository.BotConfigRepository;
 import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
+@RequiredArgsConstructor
 public class BotConfigLoader {
 
-    @Autowired
-    private BotConfigRepository botConfigRepository;
+    private final BotConfigRepository botConfigRepository;
 
     private final Map<String, String> configCache = new ConcurrentHashMap<>();
 

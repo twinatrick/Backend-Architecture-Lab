@@ -3,18 +3,18 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IAlarmPublisher;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AlarmService implements IAlarmService {
 
-    @Autowired
-    private IAlarmPublisher alarmPublisher;
+    private final IAlarmPublisher alarmPublisher;
 
     // 可以使用消息隊列、異步執行器等來處理
 

@@ -4,13 +4,13 @@ import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import feign.FeignException;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -38,6 +38,7 @@ import java.util.List;
 @Aspect
 @Order(2)
 @Component
+@RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class PermissionCheck {
 
@@ -48,8 +49,7 @@ public class PermissionCheck {
     @Value("${spring.application.name:unknown}")
     private String applicationName;
 
-    @Autowired
-    private LocalPermissionValidator localPermissionValidator;
+    private final LocalPermissionValidator localPermissionValidator;
 
     @Around("execution(* com.example.BackendArchitectureLab.Controller..*.*(..))")
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {

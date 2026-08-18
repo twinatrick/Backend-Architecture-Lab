@@ -6,7 +6,7 @@ import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Service.IFunctionCommandService;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Caching;
@@ -19,13 +19,11 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class FunctionCommandService implements IFunctionCommandService {
-    @Autowired
-    private IFunctionDataAccess functionDataAccess;
-    @Autowired
-    private IRoleFunctionDataAccess roleFunctionDataAccess;
-    @Autowired
-    private FunctionMapper functionMapper;
+    private final IFunctionDataAccess functionDataAccess;
+    private final IRoleFunctionDataAccess roleFunctionDataAccess;
+    private final FunctionMapper functionMapper;
 
     @Override
     @Transactional

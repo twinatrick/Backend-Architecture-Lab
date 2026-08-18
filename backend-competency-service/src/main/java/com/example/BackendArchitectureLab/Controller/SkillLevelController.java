@@ -9,17 +9,17 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequ
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/skill/level")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Skill Levels", description = "技能等級管理相關 API")
 public class SkillLevelController {
-    @Autowired
-    private ISkillService skillService;
+    private final ISkillService skillService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

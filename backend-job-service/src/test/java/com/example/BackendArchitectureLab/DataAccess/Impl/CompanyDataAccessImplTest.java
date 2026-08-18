@@ -20,14 +20,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(CompanyDataAccessImpl.class)
 class CompanyDataAccessImplTest {
 
-    @Autowired
-    private CompanyRepository companyRepository;
+    private final CompanyRepository companyRepository;
+    private final ICompanyDataAccess companyDataAccess;
 
     @Autowired
-    private ICompanyDataAccess companyDataAccess;
+    public CompanyDataAccessImplTest(CompanyRepository companyRepository) {
+        this.companyRepository = companyRepository;
+        this.companyDataAccess = new CompanyDataAccessImpl(companyRepository);
+    }
 
     @BeforeEach
     void setUp() {

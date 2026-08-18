@@ -12,7 +12,7 @@ import com.example.BackendArchitectureLab.Mapper.CompanyMapper;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class CompanyService implements ICompanyService {
 
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
@@ -35,15 +36,10 @@ public class CompanyService implements ICompanyService {
             "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-
-    @Autowired
-    private ICompanyDataAccess companyDataAccess;
-    @Autowired
-    private CompanyMapper companyMapper;
-    @Autowired
-    private CacheManager cacheManager;
+    private final TransactionExecutor transactionExecutor;
+    private final ICompanyDataAccess companyDataAccess;
+    private final CompanyMapper companyMapper;
+    private final CacheManager cacheManager;
 
     @Override
     @Transactional

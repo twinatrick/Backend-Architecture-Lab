@@ -25,14 +25,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(UserDataAccessImpl.class)
 class UserDataAccessImplTest {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+    private final IUserDataAccess userDataAccess;
 
     @Autowired
-    private IUserDataAccess userDataAccess;
+    public UserDataAccessImplTest(UserRepository userRepository) {
+        this.userRepository = userRepository;
+        this.userDataAccess = new UserDataAccessImpl(userRepository);
+    }
 
     @BeforeEach
     void setUp() {

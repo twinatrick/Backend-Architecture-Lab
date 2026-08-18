@@ -13,21 +13,19 @@ import com.example.BackendArchitectureLab.Vo.FunctionTransVo;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/function")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Functions", description = "功能管理相關 API")
 public class FunctionController {
-    @Autowired
-    private IFunctionCommandService functionCommandService;
-    @Autowired
-    private IFunctionQueryService functionQueryService;
-    @Autowired
-    private IFunctionHierarchyService functionHierarchyService;
+    private final IFunctionCommandService functionCommandService;
+    private final IFunctionQueryService functionQueryService;
+    private final IFunctionHierarchyService functionHierarchyService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

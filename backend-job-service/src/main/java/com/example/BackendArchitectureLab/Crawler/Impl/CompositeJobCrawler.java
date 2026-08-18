@@ -1,20 +1,19 @@
 package com.example.BackendArchitectureLab.Crawler.Impl;
 
 import com.example.BackendArchitectureLab.Crawler.IJobCrawler;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CompositeJobCrawler implements IJobCrawler {
 
-    @Autowired
-    private JsoupJobCrawler jsoupJobCrawler;
-    @Autowired
-    private SeleniumJobCrawler seleniumJobCrawler;
+    private final JsoupJobCrawler jsoupJobCrawler;
+    private final SeleniumJobCrawler seleniumJobCrawler;
 
     @Override
     public String crawl(String url) {

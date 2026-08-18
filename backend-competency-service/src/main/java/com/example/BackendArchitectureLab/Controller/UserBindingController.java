@@ -10,9 +10,9 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,18 +23,16 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/user/bindings")
+@RequiredArgsConstructor
 @RequirePermission(layer = "ProjectManagement")
 @ApiControllerTag(name = "User Bindings", description = "使用者綁定自助服務相關 API")
 public class UserBindingController {
 
     private static final Logger log = LoggerFactory.getLogger(UserBindingController.class);
 
-    @Autowired
-    private ISkillService skillService;
-    @Autowired
-    private IProjectSkillService projectSkillService;
-    @Autowired
-    private SecurityUtil securityUtil;
+    private final ISkillService skillService;
+    private final IProjectSkillService projectSkillService;
+    private final SecurityUtil securityUtil;
 
     @PostMapping("/skill/rebind")
     @RequirePermission("Edit")

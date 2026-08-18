@@ -5,17 +5,16 @@ import com.example.BackendArchitectureLab.Vo.SttResponseVo;
 import com.example.BackendArchitectureLab.Service.ILearnService;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.Nlp.PhoneticConvertService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
+@RequiredArgsConstructor
 public class LearnService implements ILearnService {
 
-    @Autowired
-    private ISttService sttService;
-    @Autowired
-    private PhoneticConvertService phoneticConvertService;
+    private final ISttService sttService;
+    private final PhoneticConvertService phoneticConvertService;
 
     @Override
     public AudioRecognizeVo processAudio(MultipartFile file, String lang, String mode) {

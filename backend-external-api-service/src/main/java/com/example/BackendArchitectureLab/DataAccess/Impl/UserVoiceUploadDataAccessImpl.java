@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.specification.VoiceUploadSp
 import com.example.BackendArchitectureLab.Entity.UserVoiceUpload;
 import com.example.BackendArchitectureLab.Repository.UserVoiceUploadRepository;
 import com.example.BackendArchitectureLab.Vo.Search.VoiceUploadSearchQuery;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
@@ -18,10 +18,10 @@ import java.util.UUID;
  * 委派 UserVoiceUploadRepository 執行資料存取。
  */
 @Component
+@RequiredArgsConstructor
 public class UserVoiceUploadDataAccessImpl implements IUserVoiceUploadDataAccess {
 
-    @Autowired
-    private UserVoiceUploadRepository userVoiceUploadRepository;
+    private final UserVoiceUploadRepository userVoiceUploadRepository;
 
     @Override
     public UserVoiceUpload save(UserVoiceUpload entity) {

@@ -15,12 +15,12 @@ import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
@@ -30,20 +30,17 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/project/admin/bindings")
+@RequiredArgsConstructor
 @RequirePermission(layer = "ProjectManagement")
 @ApiControllerTag(name = "Project Admin", description = "專案管理員綁定管理相關 API")
 public class ProjectAdminController {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectAdminController.class);
 
-    @Autowired
-    private IProjectSkillService projectSkillService;
-    @Autowired
-    private IProjectUserBindingService projectUserBindingService;
-    @Autowired
-    private IUserProjectService userProjectService;
-    @Autowired
-    private ISkillService skillService;
+    private final IProjectSkillService projectSkillService;
+    private final IProjectUserBindingService projectUserBindingService;
+    private final IUserProjectService userProjectService;
+    private final ISkillService skillService;
 
     @PostMapping("/user-project/rebind")
     @RequirePermission("Edit")

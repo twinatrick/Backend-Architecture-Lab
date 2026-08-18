@@ -13,7 +13,7 @@ import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,14 +21,12 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/project")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Projects", description = "專案管理相關 API")
 public class ProjectController {
-    @Autowired
-    private IProjectCommandService projectCommandService;
-    @Autowired
-    private IProjectQueryService projectQueryService;
-    @Autowired
-    private IProjectSkillService projectSkillService;
+    private final IProjectCommandService projectCommandService;
+    private final IProjectQueryService projectQueryService;
+    private final IProjectSkillService projectSkillService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

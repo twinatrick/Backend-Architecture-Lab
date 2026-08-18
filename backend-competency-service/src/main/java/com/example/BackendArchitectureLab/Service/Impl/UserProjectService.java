@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Service.IUserProjectService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,17 +17,15 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class UserProjectService implements IUserProjectService {
 
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
-    @Autowired
-    private IUserGateway userGateway;
-    @Autowired
+    private final IUserProjectDataAccess userProjectDataAccess;
+    private final IProjectDataAccess projectDataAccess;
+    private final IUserGateway userGateway;
+
     @Lazy
-    private UserProjectService self;
+    private final UserProjectService self;
 
     @Override
     public void rebindUserProjects(UUID userId, List<UUID> projectIds) {

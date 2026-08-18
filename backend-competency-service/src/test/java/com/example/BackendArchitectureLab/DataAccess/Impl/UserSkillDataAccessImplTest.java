@@ -26,20 +26,22 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(UserSkillDataAccessImpl.class)
 class UserSkillDataAccessImplTest {
 
-    @Autowired
-    private UserSkillRepository userSkillRepository;
+    private final UserSkillRepository userSkillRepository;
+    private final SkillRepository skillRepository;
+    private final SkillLevelRepository skillLevelRepository;
+    private final IUserSkillDataAccess userSkillDataAccess;
 
     @Autowired
-    private SkillRepository skillRepository;
-
-    @Autowired
-    private SkillLevelRepository skillLevelRepository;
-
-    @Autowired
-    private IUserSkillDataAccess userSkillDataAccess;
+    public UserSkillDataAccessImplTest(UserSkillRepository userSkillRepository,
+                                       SkillRepository skillRepository,
+                                       SkillLevelRepository skillLevelRepository) {
+        this.userSkillRepository = userSkillRepository;
+        this.skillRepository = skillRepository;
+        this.skillLevelRepository = skillLevelRepository;
+        this.userSkillDataAccess = new UserSkillDataAccessImpl(userSkillRepository);
+    }
 
     @BeforeEach
     void setUp() {

@@ -16,7 +16,7 @@ import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
@@ -35,27 +35,20 @@ import java.util.stream.Collectors;
  * ProjectSkillService - 專案技能綁定業務邏輯服務
  */
 @Service
+@RequiredArgsConstructor
 public class ProjectSkillService implements IProjectSkillService {
 
-    @Autowired
-    private TransactionExecutor transactionExecutor;
-    @Autowired
-    private IProjectDataAccess projectDataAccess;
-    @Autowired
-    private IProjectSkillDataAccess projectSkillDataAccess;
-    @Autowired
-    private IUserProjectDataAccess userProjectDataAccess;
-    @Autowired
-    private IUserSkillDataAccess userSkillDataAccess;
-    @Autowired
-    private ISkillLevelDataAccess skillLevelDataAccess;
-    @Autowired
-    private ISkillDataAccess skillDataAccess;
-    @Autowired
-    private SecurityUtil securityUtil;
-    @Autowired
+    private final TransactionExecutor transactionExecutor;
+    private final IProjectDataAccess projectDataAccess;
+    private final IProjectSkillDataAccess projectSkillDataAccess;
+    private final IUserProjectDataAccess userProjectDataAccess;
+    private final IUserSkillDataAccess userSkillDataAccess;
+    private final ISkillLevelDataAccess skillLevelDataAccess;
+    private final ISkillDataAccess skillDataAccess;
+    private final SecurityUtil securityUtil;
+
     @Lazy
-    private ProjectSkillService self;
+    private final ProjectSkillService self;
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {

@@ -10,17 +10,17 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/skill")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Skills", description = "技能管理相關 API")
 public class SkillController {
-    @Autowired
-    private ISkillService skillService;
+    private final ISkillService skillService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

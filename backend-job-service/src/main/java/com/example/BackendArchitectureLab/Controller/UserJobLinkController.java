@@ -7,7 +7,7 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,11 +21,11 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/user-job-link")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "User Job Link", description = "使用者職缺連結管理相關 API")
 public class UserJobLinkController {
 
-    @Autowired
-    private IUserJobLinkService userJobLinkService;
+    private final IUserJobLinkService userJobLinkService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

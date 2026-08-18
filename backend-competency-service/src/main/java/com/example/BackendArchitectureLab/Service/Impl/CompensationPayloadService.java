@@ -4,17 +4,17 @@ import com.example.BackendArchitectureLab.Service.ICompensationPayloadService;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
  * CompensationPayloadService - {@link ICompensationPayloadService} 實作。
  */
 @Service
+@RequiredArgsConstructor
 public class CompensationPayloadService implements ICompensationPayloadService {
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
 
     @Override
     public String serialize(CompensationEvent event) {

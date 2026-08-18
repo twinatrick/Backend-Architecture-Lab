@@ -9,7 +9,7 @@ import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
@@ -19,19 +19,17 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class FunctionQueryService implements IFunctionQueryService {
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
             "id", "name", "parent", "sort", "type",
             "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
 
-    @Autowired
-    private IFunctionDataAccess functionDataAccess;
-    @Autowired
-    private FunctionMapper functionMapper;
+    private final IFunctionDataAccess functionDataAccess;
+    private final FunctionMapper functionMapper;
     @Lazy
-    @Autowired
-    private IFunctionQueryService self;
+    private final IFunctionQueryService self;
 
     @Override
     public List<FunctionVo> getFunction() {

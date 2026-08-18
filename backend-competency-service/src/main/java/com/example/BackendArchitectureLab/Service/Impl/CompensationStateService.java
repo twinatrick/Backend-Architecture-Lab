@@ -4,8 +4,8 @@ import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAc
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.Service.ICompensationStateService;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -16,13 +16,13 @@ import java.util.Date;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CompensationStateService implements ICompensationStateService {
 
     /** 錯誤訊息保留上限，避免單一事件塞爆 DB 欄位 */
     private static final int MAX_ERROR_LENGTH = 1024;
 
-    @Autowired
-    private ICompensationEventLogDataAccess eventLogRepository;
+    private final ICompensationEventLogDataAccess eventLogRepository;
 
     @Value("${compensation.consumer.retry-backoff-ms:60000}")
     private long retryBackoffMs;

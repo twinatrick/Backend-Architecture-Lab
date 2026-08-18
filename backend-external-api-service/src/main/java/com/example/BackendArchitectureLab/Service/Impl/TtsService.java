@@ -9,7 +9,7 @@ import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.http.Method;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -19,19 +19,15 @@ import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@RequiredArgsConstructor
 public class TtsService implements ITtsService {
 
     @Value("${minio.bucket:audio}")
     private String bucket;
 
-    @Autowired
-    private AiPyServiceFeignClient aiPyServiceFeignClient;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
-
-    @Autowired
-    private MinioClient minioClient;
+    private final AiPyServiceFeignClient aiPyServiceFeignClient;
+    private final IUsageTrackService usageTrackService;
+    private final MinioClient minioClient;
 
     @Override
     public TtsResponseVo synthesize(String text, String language) {

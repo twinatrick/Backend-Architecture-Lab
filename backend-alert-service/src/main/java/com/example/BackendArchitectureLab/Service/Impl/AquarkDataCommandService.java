@@ -5,18 +5,17 @@ import com.example.BackendArchitectureLab.Entity.AquarkData;
 import com.example.BackendArchitectureLab.Mapper.AquarkDataMapper;
 import com.example.BackendArchitectureLab.Service.IAquarkDataCommandService;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class AquarkDataCommandService implements IAquarkDataCommandService {
-    @Autowired
-    private IAquarkDataDataAccess aquarkDataDataAccess;
-    @Autowired
-    private AquarkDataMapper aquarkDataMapper;
+    private final IAquarkDataDataAccess aquarkDataDataAccess;
+    private final AquarkDataMapper aquarkDataMapper;
 
     @Override
     public boolean insertAquarkData(List<AquarkDataRaw> aquarkDataList) {

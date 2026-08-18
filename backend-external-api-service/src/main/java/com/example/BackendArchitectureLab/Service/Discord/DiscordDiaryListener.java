@@ -5,28 +5,22 @@ import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
 import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import com.example.BackendArchitectureLab.Service.ISttService;
+import lombok.RequiredArgsConstructor;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 @Component
+@RequiredArgsConstructor
 public class DiscordDiaryListener extends ListenerAdapter {
 
-    @Autowired
-    private DiscordSubscriptionRepository subscriptionRepository;
-
-    @Autowired
-    private ISttService sttService;
-
-    @Autowired
-    private DiscordWebhookNotifier webhookNotifier;
-
-    @Autowired
-    private IUsageTrackService usageTrackService;
+    private final DiscordSubscriptionRepository subscriptionRepository;
+    private final ISttService sttService;
+    private final DiscordWebhookNotifier webhookNotifier;
+    private final IUsageTrackService usageTrackService;
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {

@@ -36,8 +36,7 @@ class BloomFilterDataAccessImplTest {
 
     @BeforeEach
     void setUp() {
-        dataAccess = new BloomFilterDataAccessImpl();
-        ReflectionTestUtils.setField(dataAccess, "entityManagerFactoryProvider", emfProvider);
+        dataAccess = new BloomFilterDataAccessImpl(emfProvider);
     }
 
     @Test

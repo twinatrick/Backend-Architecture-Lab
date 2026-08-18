@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,21 +50,26 @@ class CompensationOutboxWorkerTest {
     @Mock
     private ICompensationPublisher compensationPublisher;
 
-    @InjectMocks
     private CompensationOutboxWorker compensationOutboxWorker;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
+    private ExecutorService publisherPool;
+
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(compensationOutboxWorker, "objectMapper", objectMapper);
+        publisherPool = Executors.newFixedThreadPool(2);
+        compensationOutboxWorker = new CompensationOutboxWorker(
+                outboxRepository,
+                compensationPublisher,
+                objectMapper,
+                publisherPool
+        );
         ReflectionTestUtils.setField(compensationOutboxWorker, "maxAttempts", 5);
         ReflectionTestUtils.setField(compensationOutboxWorker, "leaseSeconds", 300L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 20);
         ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 10L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "backoffSeconds", List.of(5L, 15L, 30L, 60L, 300L));
-        ReflectionTestUtils.setField(compensationOutboxWorker, "compensationOutboxPublisherPool",
-                Executors.newFixedThreadPool(2));
     }
 
     @Test

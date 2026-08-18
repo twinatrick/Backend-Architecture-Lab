@@ -24,8 +24,7 @@ class LineGfSessionDataAccessImplTest {
 
     @BeforeEach
     void setUp() {
-        dataAccess = new LineGfSessionDataAccessImpl();
-        ReflectionTestUtils.setField(dataAccess, "lineGfSessionRepository", lineGfSessionRepository);
+        dataAccess = new LineGfSessionDataAccessImpl(lineGfSessionRepository);
     }
 
     @Test

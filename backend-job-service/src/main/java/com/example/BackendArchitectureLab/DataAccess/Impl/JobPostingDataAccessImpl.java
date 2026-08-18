@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.specification.JobPostingSpe
 import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Repository.JobPostingRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -16,10 +16,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Component
+@RequiredArgsConstructor
 public class JobPostingDataAccessImpl implements IJobPostingDataAccess {
 
-    @Autowired
-    private JobPostingRepository jobPostingRepository;
+    private final JobPostingRepository jobPostingRepository;
 
     @Override
     public JobPosting save(JobPosting jobPosting) {

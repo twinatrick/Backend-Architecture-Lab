@@ -11,7 +11,7 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,11 +26,11 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/company")
+@RequiredArgsConstructor
 @ApiControllerTag(name = "Company", description = "公司管理相關 API")
 public class CompanyController {
 
-    @Autowired
-    private ICompanyService companyService;
+    private final ICompanyService companyService;
 
     @PostMapping("/add")
     @RequirePermission("Edit")

@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Entity.ApiUsageLog;
 import com.example.BackendArchitectureLab.Mapper.ApiUsageLogMapper;
 import com.example.BackendArchitectureLab.Vo.ApiUsageLogVo;
 import com.example.BackendArchitectureLab.Service.IApiUsageLogService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -14,13 +14,11 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class ApiUsageLogService implements IApiUsageLogService {
 
-    @Autowired
-    private IApiUsageLogDataAccess apiUsageLogDataAccess;
-
-    @Autowired
-    private ApiUsageLogMapper apiUsageLogMapper;
+    private final IApiUsageLogDataAccess apiUsageLogDataAccess;
+    private final ApiUsageLogMapper apiUsageLogMapper;
 
     @Override
     public List<ApiUsageLogVo> findByRange(Date start, Date end, String service) {

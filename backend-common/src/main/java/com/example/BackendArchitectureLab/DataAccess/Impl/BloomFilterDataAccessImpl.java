@@ -3,9 +3,9 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.DataAccess.IBloomFilterDataAccess;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -16,10 +16,10 @@ import java.util.List;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class BloomFilterDataAccessImpl implements IBloomFilterDataAccess {
 
-    @Autowired
-    private ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider;
+    private final ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider;
 
     @Override
     public List<String> findAllEntityIds(String entityName) {
