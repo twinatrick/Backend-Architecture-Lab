@@ -199,11 +199,11 @@ def get_available_models():
 def chat_completion(prompt):
     api_key = get_groq_api_key()
     candidates = [
-        "openai/gpt-oss-120b",
-        "qwen/qwen3.6-27b",
-        "openai/gpt-oss-20b",
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
+        "qwen/qwen3.6-27b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
     ]
     try:
         available_models = get_available_models()
@@ -321,7 +321,7 @@ def main():
         else:
             groups["other"].append(filename)
 
-    max_chars = 24000
+    max_chars = 6000
     batches = []
     for scope, paths in groups.items():
         if not paths:
@@ -366,21 +366,21 @@ def main():
                 start_pos = max(0, line_index - 2)
                 end_pos = min(len(rule_lines), line_index + 14)
                 relevant_rules_list.extend(rule_lines[start_pos:end_pos])
-        relevant_rules = "\n".join(dict.fromkeys(relevant_rules_list))[:12000] or rules_text[:7000]
+        relevant_rules = "\n".join(dict.fromkeys(relevant_rules_list))[:3500] or rules_text[:2500]
 
         diff_parts = []
         for file_item in files:
             if file_item["filename"] in paths:
                 patch_text = file_item.get("patch") or "[GitHub did not provide a patch; review metadata only]"
                 diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
-        diff = "\n\n".join(diff_parts)[:26000]
+        diff = "\n\n".join(diff_parts)[:7000]
 
         prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
 
 【Review Contract】
-{contract_text[:9000]}
+{contract_text[:2500]}
 
 【相關規範】
 {relevant_rules}
