@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import time
 import requests
 from engine import evaluate, load_policy, validate_coverage, validate_finding
 
@@ -244,7 +245,30 @@ def extract_json_payload(raw_text: str) -> dict:
     return json.loads(cleaned)
 
 
-def chat_completion(prompt):
+def parse_retry_after(response) -> float:
+    header_val = response.headers.get("retry-after") if hasattr(response, "headers") and response.headers else None
+    if header_val:
+        try:
+            return float(header_val)
+        except ValueError:
+            pass
+    try:
+        err_text = response.text if hasattr(response, "text") and response.text else ""
+        match_ms = re.search(r"try again in (\d+(?:\.\d+)?)\s*ms", err_text, re.IGNORECASE)
+        if match_ms:
+            return float(match_ms.group(1)) / 1000.0
+        match_s = re.search(r"try again in (\d+(?:\.\d+)?)\s*s\b", err_text, re.IGNORECASE)
+        if match_s:
+            return float(match_s.group(1))
+        match_m = re.search(r"try again in (\d+(?:\.\d+)?)\s*m\b", err_text, re.IGNORECASE)
+        if match_m:
+            return float(match_m.group(1)) * 60.0
+    except Exception:
+        pass
+    return 5.0
+
+
+def chat_completion(prompt: str, max_retries_per_model: int = 3) -> str:
     api_key = get_groq_api_key()
     candidates = [
         "llama-3.3-70b-versatile",
@@ -265,33 +289,65 @@ def chat_completion(prompt):
     error_details = []
     for model_name in candidates:
         attempted_models.append(model_name)
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
+        use_json_mode = True
+        for attempt in range(1, max_retries_per_model + 1):
+            try:
+                request_payload = {
                     "model": model_name,
                     "messages": [
                         {"role": "system", "content": "你必須使用繁體中文。只輸出合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤或 Markdown。不得捏造 Finding。"},
                         {"role": "user", "content": prompt},
                     ],
                     "temperature": 0.1,
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=120,
-            )
-            if response.ok:
-                print(f"使用 Groq 模型：{model_name}")
-                return response.json()["choices"][0]["message"]["content"]
-            reason_msg = f"HTTP {response.status_code}: {response.text[:300]}"
-            error_details.append((model_name, reason_msg))
-            print(f"模型 {model_name} 請求失敗：{reason_msg}")
-        except requests.RequestException as exc:
-            error_details.append((model_name, str(exc)))
-            print(f"模型 {model_name} 連線異常：{exc}")
+                    "max_tokens": 4096,
+                }
+                if use_json_mode:
+                    request_payload["response_format"] = {"type": "json_object"}
+
+                response = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=request_payload,
+                    timeout=120,
+                )
+                if response.ok:
+                    print(f"使用 Groq 模型：{model_name}")
+                    return response.json()["choices"][0]["message"]["content"]
+
+                status_code = response.status_code
+                reason_msg = f"HTTP {status_code}: {response.text[:300]}"
+                error_details.append((model_name, reason_msg))
+
+                # 處理 429 速率限制退避重試
+                if status_code == 429:
+                    wait_seconds = parse_retry_after(response) + 1.0
+                    wait_seconds = min(max(wait_seconds, 2.0), 60.0)
+                    if attempt < max_retries_per_model:
+                        print(f"模型 {model_name} 達到速率限制 (429)，等待 {wait_seconds:.1f} 秒後重試（第 {attempt}/{max_retries_per_model} 次）...")
+                        time.sleep(wait_seconds)
+                        continue
+                    print(f"模型 {model_name} 達到重試上限，切換下一個備援模型。")
+                    break
+
+                # 處理 400 JSON 模式校驗失敗：降級為一般文字模式重試
+                if status_code == 400 and use_json_mode and "json_validate_failed" in response.text:
+                    print(f"模型 {model_name} JSON 模式校驗失敗，降級為純文字模式並重試...")
+                    use_json_mode = False
+                    time.sleep(1.0)
+                    continue
+
+                print(f"模型 {model_name} 請求失敗：{reason_msg}")
+                break
+            except requests.RequestException as exc:
+                error_details.append((model_name, str(exc)))
+                print(f"模型 {model_name} 連線異常：{exc}")
+                if attempt < max_retries_per_model:
+                    time.sleep(2.0)
+                    continue
+                break
 
     raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
 
@@ -408,6 +464,10 @@ def main():
 
     results = []
     for index, (scope, paths) in enumerate(batches, 1):
+        if index > 1:
+            print(f"批次間隔節流：等待 3 秒以平滑 API 速率限制...")
+            time.sleep(3.0)
+
         relevant_rules_list = []
         rule_lines = rules_text.splitlines()
         for line_index, line_content in enumerate(rule_lines):
@@ -415,21 +475,21 @@ def main():
                 start_pos = max(0, line_index - 2)
                 end_pos = min(len(rule_lines), line_index + 14)
                 relevant_rules_list.extend(rule_lines[start_pos:end_pos])
-        relevant_rules = "\n".join(dict.fromkeys(relevant_rules_list))[:3500] or rules_text[:2500]
+        relevant_rules = "\n".join(dict.fromkeys(relevant_rules_list))[:2000] or rules_text[:1500]
 
         diff_parts = []
         for file_item in files:
             if file_item["filename"] in paths:
                 patch_text = file_item.get("patch") or "[GitHub did not provide a patch; review metadata only]"
                 diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
-        diff = "\n\n".join(diff_parts)[:7000]
+        diff = "\n\n".join(diff_parts)[:6000]
 
         prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
 
 【Review Contract】
-{contract_text[:2500]}
+{contract_text[:1500]}
 
 【相關規範】
 {relevant_rules}
