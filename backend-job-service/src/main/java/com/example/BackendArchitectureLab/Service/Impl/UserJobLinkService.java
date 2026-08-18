@@ -39,6 +39,10 @@ public class UserJobLinkService implements IUserJobLinkService {
     @Lazy
     private final IUserJobLinkService self;
 
+    private IUserJobLinkService getSelf() {
+        return self != null ? self : this;
+    }
+
     @Override
     @Transactional
     @Caching(put = {
@@ -72,7 +76,7 @@ public class UserJobLinkService implements IUserJobLinkService {
 
     @Override
     public List<UserJobLinkVo> getAllUserJobLinks() {
-        return self.getAllUserJobLinksCache().getData();
+        return getSelf().getAllUserJobLinksCache().getData();
     }
 
     @Override
@@ -119,7 +123,7 @@ public class UserJobLinkService implements IUserJobLinkService {
 
     @Override
     public List<UserJobLinkVo> getUserJobLinksByUserId(String userId) {
-        return self.getUserJobLinksByUserIdCache(userId).getData();
+        return getSelf().getUserJobLinksByUserIdCache(userId).getData();
     }
 
     @Override
@@ -137,7 +141,7 @@ public class UserJobLinkService implements IUserJobLinkService {
 
     @Override
     public List<UserJobLinkVo> getUserJobLinksByJobPostingId(String jobPostingId) {
-        return self.getUserJobLinksByJobPostingIdCache(jobPostingId).getData();
+        return getSelf().getUserJobLinksByJobPostingIdCache(jobPostingId).getData();
     }
 
     @Override
@@ -230,13 +234,13 @@ public class UserJobLinkService implements IUserJobLinkService {
 
     @Override
     public List<UserJobLinkVo> getCurrentUserJobLinks(String currentUserId) {
-        return self.getCurrentUserJobLinksCache(currentUserId).getData();
+        return getSelf().getCurrentUserJobLinksCache(currentUserId).getData();
     }
 
     @Override
     @Cacheable(value = "userJobLinks", key = "'currentuser:' + #currentUserId", sync = true)
     public CacheListWrapper<UserJobLinkVo> getCurrentUserJobLinksCache(String currentUserId) {
-        return self.getUserJobLinksByUserIdCache(currentUserId);
+        return getSelf().getUserJobLinksByUserIdCache(currentUserId);
     }
 
     private UUID mapUuid(String id) {

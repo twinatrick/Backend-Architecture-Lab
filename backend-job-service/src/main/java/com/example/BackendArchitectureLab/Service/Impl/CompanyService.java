@@ -41,6 +41,13 @@ public class CompanyService implements ICompanyService {
     private final CompanyMapper companyMapper;
     private final CacheManager cacheManager;
 
+    @Lazy
+    private final ICompanyService self;
+
+    private ICompanyService getSelf() {
+        return self != null ? self : this;
+    }
+
     @Override
     @Transactional
     @CacheEvict(value = "companies", key = "'all'")
@@ -60,7 +67,7 @@ public class CompanyService implements ICompanyService {
     @Override
     @Transactional(readOnly = true)
     public List<CompanyVo> getAllCompanies() {
-        return getAllCompaniesCache().getData();
+        return getSelf().getAllCompaniesCache().getData();
     }
 
     @Override

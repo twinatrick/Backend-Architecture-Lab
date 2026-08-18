@@ -56,5 +56,19 @@ __pycache__/
 # Stress test results
 *.csv
 
+# Temporary audio & transcripts
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.flac
+*.ogg
+*_語者分析*.txt
+*逐字稿*.txt
+*面試*.txt
+
+# Tool cache
+.understand-anything/
+
 # 非原始碼文件（不提交）
 代辦清單.md

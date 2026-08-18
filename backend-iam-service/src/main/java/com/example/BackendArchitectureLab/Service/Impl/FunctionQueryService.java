@@ -31,9 +31,13 @@ public class FunctionQueryService implements IFunctionQueryService {
     @Lazy
     private final IFunctionQueryService self;
 
+    private IFunctionQueryService getSelf() {
+        return self != null ? self : this;
+    }
+
     @Override
     public List<FunctionVo> getFunction() {
-        return self.getFunctionListCache().getData();
+        return getSelf().getFunctionListCache().getData();
     }
 
     @Override
@@ -75,15 +79,15 @@ public class FunctionQueryService implements IFunctionQueryService {
 
     @Override
     public FunctionVo getFunctionByPath(String oneLayer, String twoLayer, String threeLayer) {
-        FunctionVo one = self.getFunctionByName(oneLayer);
+        FunctionVo one = getSelf().getFunctionByName(oneLayer);
         if (one == null) {
             return null;
         }
-        FunctionVo two = self.getFunctionByNameAndParent(twoLayer, one.getId());
+        FunctionVo two = getSelf().getFunctionByNameAndParent(twoLayer, one.getId());
         if (two == null) {
             return null;
         }
-        return self.getFunctionByNameAndParent(threeLayer, two.getId());
+        return getSelf().getFunctionByNameAndParent(threeLayer, two.getId());
     }
 
     @Override

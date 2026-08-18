@@ -14,16 +14,18 @@
   - 若不存在，則退回參考標準的 `.env.example` 進行設定。若在 Docker 內執行後端，需設定 `APP_IN_DOCKER=true`。
 - **Infrastructure**: 必須先執行 `docker compose -f compose.yaml up -d` 啟動基礎服務 (PostgreSQL, Redis, Kafka, Zookeeper)。
 - **Local Dev Server**: 使用 `./mvnw spring-boot:run` 啟動，預設運行於 port `8000`。
+- **本地執行緒與資源限制 (避免卡頓)**：
+  - 在本機執行 Maven 建置、測試（如 `./mvnw test`）或批次任務時，**嚴禁開啟多執行緒並行建置/測試**（例如禁止使用 `-T` 參數進行多線程平行編譯或多執行緒 surefire 測試）。
+  - 必須維持**單一執行緒 (Single Thread)** 循序執行，確保 CPU 與系統資源不過載，避免影響使用者在本地端操作其他應用程式導致卡頓。
 
 ## Testing & Quality
 
 - **Test Command**: 專案標準指令為 `./mvnw test`。測試預設使用 H2 in-memory database。
-  - **【Token 節省黑魔法 (Windows/CLI 必讀)】**：
-    為了讓底層的 RTK 盾牌能完美看穿 Maven 繁重的日誌包裝，並精簡 JUnit 的重複輸出以節省 90% 以上的 Token：
+  - **【Token 節省黑魔法與單執行緒限制 (Windows/CLI 必讀)】**：
+    為了讓底層的 RTK 盾牌能完美看穿 Maven 繁重的日誌包裝，並精簡 JUnit 的重複輸出以節省 90% 以上的 Token，同時避免多核心平行測試卡死本地系統：
     1. 在調用終端機執行測試時，**禁止**直接下達 `./mvnw test`。
-    2. **必須優先使用以下原生指令包裹**：`rtk ./mvnw test`。
-    3. 如果專案內包含 Surefire 外掛，可進一步使用 `rtk ./mvnw test -Dsurefire.useFile=false` 迫使日誌輸出至主終端機，讓
-       RTK 進行極致壓縮。
+    2. **必須優先使用以下原生指令包裹**：`rtk ./mvnw test "-DforkCount=1" "-Dsurefire.useFile=false"`。
+    3. 強制使用 `"-DforkCount=1"` 維持單一 JVM 行程，防止 Surefire 依 CPU 核心數平行啟動多個行程導致卡頓；`"-Dsurefire.useFile=false"` 迫使日誌輸出至主終端機由 RTK 極致壓縮。
   - **Coverage**: `./mvnw jacoco:report`。Jacoco 覆蓋率報告位於 `target/site/jacoco/index.html`。
   - **Coverage Rules**: 專案設定了最低 80% 的覆蓋率要求 (`BUNDLE` 級別)。注意：多數的對外介面與資料存取層 (Controller,
     Entity, mapper 等) 在 `pom.xml` 中被設定排除覆蓋率計算。
@@ -48,6 +50,7 @@
 - **開發規範 (唯一規則文件)**: **絕對必須遵守** `開發規範.md`（此為唯一規則來源，合併自微服務分類/Permission/Controller 註記/Python 規則/程式碼品質標準（CodeReadview），原文於 `docs/archive/`）。重點包含：模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager、三層權限設計（`@RequirePermission`）、Controller OpenAPI 標準註記（`Annotation/OpenApi`）、Python 語法規範（import 置頂/禁止單字母變數/禁止 `except: pass`）、程式碼品質標準（SOLID/DRY/KISS/YAGNI/高內聚低耦合/Boy Scout Rule）。
 - **範例一律使用完整套件路徑**: 文件或說明中引用程式碼位置時，一律寫完整套件路徑（如 `com.example.BackendArchitectureLab.Service.Impl.RoleService`），嚴禁寫縮寫路徑（如 `RoleService.java`）。
 - **原始碼中禁止使用完全限定名稱 (Fully Qualified Name, FQN)**：在 Java、Python 等原始碼檔案中，一律禁止直接在方法簽名、變數宣告或實例化物件時寫入長路徑的 FQN（例如 `java.util.Date`、`java.util.Optional`、以及微服務內部的實體或異常長路徑）。所有依賴的類別必須在檔案頂部撰寫顯式 `import`，並在程式碼內部僅使用簡潔的類別名稱 (Simple Name) 來維持代碼美觀與高度可讀性。*(備註：前條「範例一律使用完整套件路徑」僅適用於向使用者回報或文件描述中，原始碼編寫仍需遵守本 FQN 禁止規則。)*
+- **Markdown 程式碼範例規範 (IDE 語法相容)**：撰寫或維護 `*.md` 技術文件中的 ````java` 區塊時，**必須宣告完整的外層 `class` / `interface` / `record` 與方法結構**，嚴禁直接撰寫裸語句（如裸 `switch`、裸 `if`、局部變數宣告等），避免觸發 IDE（如 IntelliJ IDEA）的 Java Language Injection 語法錯誤（如 `'class' or 'interface' expected`）。抽象片段或非完整程式碼一律使用通用標籤（如 ````text` 或 ````）。
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。

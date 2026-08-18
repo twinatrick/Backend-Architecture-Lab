@@ -111,7 +111,7 @@ public class InitAndCheckService implements IInitAndCheckService {
         ).forEach(entry -> allFunctionList.add(new ArrayList<>(entry)));
 
         for (List<String> functionListStr : allFunctionList) {
-            if (!checkIsExist(functionListStr.get(0), functionListStr.get(1), functionListStr.get(2))) {
+            if (!checkIsExist(functionListStr.getFirst(), functionListStr.get(1), functionListStr.get(2))) {
                 insertFunctionByList(functionListStr,"");
             }
         }

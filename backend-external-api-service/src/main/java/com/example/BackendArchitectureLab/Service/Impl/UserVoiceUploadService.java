@@ -49,6 +49,10 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
     @Lazy
     private final IUserVoiceUploadService self;
 
+    private IUserVoiceUploadService getSelf() {
+        return self != null ? self : this;
+    }
+
     @Override
     @Transactional
     @CachePut(value = "userVoiceUploads", key = "#result.id")
@@ -123,7 +127,7 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
     @Override
     public List<VoiceTranslationVo> getTranslationsByUploadId(UUID uploadId) {
         // 透過 self 代理調用，確保內部調用 AOP 快取依然 100% 生效
-        return self.getTranslationsByUploadIdCache(uploadId).getData();
+        return getSelf().getTranslationsByUploadIdCache(uploadId).getData();
     }
 
     @Override

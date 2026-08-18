@@ -48,11 +48,15 @@ public class ProjectSkillService implements IProjectSkillService {
     private final SecurityUtil securityUtil;
 
     @Lazy
-    private final ProjectSkillService self;
+    private final IProjectSkillService self;
+
+    private IProjectSkillService getSelf() {
+        return self != null ? self : this;
+    }
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
-        return getProjectSkillsCache(projectId).getData();
+        return getSelf().getProjectSkillsCache(projectId).getData();
     }
 
     @Override
@@ -84,7 +88,7 @@ public class ProjectSkillService implements IProjectSkillService {
                     vo.setLevelDescription(level.getDescription());
                 }
                 return vo;
-            }).collect(Collectors.toList());
+            }).toList();
             return new CacheListWrapper<>(list);
         });
     }
@@ -227,7 +231,7 @@ public class ProjectSkillService implements IProjectSkillService {
             ensureSkillVisibleToCurrentUser(skillId, currentUserId);
         }
 
-        self.rebindProjectSkills(projectId, targetMap);
+        getSelf().rebindProjectSkills(projectId, targetMap);
     }
 
     @Override

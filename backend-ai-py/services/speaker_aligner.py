@@ -41,7 +41,7 @@ class SpeakerAligner:
         for seg in segments:
             speaker_overlaps = {}
             for turn in diarization_result:
-                overlap = max(0, min(seg.end, turn["end"]) - max(seg.start, turn["start"]))
+                overlap = max(0.0, min(seg.end, turn["end"]) - max(seg.start, turn["start"]))
                 if overlap > 0:
                     speaker_overlaps[turn["speaker"]] = (
                         speaker_overlaps.get(turn["speaker"], 0) + overlap

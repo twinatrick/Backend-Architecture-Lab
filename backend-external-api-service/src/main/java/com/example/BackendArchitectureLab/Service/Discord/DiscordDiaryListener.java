@@ -25,6 +25,7 @@ public class DiscordDiaryListener extends ListenerAdapter {
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
         if (event.getAuthor().isBot()) return;
+        if (event.getGuild() == null) return;
 
         String content = event.getMessage().getContentRaw();
         String guildId = event.getGuild().getId();
@@ -73,7 +74,7 @@ public class DiscordDiaryListener extends ListenerAdapter {
                     .findByGuildIdAndBotType(guildId, "diary");
             if (sub.isEmpty()) return;
 
-            var attachment = event.getMessage().getAttachments().get(0);
+            var attachment = event.getMessage().getAttachments().getFirst();
             String ct = attachment.getContentType();
             if (ct == null || !ct.startsWith("audio/")) return;
 

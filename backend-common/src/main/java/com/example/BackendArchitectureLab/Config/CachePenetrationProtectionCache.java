@@ -48,13 +48,6 @@ public class CachePenetrationProtectionCache implements Cache {
 
     private final Duration nullValueTtl;
 
-    private final Object[] stripes = new Object[256];
-    {
-        for (int i = 0; i < stripes.length; i++) {
-            stripes[i] = new Object();
-        }
-    }
-
     private final ConcurrentHashMap<String, CompletableFuture<ValueWrapper>> activeRedisFetches = new ConcurrentHashMap<>();
 
     private final Semaphore concurrencySemaphore = new Semaphore(10, true);

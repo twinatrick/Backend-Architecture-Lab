@@ -31,26 +31,29 @@ public class LineWebhookService implements ILineWebhookService {
     @Override
     public void dispatchEvents(List<Event> events, Object service) {
         for (Event event : events) {
-            if (!(event instanceof MessageEvent)) continue;
-            MessageEvent<?> msgEvent = (MessageEvent<?>) event;
+            if (!(event instanceof MessageEvent<?> msgEvent)) continue;
             String replyToken = msgEvent.getReplyToken();
 
-            if (msgEvent.getMessage() instanceof TextMessageContent) {
-                String text = ((TextMessageContent) msgEvent.getMessage()).getText();
-                if (service instanceof ILineGfService) {
-                    String userId = msgEvent.getSource().getUserId();
-                    ((ILineGfService) service).handleText(replyToken, text, userId);
-                } else if (service instanceof ILineDiaryService) {
-                    ((ILineDiaryService) service).handleText(replyToken, text);
+            switch (msgEvent.getMessage()) {
+                case TextMessageContent textContent -> {
+                    String text = textContent.getText();
+                    if (service instanceof ILineGfService gfService) {
+                        String userId = msgEvent.getSource().getUserId();
+                        gfService.handleText(replyToken, text, userId);
+                    } else if (service instanceof ILineDiaryService diaryService) {
+                        diaryService.handleText(replyToken, text);
+                    }
                 }
-            } else if (msgEvent.getMessage() instanceof AudioMessageContent) {
-                String messageId = ((AudioMessageContent) msgEvent.getMessage()).getId();
-                if (service instanceof ILineGfService) {
-                    String userId = msgEvent.getSource().getUserId();
-                    ((ILineGfService) service).handleAudio(replyToken, messageId, userId);
-                } else if (service instanceof ILineDiaryService) {
-                    ((ILineDiaryService) service).handleAudio(replyToken, messageId);
+                case AudioMessageContent audioContent -> {
+                    String messageId = audioContent.getId();
+                    if (service instanceof ILineGfService gfService) {
+                        String userId = msgEvent.getSource().getUserId();
+                        gfService.handleAudio(replyToken, messageId, userId);
+                    } else if (service instanceof ILineDiaryService diaryService) {
+                        diaryService.handleAudio(replyToken, messageId);
+                    }
                 }
+                default -> {}
             }
         }
     }

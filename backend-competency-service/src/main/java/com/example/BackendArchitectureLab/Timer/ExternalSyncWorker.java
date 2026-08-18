@@ -180,7 +180,7 @@ public class ExternalSyncWorker {
                 ? List.of(DEFAULT_BACKOFF_SECONDS[0], DEFAULT_BACKOFF_SECONDS[1], DEFAULT_BACKOFF_SECONDS[2],
                 DEFAULT_BACKOFF_SECONDS[3], DEFAULT_BACKOFF_SECONDS[4])
                 : backoffSeconds;
-        return backoffs.get(Math.min(attempt - 1, backoffs.size() - 1));
+        return backoffs.get(Math.clamp(attempt - 1, 0, backoffs.size() - 1));
     }
 
     private String truncate(String message) {

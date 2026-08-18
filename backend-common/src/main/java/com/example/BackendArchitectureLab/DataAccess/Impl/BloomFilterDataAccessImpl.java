@@ -23,6 +23,9 @@ public class BloomFilterDataAccessImpl implements IBloomFilterDataAccess {
 
     @Override
     public List<String> findAllEntityIds(String entityName) {
+        if (entityName == null || !entityName.matches("^[A-Za-z0-9_]+$")) {
+            throw new IllegalArgumentException("Invalid entity name: " + entityName);
+        }
         EntityManagerFactory emf = entityManagerFactoryProvider.getIfAvailable();
         if (emf == null) {
             throw new IllegalStateException("EntityManagerFactory 不可用，無法查詢 Entity: " + entityName);

@@ -24,7 +24,9 @@ public class AlarmService implements IAlarmService {
             alarmPublisher.publish(alarmMessage);
         } catch (Exception e) {
             log.warn("告警消息發送失敗: {}", e.toString());
-            alarmMessage.get(0).setMessage("告警消息發送失敗：" + e.getMessage());
+            if (alarmMessage != null && !alarmMessage.isEmpty()) {
+                alarmMessage.getFirst().setMessage("告警消息發送失敗：" + e.getMessage());
+            }
         }
 
     }

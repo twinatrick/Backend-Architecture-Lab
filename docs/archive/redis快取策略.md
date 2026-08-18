@@ -63,45 +63,48 @@
 #### 快取方法
 
 ```java
-// 查詢 - 快取（不命中時，以 TransactionExecutor 唯讀事務閉包載入 DB 觸發延遲加載）
-@Cacheable(value = "users", key = "#email", sync = true)
-public UserVo getOnlyUserByEmail(String email) {
-    return transactionExecutor.executeReadOnly(() -> {
-        User user = userDataAccess.findByEmail(email);
-        return user == null ? null : userMapper.toVo(user);
-    });
+package com.example.BackendArchitectureLab.Service;
+
+import com.example.BackendArchitectureLab.Vo.UserVo;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import java.util.List;
+import java.util.UUID;
+
+public interface UserServiceCacheExample {
+
+    // 查詢 - 快取（不命中時，以 TransactionExecutor 唯讀事務閉包載入 DB 觸發延遲加載）
+    @Cacheable(value = "users", key = "#email", sync = true)
+    UserVo getOnlyUserByEmail(String email);
+
+    @Cacheable(value = "users", key = "#id", sync = true)
+    UserVo getUserById(String id);
+
+    // 寫入 - 更新快取
+    @Caching(put = {
+        @CachePut(value = "users", key = "#result.id", unless = "#result == null"),
+        @CachePut(value = "users", key = "#result.email", unless = "#result == null")
+    })
+    UserVo createUser(UserVo userVo);
+
+    @Caching(put = {
+        @CachePut(value = "users", key = "#result.id", unless = "#result == null"),
+        @CachePut(value = "users", key = "#result.email", unless = "#result == null")
+    })
+    UserVo saveUser(UserVo userVo);
+
+    // 寫入 - 清除快取
+    @CacheEvict(value = "users", allEntries = true)
+    void saveUserWithRole(UserVo userVo);  // 混合新增/修改，保留全量清除
+
+    @CacheEvict(value = "users", key = "#userId")
+    void rebindUserRoles(UUID userId, List<String> roleIds);  // 精確 key
+
+    @CacheEvict(value = "userProjects", key = "'current:' + #userId")
+    void rebindUserProjects(UUID userId, List<UUID> projectIds);  // 精確 key
 }
-
-@Cacheable(value = "users", key = "#id", sync = true)
-public UserVo getUserById(String id) {
-    return transactionExecutor.executeReadOnly(() -> {
-        User user = userDataAccess.findById(UUID.fromString(id));
-        return user == null ? null : userMapper.toVo(user);
-    });
-}
-
-// 寫入 - 更新快取
-@Caching(put = {
-    @CachePut(value = "users", key = "#result.id", unless = "#result == null"),
-    @CachePut(value = "users", key = "#result.email", unless = "#result == null")
-})
-UserVo createUser(UserVo userVo);
-
-@Caching(put = {
-    @CachePut(value = "users", key = "#result.id", unless = "#result == null"),
-    @CachePut(value = "users", key = "#result.email", unless = "#result == null")
-})
-UserVo saveUser(UserVo userVo);
-
-// 寫入 - 清除快取
-@CacheEvict(value = "users", allEntries = true)
-void saveUserWithRole(UserVo userVo);  // 混合新增/修改，保留全量清除
-
-@CacheEvict(value = "users", key = "#userId")
-void rebindUserRoles(UUID userId, List<String> roleIds);  // 精確 key
-
-@CacheEvict(value = "userProjects", key = "'current:' + #userId")
-void rebindUserProjects(UUID userId, List<UUID> projectIds);  // 精確 key
 ```
 
 ---
@@ -109,74 +112,89 @@ void rebindUserProjects(UUID userId, List<UUID> projectIds);  // 精確 key
 ### 4.2 SkillService（快取名稱: `skills`, `skillLevels`, `currentUserSkills`）
 
 ```java
-@Cacheable(value = "skills", key = "'all'", sync = true)
-List<SkillVo> getSkill();
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "skillLevels", key = "#skillId", sync = true)
-List<SkillLevelVo> getSkillLevels(String skillId);
+import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
+import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
+import com.example.BackendArchitectureLab.Vo.SkillVo;
+import com.example.BackendArchitectureLab.Vo.Request.PersonalSkillRequest;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
-@Cacheable(value = "currentUserSkills", key = "'byuser:' + #currentUserId", sync = true)
-List<CurrentUserSkillVo> getCurrentUserSkills();
+public interface SkillServiceCacheExample {
 
-// 寫入操作 - @CachePut + 精確 key evict（不再全量清除）
-@Caching(put = {
-    @CachePut(value = "skills", key = "#result.id")
-}, evict = {
-    @CacheEvict(value = "skills", key = "'all'")
-})
-SkillVo addSkill(SkillVo skillVo);  // @CachePut + evict 'all' 列表
+    @Cacheable(value = "skills", key = "'all'", sync = true)
+    List<SkillVo> getSkill();
 
-@Caching(put = {
-    @CachePut(value = "skills", key = "#skillVo.id")
-}, evict = {
-    @CacheEvict(value = "skills", key = "'all'")
-})
-void updateSkill(SkillVo skillVo);  // @CachePut + evict 'all' 列表
+    @Cacheable(value = "skillLevels", key = "#skillId", sync = true)
+    List<SkillLevelVo> getSkillLevels(String skillId);
 
-@Caching(evict = {
-    @CacheEvict(value = "skills", key = "#skillVo.id"),
-    @CacheEvict(value = "skills", key = "'all'"),
-    @CacheEvict(value = "skillLevels", key = "#skillVo.id")
-})
-void deleteSkill(SkillVo skillVo);  // evict id + 'all' + skillLevels
+    @Cacheable(value = "currentUserSkills", key = "'byuser:' + #currentUserId", sync = true)
+    List<CurrentUserSkillVo> getCurrentUserSkills();
 
-@Caching(evict = {
-    @CacheEvict(value = "skills", key = "'all'"),
-    @CacheEvict(value = "currentUserSkills", key = "'byuser:' + #currentUserId")
-})
-SkillVo addPersonalSkill(PersonalSkillRequest request);  // evict 'all' + 特定使用者快取
+    // 寫入操作 - @CachePut + 精確 key evict（不再全量清除）
+    @Caching(put = {
+        @CachePut(value = "skills", key = "#result.id")
+    }, evict = {
+        @CacheEvict(value = "skills", key = "'all'")
+    })
+    SkillVo addSkill(SkillVo skillVo);  // @CachePut + evict 'all' 列表
 
-@Caching(put = {
-    @CachePut(value = "skills", key = "#skillId")
-}, evict = {
-    @CacheEvict(value = "skills", key = "'all'"),
-    @CacheEvict(value = "currentUserSkills", key = "'byuser:' + #currentUserId")
-})
-void updatePersonalSkill(UUID skillId, PersonalSkillRequest request);
+    @Caching(put = {
+        @CachePut(value = "skills", key = "#skillVo.id")
+    }, evict = {
+        @CacheEvict(value = "skills", key = "'all'")
+    })
+    void updateSkill(SkillVo skillVo);  // @CachePut + evict 'all' 列表
 
-// 完全不移除 skills 快取（只改個人綁定，不影響技能資料）
-void updatePersonalSkillLevel(UUID skillId, UUID skillLevelId);
-// 內部呼叫 evictCurrentUserSkills(currentUserId) 精確清除
+    @Caching(evict = {
+        @CacheEvict(value = "skills", key = "#skillVo.id"),
+        @CacheEvict(value = "skills", key = "'all'"),
+        @CacheEvict(value = "skillLevels", key = "#skillVo.id")
+    })
+    void deleteSkill(SkillVo skillVo);  // evict id + 'all' + skillLevels
 
-// 完全不移除 skills 快取（只改個人綁定）
-void deletePersonalSkill(UUID skillId);
-// 內部呼叫 evictCurrentUserSkills(currentUserId) 精確清除
+    @Caching(evict = {
+        @CacheEvict(value = "skills", key = "'all'"),
+        @CacheEvict(value = "currentUserSkills", key = "'byuser:' + #currentUserId")
+    })
+    SkillVo addPersonalSkill(PersonalSkillRequest request);  // evict 'all' + 特定使用者快取
 
-// 技能等級操作 - 精確清除 skillLevels
-@CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
-SkillLevelVo addSkillLevel(SkillLevelVo skillLevelVo);  // 僅 evict 該技能的等級列表
-// 內部呼叫 evictSkillsLevelSearchCache() 清除 skills::*levelsearch:* 前綴鍵
+    @Caching(put = {
+        @CachePut(value = "skills", key = "#skillId")
+    }, evict = {
+        @CacheEvict(value = "skills", key = "'all'"),
+        @CacheEvict(value = "currentUserSkills", key = "'byuser:' + #currentUserId")
+    })
+    void updatePersonalSkill(UUID skillId, PersonalSkillRequest request);
 
-@CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
-void updateSkillLevel(SkillLevelVo skillLevelVo);  // 僅 evict 該技能的等級列表
-// 內部呼叫 evictSkillsLevelSearchCache() 清除 skills::*levelsearch:* 前綴鍵
+    // 完全不移除 skills 快取（只改個人綁定，不影響技能資料）
+    void updatePersonalSkillLevel(UUID skillId, UUID skillLevelId);
+    // 內部呼叫 evictCurrentUserSkills(currentUserId) 精確清除
 
-// 需先查詢 entity 取得 skillId → 使用 CacheManager
-void deleteSkillLevel(String skillLevelId);  // CacheManager evict(skillId) + evictSkillsLevelSearchCache()
+    // 完全不移除 skills 快取（只改個人綁定）
+    void deletePersonalSkill(UUID skillId);
+    // 內部呼叫 evictCurrentUserSkills(currentUserId) 精確清除
 
-// rebind - 精確清除特定使用者（不再 allEntries）
-void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
-// 內部呼叫 evictCurrentUserSkills(userId) 精確清除
+    // 技能等級操作 - 精確清除 skillLevels
+    @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
+    SkillLevelVo addSkillLevel(SkillLevelVo skillLevelVo);  // 僅 evict 該技能的等級列表
+
+    @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
+    void updateSkillLevel(SkillLevelVo skillLevelVo);  // 僅 evict 該技能的等級列表
+
+    // 需先查詢 entity 取得 skillId → 使用 CacheManager
+    void deleteSkillLevel(String skillLevelId);  // CacheManager evict(skillId) + evictSkillsLevelSearchCache()
+
+    // rebind - 精確清除特定使用者（不再 allEntries）
+    void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
+    // 內部呼叫 evictCurrentUserSkills(userId) 精確清除
+}
 ```
 
 ---
@@ -184,70 +202,77 @@ void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
 ### 4.3 RoleService（快取名稱: `roles`, `roleFunctions`, `userRoles`）
 
 ```java
-// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，預防延遲加載 Exception）
-@Cacheable(value = "roles", key = "'all'", sync = true)
-CacheListWrapper<RoleOutVo> getRoleListCache();
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "roles", key = "#roleId", sync = true)
-RoleOutVo getRoleById(String roleId);
+import com.example.BackendArchitectureLab.Util.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import java.util.List;
 
-@Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
-CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId);
+public interface RoleServiceCacheExample {
 
-@Cacheable(value = "roles", key = "'byname:' + #name", sync = true)
-RoleOutVo getRoleByName(String name);
+    // 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，預防延遲加載 Exception）
+    @Cacheable(value = "roles", key = "'all'", sync = true)
+    CacheListWrapper<RoleOutVo> getRoleListCache();
 
-@Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
-CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId);
+    @Cacheable(value = "roles", key = "#roleId", sync = true)
+    RoleOutVo getRoleById(String roleId);
 
-// 寫入操作 - @CachePut + 精確 key evict
-@Caching(put = {
-    @CachePut(value = "roles", key = "#result.id"),
-    @CachePut(value = "roles", key = "'byname:' + #result.name")
-})
-RoleOutVo addRole(RoleOutVo roleOutVo);
+    @Cacheable(value = "roleFunctions", key = "#roleId", sync = true)
+    CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId);
 
-@Caching(put = {
-    @CachePut(value = "roles", key = "#roleOutVo.id"),
-    @CachePut(value = "roles", key = "'byname:' + #roleOutVo.name")
-})
-RoleOutVo updateRole(RoleOutVo roleOutVo);
+    @Cacheable(value = "roles", key = "'byname:' + #name", sync = true)
+    RoleOutVo getRoleByName(String name);
 
-@Caching(evict = {
-    @CacheEvict(value = "roles", key = "#roleOutVo.id"),
-    @CacheEvict(value = "roleFunctions", key = "#roleOutVo.id")
-})
-void deleteRole(RoleOutVo roleOutVo);
+    @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
+    CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId);
 
-@CacheEvict(value = "roleFunctions", key = "#roleId")
-void roleBindFunction(String roleId, List<String> functionIds);
+    // 寫入操作 - @CachePut + 精確 key evict
+    @Caching(put = {
+        @CachePut(value = "roles", key = "#result.id"),
+        @CachePut(value = "roles", key = "'byname:' + #result.name")
+    })
+    RoleOutVo addRole(RoleOutVo roleOutVo);
 
-@CacheEvict(value = "roleFunctions", key = "#roleId")
-void roleUnbindFunction(String roleId, List<String> functionIds);
+    @Caching(put = {
+        @CachePut(value = "roles", key = "#roleOutVo.id"),
+        @CachePut(value = "roles", key = "'byname:' + #roleOutVo.name")
+    })
+    RoleOutVo updateRole(RoleOutVo roleOutVo);
 
-// functionBind/Unbind - 精確清除（不再全量清除）
-functionBindRole(String functionId, List<String> roleIds);
-// 程式化清除: evict(roles::byfunction:{functionId}) + 逐個 evict(roleFunctions::{roleId})
+    @Caching(evict = {
+        @CacheEvict(value = "roles", key = "#roleOutVo.id"),
+        @CacheEvict(value = "roleFunctions", key = "#roleOutVo.id")
+    })
+    void deleteRole(RoleOutVo roleOutVo);
 
-functionUnbindRole(String functionId, List<String> roleIds);
-// 同上，精確清除
+    @CacheEvict(value = "roleFunctions", key = "#roleId")
+    void roleBindFunction(String roleId, List<String> functionIds);
 
-// 使用者綁定操作 - 精確清除（不再全量清除）
-userBindRole(String userId, List<String> roleIds);
-// 程式化清除: evict(userRoles::byrole:{roleId}) 逐個 + evict(roles::byuser:{userId})
+    @CacheEvict(value = "roleFunctions", key = "#roleId")
+    void roleUnbindFunction(String roleId, List<String> functionIds);
 
-userUnbindRole(String userId, List<String> roleIds);
-// 同上精確清除
+    // functionBind/Unbind - 精確清除（不再全量清除）
+    void functionBindRole(String functionId, List<String> roleIds);
 
-userUnbindAllRole(String userId);
-// 先查使用者角色，再逐個 evict(userRoles::byrole:{roleId})
+    void functionUnbindRole(String functionId, List<String> roleIds);
 
-// 批量使用者操作 - 精確清除（不再全量清除）
-roleBindUser(String roleId, List<String> userIds);
-// 程式化清除: evict(roles::byuser:{userId}) 逐個 + evict(userRoles::byrole:{roleId})
+    // 使用者綁定操作 - 精確清除（不再全量清除）
+    void userBindRole(String userId, List<String> roleIds);
 
-roleUnbindUser(String roleId, List<String> userIds);
-// 同上精確清除
+    void userUnbindRole(String userId, List<String> roleIds);
+
+    void userUnbindAllRole(String userId);
+
+    // 批量使用者操作 - 精確清除（不再全量清除）
+    void roleBindUser(String roleId, List<String> userIds);
+
+    void roleUnbindUser(String roleId, List<String> userIds);
+}
 ```
 
 ---
@@ -255,46 +280,58 @@ roleUnbindUser(String roleId, List<String> userIds);
 ### 4.4 FunctionService（快取名稱: `functions`）
 
 ```java
-@Cacheable(value = "functions", key = "'all'", sync = true)
-List<FunctionVo> getFunction();
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "functions", key = "#id", sync = true)
-FunctionVo getFunctionById(String id);
+import com.example.BackendArchitectureLab.Vo.FunctionVo;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import java.util.List;
 
-@Cacheable(value = "functions", key = "'byname:' + #name", sync = true)
-FunctionVo getFunctionByName(String name);
+public interface FunctionServiceCacheExample {
 
-@Cacheable(value = "functions", key = "'bynameparent:' + #name + ':' + #parent", sync = true)
-FunctionVo getFunctionByNameAndParent(String name, String parent);
+    @Cacheable(value = "functions", key = "'all'", sync = true)
+    List<FunctionVo> getFunction();
 
-// 寫入操作 - 精確清除
-@Caching(put = {
-    @CachePut(value = "functions", key = "#result.id"),
-    @CachePut(value = "functions", key = "'byname:' + #result.name")
-}, evict = {
-    @CacheEvict(value = "functions", key = "'bynameparent:' + #result.name + ':' + (#result.parent != null ? #result.parent : '')")
-})
-FunctionVo addFunction(FunctionVo functionVo);  // @CachePut + evict bynameparent
+    @Cacheable(value = "functions", key = "#id", sync = true)
+    FunctionVo getFunctionById(String id);
 
-@Caching(evict = {
-    @CacheEvict(value = "functions", key = "#functionVo.id"),
-    @CacheEvict(value = "functions", key = "'byname:' + #functionVo.name"),
-    @CacheEvict(value = "functions", key = "'bynameparent:' + #functionVo.name + ':' + (#functionVo.parent != null ? #functionVo.parent : '')")
-})
-void updateFunction(FunctionVo functionVo);  // evict 三項精確 key
+    @Cacheable(value = "functions", key = "'byname:' + #name", sync = true)
+    FunctionVo getFunctionByName(String name);
 
-@CacheEvict(value = "functions", key = "#functionVo.id")
-void deleteFunction(FunctionVo functionVo);  // evict 單項 id
+    @Cacheable(value = "functions", key = "'bynameparent:' + #name + ':' + #parent", sync = true)
+    FunctionVo getFunctionByNameAndParent(String name, String parent);
 
-// 批次操作 → 無法反推各 function key → 保留全量清除
-@CacheEvict(value = "functions", allEntries = true)
-void deleteFunction(List<FunctionVo> function);
+    // 寫入操作 - 精確清除
+    @Caching(put = {
+        @CachePut(value = "functions", key = "#result.id"),
+        @CachePut(value = "functions", key = "'byname:' + #result.name")
+    }, evict = {
+        @CacheEvict(value = "functions", key = "'bynameparent:' + #result.name + ':' + (#result.parent != null ? #result.parent : '')")
+    })
+    FunctionVo addFunction(FunctionVo functionVo);
 
-@CacheEvict(value = "functions", allEntries = true)
-void saveFunction(List<FunctionVo> function);
+    @Caching(evict = {
+        @CacheEvict(value = "functions", key = "#functionVo.id"),
+        @CacheEvict(value = "functions", key = "'byname:' + #functionVo.name"),
+        @CacheEvict(value = "functions", key = "'bynameparent:' + #functionVo.name + ':' + (#functionVo.parent != null ? #functionVo.parent : '')")
+    })
+    void updateFunction(FunctionVo functionVo);
 
-@CacheEvict(value = "functions", allEntries = true)
-List<FunctionVo> saveFunctionNewChild(List<FunctionVo> function);
+    @CacheEvict(value = "functions", key = "#functionVo.id")
+    void deleteFunction(FunctionVo functionVo);
+
+    // 批次操作 → 保留全量清除
+    @CacheEvict(value = "functions", allEntries = true)
+    void deleteFunction(List<FunctionVo> function);
+
+    @CacheEvict(value = "functions", allEntries = true)
+    void saveFunction(List<FunctionVo> function);
+
+    @CacheEvict(value = "functions", allEntries = true)
+    List<FunctionVo> saveFunctionNewChild(List<FunctionVo> function);
+}
 ```
 
 ---
@@ -302,71 +339,83 @@ List<FunctionVo> saveFunctionNewChild(List<FunctionVo> function);
 ### 4.5 ProjectService（快取名稱: `projectSkills`, `projectMemberSkills`, `projects`）
 
 ```java
-// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
-@Cacheable(value = "projects", key = "'all'", sync = true)
-CacheListWrapper<ProjectVo> getProjectListCache();
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "projects", key = "'byuser:' + #currentUserId", sync = true)
-CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId);
+import com.example.BackendArchitectureLab.Util.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
+import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
+import com.example.BackendArchitectureLab.Vo.ProjectVo;
+import com.example.BackendArchitectureLab.Vo.Request.PersonalProjectRequest;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
-@Cacheable(value = "projectSkills", key = "#projectId", sync = true)
-CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId);
+public interface ProjectServiceCacheExample {
 
-@Cacheable(value = "projectMemberSkills", key = "#projectId", sync = true)  // 無快取 evict
-List<ProjectMemberSkillVo> getProjectMemberSkills(UUID projectId);
+    // 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
+    @Cacheable(value = "projects", key = "'all'", sync = true)
+    CacheListWrapper<ProjectVo> getProjectListCache();
 
-// projects 精確清除 'all' + 受影響使用者；projectSkills 不影響（無技能綁定）
-@Caching(evict = {
-    @CacheEvict(value = "projects", key = "'all'")
-})
-ProjectVo addProject(ProjectVo projectVo);
-// 內部呼叫 evictUserProjectsCache(各綁定使用者 userId)
+    @Cacheable(value = "projects", key = "'byuser:' + #currentUserId", sync = true)
+    CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId);
 
-@Caching(evict = {
-    @CacheEvict(value = "projects", key = "'all'")
-})
-void updateProject(ProjectVo projectVo);
-// 內部呼叫 evictUserProjectsCache(各綁定使用者 userId)
+    @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
+    CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId);
 
-@Caching(evict = {
-    @CacheEvict(value = "projects", key = "#projectVo.id"),
-    @CacheEvict(value = "projects", key = "'all'"),
-    @CacheEvict(value = "projectSkills", key = "#projectVo.id")
-})
-void deleteProject(ProjectVo projectVo);
+    @Cacheable(value = "projectMemberSkills", key = "#projectId", sync = true)
+    List<ProjectMemberSkillVo> getProjectMemberSkills(UUID projectId);
 
-// 個人專案操作 - 精確清除 'all' + 當前使用者
-@Caching(evict = {
-    @CacheEvict(value = "projects", key = "'all'")
-})
-ProjectVo addPersonalProject(PersonalProjectRequest request);
-// 內部呼叫 evictUserProjectsCache(currentUserId)
+    // projects 精確清除 'all' + 受影響使用者；projectSkills 不影響（無技能綁定）
+    @Caching(evict = {
+        @CacheEvict(value = "projects", key = "'all'")
+    })
+    ProjectVo addProject(ProjectVo projectVo);
 
-void updatePersonalProject(UUID projectId, PersonalProjectRequest request);
-// 內部呼叫 evictUserProjectsCache(currentUserId)
+    @Caching(evict = {
+        @CacheEvict(value = "projects", key = "'all'")
+    })
+    void updateProject(ProjectVo projectVo);
 
-void deletePersonalProject(UUID projectId);
-// 內部呼叫 evictUserProjectsCache(currentUserId) + evict(projects::all)
+    @Caching(evict = {
+        @CacheEvict(value = "projects", key = "#projectVo.id"),
+        @CacheEvict(value = "projects", key = "'all'"),
+        @CacheEvict(value = "projectSkills", key = "#projectVo.id")
+    })
+    void deleteProject(ProjectVo projectVo);
 
-// projectSkills 精確 evict（已知 projectId）
-@CacheEvict(value = "projectSkills", key = "#projectId")
-void bindPersonalProjectSkill(UUID projectId, UUID skillId, UUID skillLevelId);
+    // 個人專案操作 - 精確清除 'all' + 當前使用者
+    @Caching(evict = {
+        @CacheEvict(value = "projects", key = "'all'")
+    })
+    ProjectVo addPersonalProject(PersonalProjectRequest request);
 
-@CacheEvict(value = "projectSkills", key = "#projectId")
-void updatePersonalProjectSkillLevel(UUID projectId, UUID skillId, UUID skillLevelId);
+    void updatePersonalProject(UUID projectId, PersonalProjectRequest request);
 
-@CacheEvict(value = "projectSkills", key = "#projectId")
-void unbindPersonalProjectSkill(UUID projectId, UUID skillId);
+    void deletePersonalProject(UUID projectId);
 
-@CacheEvict(value = "projectSkills", key = "#projectId")
-void rebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping);
+    // projectSkills 精確 evict（已知 projectId）
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    void bindPersonalProjectSkill(UUID projectId, UUID skillId, UUID skillLevelId);
 
-@CacheEvict(value = "projectSkills", key = "#projectId")
-void rebindPersonalProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping);
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    void updatePersonalProjectSkillLevel(UUID projectId, UUID skillId, UUID skillLevelId);
 
-// 僅清除 projectSkills（未改變專案成員資格，projects 快取不受影響）
-@CacheEvict(value = "projectSkills", key = "#projectId")
-void rebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap);
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    void unbindPersonalProjectSkill(UUID projectId, UUID skillId);
+
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    void rebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping);
+
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    void rebindPersonalProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping);
+
+    // 僅清除 projectSkills（未改變專案成員資格，projects 快取不受影響）
+    @CacheEvict(value = "projectSkills", key = "#projectId")
+    void rebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap);
+}
 ```
 
 ---
@@ -374,29 +423,43 @@ void rebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> member
 ### 4.6 CompanyService（快取名稱: `companies`）
 
 ```java
-// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
-@Cacheable(value = "companies", key = "'all'", sync = true)
-CacheListWrapper<CompanyVo> getAllCompaniesCache();
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "companies", key = "#id", sync = true)
-CompanyVo getCompanyById(String id);
+import com.example.BackendArchitectureLab.Util.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.CompanyVo;
+import com.example.BackendArchitectureLab.Vo.Request.CreateCompanyRequest;
+import com.example.BackendArchitectureLab.Vo.Request.UpdateCompanyRequest;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 
-// 寫入操作 - 精確清除（不再全量清除）
-@CacheEvict(value = "companies", key = "'all'")
-CompanyVo createCompany(CreateCompanyRequest request);  // 僅清除 'all' 列表
+public interface CompanyServiceCacheExample {
 
-@Caching(put = {
-    @CachePut(value = "companies", key = "#request.id")
-}, evict = {
+    // 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
+    @Cacheable(value = "companies", key = "'all'", sync = true)
+    CacheListWrapper<CompanyVo> getAllCompaniesCache();
+
+    @Cacheable(value = "companies", key = "#id", sync = true)
+    CompanyVo getCompanyById(String id);
+
+    // 寫入操作 - 精確清除（不再全量清除）
     @CacheEvict(value = "companies", key = "'all'")
-})
-CompanyVo updateCompany(UpdateCompanyRequest request);  // @CachePut(id) + evict('all')
+    CompanyVo createCompany(CreateCompanyRequest request);
 
-@Caching(evict = {
-    @CacheEvict(value = "companies", key = "#id"),
-    @CacheEvict(value = "companies", key = "'all'")
-})
-void deleteCompany(String id);  // evict(id + 'all')
+    @Caching(put = {
+        @CachePut(value = "companies", key = "#request.id")
+    }, evict = {
+        @CacheEvict(value = "companies", key = "'all'")
+    })
+    CompanyVo updateCompany(UpdateCompanyRequest request);
+
+    @Caching(evict = {
+        @CacheEvict(value = "companies", key = "#id"),
+        @CacheEvict(value = "companies", key = "'all'")
+    })
+    void deleteCompany(String id);
+}
 ```
 
 ---
@@ -404,46 +467,59 @@ void deleteCompany(String id);  // evict(id + 'all')
 ### 4.7 JobPostingService（快取名稱: `jobPostings`）
 
 ```java
-@Cacheable(value = "jobPostings", key = "'all'", sync = true)
-List<JobPostingVo> getAllJobPostings();
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "jobPostings", key = "#id", sync = true)
-JobPostingVo getJobPostingById(String id);
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.JobPostingVo;
+import com.example.BackendArchitectureLab.Vo.Request.CreateJobPostingRequest;
+import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import java.util.List;
 
-@Cacheable(value = "jobPostings", key = "'bycompany:' + #companyId", sync = true)
-List<JobPostingVo> getJobPostingsByCompanyId(String companyId);
+public interface JobPostingServiceCacheExample {
 
-@Cacheable(value = "jobPostings", key = "'search:' + #query.toString()", sync = true)
-PageResult<JobPostingVo> searchJobPostings(JobPostingSearchQuery query);
+    @Cacheable(value = "jobPostings", key = "'all'", sync = true)
+    List<JobPostingVo> getAllJobPostings();
 
-// 寫入操作 - @CachePut + 精確 evict（補上 'all'）
-@Caching(put = {
-    @CachePut(value = "jobPostings", key = "#result.id")
-}, evict = {
-    @CacheEvict(value = "jobPostings", key = "'bycompany:' + #request.companyId"),
-    @CacheEvict(value = "jobPostings", key = "'all'")
-})
-JobPostingVo createJobPosting(CreateJobPostingRequest request);  // @CachePut(id) + evict(bycompany + 'all')
+    @Cacheable(value = "jobPostings", key = "#id", sync = true)
+    JobPostingVo getJobPostingById(String id);
 
-@Caching(put = {
-    @CachePut(value = "jobPostings", key = "#jobPostingVo.id")
-}, evict = {
-    @CacheEvict(value = "jobPostings", key = "'bycompany:' + #jobPostingVo.companyId"),
-    @CacheEvict(value = "jobPostings", key = "'all'")
-})
-JobPostingVo updateJobPosting(JobPostingVo jobPostingVo);  // @CachePut(id) + evict(bycompany + 'all')
+    @Cacheable(value = "jobPostings", key = "'bycompany:' + #companyId", sync = true)
+    List<JobPostingVo> getJobPostingsByCompanyId(String companyId);
 
-// 需先查詢 entity 取得 companyId → 使用 CacheManager
-void deleteJobPosting(String id);
-// CacheManager evict(id + bycompany + 'all') + evictJobPostingsSearchCache() 清除 'search:*'
+    @Cacheable(value = "jobPostings", key = "'search:' + #query.toString()", sync = true)
+    PageResult<JobPostingVo> searchJobPostings(JobPostingSearchQuery query);
 
-@Caching(evict = {
-    @CacheEvict(value = "jobPostings", key = "'bycompany:' + #companyId"),
-    @CacheEvict(value = "jobPostings", key = "'all'"),
-    @CacheEvict(value = "companies", key = "'all'")
-})
-List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId);  // evict bycompany + 'all'
-// 程式化清除 evict(companies::#companyId) 精確清除單一公司快取
+    // 寫入操作 - @CachePut + 精確 evict（補上 'all'）
+    @Caching(put = {
+        @CachePut(value = "jobPostings", key = "#result.id")
+    }, evict = {
+        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #request.companyId"),
+        @CacheEvict(value = "jobPostings", key = "'all'")
+    })
+    JobPostingVo createJobPosting(CreateJobPostingRequest request);
+
+    @Caching(put = {
+        @CachePut(value = "jobPostings", key = "#jobPostingVo.id")
+    }, evict = {
+        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #jobPostingVo.companyId"),
+        @CacheEvict(value = "jobPostings", key = "'all'")
+    })
+    JobPostingVo updateJobPosting(JobPostingVo jobPostingVo);
+
+    // 需先查詢 entity 取得 companyId → 使用 CacheManager
+    void deleteJobPosting(String id);
+
+    @Caching(evict = {
+        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #companyId"),
+        @CacheEvict(value = "jobPostings", key = "'all'"),
+        @CacheEvict(value = "companies", key = "'all'")
+    })
+    List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId);
+}
 ```
 
 ---
@@ -454,17 +530,29 @@ List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId);  // evict bycompany +
 - `@Cacheable(value = "aquarkData", key = "#result.station_id + '_' + #result.trans_time.toString()")` → 改為 `#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time`
 
 ```java
-// 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
-@Cacheable(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", sync = true)
-AquarkDataRaw getAquarkData(AquarkDataRaw aquarkDataRaw);
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "aquarkDataAvg", key = "#startTime.toString() + '_' + #endTime.toString()", unless = "#result == null")
-Double getAverageAquark(Date startTime, Date endTime);
+import com.example.BackendArchitectureLab.Entity.AquarkDataRaw;
+import com.example.BackendArchitectureLab.Vo.AquarkDataVo;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import java.util.Date;
 
-// 寫入 - 更新快取
-@CachePut(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time")
-@CacheEvict(value = "aquarkDataAvg", allEntries = true)
-AquarkDataVo updateAquarkData(AquarkDataRaw aquarkDataRaw);
+public interface AquarkDataServiceCacheExample {
+
+    // 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
+    @Cacheable(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", sync = true)
+    AquarkDataRaw getAquarkData(AquarkDataRaw aquarkDataRaw);
+
+    @Cacheable(value = "aquarkDataAvg", key = "#startTime.toString() + '_' + #endTime.toString()", unless = "#result == null")
+    Double getAverageAquark(Date startTime, Date endTime);
+
+    // 寫入 - 更新快取
+    @CachePut(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time")
+    @CacheEvict(value = "aquarkDataAvg", allEntries = true)
+    AquarkDataVo updateAquarkData(AquarkDataRaw aquarkDataRaw);
+}
 ```
 
 ---
@@ -472,49 +560,60 @@ AquarkDataVo updateAquarkData(AquarkDataRaw aquarkDataRaw);
 ### 4.9 UserJobLinkService（快取名稱: `userJobLinks`）
 
 ```java
-@Cacheable(value = "userJobLinks", sync = true)
-List<UserJobLinkVo> getAllUserJobLinks();
+package com.example.BackendArchitectureLab.Service;
 
-@Cacheable(value = "userJobLinks", key = "#id", sync = true)
-UserJobLinkVo getUserJobLinkById(String id);
+import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import java.util.List;
 
-@Cacheable(value = "userJobLinks", key = "'byuser:' + #userId", sync = true)
-List<UserJobLinkVo> getUserJobLinksByUserId(String userId);
+public interface UserJobLinkServiceCacheExample {
 
-@Cacheable(value = "userJobLinks", key = "'byjob:' + #jobPostingId", sync = true)
-List<UserJobLinkVo> getUserJobLinksByJobPostingId(String jobPostingId);
+    @Cacheable(value = "userJobLinks", sync = true)
+    List<UserJobLinkVo> getAllUserJobLinks();
 
-@Cacheable(value = "userJobLinks", key = "'currentuser:' + #currentUserId", sync = true)
-List<UserJobLinkVo> getCurrentUserJobLinks(String currentUserId);
+    @Cacheable(value = "userJobLinks", key = "#id", sync = true)
+    UserJobLinkVo getUserJobLinkById(String id);
 
-// 寫入操作 - @CachePut + 精確 evict
-@Caching(put = {
-    @CachePut(value = "userJobLinks", key = "#result.id")
-}, evict = {
-    @CacheEvict(value = "userJobLinks", key = "'byuser:' + #userJobLinkVo.userId"),
-    @CacheEvict(value = "userJobLinks", key = "'byjob:' + #userJobLinkVo.jobPostingId"),
-    @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #userJobLinkVo.userId")
-})
-UserJobLinkVo createUserJobLink(UserJobLinkVo userJobLinkVo);  // @CachePut(id) + evict 3 項關聯 key
+    @Cacheable(value = "userJobLinks", key = "'byuser:' + #userId", sync = true)
+    List<UserJobLinkVo> getUserJobLinksByUserId(String userId);
 
-// 需先查詢 entity 取得 userId + jobPostingId → 使用 CacheManager
-void deleteUserJobLink(String id);  // CacheManager evict(id + byuser + byjob + currentuser)
+    @Cacheable(value = "userJobLinks", key = "'byjob:' + #jobPostingId", sync = true)
+    List<UserJobLinkVo> getUserJobLinksByJobPostingId(String jobPostingId);
 
-@Caching(put = {
-    @CachePut(value = "userJobLinks", key = "#result.id")
-}, evict = {
-    @CacheEvict(value = "userJobLinks", key = "'byuser:' + #currentUserId"),
-    @CacheEvict(value = "userJobLinks", key = "'byjob:' + #jobPostingId"),
-    @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #currentUserId")
-})
-UserJobLinkVo addJobToCurrentUser(String currentUserId, String jobPostingId);  // @CachePut + 精確 evict
+    @Cacheable(value = "userJobLinks", key = "'currentuser:' + #currentUserId", sync = true)
+    List<UserJobLinkVo> getCurrentUserJobLinks(String currentUserId);
 
-@Caching(evict = {
-    @CacheEvict(value = "userJobLinks", key = "'byuser:' + #currentUserId"),
-    @CacheEvict(value = "userJobLinks", key = "'byjob:' + #jobPostingId"),
-    @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #currentUserId")
-})
-void removeJobFromCurrentUser(String currentUserId, String jobPostingId);  // 精確 evict
+    // 寫入操作 - @CachePut + 精確 evict
+    @Caching(put = {
+        @CachePut(value = "userJobLinks", key = "#result.id")
+    }, evict = {
+        @CacheEvict(value = "userJobLinks", key = "'byuser:' + #userJobLinkVo.userId"),
+        @CacheEvict(value = "userJobLinks", key = "'byjob:' + #userJobLinkVo.jobPostingId"),
+        @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #userJobLinkVo.userId")
+    })
+    UserJobLinkVo createUserJobLink(UserJobLinkVo userJobLinkVo);
+
+    void deleteUserJobLink(String id);
+
+    @Caching(put = {
+        @CachePut(value = "userJobLinks", key = "#result.id")
+    }, evict = {
+        @CacheEvict(value = "userJobLinks", key = "'byuser:' + #currentUserId"),
+        @CacheEvict(value = "userJobLinks", key = "'byjob:' + #jobPostingId"),
+        @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #currentUserId")
+    })
+    UserJobLinkVo addJobToCurrentUser(String currentUserId, String jobPostingId);
+
+    @Caching(evict = {
+        @CacheEvict(value = "userJobLinks", key = "'byuser:' + #currentUserId"),
+        @CacheEvict(value = "userJobLinks", key = "'byjob:' + #jobPostingId"),
+        @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #currentUserId")
+    })
+    void removeJobFromCurrentUser(String currentUserId, String jobPostingId);
+}
 ```
 
 ---
@@ -522,18 +621,29 @@ void removeJobFromCurrentUser(String currentUserId, String jobPostingId);  // �
 ### 4.10 AlertCheckLimitService（快取名稱: `alertCheckLimit`）
 
 ```java
-// 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
-@Cacheable(value = "alertCheckLimit", key = "#tableName + '.' + #column", sync = true)
-AlertCheckLimitVo getLimit(String tableName, String column);
+package com.example.BackendArchitectureLab.Service;
 
-@CachePut(value = "alertCheckLimit", key = "#tableName + '.' + #column")
-AlertCheckLimitVo insertLimit(String tableName, String column, double limitValue);
+import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
+import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 
-@CachePut(value = "alertCheckLimit", key = "#entity.tableName + '.' + #entity.columnName")
-AlertCheckLimit updateEntity(AlertCheckLimit entity);
+public interface AlertCheckLimitServiceCacheExample {
 
-@CacheEvict(value = "alertCheckLimit", key = "#entity.tableName + '.' + #entity.columnName")
-void deleteLimitEntity(AlertCheckLimit entity);
+    // 查詢 - 快取（不命中時，一律由 TransactionExecutor.executeReadOnly 唯讀事務載入，消滅 AOP 衝突）
+    @Cacheable(value = "alertCheckLimit", key = "#tableName + '.' + #column", sync = true)
+    AlertCheckLimitVo getLimit(String tableName, String column);
+
+    @CachePut(value = "alertCheckLimit", key = "#tableName + '.' + #column")
+    AlertCheckLimitVo insertLimit(String tableName, String column, double limitValue);
+
+    @CachePut(value = "alertCheckLimit", key = "#entity.tableName + '.' + #entity.columnName")
+    AlertCheckLimit updateEntity(AlertCheckLimit entity);
+
+    @CacheEvict(value = "alertCheckLimit", key = "#entity.tableName + '.' + #entity.columnName")
+    void deleteLimitEntity(AlertCheckLimit entity);
+}
 ```
 
 ---
@@ -722,18 +832,22 @@ void deleteLimitEntity(AlertCheckLimit entity);
 ### 實作細節
 
 ```java
+package com.example.BackendArchitectureLab.Util;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
+import java.util.List;
 
 // CacheListWrapper 定義（位於 backend-common）
 @Getter
 public class CacheListWrapper<T> {
-   private List<T> data;
+    private List<T> data;
 
-   @JsonCreator
-   public CacheListWrapper(@JsonProperty("data") List<T> data) {
-      this.data = data;
-   }
-
+    @JsonCreator
+    public CacheListWrapper(@JsonProperty("data") List<T> data) {
+        this.data = data;
+    }
 }
 ```
 
@@ -790,18 +904,35 @@ public class TransactionExecutor {
 所有微服務的快取唯讀查詢，一律改採 Lambda 閉包方式包裹在 `TransactionExecutor.executeReadOnly` 中。這能百分之百確保當快取不命中時，以最安全、最乾淨的形式開啟唯讀事務 Session：
 
 ```java
-@Autowired
-private TransactionExecutor transactionExecutor;
+package com.example.BackendArchitectureLab.Service.Impl;
 
-@Cacheable(value = "companies", key = "#id", sync = true)
-@Override
-public CompanyVo getCompanyById(String id) {
-    return transactionExecutor.executeReadOnly(() -> {
-        UUID uuid = mapUuid(id);
-        Company company = companyDataAccess.findById(uuid)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
-        return companyMapper.toVo(company); // 觸發 Lazy-loaded 屬性加載，此時已有唯讀事務 session 保障
-    });
+import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
+import com.example.BackendArchitectureLab.Entity.Company;
+import com.example.BackendArchitectureLab.Mapper.CompanyMapper;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.CompanyVo;
+import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class CompanyServiceCacheImplExample {
+
+    private final TransactionExecutor transactionExecutor;
+    private final ICompanyDataAccess companyDataAccess;
+    private final CompanyMapper companyMapper;
+
+    @Cacheable(value = "companies", key = "#id", sync = true)
+    public CompanyVo getCompanyById(String id) {
+        return transactionExecutor.executeReadOnly(() -> {
+            UUID uuid = UUID.fromString(id);
+            Company company = companyDataAccess.findById(uuid)
+                    .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+            return companyMapper.toVo(company); // 觸發 Lazy-loaded 屬性加載，此時已有唯讀事務 session 保障
+        });
+    }
 }
 ```
 
@@ -836,7 +967,6 @@ public CompanyVo getCompanyById(String id) {
 4. **Alert Service (`backend-alert-service`)**：
     - `AlertCheckLimitService.getLimit` (告警門檻值快取)
     - `AquarkDataService.getAquarkData` (IoT 水文資料快取)
-```
 
 ---
 
@@ -921,5 +1051,5 @@ Response:
 - **非同步**：透過 Kafka 非同步發送，對快取路徑零延遲影響
 - **O(1) 聚合**：Consumer 使用 `HINCRBY` 原子自增，Redis 端高效聚合
 - **可開關**：透過 `kafka.stats.enabled` 配置，不需時可完全關閉
-- **無需 Feign 呼叫**：跨服務通訊僅依賴 Kafka，不增加耦合```
+- **無需 Feign 呼叫**：跨服務通訊僅依賴 Kafka，不增加耦合
 

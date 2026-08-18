@@ -52,6 +52,10 @@ public class JobPostingService implements IJobPostingService {
     @Lazy
     private final IJobPostingService self;
 
+    private IJobPostingService getSelf() {
+        return self != null ? self : this;
+    }
+
     @Override
     @Transactional
     @Caching(put = {
@@ -80,7 +84,7 @@ public class JobPostingService implements IJobPostingService {
 
     @Override
     public List<JobPostingVo> getAllJobPostings() {
-        return self.getAllJobPostingsCache().getData();
+        return getSelf().getAllJobPostingsCache().getData();
     }
 
     @Override
@@ -178,7 +182,7 @@ public class JobPostingService implements IJobPostingService {
 
     @Override
     public List<JobPostingVo> getJobPostingsByCompanyId(String companyId) {
-        return self.getJobPostingsByCompanyIdCache(companyId).getData();
+        return getSelf().getJobPostingsByCompanyIdCache(companyId).getData();
     }
 
     @Override

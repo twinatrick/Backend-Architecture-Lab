@@ -60,6 +60,13 @@ public class RoleService implements IRoleService {
     private final UserMapper userMapper;
     private final CacheManager cacheManager;
 
+    @Lazy
+    private final IRoleService self;
+
+    private IRoleService getSelf() {
+        return self != null ? self : this;
+    }
+
     @Override
     @Transactional
     @Caching(put = {
@@ -88,13 +95,13 @@ public class RoleService implements IRoleService {
     public RoleOutVo addRoleWithFunctions(RoleOutVo roleOutVo) {
         RoleOutVo savedRole = addRole(roleOutVo);
         syncRoleFunctions(savedRole.getId(), roleOutVo.getFunctionIds());
-        return getRoleById(savedRole.getId().toString());
+        return getSelf().getRoleById(savedRole.getId().toString());
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRole() {
-        return getRoleListCache().getData();
+        return getSelf().getRoleListCache().getData();
     }
 
     @Override
@@ -149,7 +156,7 @@ public class RoleService implements IRoleService {
     public RoleOutVo updateRoleWithFunctions(RoleOutVo roleOutVo) {
         RoleOutVo updatedRole = updateRole(roleOutVo);
         syncRoleFunctions(updatedRole.getId(), roleOutVo.getFunctionIds());
-        return getRoleById(updatedRole.getId().toString());
+        return getSelf().getRoleById(updatedRole.getId().toString());
     }
 
     @Transactional
@@ -463,7 +470,7 @@ public class RoleService implements IRoleService {
     @Override
     @Transactional(readOnly = true)
     public List<FunctionVo> getFunctionByRole(String roleId) {
-        return getFunctionByRoleCache(roleId).getData();
+        return getSelf().getFunctionByRoleCache(roleId).getData();
     }
 
     @Override
@@ -488,7 +495,7 @@ public class RoleService implements IRoleService {
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRoleByFunction(String functionId) {
-        return getRoleByFunctionCache(functionId).getData();
+        return getSelf().getRoleByFunctionCache(functionId).getData();
     }
 
     @Override
@@ -513,7 +520,7 @@ public class RoleService implements IRoleService {
     @Transactional(readOnly = true)
     @Override
     public List<UserVo> getUserByRole(String roleId) {
-        return getUserByRoleCache(roleId).getData();
+        return getSelf().getUserByRoleCache(roleId).getData();
     }
 
     @Override
@@ -538,7 +545,7 @@ public class RoleService implements IRoleService {
     @Transactional(readOnly = true)
     @Override
     public List<RoleOutVo> getRoleByUser(String userId) {
-        return getRoleByUserListCache(userId).getData();
+        return getSelf().getRoleByUserListCache(userId).getData();
     }
 
     @Override
