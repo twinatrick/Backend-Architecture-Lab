@@ -10,6 +10,7 @@ import com.linecorp.bot.model.richmenu.RichMenuBounds;
 import com.linecorp.bot.model.richmenu.RichMenuIdResponse;
 import com.linecorp.bot.model.richmenu.RichMenuSize;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,19 +23,15 @@ import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class LineGfRichMenuService implements ILineGfRichMenuService {
 
     private static final Logger log = LoggerFactory.getLogger(LineGfRichMenuService.class);
 
+    @Qualifier("gfLineMessagingClient")
     private final LineMessagingClient messagingClient;
+    @Qualifier("gfLineBlobClient")
     private final LineBlobClient blobClient;
-
-    public LineGfRichMenuService(
-            @Qualifier("gfLineMessagingClient") LineMessagingClient messagingClient,
-            @Qualifier("gfLineBlobClient") LineBlobClient blobClient) {
-        this.messagingClient = messagingClient;
-        this.blobClient = blobClient;
-    }
 
     @PostConstruct
     public void init() {

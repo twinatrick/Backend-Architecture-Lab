@@ -23,6 +23,7 @@ import com.linecorp.bot.client.MessageContentResponse;
 import com.linecorp.bot.model.ReplyMessage;
 import com.linecorp.bot.model.message.AudioMessage;
 import com.linecorp.bot.model.message.TextMessage;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -34,9 +35,12 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class LineGfService implements ILineGfService {
 
+    @Qualifier("gfLineMessagingClient")
     private final LineMessagingClient messagingClient;
+    @Qualifier("gfLineBlobClient")
     private final LineBlobClient blobClient;
     private final AiPyServiceFeignClient aiPyServiceFeignClient;
     private final ITtsService ttsService;
@@ -48,27 +52,6 @@ public class LineGfService implements ILineGfService {
 
     @Value("${OUT_URL:}")
     private String outUrl;
-
-    public LineGfService(
-            @Qualifier("gfLineMessagingClient") LineMessagingClient messagingClient,
-            @Qualifier("gfLineBlobClient") LineBlobClient blobClient,
-            AiPyServiceFeignClient aiPyServiceFeignClient,
-            ITtsService ttsService,
-            ISttService sttService,
-            IUsageTrackService usageTrackService,
-            ILineGfSessionDataAccess sessionDataAccess,
-            GfSessionMapper gfSessionMapper,
-            ObjectMapper objectMapper) {
-        this.messagingClient = messagingClient;
-        this.blobClient = blobClient;
-        this.aiPyServiceFeignClient = aiPyServiceFeignClient;
-        this.ttsService = ttsService;
-        this.sttService = sttService;
-        this.usageTrackService = usageTrackService;
-        this.sessionDataAccess = sessionDataAccess;
-        this.gfSessionMapper = gfSessionMapper;
-        this.objectMapper = objectMapper;
-    }
 
     @Override
     public void handleText(String replyToken, String text, String userId) {

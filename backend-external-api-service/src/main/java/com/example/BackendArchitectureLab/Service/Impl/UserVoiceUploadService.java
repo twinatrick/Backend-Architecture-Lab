@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class UserVoiceUploadService implements IUserVoiceUploadService {
 
     private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
@@ -45,26 +46,8 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
     private final TransactionExecutor transactionExecutor;
     private final StringRedisTemplate stringRedisTemplate;
     private final CacheManager cacheManager;
+    @Lazy
     private final IUserVoiceUploadService self;
-
-    public UserVoiceUploadService(
-            IUserVoiceUploadDataAccess userVoiceUploadDataAccess,
-            IVoiceTranslationDataAccess voiceTranslationDataAccess,
-            UserVoiceUploadMapper uploadMapper,
-            VoiceTranslationMapper translationMapper,
-            TransactionExecutor transactionExecutor,
-            StringRedisTemplate stringRedisTemplate,
-            CacheManager cacheManager,
-            @Lazy IUserVoiceUploadService self) {
-        this.userVoiceUploadDataAccess = userVoiceUploadDataAccess;
-        this.voiceTranslationDataAccess = voiceTranslationDataAccess;
-        this.uploadMapper = uploadMapper;
-        this.translationMapper = translationMapper;
-        this.transactionExecutor = transactionExecutor;
-        this.stringRedisTemplate = stringRedisTemplate;
-        this.cacheManager = cacheManager;
-        this.self = self;
-    }
 
     @Override
     @Transactional
