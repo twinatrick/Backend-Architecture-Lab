@@ -28,18 +28,10 @@ def load_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 def resolve_pr_number(event):
-    # Primary contract: pull_request event.
     pr = event.get("pull_request") or {}
     if pr.get("number"):
         return int(pr["number"])
 
-    # Explicit PR number supplied by the trusted workflow is the authoritative
-    # fallback and keeps the resolver independent of workflow_run payloads.
-    env_number = os.environ.get("PR_NUMBER")
-    if env_number and env_number.isdigit():
-        return int(env_number)
-
-    # Backward compatibility for the legacy workflow_run event shape.
     workflow_run = event.get("workflow_run") or {}
     pull_requests = workflow_run.get("pull_requests") or event.get("pull_requests") or []
     if pull_requests and pull_requests[0].get("number"):
@@ -50,16 +42,21 @@ def resolve_pr_number(event):
 def publish_review(pr_number, body, event="COMMENT"):
     marker = "<!-- ai-review-gate -->"
     body = body.rstrip() + "\n\n" + marker
-    comments = gh_get(f"https://api.github.com/repos/{REPO}/issues/{pr_number}/comments", params={"per_page": 100})
-    existing = next((c for c in comments if marker in c.get("body", "")), None)
+    reviews = gh_get(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/reviews", params={"per_page": 100})
+    existing = next((r for r in reviews if marker in (r.get("body") or "")), None)
+    payload = {"body": body, "event": event}
     if existing:
-        response = requests.patch(f"https://api.github.com/repos/{REPO}/issues/comments/{existing['id']}", headers=headers, json={"body": body}, timeout=30)
-    else:
-        response = requests.post(f"https://api.github.com/repos/{REPO}/issues/{pr_number}/comments", headers=headers, json={"body": body}, timeout=30)
+        # GitHub does not provide an update endpoint for submitted reviews.
+        # Keep the latest result as a new formal PR review rather than falling
+        # back to an Issue comment, so the Review UI remains authoritative.
+        pass
+    response = requests.post(
+        f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/reviews",
+        headers=headers,
+        json=payload,
+        timeout=30,
+    )
     response.raise_for_status()
-    if event in {"REQUEST_CHANGES", "APPROVE"}:
-        review_response = requests.post(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}/reviews", headers=headers, json={"body": body, "event": event}, timeout=30)
-        review_response.raise_for_status()
 
 def provider_failure(pr_number, attempted, details):
     body = """# AI Architecture & Security Review
@@ -80,7 +77,7 @@ REQUEST_CHANGES
 ## 執行原則
 - 所有自然語言內容使用繁體中文。
 - AI Provider 失敗不會被當成 Review PASS。
-- GitHub PR 會留下明確的失敗說明。
+- GitHub PR 會留下正式的 Pull Request Review。
 """
     publish_review(pr_number, body, "REQUEST_CHANGES")
     raise SystemExit(f"AI provider unavailable: {attempted}")
