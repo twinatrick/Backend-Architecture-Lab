@@ -138,3 +138,28 @@ def test_extract_json_payload_invalid_json_raises():
     with pytest.raises(json.JSONDecodeError):
         review.extract_json_payload(raw)
 
+
+def test_normalize_path_and_paths():
+    assert review.normalize_path("  ./foo/bar.py  ") == "foo/bar.py"
+    assert review.normalize_path("foo\\bar.py") == "foo/bar.py"
+    assert review.normalize_path("") == ""
+    assert review.normalize_path(None) == ""
+    assert review.normalize_paths([" ./a.py ", "b\\c.py", ""]) == ["a.py", "b/c.py"]
+    assert review.normalize_paths(None) == []
+
+
+def test_validate_coverage_with_order_and_normalization():
+    expected = [".github/ai-review/review.py", ".github/ai-review/tests/test_review.py"]
+    reviewed_reversed = ["./.github/ai-review/tests/test_review.py", " .github/ai-review/review.py "]
+    norm_expected = review.normalize_paths(expected)
+    norm_reviewed = review.normalize_paths(reviewed_reversed)
+    assert review.validate_coverage(norm_expected, norm_reviewed)
+
+
+def test_validate_coverage_fails_when_missing_or_extra():
+    expected = ["a.py", "b.py"]
+    norm_expected = review.normalize_paths(expected)
+    assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py"]))
+    assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py", "b.py", "c.py"]))
+    assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py", "a.py"]))
+

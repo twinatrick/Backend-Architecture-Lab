@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import sys
 import requests
-from engine import evaluate, load_policy, validate_finding
+from engine import evaluate, load_policy, validate_coverage, validate_finding
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO = os.environ.get("REPO", "")
@@ -28,6 +28,21 @@ def get_groq_api_key():
 
 def get_event_path():
     return os.environ.get("EVENT_PATH") or EVENT_PATH
+
+
+def normalize_path(path_str: str) -> str:
+    if not isinstance(path_str, str):
+        return ""
+    normalized = path_str.strip().replace("\\", "/")
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def normalize_paths(path_list) -> list:
+    if not isinstance(path_list, list):
+        return []
+    return [normalize_path(p) for p in path_list if normalize_path(p)]
 
 
 def get_github_headers():
@@ -419,7 +434,7 @@ def main():
 【相關規範】
 {relevant_rules}
 
-【本批次檔案】
+【本批次檔案】（files_reviewed 欄位必須完整包含下列所有路徑字串，不可修改或遺漏）
 {chr(10).join(paths)}
 
 【PR Diff】
@@ -457,8 +472,18 @@ def main():
             )
             raise SystemExit(f"批次 {scope}-{index} JSON 解析失敗：{exc}")
 
-        if batch_data.get("coverage") != "COMPLETE" or batch_data.get("files_reviewed") != paths:
-            cov_err = f"批次覆蓋範圍驗證失敗：{scope}-{index}"
+        norm_expected_paths = normalize_paths(paths)
+        raw_reviewed_paths = batch_data.get("files_reviewed")
+        norm_reviewed_paths = normalize_paths(raw_reviewed_paths)
+        coverage_status = str(batch_data.get("coverage", "")).strip().upper()
+
+        if coverage_status != "COMPLETE" or not validate_coverage(norm_expected_paths, norm_reviewed_paths):
+            cov_err = (
+                f"批次覆蓋範圍驗證失敗：{scope}-{index}\n"
+                f"- 預期檔案：{paths}\n"
+                f"- 模型回傳檔案：{raw_reviewed_paths}\n"
+                f"- 覆蓋標記：{batch_data.get('coverage')}"
+            )
             publish_failure_report(pr_number, "批次覆蓋範圍不符", cov_err)
             raise SystemExit(cov_err)
 
@@ -470,11 +495,12 @@ def main():
 
         results.append(batch_data)
 
-    reviewed_files = [filename for data in results for filename in data["files_reviewed"]]
+    reviewed_files = [filename for data in results for filename in normalize_paths(data.get("files_reviewed", []))]
     findings = [finding for data in results for finding in data.get("findings", [])]
     passed_checks = [check for data in results for check in data.get("passed_checks", [])]
 
-    evaluation_result = evaluate(findings, expected_files, reviewed_files, policy)
+    expected_all_files = normalize_paths(expected_files)
+    evaluation_result = evaluate(findings, expected_all_files, reviewed_files, policy)
     decision = evaluation_result["decision"]
     unique_findings = evaluation_result["findings"]
     blocking_findings = evaluation_result["blocking_findings"]
