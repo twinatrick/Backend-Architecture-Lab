@@ -47,10 +47,20 @@ class IamDataAccessWiringTest {
     @Test
     @DisplayName("所有 DataAccess Bean 應由 Spring Context 正確完成建構子注入裝配")
     void allDataAccessBeansShouldBeWiredSuccessfully() {
-        assertThat(userDataAccess).isNotNull();
-        assertThat(userRoleDataAccess).isNotNull();
-        assertThat(roleDataAccess).isNotNull();
-        assertThat(roleFunctionDataAccess).isNotNull();
-        assertThat(functionDataAccess).isNotNull();
+        assertThat(userDataAccess)
+                .isNotNull()
+                .isInstanceOf(UserDataAccessImpl.class);
+        assertThat(userRoleDataAccess)
+                .isNotNull()
+                .isInstanceOf(UserRoleDataAccessImpl.class);
+        assertThat(roleDataAccess)
+                .isNotNull()
+                .isInstanceOf(RoleDataAccessImpl.class);
+        assertThat(roleFunctionDataAccess)
+                .isNotNull()
+                .isInstanceOf(RoleFunctionDataAccessImpl.class);
+        assertThat(functionDataAccess)
+                .isNotNull()
+                .isInstanceOf(FunctionDataAccessImpl.class);
     }
 }

@@ -32,7 +32,11 @@ class AlertDataAccessWiringTest {
     @Test
     @DisplayName("所有 DataAccess Bean 應由 Spring Context 正確完成建構子注入裝配")
     void allDataAccessBeansShouldBeWiredSuccessfully() {
-        assertThat(aquarkDataDataAccess).isNotNull();
-        assertThat(alertCheckLimitDataAccess).isNotNull();
+        assertThat(aquarkDataDataAccess)
+                .isNotNull()
+                .isInstanceOf(AquarkDataDataAccessImpl.class);
+        assertThat(alertCheckLimitDataAccess)
+                .isNotNull()
+                .isInstanceOf(AlertCheckLimitDataAccessImpl.class);
     }
 }

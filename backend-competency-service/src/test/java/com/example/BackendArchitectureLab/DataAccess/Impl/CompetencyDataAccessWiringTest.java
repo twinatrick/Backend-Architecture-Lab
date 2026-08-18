@@ -77,16 +77,38 @@ class CompetencyDataAccessWiringTest {
     @Test
     @DisplayName("所有 DataAccess Bean 應由 Spring Context 正確完成建構子注入裝配")
     void allDataAccessBeansShouldBeWiredSuccessfully() {
-        assertThat(projectDataAccess).isNotNull();
-        assertThat(projectSkillDataAccess).isNotNull();
-        assertThat(skillDataAccess).isNotNull();
-        assertThat(skillLevelDataAccess).isNotNull();
-        assertThat(userProjectDataAccess).isNotNull();
-        assertThat(userProjectSkillDataAccess).isNotNull();
-        assertThat(userSkillDataAccess).isNotNull();
-        assertThat(compensationEventLogDataAccess).isNotNull();
-        assertThat(compensationRestoreLogDataAccess).isNotNull();
-        assertThat(compensationOutboxEventDataAccess).isNotNull();
-        assertThat(externalSyncCommandDataAccess).isNotNull();
+        assertThat(projectDataAccess)
+                .isNotNull()
+                .isInstanceOf(ProjectDataAccessImpl.class);
+        assertThat(projectSkillDataAccess)
+                .isNotNull()
+                .isInstanceOf(ProjectSkillDataAccessImpl.class);
+        assertThat(skillDataAccess)
+                .isNotNull()
+                .isInstanceOf(SkillDataAccessImpl.class);
+        assertThat(skillLevelDataAccess)
+                .isNotNull()
+                .isInstanceOf(SkillLevelDataAccessImpl.class);
+        assertThat(userProjectDataAccess)
+                .isNotNull()
+                .isInstanceOf(UserProjectDataAccessImpl.class);
+        assertThat(userProjectSkillDataAccess)
+                .isNotNull()
+                .isInstanceOf(UserProjectSkillDataAccessImpl.class);
+        assertThat(userSkillDataAccess)
+                .isNotNull()
+                .isInstanceOf(UserSkillDataAccessImpl.class);
+        assertThat(compensationEventLogDataAccess)
+                .isNotNull()
+                .isInstanceOf(CompensationEventLogDataAccessImpl.class);
+        assertThat(compensationRestoreLogDataAccess)
+                .isNotNull()
+                .isInstanceOf(CompensationRestoreLogDataAccessImpl.class);
+        assertThat(compensationOutboxEventDataAccess)
+                .isNotNull()
+                .isInstanceOf(CompensationOutboxEventDataAccessImpl.class);
+        assertThat(externalSyncCommandDataAccess)
+                .isNotNull()
+                .isInstanceOf(ExternalSyncCommandDataAccessImpl.class);
     }
 }

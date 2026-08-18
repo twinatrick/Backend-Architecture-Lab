@@ -42,9 +42,17 @@ class JobDataAccessWiringTest {
     @Test
     @DisplayName("所有 DataAccess Bean 應由 Spring Context 正確完成建構子注入裝配")
     void allDataAccessBeansShouldBeWiredSuccessfully() {
-        assertThat(companyDataAccess).isNotNull();
-        assertThat(companyWebsiteDataAccess).isNotNull();
-        assertThat(jobPostingDataAccess).isNotNull();
-        assertThat(userJobLinkDataAccess).isNotNull();
+        assertThat(companyDataAccess)
+                .isNotNull()
+                .isInstanceOf(CompanyDataAccessImpl.class);
+        assertThat(companyWebsiteDataAccess)
+                .isNotNull()
+                .isInstanceOf(CompanyWebsiteDataAccessImpl.class);
+        assertThat(jobPostingDataAccess)
+                .isNotNull()
+                .isInstanceOf(JobPostingDataAccessImpl.class);
+        assertThat(userJobLinkDataAccess)
+                .isNotNull()
+                .isInstanceOf(UserJobLinkDataAccessImpl.class);
     }
 }

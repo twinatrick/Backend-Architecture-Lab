@@ -47,10 +47,20 @@ class ExternalApiDataAccessWiringTest {
     @Test
     @DisplayName("所有 DataAccess Bean 應由 Spring Context 正確完成建構子注入裝配")
     void allDataAccessBeansShouldBeWiredSuccessfully() {
-        assertThat(userVoiceUploadDataAccess).isNotNull();
-        assertThat(lineGfSessionDataAccess).isNotNull();
-        assertThat(botConfigDataAccess).isNotNull();
-        assertThat(apiUsageLogDataAccess).isNotNull();
-        assertThat(voiceTranslationDataAccess).isNotNull();
+        assertThat(userVoiceUploadDataAccess)
+                .isNotNull()
+                .isInstanceOf(UserVoiceUploadDataAccessImpl.class);
+        assertThat(lineGfSessionDataAccess)
+                .isNotNull()
+                .isInstanceOf(LineGfSessionDataAccessImpl.class);
+        assertThat(botConfigDataAccess)
+                .isNotNull()
+                .isInstanceOf(BotConfigDataAccessImpl.class);
+        assertThat(apiUsageLogDataAccess)
+                .isNotNull()
+                .isInstanceOf(ApiUsageLogDataAccessImpl.class);
+        assertThat(voiceTranslationDataAccess)
+                .isNotNull()
+                .isInstanceOf(VoiceTranslationDataAccessImpl.class);
     }
 }
