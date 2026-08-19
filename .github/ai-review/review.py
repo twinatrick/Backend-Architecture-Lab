@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import re
@@ -87,8 +88,8 @@ def resolve_pr_number(event):
     if inputs.get("pr_number"):
         try:
             return int(inputs["pr_number"])
-        except ValueError:
-            pass
+        except (ValueError, TypeError) as exc:
+            logging.warning("無法將 inputs.pr_number '%s' 解析為整數: %s", inputs.get("pr_number"), exc)
 
     head_sha = workflow_run.get("head_sha") or event.get("after")
     repo_name = get_repo()
@@ -251,9 +252,6 @@ def repair_json_string(text: str) -> str:
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
         cleaned = cleaned[start_idx : end_idx + 1].strip()
 
-    # 4. 移除物件或陣列尾隨的無效逗號（Trailing Commas）：如 {"a": 1,} 或 [1, 2,]
-    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
-
     return cleaned
 
 
@@ -268,8 +266,8 @@ def extract_json_payload(raw_text: str) -> dict:
         if isinstance(parsed, dict):
             return parsed
         raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as exc:
+        logging.warning("標準 json.loads 解析失敗，嘗試移除未轉義控制字元: %s", exc)
 
     # 若一般 json.loads 失敗，嘗試移除字串內未轉義的控制字元後再次嘗試
     cleaned_controls = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", repaired)
@@ -284,8 +282,8 @@ def parse_retry_after(response) -> float:
     if header_val:
         try:
             return float(header_val)
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            logging.warning("無法解析 retry-after header '%s': %s", header_val, exc)
     try:
         err_text = response.text if hasattr(response, "text") and response.text else ""
         match_ms = re.search(r"try again in (\d+(?:\.\d+)?)\s*ms", err_text, re.IGNORECASE)
@@ -297,8 +295,8 @@ def parse_retry_after(response) -> float:
         match_m = re.search(r"try again in (\d+(?:\.\d+)?)\s*m\b", err_text, re.IGNORECASE)
         if match_m:
             return float(match_m.group(1)) * 60.0
-    except (ValueError, TypeError, AttributeError):
-        pass
+    except (ValueError, TypeError, AttributeError) as exc:
+        logging.warning("無法從錯誤訊息文字解析重試延遲時間: %s", exc)
     return 5.0
 
 

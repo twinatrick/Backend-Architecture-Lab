@@ -279,11 +279,18 @@ def test_calculate_backoff_delay_capped_at_max_delay():
     assert delay == 90.0
 
 
-def test_repair_json_string_with_trailing_commas():
-    raw = '{"batch": "ci-1", "files_reviewed": ["a.py", "b.py",], "findings": [],}'
+def test_extract_json_payload_preserves_string_literals_with_commas_and_brackets():
+    raw = '{"batch": "ci-1", "files_reviewed": ["a.py"], "findings": [{"evidence": "items = [1,];", "problem": "issue with mapping,}"}]}'
     parsed = review.extract_json_payload(raw)
     assert parsed["batch"] == "ci-1"
-    assert parsed["files_reviewed"] == ["a.py", "b.py"]
+    assert parsed["findings"][0]["evidence"] == "items = [1,];"
+    assert parsed["findings"][0]["problem"] == "issue with mapping,}"
+
+
+def test_extract_json_payload_invalid_trailing_comma_raises_decode_error():
+    raw = '{"batch": "ci-1", "files_reviewed": ["a.py", "b.py",], "findings": [],}'
+    with pytest.raises(json.JSONDecodeError):
+        review.extract_json_payload(raw)
 
 
 def test_repair_json_string_with_unclosed_think_tag():

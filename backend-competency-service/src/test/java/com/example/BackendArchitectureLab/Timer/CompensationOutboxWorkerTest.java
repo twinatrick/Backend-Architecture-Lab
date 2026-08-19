@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -265,6 +266,58 @@ class CompensationOutboxWorkerTest {
 
         compensationOutboxWorker.flushPendingEvents();
 
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldThrottleConcurrency_whenTasksExceedParallelism() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 2);
+        CompensationOutboxEvent outbox1 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh1 = freshWithAttempt(outbox1, 1);
+        CompensationOutboxEvent outbox2 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh2 = freshWithAttempt(outbox2, 1);
+        CompensationOutboxEvent outbox3 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh3 = freshWithAttempt(outbox3, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
+                .thenReturn(List.of(outbox1, outbox2, outbox3));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox1.getId())).thenReturn(Optional.of(fresh1));
+        when(outboxRepository.findById(outbox2.getId())).thenReturn(Optional.of(fresh2));
+        when(outboxRepository.findById(outbox3.getId())).thenReturn(Optional.of(fresh3));
+
+        AtomicInteger activeConcurrent = new AtomicInteger(0);
+        AtomicInteger maxConcurrentObserved = new AtomicInteger(0);
+
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
+            int current = activeConcurrent.incrementAndGet();
+            maxConcurrentObserved.accumulateAndGet(current, Math::max);
+            Thread.sleep(40);
+            activeConcurrent.decrementAndGet();
+            return CompletableFuture.completedFuture(null);
+        });
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        assertEquals(2, maxConcurrentObserved.get());
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(2, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldReturnGracefully_whenFreshEventNotFoundAfterClaim() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.empty());
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(compensationPublisher, never()).publish(any());
         Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
         assertEquals(1, semaphore.availablePermits());

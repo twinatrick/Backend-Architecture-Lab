@@ -165,6 +165,7 @@ public class CompensationOutboxWorker {
             // claim 後重新讀取最新狀態（attemptCount 與 fencingVersion 已由 claim 原子遞增），避免使用陳舊資料
             CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
             if (fresh == null) {
+                log.warn("Outbox 事件 claim 成功但 findById 查無資料，可能已被刪除或狀態不一致: id={}", outbox.getId());
                 return;
             }
             Long fencingVersion = fresh.getFencingVersion();
