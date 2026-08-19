@@ -1,8 +1,9 @@
 import json
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 AI_REVIEW_DIR = Path(__file__).resolve().parents[1]
@@ -29,9 +30,9 @@ def test_resolve_pr_number_from_inputs():
 
 def test_resolve_pr_number_from_commit_sha_query():
     event = {"workflow_run": {"head_sha": "abc1234", "pull_requests": []}}
-    with patch.dict(os.environ, {"REPO": "owner/repo", "GH_TOKEN": "token"}):
-        with patch("review.gh_get", return_value=[{"number": 99}]):
-            assert review.resolve_pr_number(event) == 99
+    with patch.dict(os.environ, {"REPO": "owner/repo", "GH_TOKEN": "token"}), \
+         patch("review.gh_get", return_value=[{"number": 99}]):
+        assert review.resolve_pr_number(event) == 99
 
 
 def test_resolve_pr_number_fails_when_unresolved():
@@ -278,6 +279,45 @@ def test_calculate_backoff_delay_capped_at_max_delay():
     assert delay == 90.0
 
 
+def test_repair_json_string_with_trailing_commas():
+    raw = '{"batch": "ci-1", "files_reviewed": ["a.py", "b.py",], "findings": [],}'
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+    assert parsed["files_reviewed"] == ["a.py", "b.py"]
+
+
+def test_repair_json_string_with_unclosed_think_tag():
+    raw = """<think>
+Some thinking that got truncated before closing tag
+{"batch": "ci-1", "coverage": "COMPLETE", "files_reviewed": ["a.py"], "findings": []}"""
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+
+
+def test_repair_json_string_with_embedded_markdown_codeblock():
+    raw = """Below is the review result in JSON format:
+```json
+{
+  "batch": "ci-1",
+  "coverage": "COMPLETE",
+  "files_reviewed": ["a.py"],
+  "findings": []
+}
+```
+End of review."""
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+
+
+def test_extract_json_payload_rejects_non_dict():
+    with pytest.raises(json.JSONDecodeError):
+        review.extract_json_payload('["item1", "item2"]')
+    with pytest.raises(json.JSONDecodeError):
+        review.extract_json_payload('"just a string"')
+    with pytest.raises(json.JSONDecodeError):
+        review.extract_json_payload('12345')
+
+
 def test_chat_completion_demotes_model_on_persistent_400():
     review.ACTIVE_MODEL_CANDIDATES = ["model-400-fail", "model-ok"]
 
@@ -301,6 +341,57 @@ def test_chat_completion_demotes_model_on_persistent_400():
         assert result == '{"batch": "demote-400", "findings": []}'
         assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-ok"
         assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-400-fail"
+
+
+def test_chat_completion_retries_on_invalid_json_then_succeeds():
+    mock_resp_invalid = MagicMock()
+    mock_resp_invalid.ok = True
+    mock_resp_invalid.json.return_value = {
+        "choices": [{"message": {"content": "This is not valid json {"}}]
+    }
+
+    mock_resp_valid = MagicMock()
+    mock_resp_valid.ok = True
+    mock_resp_valid.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "test-valid", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["llama-3.3-70b-versatile"]), \
+         patch("requests.post", side_effect=[mock_resp_invalid, mock_resp_valid]) as mock_post, \
+         patch("time.sleep") as mock_sleep:
+        result = review.chat_completion("test prompt", max_retries_per_model=5)
+        assert result == '{"batch": "test-valid", "findings": []}'
+        assert mock_post.call_count == 2
+        mock_sleep.assert_called_once()
+
+
+def test_chat_completion_fails_over_to_next_model_after_5_invalid_json_attempts():
+    review.ACTIVE_MODEL_CANDIDATES = ["model-bad-json", "model-good-json"]
+
+    mock_resp_invalid = MagicMock()
+    mock_resp_invalid.ok = True
+    mock_resp_invalid.json.return_value = {
+        "choices": [{"message": {"content": "Invalid truncated JSON { unterminated..."}}]
+    }
+
+    mock_resp_valid = MagicMock()
+    mock_resp_valid.ok = True
+    mock_resp_valid.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "good-model", "findings": []}'}}]
+    }
+
+    responses = [mock_resp_invalid] * 5 + [mock_resp_valid]
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["model-bad-json", "model-good-json"]), \
+         patch("requests.post", side_effect=responses) as mock_post, \
+         patch("time.sleep"):
+        result = review.chat_completion("test prompt", max_retries_per_model=5)
+        assert result == '{"batch": "good-model", "findings": []}'
+        assert mock_post.call_count == 6
+        assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-good-json"
+        assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-bad-json"
 
 
 def test_chat_completion_adaptive_model_promotion_and_demotion():

@@ -1,10 +1,10 @@
 import json
 import os
-from pathlib import Path
 import random
 import re
-import sys
 import time
+from pathlib import Path
+
 import requests
 from engine import evaluate, load_policy, validate_coverage, validate_finding
 
@@ -45,9 +45,7 @@ def normalize_path(path_str: str) -> str:
     if not isinstance(path_str, str):
         return ""
     normalized = path_str.strip().replace("\\", "/")
-    if normalized.startswith("./"):
-        normalized = normalized[2:]
-    return normalized
+    return normalized.removeprefix("./")
 
 
 def normalize_paths(path_list) -> list:
@@ -223,12 +221,14 @@ def get_available_models():
     return {model_item.get("id") for model_item in model_entries}
 
 
-def extract_json_payload(raw_text: str) -> dict:
-    if not raw_text or not isinstance(raw_text, str):
-        raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
+def repair_json_string(text: str) -> str:
+    """嘗試修復常見的 LLM 格式損毀或非標準 JSON 字串。"""
+    if not isinstance(text, str):
+        return ""
 
-    cleaned = raw_text.strip()
+    cleaned = text.strip()
 
+    # 1. 移除 <think>...</think> 或未閉合的 <think> 思維鏈標籤
     if "<think>" in cleaned.lower():
         cleaned = re.sub(r"(?i)<think>[\s\S]*?</think>", "", cleaned).strip()
         if "<think>" in cleaned.lower():
@@ -238,21 +238,45 @@ def extract_json_payload(raw_text: str) -> dict:
             else:
                 cleaned = re.sub(r"(?i)^<think>[\s\S]*?(?=\{)", "", cleaned).strip()
 
-    if cleaned.startswith("```"):
+    # 2. 提取 Markdown 代碼塊內容（支援 ```json ... ``` 或 ``` ... ```）
+    code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
+    if code_block_match:
+        cleaned = code_block_match.group(1).strip()
+    elif cleaned.startswith("```"):
         cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
-
+    # 3. 若前後仍有說明文字，精確裁切最外層的 { ... }
     start_idx = cleaned.find("{")
     end_idx = cleaned.rfind("}")
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-        json_sub = cleaned[start_idx : end_idx + 1].strip()
-        return json.loads(json_sub)
+        cleaned = cleaned[start_idx : end_idx + 1].strip()
 
-    return json.loads(cleaned)
+    # 4. 移除物件或陣列尾隨的無效逗號（Trailing Commas）：如 {"a": 1,} 或 [1, 2,]
+    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+
+    return cleaned
+
+
+def extract_json_payload(raw_text: str) -> dict:
+    if not raw_text or not isinstance(raw_text, str):
+        raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
+
+    repaired = repair_json_string(raw_text)
+
+    try:
+        parsed = json.loads(repaired)
+        if isinstance(parsed, dict):
+            return parsed
+        raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
+    except json.JSONDecodeError:
+        pass
+
+    # 若一般 json.loads 失敗，嘗試移除字串內未轉義的控制字元後再次嘗試
+    cleaned_controls = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", repaired)
+    parsed = json.loads(cleaned_controls)
+    if isinstance(parsed, dict):
+        return parsed
+    raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", cleaned_controls, 0)
 
 
 def parse_retry_after(response) -> float:
@@ -260,7 +284,7 @@ def parse_retry_after(response) -> float:
     if header_val:
         try:
             return float(header_val)
-        except ValueError:
+        except (ValueError, TypeError):
             pass
     try:
         err_text = response.text if hasattr(response, "text") and response.text else ""
@@ -273,7 +297,7 @@ def parse_retry_after(response) -> float:
         match_m = re.search(r"try again in (\d+(?:\.\d+)?)\s*m\b", err_text, re.IGNORECASE)
         if match_m:
             return float(match_m.group(1)) * 60.0
-    except Exception:
+    except (ValueError, TypeError, AttributeError):
         pass
     return 5.0
 
@@ -292,7 +316,6 @@ def calculate_backoff_delay(
 
 
 def get_candidate_models() -> list:
-    global ACTIVE_MODEL_CANDIDATES
     candidates = list(ACTIVE_MODEL_CANDIDATES)
     try:
         available_models = get_available_models()
@@ -304,8 +327,7 @@ def get_candidate_models() -> list:
     return candidates
 
 
-def chat_completion(prompt: str, max_retries_per_model: int = 9) -> str:
-    global ACTIVE_MODEL_CANDIDATES
+def chat_completion(prompt: str, max_retries_per_model: int = 5) -> str:
     api_key = get_groq_api_key()
     candidates = get_candidate_models()
 
@@ -316,10 +338,14 @@ def chat_completion(prompt: str, max_retries_per_model: int = 9) -> str:
         use_json_mode = True
         for attempt in range(1, max_retries_per_model + 1):
             try:
+                system_content = (
+                    "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
+                    "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
+                )
                 request_payload = {
                     "model": model_name,
                     "messages": [
-                        {"role": "system", "content": "你必須使用繁體中文。只輸出合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤或 Markdown。不得捏造 Finding。"},
+                        {"role": "system", "content": system_content},
                         {"role": "user", "content": prompt},
                     ],
                     "temperature": 0.1,
@@ -338,12 +364,31 @@ def chat_completion(prompt: str, max_retries_per_model: int = 9) -> str:
                     timeout=120,
                 )
                 if response.ok:
-                    print(f"使用 Groq 模型：{model_name}")
-                    # 自適應調度：將運作成功的模型提升為第一優先順位
-                    if model_name in ACTIVE_MODEL_CANDIDATES:
-                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                        ACTIVE_MODEL_CANDIDATES.insert(0, model_name)
-                    return response.json()["choices"][0]["message"]["content"]
+                    raw_content = response.json()["choices"][0]["message"]["content"]
+                    try:
+                        # 驗證輸出是否可被成功解析為合法 JSON 物件
+                        extract_json_payload(raw_content)
+                        print(f"使用 Groq 模型：{model_name}")
+                        # 自適應調度：將運作成功的模型提升為第一優先順位
+                        if model_name in ACTIVE_MODEL_CANDIDATES:
+                            ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                            ACTIVE_MODEL_CANDIDATES.insert(0, model_name)
+                        return raw_content
+                    except json.JSONDecodeError as json_exc:
+                        json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{json_exc}"
+                        error_details.append((model_name, json_err_msg))
+                        print(f"模型 {model_name} 輸出非合法 JSON（第 {attempt}/{max_retries_per_model} 次）：{json_exc}，退避等待後重試...")
+                        if attempt < max_retries_per_model:
+                            wait_seconds = calculate_backoff_delay(attempt, 0.0, base_delay=2.0, max_delay=30.0)
+                            time.sleep(wait_seconds)
+                            continue
+
+                        print(f"模型 {model_name} 連續 {max_retries_per_model} 次輸出非合法 JSON，降級至備援清單尾端並切換下一個模型。")
+                        if model_name in ACTIVE_MODEL_CANDIDATES:
+                            ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                            ACTIVE_MODEL_CANDIDATES.append(model_name)
+                        time.sleep(3.0)
+                        break
 
                 status_code = response.status_code
                 reason_msg = f"HTTP {status_code}: {response.text[:300]}"
@@ -511,7 +556,7 @@ def main():
     results = []
     for index, (scope, paths) in enumerate(batches, 1):
         if index > 1:
-            print(f"批次間隔節流：等待 5 秒以平滑 API 速率限制...")
+            print("批次間隔節流：等待 5 秒以平滑 API 速率限制...")
             time.sleep(5.0)
 
         relevant_rules_list = []

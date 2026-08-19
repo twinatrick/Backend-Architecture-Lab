@@ -29,9 +29,7 @@ def validate_finding(finding, policy=None):
         return False
     if finding.get("confidence") not in ALLOWED_CONFIDENCE:
         return False
-    if "blocking" in finding or "decision" in finding:
-        return False
-    return True
+    return "blocking" not in finding and "decision" not in finding
 
 
 def validate_coverage(expected, reviewed):
