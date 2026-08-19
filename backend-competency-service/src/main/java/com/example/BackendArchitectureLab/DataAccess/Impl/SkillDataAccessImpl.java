@@ -42,6 +42,11 @@ public class SkillDataAccessImpl implements ISkillDataAccess {
     }
 
     @Override
+    public List<Skill> findAllById(List<UUID> ids) {
+        return skillRepository.findAllById(ids);
+    }
+
+    @Override
     public Optional<Skill> findById(UUID key) {
         return skillRepository.findById(key);
     }

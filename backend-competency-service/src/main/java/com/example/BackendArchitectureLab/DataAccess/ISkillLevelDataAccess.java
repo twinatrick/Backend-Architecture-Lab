@@ -13,6 +13,8 @@ public interface ISkillLevelDataAccess {
 
     Optional<SkillLevel> findById(UUID id);
 
+    List<SkillLevel> findAllById(List<UUID> ids);
+
     List<SkillLevel> findBySkillIdOrderByLevelValueAsc(UUID skillId);
 
     boolean existsBySkillIdAndLevelValue(UUID skillId, Integer levelValue);

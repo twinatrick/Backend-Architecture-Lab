@@ -132,23 +132,13 @@ public class CompensationOutboxWorker {
                 }
                 log.debug("Published {} outbox event(s) via shared publisher pool", pending.size());
             } catch (InterruptedException e) {
-                cancelPendingFutures(futures);
                 Thread.currentThread().interrupt();
-                log.error("Outbox publish batch interrupted", e);
+                log.error("Outbox publish batch wait interrupted", e);
             } catch (ExecutionException | TimeoutException e) {
-                cancelPendingFutures(futures);
-                log.warn("Outbox publish batch did not complete within expected window, canceled remaining tasks", e);
+                log.warn("Outbox publish batch wait elapsed or timed out, background tasks will continue independently: {}", e.getMessage());
             }
         } finally {
             isFlushing.set(false);
-        }
-    }
-
-    private void cancelPendingFutures(List<Future<?>> futures) {
-        for (Future<?> future : futures) {
-            if (!future.isDone()) {
-                future.cancel(true);
-            }
         }
     }
 

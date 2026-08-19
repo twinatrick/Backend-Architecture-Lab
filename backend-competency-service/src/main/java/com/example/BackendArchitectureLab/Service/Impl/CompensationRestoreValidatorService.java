@@ -15,8 +15,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -68,6 +70,8 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
 
         // 1. 記憶體去重校驗：同一成員不可綁定重複技能（Fail-fast 拒絕 null 與非法元素）
         Set<String> seenUserSkill = new HashSet<>();
+        Set<UUID> skillIds = new HashSet<>();
+        Set<UUID> levelIds = new HashSet<>();
         for (BindingSnapshot binding : bindings) {
             if (binding == null) {
                 throw new IllegalArgumentException("Binding snapshot element must not be null");
@@ -86,6 +90,9 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                 throw new IllegalArgumentException(
                         "Duplicate binding snapshot detected for user " + userId + " and skill " + skillId);
             }
+
+            skillIds.add(skillId);
+            levelIds.add(levelId);
         }
 
         // 2. 批次載入專案成員，避免 N 次 DB roundtrip
@@ -94,7 +101,13 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                 ? projectMembers.stream().map(UserProject::getUserId).collect(Collectors.toSet())
                 : Set.of();
 
-        // 3. 驗證技能與等級是否存在且匹配
+        // 3. 批次載入技能與技能等級，避免迴圈內 N+1 DB 查詢
+        Map<UUID, Skill> skillMap = skillDataAccess.findAllById(List.copyOf(skillIds)).stream()
+                .collect(Collectors.toMap(Skill::getId, Function.identity()));
+        Map<UUID, SkillLevel> skillLevelMap = skillLevelDataAccess.findAllById(List.copyOf(levelIds)).stream()
+                .collect(Collectors.toMap(SkillLevel::getId, Function.identity()));
+
+        // 4. 驗證技能與等級是否存在且匹配
         for (BindingSnapshot binding : bindings) {
             UUID userId = binding.userId();
             UUID skillId = binding.skillId();
@@ -105,11 +118,15 @@ public class CompensationRestoreValidatorService implements ICompensationRestore
                         "User " + userId + " is not a member of project " + projectId);
             }
 
-            Skill skill = skillDataAccess.findById(skillId)
-                    .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillId));
+            Skill skill = skillMap.get(skillId);
+            if (skill == null) {
+                throw new IllegalArgumentException("Skill not found: " + skillId);
+            }
 
-            SkillLevel skillLevel = skillLevelDataAccess.findById(levelId)
-                    .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + levelId));
+            SkillLevel skillLevel = skillLevelMap.get(levelId);
+            if (skillLevel == null) {
+                throw new IllegalArgumentException("Skill level not found: " + levelId);
+            }
 
             if (!skillLevel.getSkill().getId().equals(skillId)) {
                 throw new IllegalArgumentException(

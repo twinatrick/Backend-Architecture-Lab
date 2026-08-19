@@ -25,7 +25,7 @@ def is_blocking(finding, policy):
 def validate_finding(finding, policy=None):
     if not isinstance(finding, dict):
         return False
-    if not REQUIRED_FIELDS.issubset(finding):
+    if set(finding.keys()) != REQUIRED_FIELDS:
         return False
     location = finding.get("location")
     if not isinstance(location, str) or not location.strip():
@@ -38,7 +38,7 @@ def validate_finding(finding, policy=None):
         val = finding.get(field)
         if not isinstance(val, str) or not val.strip():
             return False
-    return "blocking" not in finding and "decision" not in finding
+    return True
 
 
 def validate_coverage(expected, reviewed):

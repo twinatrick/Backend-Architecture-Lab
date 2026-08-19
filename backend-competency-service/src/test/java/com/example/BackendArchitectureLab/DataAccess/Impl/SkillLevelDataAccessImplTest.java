@@ -94,6 +94,35 @@ class SkillLevelDataAccessImplTest {
     }
 
     @Test
+    @DisplayName("應該根據 ID 清單批次查詢 SkillLevel")
+    void testFindAllById() {
+        // Arrange
+        Skill skill = new Skill();
+        skill.setName("Java");
+        skillRepository.save(skill);
+
+        SkillLevel level1 = new SkillLevel();
+        level1.setSkill(skill);
+        level1.setTitle("Junior");
+        level1.setLevelValue(1);
+        skillLevelRepository.save(level1);
+
+        SkillLevel level2 = new SkillLevel();
+        level2.setSkill(skill);
+        level2.setTitle("Senior");
+        level2.setLevelValue(2);
+        skillLevelRepository.save(level2);
+
+        // Act
+        List<SkillLevel> results = skillLevelDataAccess.findAllById(List.of(level1.getId(), level2.getId()));
+
+        // Assert
+        assertEquals(2, results.size());
+        assertTrue(results.stream().anyMatch(l -> l.getId().equals(level1.getId())));
+        assertTrue(results.stream().anyMatch(l -> l.getId().equals(level2.getId())));
+    }
+
+    @Test
     @DisplayName("當 ID 不存在時應該返回 empty Optional")
     void testFindById_NotFound() {
         // Act

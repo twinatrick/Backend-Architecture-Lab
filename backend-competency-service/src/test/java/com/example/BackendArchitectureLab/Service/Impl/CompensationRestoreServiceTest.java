@@ -120,8 +120,8 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull())).thenReturn(1);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
-        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
-        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(skillDataAccess.findAllById(List.of(skillId))).thenReturn(List.of(skill));
+        when(skillLevelDataAccess.findAllById(List.of(levelId))).thenReturn(List.of(level));
         UserProject up = new UserProject();
         up.setUserId(userId);
         up.setProject(project);
@@ -132,7 +132,7 @@ class CompensationRestoreServiceTest {
         compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId, fencingVersion, List.of(binding));
 
         verify(userProjectSkillDataAccess).deleteByProjectId(projectId);
-        verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
+        verify(userProjectSkillDataAccess).saveAll(anyList());
         verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull());
         verify(projectDataAccess).save(project);
@@ -169,8 +169,8 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull())).thenReturn(1);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
-        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
-        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(skillDataAccess.findAllById(List.of(skillId))).thenReturn(List.of(skill));
+        when(skillLevelDataAccess.findAllById(List.of(levelId))).thenReturn(List.of(level));
         UserProject up2 = new UserProject();
         up2.setUserId(userId);
         up2.setProject(project);
@@ -218,8 +218,8 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
         when(restoreLogRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(claimLog));
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
-        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
-        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(skillDataAccess.findAllById(List.of(skillId))).thenReturn(List.of(skill));
+        when(skillLevelDataAccess.findAllById(List.of(levelId))).thenReturn(List.of(level));
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("FAILED"), any(Date.class), anyString())).thenReturn(1);
         BindingSnapshot binding = new BindingSnapshot(UUID.randomUUID(), skillId, levelId);

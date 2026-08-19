@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import re
+import sys
 import time
 from pathlib import Path
 
@@ -24,6 +25,17 @@ DEFAULT_GEMINI_MODELS = [
 ]
 ACTIVE_GEMINI_MODELS = list(DEFAULT_GEMINI_MODELS)
 
+DEFAULT_MODEL_CANDIDATES = [
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-20b",
+]
+ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
+
+KEY_COOLDOWN_MAP: dict[str, float] = {}
+
 
 def parse_retry_limit(raw_value: str | None, default: int = 9) -> int:
     if raw_value is None or not str(raw_value).strip():
@@ -40,27 +52,13 @@ def parse_retry_limit(raw_value: str | None, default: int = 9) -> int:
 
 DEFAULT_MAX_RETRIES_PER_MODEL = parse_retry_limit(os.environ.get("AI_REVIEW_MAX_RETRIES"))
 
-DEFAULT_MODEL_CANDIDATES = [
-    "llama-3.1-8b-instant",
-    "llama-3.3-70b-versatile",
-    "openai/gpt-oss-120b",
-    "qwen/qwen3.6-27b",
-    "openai/gpt-oss-20b",
-]
-ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
 
-
-def get_repo():
+def get_repo() -> str:
     return os.environ.get("REPO") or REPO
 
 
-def get_gh_token():
+def get_gh_token() -> str:
     return os.environ.get("GH_TOKEN") or GH_TOKEN
-
-
-def get_groq_api_key():
-    keys = get_groq_api_keys()
-    return keys[0][1] if keys else ""
 
 
 def mask_api_key(key: str) -> str:
@@ -116,7 +114,368 @@ def get_gemini_api_keys() -> list[tuple[str, str]]:
     return get_provider_api_keys("GEMINI_API_KEY")
 
 
-KEY_COOLDOWN_MAP: dict[str, float] = {}
+def get_groq_api_key() -> str:
+    keys = get_groq_api_keys()
+    return keys[0][1] if keys else ""
+
+
+class KeyPool:
+    """管理 API 金鑰集與各金鑰的冷卻狀態。支援實例隔離與共享冷卻字典。"""
+
+    def __init__(
+        self,
+        prefix: str = "",
+        fallback_env_var: str = "",
+        cooldown_map: dict[str, float] | None = None,
+    ):
+        self.prefix = prefix
+        self.fallback_env_var = fallback_env_var
+        self.cooldown_map: dict[str, float] = (
+            cooldown_map if cooldown_map is not None else {}
+        )
+
+    def get_all_keys(self) -> list[tuple[str, str]]:
+        if not self.prefix:
+            return []
+        keys = get_provider_api_keys(self.prefix)
+        if not keys and self.fallback_env_var:
+            fallback_val = os.environ.get(self.fallback_env_var, "").strip()
+            if fallback_val:
+                keys.append((self.fallback_env_var, fallback_val))
+        return keys
+
+    def reset_cooldowns(self) -> None:
+        self.cooldown_map.clear()
+
+    def mark_cooldown(self, api_key: str, cooldown_seconds: float) -> None:
+        if not api_key:
+            return
+        self.cooldown_map[api_key] = time.time() + max(1.0, float(cooldown_seconds))
+
+    def is_in_cooldown(self, api_key: str) -> bool:
+        if not api_key or api_key not in self.cooldown_map:
+            return False
+        if time.time() >= self.cooldown_map[api_key]:
+            self.cooldown_map.pop(api_key, None)
+            return False
+        return True
+
+    def get_cooldown_remaining(self, api_key: str) -> float:
+        if not self.is_in_cooldown(api_key):
+            return 0.0
+        return max(0.0, self.cooldown_map.get(api_key, 0.0) - time.time())
+
+    def get_active_keys(
+        self, keys: list[tuple[str, str]] | None = None
+    ) -> list[tuple[str, str]]:
+        target_keys = keys if keys is not None else self.get_all_keys()
+        return [item for item in target_keys if not self.is_in_cooldown(item[1])]
+
+    def pick_random_active_key(
+        self,
+        keys: list[tuple[str, str]] | None = None,
+        excluded_keys: set[str] | None = None,
+    ) -> tuple[str, str] | None:
+        target_keys = keys if keys is not None else self.get_all_keys()
+        excluded = excluded_keys or set()
+        active_pool = [
+            item
+            for item in target_keys
+            if item[1] not in excluded and not self.is_in_cooldown(item[1])
+        ]
+        if not active_pool:
+            return None
+        return random.choice(active_pool)
+
+
+class ModelPool:
+    """管理模型候選清單，支援動態提升 (Promotion) 與降級 (Demotion)。"""
+
+    def __init__(
+        self,
+        default_models: list[str],
+        env_override_var: str | None = None,
+        module_var_name: str | None = None,
+    ):
+        self.default_models = list(default_models)
+        self.env_override_var = env_override_var
+        self.module_var_name = module_var_name
+        self.active_models: list[str] = list(default_models)
+
+    def _sync_from_module(self) -> list[str]:
+        if self.module_var_name:
+            current_module = sys.modules.get(__name__)
+            if current_module and hasattr(current_module, self.module_var_name):
+                return getattr(current_module, self.module_var_name)
+        return self.active_models
+
+    def _sync_to_module(self, models: list[str]) -> None:
+        self.active_models = models
+        if self.module_var_name:
+            current_module = sys.modules.get(__name__)
+            if current_module and hasattr(current_module, self.module_var_name):
+                setattr(current_module, self.module_var_name, models)
+
+    def get_candidates(self) -> list[str]:
+        if self.env_override_var:
+            custom_models = os.environ.get(self.env_override_var, "").strip()
+            if custom_models:
+                return [
+                    item.strip()
+                    for item in custom_models.split(",")
+                    if item.strip()
+                ]
+        return list(self._sync_from_module())
+
+    def promote(self, model_name: str) -> None:
+        models = list(self._sync_from_module())
+        if model_name in models:
+            models.remove(model_name)
+            models.insert(0, model_name)
+            self._sync_to_module(models)
+
+    def demote(self, model_name: str) -> None:
+        models = list(self._sync_from_module())
+        if model_name in models:
+            models.remove(model_name)
+            models.append(model_name)
+            self._sync_to_module(models)
+
+
+class ReviewResponseParser:
+    """負責 LLM 審查回應的 JSON 提取與格式修復。"""
+
+    @staticmethod
+    def find_balanced_json_substrings(text: str) -> list[str]:
+        candidates = []
+        i = 0
+        n = len(text)
+        while i < n:
+            if text[i] == "{":
+                start = i
+                depth = 0
+                in_string = False
+                escape = False
+                j = i
+                while j < n:
+                    char = text[j]
+                    if escape:
+                        escape = False
+                    elif char == "\\":
+                        if in_string:
+                            escape = True
+                    elif char == '"':
+                        in_string = not in_string
+                    elif not in_string:
+                        if char == "{":
+                            depth += 1
+                        elif char == "}":
+                            depth -= 1
+                            if depth == 0:
+                                candidates.append(text[start : j + 1])
+                                i = j
+                                break
+                    j += 1
+            i += 1
+        return candidates
+
+    @staticmethod
+    def repair_json_string(text: str) -> str:
+        if not isinstance(text, str):
+            return ""
+
+        cleaned = text.strip()
+
+        # 1. 移除 <think>...</think> 或未閉合的 <think> 思維鏈標籤
+        if "<think>" in cleaned.lower():
+            cleaned = re.sub(r"(?i)<think>[\s\S]*?</think>", "", cleaned).strip()
+            if "<think>" in cleaned.lower():
+                parts = re.split(r"(?i)</think>", cleaned)
+                if len(parts) > 1:
+                    cleaned = parts[-1].strip()
+                else:
+                    cleaned = re.sub(r"(?i)^<think>[\s\S]*?(?=\{)", "", cleaned).strip()
+
+        # 2. 若包含 Markdown 代碼塊（```json ... ``` 或 ``` ... ```），優先測試代碼塊內容
+        code_blocks = re.findall(
+            r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE
+        )
+        for block in code_blocks:
+            block_cleaned = block.strip()
+            try:
+                parsed = json.loads(block_cleaned)
+                if isinstance(parsed, dict):
+                    return block_cleaned
+            except (json.JSONDecodeError, ValueError, TypeError) as exc:
+                logging.debug("Markdown 代碼塊 JSON 解析略過: %s", exc)
+
+        # 3. 使用括號平衡計數精確擷取頂層平衡的 JSON 物件
+        candidates = ReviewResponseParser.find_balanced_json_substrings(cleaned)
+        valid_review_payloads = []
+        valid_other_dicts = []
+        for cand in candidates:
+            try:
+                parsed = json.loads(cand)
+                if isinstance(parsed, dict):
+                    if (
+                        "batch" in parsed
+                        and "files_reviewed" in parsed
+                        and "findings" in parsed
+                    ):
+                        valid_review_payloads.append(cand)
+                    else:
+                        valid_other_dicts.append(cand)
+            except (json.JSONDecodeError, ValueError, TypeError) as exc:
+                logging.debug("候選 JSON 子字串解析略過: %s", exc)
+                continue
+
+        if len(valid_review_payloads) == 1:
+            return valid_review_payloads[0]
+        elif len(valid_review_payloads) > 1:
+            raise json.JSONDecodeError(
+                "輸出包含多個相衝的 Review JSON 物件，無法確定唯一根結構", cleaned, 0
+            )
+
+        if len(valid_other_dicts) == 1:
+            return valid_other_dicts[0]
+        elif len(valid_other_dicts) > 1:
+            raise json.JSONDecodeError("輸出包含多個歧異 JSON 物件", cleaned, 0)
+
+        if candidates:
+            raise json.JSONDecodeError(
+                "輸出包含無法識別為合法物件的 JSON 片段", cleaned, 0
+            )
+
+        return cleaned
+
+    @staticmethod
+    def extract_json_payload(raw_text: str) -> dict:
+        if not raw_text or not isinstance(raw_text, str):
+            raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
+
+        repaired = ReviewResponseParser.repair_json_string(raw_text)
+        parsed = json.loads(repaired)
+        if isinstance(parsed, dict):
+            return parsed
+        raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
+
+
+class GroqClient:
+    """封裝 Groq Chat Completions API 請求。"""
+
+    SYSTEM_CONTENT = (
+        "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
+        "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
+    )
+
+    def __init__(self, timeout: int = 120):
+        self.timeout = timeout
+
+    def call(
+        self,
+        prompt: str,
+        model_name: str,
+        api_key: str,
+        use_json_mode: bool = True,
+    ) -> requests.Response:
+        request_payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": self.SYSTEM_CONTENT},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 4096,
+        }
+        if use_json_mode:
+            request_payload["response_format"] = {"type": "json_object"}
+
+        return requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=request_payload,
+            timeout=self.timeout,
+        )
+
+    def get_available_models(self, api_key: str) -> set[str]:
+        response = requests.get(
+            "https://api.groq.com/openai/v1/models",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        model_entries = response.json().get("data", [])
+        return {
+            model_item.get("id")
+            for model_item in model_entries
+            if "id" in model_item
+        }
+
+
+class GeminiClient:
+    """封裝 Google Gemini API 請求與文字提取。"""
+
+    SYSTEM_CONTENT = (
+        "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
+        "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
+    )
+
+    def __init__(self, timeout: int = 120):
+        self.timeout = timeout
+
+    def call(
+        self,
+        prompt: str,
+        model_name: str,
+        api_key: str,
+    ) -> requests.Response:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": self.SYSTEM_CONTENT}],
+            },
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 4096,
+                "responseMimeType": "application/json",
+            },
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        }
+        return requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+
+    @staticmethod
+    def extract_text(response_json: dict) -> str:
+        candidates = response_json.get("candidates", [])
+        if not candidates:
+            raise ValueError(f"Gemini 回應未包含 candidates: {response_json}")
+        candidate = candidates[0]
+        content = candidate.get("content", {})
+        parts = content.get("parts", [])
+        if not parts or "text" not in parts[0]:
+            raise ValueError(f"Gemini 回應 candidate 格式不正確: {candidate}")
+        return parts[0]["text"]
+
+
+# 模組預設 KeyPool 與 ModelPool 實例（共享全域冷卻與模型清單狀態）
+GLOBAL_KEY_POOL_GROQ = KeyPool("GROQ_API_KEY", "GROQ_API_KEY", KEY_COOLDOWN_MAP)
+GLOBAL_KEY_POOL_GEMINI = KeyPool("GEMINI_API_KEY", "GEMINI_API_KEY", KEY_COOLDOWN_MAP)
+GLOBAL_MODEL_POOL_GROQ = ModelPool(DEFAULT_MODEL_CANDIDATES, None, "ACTIVE_MODEL_CANDIDATES")
+GLOBAL_MODEL_POOL_GEMINI = ModelPool(DEFAULT_GEMINI_MODELS, "GEMINI_MODELS", "ACTIVE_GEMINI_MODELS")
 
 
 def reset_key_cooldowns() -> None:
@@ -157,13 +516,11 @@ def pick_random_active_key(
     keys: list[tuple[str, str]],
     excluded_keys: set[str] | None = None,
 ) -> tuple[str, str] | None:
-    """
-    自候選金鑰清單中，排除冷卻中與本輪已嘗試過之金鑰，隨機抽取一把。
-    若所有金鑰均已排除或在冷卻中，回傳 None。
-    """
+    """自候選金鑰清單中，排除冷卻中與本輪已嘗試過之金鑰，隨機抽取一把。"""
     excluded = excluded_keys or set()
     active_pool = [
-        item for item in keys
+        item
+        for item in keys
         if item[1] not in excluded and not is_key_in_cooldown(item[1])
     ]
     if not active_pool:
@@ -172,9 +529,7 @@ def pick_random_active_key(
 
 
 def redact_secrets(text: str) -> str:
-    """
-    對文字中的敏感金鑰（Groq, Gemini, GitHub Token）以及特徵 Key 進行脫敏遮蔽。
-    """
+    """對文字中的敏感金鑰（Groq, Gemini, GitHub Token）以及特徵 Key 進行脫敏遮蔽。"""
     if not text or not isinstance(text, str):
         return ""
     sanitized = text
@@ -186,11 +541,9 @@ def redact_secrets(text: str) -> str:
     if gh_token and len(gh_token) >= 6:
         known_secrets.add(gh_token)
 
-    # 替換已知的特定 secret
     for secret in sorted(known_secrets, key=len, reverse=True):
         sanitized = sanitized.replace(secret, "[REDACTED]")
 
-    # 替換符合通用 API Key 特徵的字串 (如 gsk_*, AIza*, ghp_*)
     sanitized = re.sub(r"\bgsk_[0-9A-Za-z]{20,}\b", "[REDACTED]", sanitized)
     sanitized = re.sub(r"\bAIza[0-9A-Za-z\-_]{30,}\b", "[REDACTED]", sanitized)
     sanitized = re.sub(r"\bghp_[0-9A-Za-z]{20,}\b", "[REDACTED]", sanitized)
@@ -200,10 +553,7 @@ def redact_secrets(text: str) -> str:
 
 
 def get_gemini_candidate_models() -> list[str]:
-    custom_models = os.environ.get("GEMINI_MODELS", "").strip()
-    if custom_models:
-        return [model_item.strip() for model_item in custom_models.split(",") if model_item.strip()]
-    return list(ACTIVE_GEMINI_MODELS)
+    return GLOBAL_MODEL_POOL_GEMINI.get_candidates()
 
 
 def call_gemini_api(
@@ -212,47 +562,15 @@ def call_gemini_api(
     api_key: str,
     timeout: int = 120,
 ) -> requests.Response:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
-    system_content = (
-        "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
-        "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
-    )
-    payload = {
-        "systemInstruction": {
-            "parts": [{"text": system_content}],
-        },
-        "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": prompt}],
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 4096,
-            "responseMimeType": "application/json",
-        },
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": api_key,
-    }
-    return requests.post(url, headers=headers, json=payload, timeout=timeout)
+    client = GeminiClient(timeout=timeout)
+    return client.call(prompt, model_name, api_key)
 
 
 def extract_gemini_text(response_json: dict) -> str:
-    candidates = response_json.get("candidates", [])
-    if not candidates:
-        raise ValueError(f"Gemini 回應未包含 candidates: {response_json}")
-    candidate = candidates[0]
-    content = candidate.get("content", {})
-    parts = content.get("parts", [])
-    if not parts or "text" not in parts[0]:
-        raise ValueError(f"Gemini 回應 candidate 格式不正確: {candidate}")
-    return parts[0]["text"]
+    return GeminiClient.extract_text(response_json)
 
 
-def get_event_path():
+def get_event_path() -> str:
     return os.environ.get("EVENT_PATH") or EVENT_PATH
 
 
@@ -263,13 +581,13 @@ def normalize_path(path_str: str) -> str:
     return normalized.removeprefix("./")
 
 
-def normalize_paths(path_list) -> list:
+def normalize_paths(path_list: list) -> list:
     if not isinstance(path_list, list):
         return []
     return [normalize_path(p) for p in path_list if normalize_path(p)]
 
 
-def get_github_headers():
+def get_github_headers() -> dict:
     return {
         "Authorization": f"Bearer {get_gh_token()}",
         "Accept": "application/vnd.github+json",
@@ -277,7 +595,7 @@ def get_github_headers():
     }
 
 
-def gh_get(url, params=None):
+def gh_get(url: str, params: dict | None = None):
     response = requests.get(
         url,
         headers=get_github_headers(),
@@ -288,7 +606,7 @@ def gh_get(url, params=None):
     return response.json()
 
 
-def resolve_pr_number(event):
+def resolve_pr_number(event: dict) -> int:
     pull_request = event.get("pull_request") or {}
     if pull_request.get("number"):
         return int(pull_request["number"])
@@ -320,7 +638,7 @@ def resolve_pr_number(event):
     raise SystemExit("無法從 GitHub 事件或環境中解析對應的 Pull Request 編號。")
 
 
-def post_issue_comment(pr_number, body):
+def post_issue_comment(pr_number: int, body: str):
     repo_name = get_repo()
     marked_body = body.rstrip() + "\n\n" + REVIEW_MARKER
     comments_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
@@ -361,7 +679,7 @@ def post_issue_comment(pr_number, body):
         return None
 
 
-def post_pr_review(pr_number, body, event_type="COMMENT"):
+def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT"):
     repo_name = get_repo()
     review_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
     payload = {"body": body, "event": event_type}
@@ -383,7 +701,7 @@ def post_pr_review(pr_number, body, event_type="COMMENT"):
         return None
 
 
-def publish_review(pr_number, body, decision="COMMENT"):
+def publish_review(pr_number: int, body: str, decision: str = "COMMENT"):
     post_issue_comment(pr_number, body)
     if decision == "APPROVE":
         review_event = "APPROVE"
@@ -394,7 +712,7 @@ def publish_review(pr_number, body, decision="COMMENT"):
     post_pr_review(pr_number, body, review_event)
 
 
-def publish_failure_report(pr_number, title, reason, details=None):
+def publish_failure_report(pr_number: int, title: str, reason: str, details=None):
     clean_title = redact_secrets(str(title))
     clean_reason = redact_secrets(str(reason))
     report = [
@@ -412,9 +730,9 @@ def publish_failure_report(pr_number, title, reason, details=None):
         if isinstance(details, list):
             for detail_item in details:
                 if isinstance(detail_item, (tuple, list)) and len(detail_item) == 2:
-                    k = redact_secrets(str(detail_item[0]))
-                    v = redact_secrets(str(detail_item[1]))
-                    report.append(f"- `{k}`：{v}")
+                    key_text = redact_secrets(str(detail_item[0]))
+                    val_text = redact_secrets(str(detail_item[1]))
+                    report.append(f"- `{key_text}`：{val_text}")
                 else:
                     report.append(f"- {redact_secrets(str(detail_item))}")
         else:
@@ -440,125 +758,20 @@ def get_available_models():
     if not groq_keys:
         return set()
     api_key = groq_keys[0][1]
-    response = requests.get(
-        "https://api.groq.com/openai/v1/models",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
-    model_entries = response.json().get("data", [])
-    return {model_item.get("id") for model_item in model_entries}
+    client = GroqClient()
+    return client.get_available_models(api_key)
 
 
-def find_balanced_json_substrings(text: str) -> list:
-    """掃描字串中所有括號平衡的最外層 { ... } 區塊，忽略字串引號內的括號。"""
-    candidates = []
-    i = 0
-    n = len(text)
-    while i < n:
-        if text[i] == "{":
-            start = i
-            depth = 0
-            in_string = False
-            escape = False
-            j = i
-            while j < n:
-                char = text[j]
-                if escape:
-                    escape = False
-                elif char == "\\":
-                    if in_string:
-                        escape = True
-                elif char == '"':
-                    in_string = not in_string
-                elif not in_string:
-                    if char == "{":
-                        depth += 1
-                    elif char == "}":
-                        depth -= 1
-                        if depth == 0:
-                            candidates.append(text[start : j + 1])
-                            i = j
-                            break
-                j += 1
-        i += 1
-    return candidates
+def find_balanced_json_substrings(text: str) -> list[str]:
+    return ReviewResponseParser.find_balanced_json_substrings(text)
 
 
 def repair_json_string(text: str) -> str:
-    """嘗試修復常見的 LLM 格式損毀或非標準 JSON 字串。"""
-    if not isinstance(text, str):
-        return ""
-
-    cleaned = text.strip()
-
-    # 1. 移除 <think>...</think> 或未閉合的 <think> 思維鏈標籤
-    if "<think>" in cleaned.lower():
-        cleaned = re.sub(r"(?i)<think>[\s\S]*?</think>", "", cleaned).strip()
-        if "<think>" in cleaned.lower():
-            parts = re.split(r"(?i)</think>", cleaned)
-            if len(parts) > 1:
-                cleaned = parts[-1].strip()
-            else:
-                cleaned = re.sub(r"(?i)^<think>[\s\S]*?(?=\{)", "", cleaned).strip()
-
-    # 2. 若包含 Markdown 代碼塊（```json ... ``` 或 ``` ... ```），優先測試代碼塊內容
-    code_blocks = re.findall(
-        r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE
-    )
-    for block in code_blocks:
-        block_cleaned = block.strip()
-        try:
-            parsed = json.loads(block_cleaned)
-            if isinstance(parsed, dict):
-                return block_cleaned
-        except (json.JSONDecodeError, ValueError, TypeError) as exc:
-            logging.debug("Markdown 代碼塊 JSON 解析略過: %s", exc)
-
-    # 3. 使用括號平衡計數精確擷取頂層平衡的 JSON 物件
-    candidates = find_balanced_json_substrings(cleaned)
-    valid_review_payloads = []
-    valid_other_dicts = []
-    for cand in candidates:
-        try:
-            parsed = json.loads(cand)
-            if isinstance(parsed, dict):
-                if "batch" in parsed and "files_reviewed" in parsed and "findings" in parsed:
-                    valid_review_payloads.append(cand)
-                else:
-                    valid_other_dicts.append(cand)
-        except (json.JSONDecodeError, ValueError, TypeError) as exc:
-            logging.debug("候選 JSON 子字串解析略過: %s", exc)
-            continue
-
-    if len(valid_review_payloads) == 1:
-        return valid_review_payloads[0]
-    elif len(valid_review_payloads) > 1:
-        raise json.JSONDecodeError("輸出包含多個相衝的 Review JSON 物件，無法確定唯一根結構", cleaned, 0)
-
-    if len(valid_other_dicts) == 1:
-        return valid_other_dicts[0]
-    elif len(valid_other_dicts) > 1:
-        raise json.JSONDecodeError("輸出包含多個歧異 JSON 物件", cleaned, 0)
-
-    if candidates:
-        raise json.JSONDecodeError("輸出包含無法識別為合法物件的 JSON 片段", cleaned, 0)
-
-    return cleaned
+    return ReviewResponseParser.repair_json_string(text)
 
 
 def extract_json_payload(raw_text: str) -> dict:
-    if not raw_text or not isinstance(raw_text, str):
-        raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
-
-    repaired = repair_json_string(raw_text)
-    parsed = json.loads(repaired)
-    if isinstance(parsed, dict):
-        return parsed
-    raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
+    return ReviewResponseParser.extract_json_payload(raw_text)
 
 
 def parse_retry_after(response) -> float:
@@ -599,8 +812,8 @@ def calculate_backoff_delay(
     return min(effective_delay + jitter, max_delay)
 
 
-def get_candidate_models() -> list:
-    candidates = list(ACTIVE_MODEL_CANDIDATES)
+def get_candidate_models() -> list[str]:
+    candidates = GLOBAL_MODEL_POOL_GROQ.get_candidates()
     if not get_groq_api_key():
         return candidates
     try:
@@ -613,34 +826,60 @@ def get_candidate_models() -> list:
     return candidates
 
 
-def chat_completion(
-    prompt: str,
-    max_retries_per_model: int = DEFAULT_MAX_RETRIES_PER_MODEL,
-) -> str:
-    groq_keys = get_groq_api_keys()
-    gemini_keys = get_gemini_api_keys()
+class ReviewOrchestrator:
+    """整合 Provider 呼叫、金鑰池管理、重試退避與錯誤處理的主控器。"""
 
-    if not groq_keys and not gemini_keys:
-        raise RuntimeError(
-            json.dumps(
-                [("INIT", "未配置任何 AI Provider 密鑰（GROQ_API_KEY_* 或 GEMINI_API_KEY_*）")],
-                ensure_ascii=False,
-            )
-        )
+    def __init__(
+        self,
+        groq_key_pool: KeyPool | None = None,
+        gemini_key_pool: KeyPool | None = None,
+        groq_model_pool: ModelPool | None = None,
+        gemini_model_pool: ModelPool | None = None,
+        groq_client: GroqClient | None = None,
+        gemini_client: GeminiClient | None = None,
+        parser: ReviewResponseParser | None = None,
+    ):
+        self.groq_key_pool = groq_key_pool or GLOBAL_KEY_POOL_GROQ
+        self.gemini_key_pool = gemini_key_pool or GLOBAL_KEY_POOL_GEMINI
+        self.groq_model_pool = groq_model_pool or GLOBAL_MODEL_POOL_GROQ
+        self.gemini_model_pool = gemini_model_pool or GLOBAL_MODEL_POOL_GEMINI
+        self.groq_client = groq_client or GroqClient()
+        self.gemini_client = gemini_client or GeminiClient()
+        self.parser = parser or ReviewResponseParser()
 
-    error_details = []
+    def _get_groq_candidate_models(self) -> list[str]:
+        candidates = self.groq_model_pool.get_candidates()
+        groq_keys = self.groq_key_pool.get_all_keys()
+        if not groq_keys:
+            return candidates
+        try:
+            available = self.groq_client.get_available_models(groq_keys[0][1])
+            filtered = [m for m in candidates if m in available]
+            if filtered:
+                return filtered
+        except requests.RequestException as exc:
+            print(f"無法列舉 Groq 可用模型清單：{exc}，直接依序嘗試備援候選模型。")
+        return candidates
 
-    # ========================================================
-    # Stage 1: Groq (第一優先 Provider，隨機選 Key、冷卻清單與多模型備援)
-    # ========================================================
-    if groq_keys:
-        groq_models = get_candidate_models()
+    def _try_groq(
+        self,
+        prompt: str,
+        max_retries_per_model: int,
+        error_details: list[tuple[str, str]],
+    ) -> str | None:
+        groq_keys = self.groq_key_pool.get_all_keys()
+        if not groq_keys:
+            return None
+
+        groq_models = self._get_groq_candidate_models()
 
         for model_name in groq_models:
             tried_keys = set()
             model_unsupported = False
             while True:
-                picked = pick_random_active_key(groq_keys, excluded_keys=tried_keys)
+                picked = self.groq_key_pool.pick_random_active_key(
+                    groq_keys, excluded_keys=tried_keys
+                )
                 if picked is None:
                     break
                 var_name, api_key = picked
@@ -651,39 +890,15 @@ def chat_completion(
 
                 for attempt in range(1, max_retries_per_model + 1):
                     try:
-                        system_content = (
-                            "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
-                            "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
-                        )
-                        request_payload = {
-                            "model": model_name,
-                            "messages": [
-                                {"role": "system", "content": system_content},
-                                {"role": "user", "content": prompt},
-                            ],
-                            "temperature": 0.1,
-                            "max_tokens": 4096,
-                        }
-                        if use_json_mode:
-                            request_payload["response_format"] = {"type": "json_object"}
-
-                        response = requests.post(
-                            "https://api.groq.com/openai/v1/chat/completions",
-                            headers={
-                                "Authorization": f"Bearer {api_key}",
-                                "Content-Type": "application/json",
-                            },
-                            json=request_payload,
-                            timeout=120,
+                        response = self.groq_client.call(
+                            prompt, model_name, api_key, use_json_mode=use_json_mode
                         )
                         if response.ok:
                             raw_content = response.json()["choices"][0]["message"]["content"]
                             try:
-                                extract_json_payload(raw_content)
+                                self.parser.extract_json_payload(raw_content)
                                 print(f"使用 Groq 模型：{model_name}（金鑰：{var_name} {masked_key}）")
-                                if model_name in ACTIVE_MODEL_CANDIDATES:
-                                    ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                                    ACTIVE_MODEL_CANDIDATES.insert(0, model_name)
+                                self.groq_model_pool.promote(model_name)
                                 return raw_content
                             except json.JSONDecodeError as json_exc:
                                 json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{json_exc}"
@@ -698,9 +913,7 @@ def chat_completion(
                                     )
                                     time.sleep(wait_seconds)
                                     continue
-                                if model_name in ACTIVE_MODEL_CANDIDATES:
-                                    ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                                    ACTIVE_MODEL_CANDIDATES.append(model_name)
+                                self.groq_model_pool.demote(model_name)
                                 time.sleep(2.0)
                                 break
 
@@ -712,7 +925,6 @@ def chat_completion(
                         # 429 速率限制 / 配額耗盡
                         if status_code == 429:
                             raw_retry_after = parse_retry_after(response)
-                            # 若配置了多組金鑰，立即將該 Key 放入冷卻清單並隨機輪替下一把可用金鑰
                             if len(groq_keys) > 1:
                                 if (
                                     raw_retry_after > 60.0
@@ -723,7 +935,7 @@ def chat_completion(
                                     cooldown_seconds = max(raw_retry_after, 300.0)
                                 else:
                                     cooldown_seconds = max(raw_retry_after, 30.0)
-                                mark_key_cooldown(api_key, cooldown_seconds)
+                                self.groq_key_pool.mark_cooldown(api_key, cooldown_seconds)
                                 print(
                                     f"Groq 金鑰 {var_name} ({masked_key}) 達到速率限制或配額耗盡 (429)，"
                                     f"已放入冷卻清單（{cooldown_seconds:.1f} 秒），隨機切換下一把可用金鑰..."
@@ -731,7 +943,6 @@ def chat_completion(
                                 time.sleep(1.0)
                                 break
 
-                            # 單一金鑰情境：若為暫時性短速率限制且未達重試上限，進行指數退避重試
                             wait_seconds = calculate_backoff_delay(
                                 attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
                             )
@@ -750,18 +961,15 @@ def chat_completion(
                                 time.sleep(wait_seconds)
                                 continue
 
-                            # 若單一金鑰已達重試上限或屬於每日配額耗盡，降級當前模型
                             print(f"模型 {model_name} 達到重試上限或額度已滿，降級至備援清單尾端並切換下一個模型。")
-                            if model_name in ACTIVE_MODEL_CANDIDATES:
-                                ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                                ACTIVE_MODEL_CANDIDATES.append(model_name)
+                            self.groq_model_pool.demote(model_name)
                             time.sleep(2.0)
                             model_unsupported = True
                             break
 
-                        # 403 授權失敗：標記冷卻並輪替至下一組金鑰
+                        # 403 授權失敗
                         if status_code == 403:
-                            mark_key_cooldown(api_key, 3600.0)
+                            self.groq_key_pool.mark_cooldown(api_key, 3600.0)
                             print(
                                 f"Groq 金鑰 {var_name} ({masked_key}) 授權失敗 (403)，"
                                 "已放入冷卻清單，隨機切換下一把可用金鑰..."
@@ -769,12 +977,10 @@ def chat_completion(
                             time.sleep(1.0)
                             break
 
-                        # 413 負載過大：切換下一模型
+                        # 413 負載過大
                         if status_code == 413:
                             print(f"Groq 模型 {model_name} 請求負載過大 (413)：{reason_msg}，立即降級並切換下一個模型。")
-                            if model_name in ACTIVE_MODEL_CANDIDATES:
-                                ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                                ACTIVE_MODEL_CANDIDATES.append(model_name)
+                            self.groq_model_pool.demote(model_name)
                             time.sleep(1.0)
                             model_unsupported = True
                             break
@@ -797,9 +1003,7 @@ def chat_completion(
                                 f"Groq 模型 {model_name} 請求參數或格式錯誤 (400)：{reason_msg}，"
                                 "降級至備援清單尾端並切換下一個模型。"
                             )
-                            if model_name in ACTIVE_MODEL_CANDIDATES:
-                                ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                                ACTIVE_MODEL_CANDIDATES.append(model_name)
+                            self.groq_model_pool.demote(model_name)
                             time.sleep(2.0)
                             model_unsupported = True
                             break
@@ -827,21 +1031,27 @@ def chat_completion(
 
                 if model_unsupported:
                     break
+        return None
 
-    # ========================================================
-    # Stage 2: Google Gemini Fallback (若未配置 Groq 或 Groq 全數失敗/冷卻)
-    # ========================================================
-    if gemini_keys:
-        if groq_keys:
-            print("所有 Groq 金鑰與模型均無法取得有效回應或已冷卻，降級至備援 Provider：Google Gemini...")
+    def _try_gemini(
+        self,
+        prompt: str,
+        max_retries_per_model: int,
+        error_details: list[tuple[str, str]],
+    ) -> str | None:
+        gemini_keys = self.gemini_key_pool.get_all_keys()
+        if not gemini_keys:
+            return None
 
-        gemini_models = get_gemini_candidate_models()
+        gemini_models = self.gemini_model_pool.get_candidates()
 
         for model_name in gemini_models:
             tried_keys = set()
             model_unsupported = False
             while True:
-                picked = pick_random_active_key(gemini_keys, excluded_keys=tried_keys)
+                picked = self.gemini_key_pool.pick_random_active_key(
+                    gemini_keys, excluded_keys=tried_keys
+                )
                 if picked is None:
                     break
                 var_name, api_key = picked
@@ -851,16 +1061,14 @@ def chat_completion(
 
                 for attempt in range(1, max_retries_per_model + 1):
                     try:
-                        response = call_gemini_api(prompt, model_name, api_key, timeout=120)
+                        response = self.gemini_client.call(prompt, model_name, api_key)
                         if response.ok:
                             try:
                                 resp_json = response.json()
-                                raw_content = extract_gemini_text(resp_json)
-                                extract_json_payload(raw_content)
+                                raw_content = self.gemini_client.extract_text(resp_json)
+                                self.parser.extract_json_payload(raw_content)
                                 print(f"使用 Google Gemini 模型：{model_name}（金鑰：{var_name} {masked_key}）")
-                                if model_name in ACTIVE_GEMINI_MODELS:
-                                    ACTIVE_GEMINI_MODELS.remove(model_name)
-                                    ACTIVE_GEMINI_MODELS.insert(0, model_name)
+                                self.gemini_model_pool.promote(model_name)
                                 return raw_content
                             except (ValueError, KeyError, json.JSONDecodeError) as parse_exc:
                                 json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{parse_exc}"
@@ -882,7 +1090,7 @@ def chat_completion(
                         reason_msg = f"HTTP {status_code}: {resp_text}"
                         error_details.append((key_tag, redact_secrets(reason_msg)))
 
-                        # 429 速率限制 / 配額耗盡 / RESOURCE_EXHAUSTED
+                        # 429 速率限制 / 配額耗盡
                         if status_code == 429 or "RESOURCE_EXHAUSTED" in resp_text:
                             raw_retry_after = parse_retry_after(response)
                             cooldown_seconds = max(raw_retry_after, 60.0)
@@ -890,7 +1098,7 @@ def chat_completion(
                                 cooldown_seconds = max(cooldown_seconds, 300.0)
 
                             if len(gemini_keys) > 1:
-                                mark_key_cooldown(api_key, cooldown_seconds)
+                                self.gemini_key_pool.mark_cooldown(api_key, cooldown_seconds)
                                 print(
                                     f"Gemini 金鑰 {var_name} ({masked_key}) 達到速率限制或配額耗盡 (429)，"
                                     f"已放入冷卻清單（{cooldown_seconds:.1f} 秒），隨機切換下一把可用金鑰..."
@@ -898,7 +1106,6 @@ def chat_completion(
                                 time.sleep(1.0)
                                 break
 
-                            # 單一金鑰情境
                             wait_sec = calculate_backoff_delay(
                                 attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
                             )
@@ -917,16 +1124,14 @@ def chat_completion(
                                 continue
 
                             print(f"Gemini 模型 {model_name} 達到重試上限或額度耗盡，切換下一個模型。")
-                            if model_name in ACTIVE_GEMINI_MODELS:
-                                ACTIVE_GEMINI_MODELS.remove(model_name)
-                                ACTIVE_GEMINI_MODELS.append(model_name)
+                            self.gemini_model_pool.demote(model_name)
                             time.sleep(2.0)
                             model_unsupported = True
                             break
 
-                        # 403 授權無效或配額限制
+                        # 403 授權無效
                         if status_code == 403:
-                            mark_key_cooldown(api_key, 3600.0)
+                            self.gemini_key_pool.mark_cooldown(api_key, 3600.0)
                             print(
                                 f"Gemini 金鑰 {var_name} ({masked_key}) 授權失敗或額度無效 (403)，"
                                 "已放入冷卻清單，隨機切換下一把可用金鑰..."
@@ -934,17 +1139,14 @@ def chat_completion(
                             time.sleep(1.0)
                             break
 
-                        # 413 請求過大：切換下一個模型
+                        # 413 請求過大
                         if status_code == 413:
                             print(f"Gemini 模型 {model_name} 請求負載過大 (413)，切換下一候選模型...")
-                            if model_name in ACTIVE_GEMINI_MODELS:
-                                ACTIVE_GEMINI_MODELS.remove(model_name)
-                                ACTIVE_GEMINI_MODELS.append(model_name)
+                            self.gemini_model_pool.demote(model_name)
                             time.sleep(1.0)
                             model_unsupported = True
                             break
 
-                        # 其他錯誤 (400, 500, 503 等)
                         print(f"Gemini 金鑰 {var_name} 呼叫失敗：{reason_msg}")
                         if status_code >= 500 and attempt < max_retries_per_model:
                             wait_sec = calculate_backoff_delay(
@@ -953,7 +1155,6 @@ def chat_completion(
                             time.sleep(wait_sec)
                             continue
                         break
-
                     except requests.RequestException as req_exc:
                         error_details.append((key_tag, redact_secrets(str(req_exc))))
                         print(f"Gemini 金鑰 {var_name} 連線異常：{req_exc}")
@@ -967,8 +1168,51 @@ def chat_completion(
 
                 if model_unsupported:
                     break
+        return None
 
-    raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
+    def chat_completion(
+        self,
+        prompt: str,
+        max_retries_per_model: int = DEFAULT_MAX_RETRIES_PER_MODEL,
+    ) -> str:
+        groq_keys = self.groq_key_pool.get_all_keys()
+        gemini_keys = self.gemini_key_pool.get_all_keys()
+
+        if not groq_keys and not gemini_keys:
+            raise RuntimeError(
+                json.dumps(
+                    [("INIT", "未配置任何 AI Provider 密鑰（GROQ_API_KEY_* 或 GEMINI_API_KEY_*）")],
+                    ensure_ascii=False,
+                )
+            )
+
+        error_details: list[tuple[str, str]] = []
+
+        # Stage 1: Groq
+        if groq_keys:
+            result = self._try_groq(prompt, max_retries_per_model, error_details)
+            if result is not None:
+                return result
+
+        # Stage 2: Gemini
+        if gemini_keys:
+            if groq_keys:
+                print("所有 Groq 金鑰與模型均無法取得有效回應或已冷卻，降級至備援 Provider：Google Gemini...")
+            result = self._try_gemini(prompt, max_retries_per_model, error_details)
+            if result is not None:
+                return result
+
+        raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
+
+
+DEFAULT_ORCHESTRATOR = ReviewOrchestrator()
+
+
+def chat_completion(
+    prompt: str,
+    max_retries_per_model: int = DEFAULT_MAX_RETRIES_PER_MODEL,
+) -> str:
+    return DEFAULT_ORCHESTRATOR.chat_completion(prompt, max_retries_per_model)
 
 
 def main():

@@ -1054,6 +1054,65 @@ def test_chat_completion_all_groq_cooling_immediately_falls_back_to_gemini():
         assert mock_post.call_args[1]["headers"].get("x-goog-api-key") == "active_gemini_key"
 
 
+def test_key_pool_isolation():
+    pool1 = review.KeyPool("PREFIX1")
+    pool2 = review.KeyPool("PREFIX2")
+
+    pool1.mark_cooldown("key_a", 100.0)
+    assert pool1.is_in_cooldown("key_a") is True
+    assert pool2.is_in_cooldown("key_a") is False
+
+    pool1.reset_cooldowns()
+    assert pool1.is_in_cooldown("key_a") is False
+
+
+def test_model_pool_isolation_and_order():
+    pool1 = review.ModelPool(["model-a", "model-b", "model-c"])
+    pool2 = review.ModelPool(["model-x", "model-y"])
+
+    pool1.demote("model-a")
+    assert pool1.get_candidates() == ["model-b", "model-c", "model-a"]
+
+    pool1.promote("model-c")
+    assert pool1.get_candidates() == ["model-c", "model-b", "model-a"]
+
+    # pool2 is unchanged
+    assert pool2.get_candidates() == ["model-x", "model-y"]
+
+
+def test_review_orchestrator_custom_instances():
+    pool_groq = review.KeyPool()
+    pool_gemini = review.KeyPool()
+    pool_gemini.get_all_keys = MagicMock(return_value=[("CUSTOM_GEMINI", "custom_key")])
+
+    mock_gemini_client = MagicMock()
+    mock_gemini_resp = MagicMock()
+    mock_gemini_resp.ok = True
+    mock_gemini_resp.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": '{"batch": "custom-ok", "findings": []}'}],
+                    "role": "model",
+                }
+            }
+        ]
+    }
+    mock_gemini_client.call.return_value = mock_gemini_resp
+    mock_gemini_client.extract_text = review.GeminiClient.extract_text
+
+    orchestrator = review.ReviewOrchestrator(
+        groq_key_pool=pool_groq,
+        gemini_key_pool=pool_gemini,
+        gemini_client=mock_gemini_client,
+    )
+
+    result = orchestrator.chat_completion("test custom orchestrator")
+    assert result == '{"batch": "custom-ok", "findings": []}'
+    mock_gemini_client.call.assert_called_once()
+
+
+
 
 
 

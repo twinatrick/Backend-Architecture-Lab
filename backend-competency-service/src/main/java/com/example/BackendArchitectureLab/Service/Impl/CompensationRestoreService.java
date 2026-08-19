@@ -21,9 +21,14 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * CompensationRestoreService - 補償還原專案成員技能綁定的流程編排（M-02 拆分）。
@@ -108,20 +113,34 @@ public class CompensationRestoreService implements ICompensationRestoreService {
             // 5. 刪除該專案目前的技能綁定
             userProjectSkillDataAccess.deleteByProjectId(projectId);
 
-            // 6. 還原
-            if (bindings != null) {
+            // 6. 還原（批次載入技能與等級，並以 saveAll 批次持久化）
+            if (bindings != null && !bindings.isEmpty()) {
+                Set<UUID> skillIds = bindings.stream().map(BindingSnapshot::skillId).collect(Collectors.toSet());
+                Set<UUID> levelIds = bindings.stream().map(BindingSnapshot::levelId).collect(Collectors.toSet());
+
+                Map<UUID, Skill> skillMap = skillDataAccess.findAllById(List.copyOf(skillIds)).stream()
+                        .collect(Collectors.toMap(Skill::getId, Function.identity()));
+                Map<UUID, SkillLevel> skillLevelMap = skillLevelDataAccess.findAllById(List.copyOf(levelIds)).stream()
+                        .collect(Collectors.toMap(SkillLevel::getId, Function.identity()));
+
+                List<UserProjectSkill> entitiesToSave = new ArrayList<>(bindings.size());
                 for (BindingSnapshot binding : bindings) {
-                    Skill skill = skillDataAccess.findById(binding.skillId())
-                            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + binding.skillId()));
-                    SkillLevel skillLevel = skillLevelDataAccess.findById(binding.levelId())
-                            .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + binding.levelId()));
+                    Skill skill = skillMap.get(binding.skillId());
+                    if (skill == null) {
+                        throw new IllegalArgumentException("Skill not found: " + binding.skillId());
+                    }
+                    SkillLevel skillLevel = skillLevelMap.get(binding.levelId());
+                    if (skillLevel == null) {
+                        throw new IllegalArgumentException("Skill level not found: " + binding.levelId());
+                    }
                     UserProjectSkill entity = new UserProjectSkill();
                     entity.setUserId(binding.userId());
                     entity.setProject(project);
                     entity.setSkill(skill);
                     entity.setSkillLevel(skillLevel);
-                    userProjectSkillDataAccess.save(entity);
+                    entitiesToSave.add(entity);
                 }
+                userProjectSkillDataAccess.saveAll(entitiesToSave);
             }
 
             // 7. 還原成功：於同一交易內標記 SUCCESS（StateService.markRestoreSuccess 以 REQUIRED 加入現行交易），

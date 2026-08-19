@@ -54,6 +54,11 @@ public class UserProjectSkillDataAccessImpl implements IUserProjectSkillDataAcce
     }
 
     @Override
+    public List<UserProjectSkill> saveAll(List<UserProjectSkill> userProjectSkills) {
+        return repository.saveAll(userProjectSkills);
+    }
+
+    @Override
     public void deleteByProjectId(UUID projectId) {
         repository.deleteByProjectId(projectId);
     }

@@ -373,10 +373,11 @@ class CompensationOutboxWorkerTest {
     }
 
     @Test
-    void flushPendingEvents_ShouldCancelRemainingFutures_whenBatchTimesOut() throws Exception {
+    void flushPendingEvents_ShouldAllowBackgroundTasksToComplete_whenBatchWaitInterrupted() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
-        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 1L);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 5L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "leaseSeconds", 300L);
         compensationOutboxWorker.validateConfiguration();
 
         CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
@@ -387,38 +388,44 @@ class CompensationOutboxWorkerTest {
         when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
 
         CountDownLatch publishStartedLatch = new CountDownLatch(1);
-        CountDownLatch workerInterruptedLatch = new CountDownLatch(1);
-
-        // 模擬發布任務阻塞，直到被批次逾時 Future.cancel(true) 中斷
+        CountDownLatch taskCompletedLatch = new CountDownLatch(1);
         when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
             publishStartedLatch.countDown();
-            return new CompletableFuture<Void>() {
-                @Override
-                public Void get(long timeout, TimeUnit unit) throws InterruptedException {
-                    try {
-                        workerInterruptedLatch.await(timeout + 5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        throw new InterruptedException("Delivery task interrupted by batch timeout");
-                    }
-                    return null;
-                }
-            };
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+                future.complete(null);
+                taskCompletedLatch.countDown();
+            }, 100, TimeUnit.MILLISECONDS);
+            return future;
         });
+
+        // 模擬呼叫執行緒在等待批次 Future 時被中斷（例如排程終止或容器信號）
+        Thread mainThread = Thread.currentThread();
+        Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+            try {
+                if (publishStartedLatch.await(1, TimeUnit.SECONDS)) {
+                    mainThread.interrupt();
+                }
+            } catch (InterruptedException ignored) {
+            }
+        }, 30, TimeUnit.MILLISECONDS);
 
         compensationOutboxWorker.flushPendingEvents();
 
-        // 驗證狀態已由中斷處理推進至 FAILED
-        verify(outboxRepository).markFailed(eq(outbox.getId()),
+        // 呼叫執行緒之中斷旗標應已恢復
+        assertEquals(true, Thread.interrupted());
+
+        // 驗證背景工作執行緒未被 cancel(true)，依然能獨立完成發布並成功 markSent
+        boolean completed = taskCompletedLatch.await(2, TimeUnit.SECONDS);
+        assertEquals(true, completed);
+
+        verify(outboxRepository, org.mockito.Mockito.timeout(2000)).markSent(eq(outbox.getId()),
                 anyString(),
                 eq(fresh.getFencingVersion()),
-                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.SENT),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
-                contains("interrupted"),
                 any(Date.class));
-
-        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
-        assertNotNull(semaphore);
-        assertEquals(1, semaphore.availablePermits());
+        verify(outboxRepository, never()).markFailed(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

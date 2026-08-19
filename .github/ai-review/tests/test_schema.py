@@ -61,3 +61,10 @@ def test_non_string_or_empty_text_fields_fail():
         finding[field] = 123
         assert not validate_finding(finding)
 
+
+def test_extra_unexpected_field_is_rejected():
+    finding = {key: "x" for key in REQUIRED}
+    finding.update(severity="HIGH", confidence="HIGH", unexpected_extra_field="invalid")
+    assert not validate_finding(finding)
+
+
