@@ -515,4 +515,18 @@ def test_chat_completion_adaptive_model_promotion_and_demotion():
         assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-fail"
 
 
+def test_parse_retry_limit_valid():
+    assert review.parse_retry_limit("5") == 5
+    assert review.parse_retry_limit("1") == 1
+
+
+def test_parse_retry_limit_invalid_or_empty():
+    assert review.parse_retry_limit(None) == 9
+    assert review.parse_retry_limit("") == 9
+    assert review.parse_retry_limit("   ") == 9
+    assert review.parse_retry_limit("not_a_number") == 9
+    assert review.parse_retry_limit("0") == 9
+    assert review.parse_retry_limit("-5") == 9
+
+
 

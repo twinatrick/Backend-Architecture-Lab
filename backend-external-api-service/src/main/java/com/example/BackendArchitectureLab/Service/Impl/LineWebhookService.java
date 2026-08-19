@@ -39,7 +39,7 @@ public class LineWebhookService implements ILineWebhookService {
                 case TextMessageContent textContent -> {
                     String text = textContent.getText();
                     if (service instanceof ILineGfService gfService) {
-                        String userId = msgEvent.getSource().getUserId();
+                        String userId = msgEvent.getSource() != null ? msgEvent.getSource().getUserId() : null;
                         gfService.handleText(replyToken, text, userId);
                     } else if (service instanceof ILineDiaryService diaryService) {
                         diaryService.handleText(replyToken, text);
@@ -48,7 +48,7 @@ public class LineWebhookService implements ILineWebhookService {
                 case AudioMessageContent audioContent -> {
                     String messageId = audioContent.getId();
                     if (service instanceof ILineGfService gfService) {
-                        String userId = msgEvent.getSource().getUserId();
+                        String userId = msgEvent.getSource() != null ? msgEvent.getSource().getUserId() : null;
                         gfService.handleAudio(replyToken, messageId, userId);
                     } else if (service instanceof ILineDiaryService diaryService) {
                         diaryService.handleAudio(replyToken, messageId);

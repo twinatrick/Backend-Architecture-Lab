@@ -374,6 +374,10 @@ class CompensationOutboxWorkerTest {
 
         Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
+        long start = System.currentTimeMillis();
+        while (semaphore.availablePermits() < 1 && System.currentTimeMillis() - start < 3000) {
+            Thread.sleep(50);
+        }
         assertEquals(1, semaphore.availablePermits());
     }
 

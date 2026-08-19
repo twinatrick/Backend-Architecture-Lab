@@ -15,7 +15,18 @@ EVENT_PATH = os.environ.get("EVENT_PATH", "")
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
-DEFAULT_MAX_RETRIES_PER_MODEL = int(os.environ.get("AI_REVIEW_MAX_RETRIES", "9"))
+def parse_retry_limit(raw_value: str | None, default: int = 9) -> int:
+    if raw_value is None or not str(raw_value).strip():
+        return default
+    try:
+        val = int(raw_value)
+        return val if val >= 1 else default
+    except (TypeError, ValueError):
+        logging.warning("AI_REVIEW_MAX_RETRIES 設定值 '%s' 無效，改用預設值 %s", raw_value, default)
+        return default
+
+
+DEFAULT_MAX_RETRIES_PER_MODEL = parse_retry_limit(os.environ.get("AI_REVIEW_MAX_RETRIES"))
 
 DEFAULT_MODEL_CANDIDATES = [
     "llama-3.1-8b-instant",

@@ -21,6 +21,10 @@ spring:
     open-in-view: false
   application:
     name: external-api-service
+  autoconfigure:
+    exclude:
+      - com.linecorp.bot.spring.boot.LineBotWebMvcAutoConfiguration
+      - com.linecorp.bot.spring.boot.LineBotHandlerAutoConfiguration
   task:
     execution:
       shutdown:
