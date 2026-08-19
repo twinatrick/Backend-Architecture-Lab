@@ -589,5 +589,196 @@ def test_extract_json_payload_rejects_unparseable_balanced_candidates():
         review.extract_json_payload(raw)
 
 
+def test_mask_api_key():
+    assert review.mask_api_key("") == ""
+    assert review.mask_api_key(None) == ""
+    assert review.mask_api_key("12345678") == "***"
+    assert review.mask_api_key("AIzaSyBMMcmOmGpClLzf14bpHR3uKY6bfIK6kc8") == "AIza...6kc8"
+
+
+def test_get_gemini_api_keys_discovery_and_sorting():
+    env_vars = {
+        "GEMINI_API_KEY_2": "key_two",
+        "GEMINI_API_KEY_10": "key_ten",
+        "GEMINI_API_KEY": "key_default",
+        "GEMINI_API_KEY_1": "key_one",
+        "GEMINI_API_KEY_B": "key_beta",
+        "GEMINI_API_KEY_A": "key_alpha",
+        "GEMINI_API_KEY_EMPTY": "",
+        "GEMINI_API_KEY_BLANK": "   ",
+        "GEMINI_API_KEY_DUP": "key_one",  # 重複金鑰值應被去重
+        "OTHER_VAR": "something_else",
+    }
+    with patch.dict(os.environ, env_vars, clear=True):
+        keys = review.get_gemini_api_keys()
+        var_names = [k[0] for k in keys]
+        key_vals = [k[1] for k in keys]
+        assert var_names == [
+            "GEMINI_API_KEY",
+            "GEMINI_API_KEY_1",
+            "GEMINI_API_KEY_2",
+            "GEMINI_API_KEY_10",
+            "GEMINI_API_KEY_A",
+            "GEMINI_API_KEY_B",
+        ]
+        assert key_vals == ["key_default", "key_one", "key_two", "key_ten", "key_alpha", "key_beta"]
+
+
+def test_call_gemini_api_constructs_proper_request():
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        resp = review.call_gemini_api("test review prompt", "gemini-2.0-flash", "test-key-123")
+        assert resp == mock_resp
+        assert mock_post.called
+        call_url = mock_post.call_args[0][0]
+        call_json = mock_post.call_args[1]["json"]
+        assert "models/gemini-2.0-flash:generateContent" in call_url
+        assert "key=test-key-123" in call_url
+        assert call_json["generationConfig"]["responseMimeType"] == "application/json"
+        assert "test review prompt" in call_json["contents"][0]["parts"][0]["text"]
+
+
+def test_extract_gemini_text_valid_and_invalid():
+    valid_resp = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": '{"batch": "gemini-1", "findings": []}'}],
+                    "role": "model",
+                }
+            }
+        ]
+    }
+    assert review.extract_gemini_text(valid_resp) == '{"batch": "gemini-1", "findings": []}'
+
+    with pytest.raises(ValueError):
+        review.extract_gemini_text({"candidates": []})
+
+    with pytest.raises(ValueError):
+        review.extract_gemini_text({"candidates": [{}]})
+
+
+def test_chat_completion_gemini_single_key_success():
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    mock_resp.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": '{"batch": "gemini-pass", "findings": []}'}],
+                    "role": "model",
+                }
+            }
+        ]
+    }
+
+    with patch.dict(os.environ, {"GEMINI_API_KEY": "test_gemini_key"}, clear=True), \
+         patch("requests.post", return_value=mock_resp) as mock_post:
+        result = review.chat_completion("review prompt")
+        assert result == '{"batch": "gemini-pass", "findings": []}'
+        assert mock_post.called
+
+
+def test_chat_completion_gemini_multi_key_rotation_on_429():
+    mock_resp_429 = MagicMock()
+    mock_resp_429.ok = False
+    mock_resp_429.status_code = 429
+    mock_resp_429.text = "Quota exceeded (429 RESOURCE_EXHAUSTED)"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": '{"batch": "gemini-key2-ok", "findings": []}'}],
+                    "role": "model",
+                }
+            }
+        ]
+    }
+
+    env_vars = {
+        "GEMINI_API_KEY_1": "bad_key_rate_limited",
+        "GEMINI_API_KEY_2": "good_key_working",
+    }
+    with patch.dict(os.environ, env_vars, clear=True), \
+         patch("requests.post", side_effect=[mock_resp_429, mock_resp_ok]) as mock_post, \
+         patch("time.sleep"):
+        result = review.chat_completion("review prompt", max_retries_per_model=3)
+        assert result == '{"batch": "gemini-key2-ok", "findings": []}'
+        assert mock_post.call_count == 2
+        # Verify first call used key 1, second call rotated to key 2
+        assert "key=bad_key_rate_limited" in mock_post.call_args_list[0][0][0]
+        assert "key=good_key_working" in mock_post.call_args_list[1][0][0]
+
+
+def test_chat_completion_gemini_multi_key_rotation_on_403():
+    mock_resp_403 = MagicMock()
+    mock_resp_403.ok = False
+    mock_resp_403.status_code = 403
+    mock_resp_403.text = "The caller does not have permission (403)"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": '{"batch": "gemini-key2-403-ok", "findings": []}'}],
+                    "role": "model",
+                }
+            }
+        ]
+    }
+
+    env_vars = {
+        "GEMINI_API_KEY_1": "invalid_key",
+        "GEMINI_API_KEY_2": "valid_key",
+    }
+    with patch.dict(os.environ, env_vars, clear=True), \
+         patch("requests.post", side_effect=[mock_resp_403, mock_resp_ok]) as mock_post, \
+         patch("time.sleep"):
+        result = review.chat_completion("review prompt", max_retries_per_model=3)
+        assert result == '{"batch": "gemini-key2-403-ok", "findings": []}'
+        assert mock_post.call_count == 2
+
+
+def test_chat_completion_gemini_falls_back_to_groq_when_gemini_exhausted():
+    review.ACTIVE_GEMINI_MODELS = ["gemini-test-fail"]
+    review.ACTIVE_MODEL_CANDIDATES = ["groq-test-ok"]
+
+    mock_resp_gemini_fail = MagicMock()
+    mock_resp_gemini_fail.ok = False
+    mock_resp_gemini_fail.status_code = 429
+    mock_resp_gemini_fail.text = "Gemini all keys exhausted"
+
+    mock_resp_groq_ok = MagicMock()
+    mock_resp_groq_ok.ok = True
+    mock_resp_groq_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "groq-fallback-ok", "findings": []}'}}]
+    }
+
+    env_vars = {
+        "GEMINI_API_KEY": "failing_gemini_key",
+        "GROQ_API_KEY": "working_groq_key",
+    }
+    with patch.dict(os.environ, env_vars, clear=True), \
+         patch("review.get_available_models", return_value=["groq-test-ok"]), \
+         patch("requests.post", side_effect=[mock_resp_gemini_fail, mock_resp_groq_ok]), \
+         patch("time.sleep"):
+        result = review.chat_completion("fallback test", max_retries_per_model=1)
+        assert result == '{"batch": "groq-fallback-ok", "findings": []}'
+
+
+def test_chat_completion_raises_when_no_api_keys_configured():
+    with patch.dict(os.environ, {}, clear=True):
+        with pytest.raises(RuntimeError) as exc_info:
+            review.chat_completion("test without keys")
+        assert "未配置任何 AI Provider 密鑰" in str(exc_info.value)
+
+
+
 
 

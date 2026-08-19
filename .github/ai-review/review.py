@@ -17,6 +17,13 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
 MAX_RETRY_LIMIT = 12
 
+DEFAULT_GEMINI_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+]
+ACTIVE_GEMINI_MODELS = list(DEFAULT_GEMINI_MODELS)
+
 
 def parse_retry_limit(raw_value: str | None, default: int = 9) -> int:
     if raw_value is None or not str(raw_value).strip():
@@ -53,6 +60,101 @@ def get_gh_token():
 
 def get_groq_api_key():
     return os.environ.get("GROQ_API_KEY") or GROQ_API_KEY
+
+
+def mask_api_key(key: str) -> str:
+    if not key or not isinstance(key, str):
+        return ""
+    stripped = key.strip()
+    if len(stripped) <= 8:
+        return "***"
+    return f"{stripped[:4]}...{stripped[-4:]}"
+
+
+def get_gemini_api_keys() -> list[tuple[str, str]]:
+    """
+    探索環境變數中所有 Google Gemini API Keys。
+    支援 GEMINI_API_KEY, GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_X 等命名格式。
+    回傳 [(var_name, key_value), ...] 依照自然排序排列，並過濾空值與重複金鑰。
+    """
+    raw_keys = {}
+    pattern = re.compile(r"^GEMINI_API_KEY(?:_.*)?$", re.IGNORECASE)
+    for var_name, var_val in os.environ.items():
+        if pattern.match(var_name) and var_val and str(var_val).strip():
+            raw_keys[var_name] = str(var_val).strip()
+
+    def sort_key(item: tuple[str, str]):
+        name = item[0].upper()
+        if name == "GEMINI_API_KEY":
+            return (0, 0, name)
+        match_num = re.match(r"^GEMINI_API_KEY_(\d+)$", name)
+        if match_num:
+            return (1, int(match_num.group(1)), name)
+        return (2, 0, name)
+
+    sorted_items = sorted(raw_keys.items(), key=sort_key)
+
+    seen_values = set()
+    unique_keys = []
+    for var_name, var_val in sorted_items:
+        if var_val not in seen_values:
+            seen_values.add(var_val)
+            unique_keys.append((var_name, var_val))
+
+    return unique_keys
+
+
+def get_gemini_candidate_models() -> list[str]:
+    custom_models = os.environ.get("GEMINI_MODELS", "").strip()
+    if custom_models:
+        return [model_item.strip() for model_item in custom_models.split(",") if model_item.strip()]
+    return list(ACTIVE_GEMINI_MODELS)
+
+
+def call_gemini_api(
+    prompt: str,
+    model_name: str,
+    api_key: str,
+    timeout: int = 120,
+) -> requests.Response:
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        f"?key={api_key}"
+    )
+    system_content = (
+        "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
+        "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
+    )
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": system_content}],
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 4096,
+            "responseMimeType": "application/json",
+        },
+    }
+    headers = {"Content-Type": "application/json"}
+    return requests.post(url, headers=headers, json=payload, timeout=timeout)
+
+
+def extract_gemini_text(response_json: dict) -> str:
+    candidates = response_json.get("candidates", [])
+    if not candidates:
+        raise ValueError(f"Gemini 回應未包含 candidates: {response_json}")
+    candidate = candidates[0]
+    content = candidate.get("content", {})
+    parts = content.get("parts", [])
+    if not parts or "text" not in parts[0]:
+        raise ValueError(f"Gemini 回應 candidate 格式不正確: {candidate}")
+    return parts[0]["text"]
 
 
 def get_event_path():
@@ -397,6 +499,8 @@ def calculate_backoff_delay(
 
 def get_candidate_models() -> list:
     candidates = list(ACTIVE_MODEL_CANDIDATES)
+    if not get_groq_api_key():
+        return candidates
     try:
         available_models = get_available_models()
         filtered_candidates = [model for model in candidates if model in available_models]
@@ -411,105 +515,244 @@ def chat_completion(
     prompt: str,
     max_retries_per_model: int = DEFAULT_MAX_RETRIES_PER_MODEL,
 ) -> str:
-    api_key = get_groq_api_key()
-    candidates = get_candidate_models()
+    gemini_keys = get_gemini_api_keys()
+    groq_api_key = get_groq_api_key()
 
-    attempted_models = []
+    if not gemini_keys and not groq_api_key:
+        raise RuntimeError(
+            json.dumps(
+                [("INIT", "未配置任何 AI Provider 密鑰（GEMINI_API_KEY_* 或 GROQ_API_KEY）")],
+                ensure_ascii=False,
+            )
+        )
+
     error_details = []
-    for model_name in candidates:
-        attempted_models.append(model_name)
-        use_json_mode = True
-        for attempt in range(1, max_retries_per_model + 1):
-            try:
-                system_content = (
-                    "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
-                    "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
-                )
-                request_payload = {
-                    "model": model_name,
-                    "messages": [
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 4096,
-                }
-                if use_json_mode:
-                    request_payload["response_format"] = {"type": "json_object"}
 
-                response = requests.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=request_payload,
-                    timeout=120,
-                )
-                if response.ok:
-                    raw_content = response.json()["choices"][0]["message"]["content"]
+    # ========================================================
+    # Stage 1: Google Gemini (多 Key 輪替與多模型備援)
+    # ========================================================
+    if gemini_keys:
+        gemini_models = get_gemini_candidate_models()
+        current_key_pool = list(gemini_keys)
+
+        for model_name in gemini_models:
+            key_index = 0
+            while key_index < len(current_key_pool):
+                var_name, api_key = current_key_pool[key_index]
+                masked_key = mask_api_key(api_key)
+                key_tag = f"Gemini/{model_name} [{var_name}:{masked_key}]"
+
+                for attempt in range(1, max_retries_per_model + 1):
                     try:
-                        # 驗證輸出是否可被成功解析為合法 JSON 物件
-                        extract_json_payload(raw_content)
-                        print(f"使用 Groq 模型：{model_name}")
-                        # 自適應調度：將運作成功的模型提升為第一優先順位
+                        response = call_gemini_api(prompt, model_name, api_key, timeout=120)
+                        if response.ok:
+                            try:
+                                resp_json = response.json()
+                                raw_content = extract_gemini_text(resp_json)
+                                extract_json_payload(raw_content)
+                                print(f"使用 Google Gemini 模型：{model_name}（金鑰：{var_name} {masked_key}）")
+                                if model_name in ACTIVE_GEMINI_MODELS:
+                                    ACTIVE_GEMINI_MODELS.remove(model_name)
+                                    ACTIVE_GEMINI_MODELS.insert(0, model_name)
+                                return raw_content
+                            except (ValueError, KeyError, json.JSONDecodeError) as parse_exc:
+                                json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{parse_exc}"
+                                error_details.append((key_tag, json_err_msg))
+                                print(
+                                    f"Gemini 模型 {model_name} 金鑰 {var_name} 輸出非合法 JSON"
+                                    f"（第 {attempt}/{max_retries_per_model} 次）：{parse_exc}，退避等待後重試..."
+                                )
+                                if attempt < max_retries_per_model:
+                                    wait_sec = calculate_backoff_delay(
+                                        attempt, 0.0, base_delay=2.0, max_delay=30.0
+                                    )
+                                    time.sleep(wait_sec)
+                                    continue
+                                break
+
+                        status_code = response.status_code
+                        resp_text = response.text[:300]
+                        reason_msg = f"HTTP {status_code}: {resp_text}"
+                        error_details.append((key_tag, reason_msg))
+
+                        # 429 速率限制 / 配額耗盡 / RESOURCE_EXHAUSTED
+                        if status_code == 429 or "RESOURCE_EXHAUSTED" in resp_text:
+                            print(
+                                f"Gemini 金鑰 {var_name} ({masked_key}) 達到速率限制或配額耗盡 (429)，"
+                                "立即輪替至下一組金鑰..."
+                            )
+                            time.sleep(1.0)
+                            break
+
+                        # 403 授權無效或配額限制
+                        if status_code == 403:
+                            print(
+                                f"Gemini 金鑰 {var_name} ({masked_key}) 授權失敗或額度無效 (403)，"
+                                "立即輪替至下一組金鑰..."
+                            )
+                            time.sleep(1.0)
+                            break
+
+                        # 413 請求過大：切換下一個模型
+                        if status_code == 413:
+                            print(f"Gemini 模型 {model_name} 請求負載過大 (413)，切換下一候選模型...")
+                            time.sleep(1.0)
+                            key_index = len(current_key_pool)
+                            break
+
+                        # 其他錯誤 (400, 500, 503 等)
+                        print(f"Gemini 金鑰 {var_name} 呼叫失敗：{reason_msg}")
+                        if status_code >= 500 and attempt < max_retries_per_model:
+                            wait_sec = calculate_backoff_delay(
+                                attempt, 2.0, base_delay=2.5, max_delay=30.0
+                            )
+                            time.sleep(wait_sec)
+                            continue
+                        break
+
+                    except requests.RequestException as req_exc:
+                        error_details.append((key_tag, str(req_exc)))
+                        print(f"Gemini 金鑰 {var_name} 連線異常：{req_exc}")
+                        if attempt < max_retries_per_model:
+                            wait_sec = calculate_backoff_delay(
+                                attempt, 2.0, base_delay=2.5, max_delay=30.0
+                            )
+                            time.sleep(wait_sec)
+                            continue
+                        break
+
+                key_index += 1
+
+    # ========================================================
+    # Stage 2: Groq Fallback (若未配置 Gemini 或 Gemini 全數失敗)
+    # ========================================================
+    if groq_api_key:
+        if gemini_keys:
+            print("所有 Gemini 金鑰與模型均無法取得有效回應，降級至備援 Provider：Groq...")
+
+        candidates = get_candidate_models()
+        for model_name in candidates:
+            use_json_mode = True
+            for attempt in range(1, max_retries_per_model + 1):
+                try:
+                    system_content = (
+                        "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
+                        "任何 Markdown 標記或解釋性文字。確保所有字串與引號正確閉合。不得捏造 Finding。"
+                    )
+                    request_payload = {
+                        "model": model_name,
+                        "messages": [
+                            {"role": "system", "content": system_content},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 0.1,
+                        "max_tokens": 4096,
+                    }
+                    if use_json_mode:
+                        request_payload["response_format"] = {"type": "json_object"}
+
+                    response = requests.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {groq_api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=request_payload,
+                        timeout=120,
+                    )
+                    if response.ok:
+                        raw_content = response.json()["choices"][0]["message"]["content"]
+                        try:
+                            extract_json_payload(raw_content)
+                            print(f"使用 Groq 模型：{model_name}")
+                            if model_name in ACTIVE_MODEL_CANDIDATES:
+                                ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                                ACTIVE_MODEL_CANDIDATES.insert(0, model_name)
+                            return raw_content
+                        except json.JSONDecodeError as json_exc:
+                            json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{json_exc}"
+                            error_details.append((f"Groq/{model_name}", json_err_msg))
+                            print(
+                                f"模型 {model_name} 輸出非合法 JSON"
+                                f"（第 {attempt}/{max_retries_per_model} 次）：{json_exc}，退避等待後重試..."
+                            )
+                            if attempt < max_retries_per_model:
+                                wait_seconds = calculate_backoff_delay(
+                                    attempt, 0.0, base_delay=2.0, max_delay=30.0
+                                )
+                                time.sleep(wait_seconds)
+                                continue
+                            if model_name in ACTIVE_MODEL_CANDIDATES:
+                                ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                                ACTIVE_MODEL_CANDIDATES.append(model_name)
+                            time.sleep(2.0)
+                            break
+
+                    status_code = response.status_code
+                    reason_msg = f"HTTP {status_code}: {response.text[:300]}"
+                    error_details.append((f"Groq/{model_name}", reason_msg))
+
+                    if status_code == 413:
+                        print(f"模型 {model_name} 請求負載過大 (413)：{reason_msg}，立即降級並切換下一個模型。")
                         if model_name in ACTIVE_MODEL_CANDIDATES:
                             ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                            ACTIVE_MODEL_CANDIDATES.insert(0, model_name)
-                        return raw_content
-                    except json.JSONDecodeError as json_exc:
-                        json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{json_exc}"
-                        error_details.append((model_name, json_err_msg))
-                        print(
-                            f"模型 {model_name} 輸出非合法 JSON"
-                            f"（第 {attempt}/{max_retries_per_model} 次）：{json_exc}，退避等待後重試..."
+                            ACTIVE_MODEL_CANDIDATES.append(model_name)
+                        time.sleep(1.0)
+                        break
+
+                    if status_code == 429:
+                        raw_retry_after = parse_retry_after(response)
+                        if (
+                            raw_retry_after > 60.0
+                            or "TPD" in response.text
+                            or "daily limit" in response.text.lower()
+                            or "quota" in response.text.lower()
+                        ):
+                            print(
+                                f"模型 {model_name} 配額耗盡或等待時間過長 ({raw_retry_after:.1f}s)，"
+                                "立即降級並切換下一個模型。"
+                            )
+                            if model_name in ACTIVE_MODEL_CANDIDATES:
+                                ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                                ACTIVE_MODEL_CANDIDATES.append(model_name)
+                            time.sleep(2.0)
+                            break
+
+                        wait_seconds = calculate_backoff_delay(
+                            attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
                         )
                         if attempt < max_retries_per_model:
-                            wait_seconds = calculate_backoff_delay(
-                                attempt, 0.0, base_delay=2.0, max_delay=30.0
+                            print(
+                                f"模型 {model_name} 達到速率限制 (429)，"
+                                f"指數退避等待 {wait_seconds:.1f} 秒後重試"
+                                f"（第 {attempt}/{max_retries_per_model} 次）..."
                             )
                             time.sleep(wait_seconds)
                             continue
 
-                        print(
-                            f"模型 {model_name} 連續 {max_retries_per_model} 次輸出非合法 JSON，"
-                            "降級至備援清單尾端並切換下一個模型。"
-                        )
+                        print(f"模型 {model_name} 達到重試上限且額度已滿，降級至備援清單尾端並切換下一個模型。")
                         if model_name in ACTIVE_MODEL_CANDIDATES:
                             ACTIVE_MODEL_CANDIDATES.remove(model_name)
                             ACTIVE_MODEL_CANDIDATES.append(model_name)
-                        time.sleep(3.0)
+                        time.sleep(2.0)
                         break
 
-                status_code = response.status_code
-                reason_msg = f"HTTP {status_code}: {response.text[:300]}"
-                error_details.append((model_name, reason_msg))
-
-                # 處理 413 請求負載過大：不進行無效重試，直接降級該模型並切換下一候選模型
-                if status_code == 413:
-                    print(
-                        f"模型 {model_name} 請求負載過大 (413)：{reason_msg}，"
-                        "立即降級至備援清單尾端並切換下一個模型。"
-                    )
-                    if model_name in ACTIVE_MODEL_CANDIDATES:
-                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                        ACTIVE_MODEL_CANDIDATES.append(model_name)
-                    time.sleep(1.0)
-                    break
-
-                # 處理 429 速率限制指數退避重試
-                if status_code == 429:
-                    raw_retry_after = parse_retry_after(response)
-                    # 若 retry_after 過長 (例如 > 60s) 或錯誤訊息包含每日配額/TPD 耗盡，不應在同一模型死等
-                    if (
-                        raw_retry_after > 60.0
-                        or "TPD" in response.text
-                        or "daily limit" in response.text.lower()
-                        or "quota" in response.text.lower()
-                    ):
+                    if status_code == 400 and use_json_mode and "json_validate_failed" in response.text:
+                        wait_seconds = calculate_backoff_delay(
+                            attempt, 0.0, base_delay=3.0, max_delay=30.0
+                        )
                         print(
-                            f"模型 {model_name} 配額耗盡或等待時間過長 ({raw_retry_after:.1f}s)，"
-                            "立即降級至備援清單尾端並切換下一個模型。"
+                            f"模型 {model_name} JSON 模式校驗失敗 (400)，"
+                            f"延後等待 {wait_seconds:.1f} 秒後降級為純文字模式並重試..."
+                        )
+                        use_json_mode = False
+                        time.sleep(wait_seconds)
+                        continue
+
+                    if status_code == 400:
+                        print(
+                            f"模型 {model_name} 請求參數或格式錯誤 (400)：{reason_msg}，"
+                            "降級至備援清單尾端並切換下一個模型。"
                         )
                         if model_name in ACTIVE_MODEL_CANDIDATES:
                             ACTIVE_MODEL_CANDIDATES.remove(model_name)
@@ -517,71 +760,32 @@ def chat_completion(
                         time.sleep(2.0)
                         break
 
-                    wait_seconds = calculate_backoff_delay(
-                        attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
-                    )
+                    print(f"模型 {model_name} 請求失敗：{reason_msg}")
+                    time.sleep(2.0)
+                    break
+                except requests.RequestException as exc:
+                    error_details.append((f"Groq/{model_name}", str(exc)))
+                    print(f"模型 {model_name} 連線異常：{exc}")
                     if attempt < max_retries_per_model:
-                        print(
-                            f"模型 {model_name} 達到速率限制 (429)，"
-                            f"指數退避等待 {wait_seconds:.1f} 秒後重試"
-                            f"（第 {attempt}/{max_retries_per_model} 次）..."
+                        wait_seconds = calculate_backoff_delay(
+                            attempt, 2.0, base_delay=2.5, max_delay=60.0
                         )
                         time.sleep(wait_seconds)
                         continue
-
-                    print(f"模型 {model_name} 達到重試上限且額度已滿，降級至備援清單尾端並切換下一個模型。")
-                    if model_name in ACTIVE_MODEL_CANDIDATES:
-                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                        ACTIVE_MODEL_CANDIDATES.append(model_name)
                     time.sleep(2.0)
                     break
-
-                # 處理 400 JSON 模式校驗失敗：延後退避並降級為一般文字模式重試
-                if status_code == 400 and use_json_mode and "json_validate_failed" in response.text:
-                    wait_seconds = calculate_backoff_delay(
-                        attempt, 0.0, base_delay=3.0, max_delay=30.0
-                    )
-                    print(
-                        f"模型 {model_name} JSON 模式校驗失敗 (400)，"
-                        f"延後等待 {wait_seconds:.1f} 秒後降級為純文字模式並重試..."
-                    )
-                    use_json_mode = False
-                    time.sleep(wait_seconds)
-                    continue
-
-                # 其他 400 格式錯誤：延後降級該模型並冷卻切換
-                if status_code == 400:
-                    print(
-                        f"模型 {model_name} 請求參數或格式錯誤 (400)：{reason_msg}，"
-                        "降級至備援清單尾端並切換下一個模型。"
-                    )
-                    if model_name in ACTIVE_MODEL_CANDIDATES:
-                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
-                        ACTIVE_MODEL_CANDIDATES.append(model_name)
-                    time.sleep(3.0)
-                    break
-
-                print(f"模型 {model_name} 請求失敗：{reason_msg}")
-                time.sleep(3.0)
-                break
-            except requests.RequestException as exc:
-                error_details.append((model_name, str(exc)))
-                print(f"模型 {model_name} 連線異常：{exc}")
-                if attempt < max_retries_per_model:
-                    wait_seconds = calculate_backoff_delay(
-                        attempt, 2.0, base_delay=2.5, max_delay=90.0
-                    )
-                    time.sleep(wait_seconds)
-                    continue
-                time.sleep(3.0)
-                break
 
     raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
 
 
 def main():
-    if not get_gh_token() or not get_groq_api_key():
-        raise SystemExit("未配置必要的信任密鑰（GH_TOKEN 或 GROQ_API_KEY）。")
+    has_token = bool(get_gh_token())
+    has_gemini = bool(get_gemini_api_keys())
+    has_groq = bool(get_groq_api_key())
+    if not has_token or (not has_gemini and not has_groq):
+        raise SystemExit(
+            "未配置必要的信任密鑰（GH_TOKEN 與至少一組 AI Provider 密鑰：GEMINI_API_KEY_* 或 GROQ_API_KEY）。"
+        )
 
     event_path_str = get_event_path()
     if not event_path_str or not Path(event_path_str).exists():
@@ -776,7 +980,7 @@ artifact/cache、fail-open 與 Review bypass。
             publish_failure_report(
                 pr_number,
                 "AI Provider 呼叫失敗",
-                "所有已配置的 Groq 模型均無法取得有效回應。",
+                "所有已配置的 AI 模型/金鑰（Google Gemini / Groq）均無法取得有效回應。",
                 error_details,
             )
             raise SystemExit(f"AI Provider 無法使用：{error_details}")
