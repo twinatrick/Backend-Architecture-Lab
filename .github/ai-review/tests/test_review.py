@@ -13,6 +13,13 @@ if str(AI_REVIEW_DIR) not in sys.path:
 import review
 
 
+@pytest.fixture(autouse=True)
+def reset_cooldowns_fixture():
+    review.reset_key_cooldowns()
+    yield
+    review.reset_key_cooldowns()
+
+
 def test_resolve_pr_number_from_pull_request_event():
     event = {"pull_request": {"number": 42}}
     assert review.resolve_pr_number(event) == 42
@@ -602,7 +609,7 @@ def test_get_gemini_api_keys_discovery_and_sorting():
         "GEMINI_API_KEY_10": "key_ten",
         "GEMINI_API_KEY": "key_default",
         "GEMINI_API_KEY_1": "key_one",
-        "GEMINI_API_KEY_B": "key_beta",
+        "GEMINI_API_KEY_B": "key_beta",  # 非純數字後綴應被嚴格過濾
         "GEMINI_API_KEY_A": "key_alpha",
         "GEMINI_API_KEY_EMPTY": "",
         "GEMINI_API_KEY_BLANK": "   ",
@@ -618,10 +625,49 @@ def test_get_gemini_api_keys_discovery_and_sorting():
             "GEMINI_API_KEY_1",
             "GEMINI_API_KEY_2",
             "GEMINI_API_KEY_10",
-            "GEMINI_API_KEY_A",
-            "GEMINI_API_KEY_B",
         ]
-        assert key_vals == ["key_default", "key_one", "key_two", "key_ten", "key_alpha", "key_beta"]
+        assert key_vals == ["key_default", "key_one", "key_two", "key_ten"]
+
+
+def test_get_groq_api_keys_discovery_and_sorting():
+    env_vars = {
+        "GROQ_API_KEY_3": "groq_three",
+        "GROQ_API_KEY": "groq_default",
+        "GROQ_API_KEY_1": "groq_one",
+        "GROQ_API_KEY_XYZ": "invalid_suffix",
+        "GROQ_API_KEY_DUP": "groq_default",
+    }
+    with patch.dict(os.environ, env_vars, clear=True):
+        keys = review.get_groq_api_keys()
+        var_names = [k[0] for k in keys]
+        key_vals = [k[1] for k in keys]
+        assert var_names == [
+            "GROQ_API_KEY",
+            "GROQ_API_KEY_1",
+            "GROQ_API_KEY_3",
+        ]
+        assert key_vals == ["groq_default", "groq_one", "groq_three"]
+
+
+def test_redact_secrets():
+    env_vars = {
+        "GROQ_API_KEY": "gsk_1234567890abcdef1234567890abcdef",
+        "GEMINI_API_KEY": "AIzaSyTestKey1234567890abcdef1234567890",
+        "GH_TOKEN": "ghp_1234567890abcdef1234567890abcdef",
+    }
+    with patch.dict(os.environ, env_vars, clear=True):
+        raw_msg = (
+            "Error with key gsk_1234567890abcdef1234567890abcdef "
+            "and Gemini AIzaSyTestKey1234567890abcdef1234567890 "
+            "and GitHub ghp_1234567890abcdef1234567890abcdef "
+            "and pat github_pat_11ABCD1234567890123456_abcdef"
+        )
+        redacted = review.redact_secrets(raw_msg)
+        assert "gsk_" not in redacted
+        assert "AIza" not in redacted
+        assert "ghp_" not in redacted
+        assert "github_pat_" not in redacted
+        assert "[REDACTED]" in redacted
 
 
 def test_call_gemini_api_constructs_proper_request():
@@ -632,9 +678,11 @@ def test_call_gemini_api_constructs_proper_request():
         assert resp == mock_resp
         assert mock_post.called
         call_url = mock_post.call_args[0][0]
+        call_headers = mock_post.call_args[1]["headers"]
         call_json = mock_post.call_args[1]["json"]
         assert "models/gemini-2.0-flash:generateContent" in call_url
-        assert "key=test-key-123" in call_url
+        assert "key=" not in call_url
+        assert call_headers.get("x-goog-api-key") == "test-key-123"
         assert call_json["generationConfig"]["responseMimeType"] == "application/json"
         assert "test review prompt" in call_json["contents"][0]["parts"][0]["text"]
 
@@ -678,6 +726,7 @@ def test_chat_completion_gemini_single_key_success():
         result = review.chat_completion("review prompt")
         assert result == '{"batch": "gemini-pass", "findings": []}'
         assert mock_post.called
+        assert mock_post.call_args[1]["headers"].get("x-goog-api-key") == "test_gemini_key"
 
 
 def test_chat_completion_gemini_multi_key_rotation_on_429():
@@ -704,14 +753,17 @@ def test_chat_completion_gemini_multi_key_rotation_on_429():
         "GEMINI_API_KEY_2": "good_key_working",
     }
     with patch.dict(os.environ, env_vars, clear=True), \
+         patch("random.choice", side_effect=lambda pool: pool[0]), \
          patch("requests.post", side_effect=[mock_resp_429, mock_resp_ok]) as mock_post, \
          patch("time.sleep"):
         result = review.chat_completion("review prompt", max_retries_per_model=3)
         assert result == '{"batch": "gemini-key2-ok", "findings": []}'
         assert mock_post.call_count == 2
         # Verify first call used key 1, second call rotated to key 2
-        assert "key=bad_key_rate_limited" in mock_post.call_args_list[0][0][0]
-        assert "key=good_key_working" in mock_post.call_args_list[1][0][0]
+        assert mock_post.call_args_list[0][1]["headers"].get("x-goog-api-key") == "bad_key_rate_limited"
+        assert mock_post.call_args_list[1][1]["headers"].get("x-goog-api-key") == "good_key_working"
+        assert review.is_key_in_cooldown("bad_key_rate_limited") is True
+        assert review.is_key_in_cooldown("good_key_working") is False
 
 
 def test_chat_completion_gemini_multi_key_rotation_on_403():
@@ -738,38 +790,115 @@ def test_chat_completion_gemini_multi_key_rotation_on_403():
         "GEMINI_API_KEY_2": "valid_key",
     }
     with patch.dict(os.environ, env_vars, clear=True), \
+         patch("random.choice", side_effect=lambda pool: pool[0]), \
          patch("requests.post", side_effect=[mock_resp_403, mock_resp_ok]) as mock_post, \
          patch("time.sleep"):
         result = review.chat_completion("review prompt", max_retries_per_model=3)
         assert result == '{"batch": "gemini-key2-403-ok", "findings": []}'
         assert mock_post.call_count == 2
+        assert mock_post.call_args_list[0][1]["headers"].get("x-goog-api-key") == "invalid_key"
+        assert mock_post.call_args_list[1][1]["headers"].get("x-goog-api-key") == "valid_key"
+        assert review.is_key_in_cooldown("invalid_key") is True
 
 
-def test_chat_completion_gemini_falls_back_to_groq_when_gemini_exhausted():
-    review.ACTIVE_GEMINI_MODELS = ["gemini-test-fail"]
-    review.ACTIVE_MODEL_CANDIDATES = ["groq-test-ok"]
+def test_chat_completion_groq_multi_key_rotation_on_429():
+    mock_resp_429 = MagicMock()
+    mock_resp_429.ok = False
+    mock_resp_429.status_code = 429
+    mock_resp_429.headers = {"retry-after": "120"}
+    mock_resp_429.text = "Rate limit reached (429)"
 
-    mock_resp_gemini_fail = MagicMock()
-    mock_resp_gemini_fail.ok = False
-    mock_resp_gemini_fail.status_code = 429
-    mock_resp_gemini_fail.text = "Gemini all keys exhausted"
-
-    mock_resp_groq_ok = MagicMock()
-    mock_resp_groq_ok.ok = True
-    mock_resp_groq_ok.json.return_value = {
-        "choices": [{"message": {"content": '{"batch": "groq-fallback-ok", "findings": []}'}}]
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "groq-key2-ok", "findings": []}'}}]
     }
 
     env_vars = {
-        "GEMINI_API_KEY": "failing_gemini_key",
-        "GROQ_API_KEY": "working_groq_key",
+        "GROQ_API_KEY_1": "bad_groq_key_rate_limited",
+        "GROQ_API_KEY_2": "good_groq_key_working",
     }
     with patch.dict(os.environ, env_vars, clear=True), \
-         patch("review.get_available_models", return_value=["groq-test-ok"]), \
-         patch("requests.post", side_effect=[mock_resp_gemini_fail, mock_resp_groq_ok]), \
+         patch("random.choice", side_effect=lambda pool: pool[0]), \
+         patch("review.get_available_models", return_value=["llama-3.3-70b-versatile"]), \
+         patch("requests.post", side_effect=[mock_resp_429, mock_resp_ok]) as mock_post, \
+         patch("time.sleep"):
+        result = review.chat_completion("review prompt", max_retries_per_model=3)
+        assert result == '{"batch": "groq-key2-ok", "findings": []}'
+        assert mock_post.call_count == 2
+        first_auth = mock_post.call_args_list[0][1]["headers"]["Authorization"]
+        second_auth = mock_post.call_args_list[1][1]["headers"]["Authorization"]
+        assert first_auth == "Bearer bad_groq_key_rate_limited"
+        assert second_auth == "Bearer good_groq_key_working"
+        assert review.is_key_in_cooldown("bad_groq_key_rate_limited") is True
+        assert review.is_key_in_cooldown("good_groq_key_working") is False
+
+
+def test_chat_completion_groq_multi_key_rotation_on_403():
+    mock_resp_403 = MagicMock()
+    mock_resp_403.ok = False
+    mock_resp_403.status_code = 403
+    mock_resp_403.text = "Invalid API Key (403)"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "groq-key2-403-ok", "findings": []}'}}]
+    }
+
+    env_vars = {
+        "GROQ_API_KEY_1": "invalid_groq_key",
+        "GROQ_API_KEY_2": "valid_groq_key",
+    }
+    with patch.dict(os.environ, env_vars, clear=True), \
+         patch("random.choice", side_effect=lambda pool: pool[0]), \
+         patch("review.get_available_models", return_value=["llama-3.3-70b-versatile"]), \
+         patch("requests.post", side_effect=[mock_resp_403, mock_resp_ok]) as mock_post, \
+         patch("time.sleep"):
+        result = review.chat_completion("review prompt", max_retries_per_model=3)
+        assert result == '{"batch": "groq-key2-403-ok", "findings": []}'
+        assert mock_post.call_count == 2
+        first_auth = mock_post.call_args_list[0][1]["headers"]["Authorization"]
+        second_auth = mock_post.call_args_list[1][1]["headers"]["Authorization"]
+        assert first_auth == "Bearer invalid_groq_key"
+        assert second_auth == "Bearer valid_groq_key"
+        assert review.is_key_in_cooldown("invalid_groq_key") is True
+
+
+def test_chat_completion_groq_falls_back_to_gemini_when_groq_exhausted():
+    review.ACTIVE_MODEL_CANDIDATES = ["groq-test-fail"]
+    review.ACTIVE_GEMINI_MODELS = ["gemini-test-ok"]
+
+    mock_resp_groq_fail = MagicMock()
+    mock_resp_groq_fail.ok = False
+    mock_resp_groq_fail.status_code = 429
+    mock_resp_groq_fail.headers = {"retry-after": "120"}
+    mock_resp_groq_fail.text = "Groq all keys exhausted"
+
+    mock_resp_gemini_ok = MagicMock()
+    mock_resp_gemini_ok.ok = True
+    mock_resp_gemini_ok.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": '{"batch": "gemini-fallback-ok", "findings": []}'}],
+                    "role": "model",
+                }
+            }
+        ]
+    }
+
+    env_vars = {
+        "GROQ_API_KEY": "failing_groq_key",
+        "GEMINI_API_KEY": "working_gemini_key",
+    }
+    with patch.dict(os.environ, env_vars, clear=True), \
+         patch("random.choice", side_effect=lambda pool: pool[0]), \
+         patch("review.get_available_models", return_value=["groq-test-fail"]), \
+         patch("requests.post", side_effect=[mock_resp_groq_fail, mock_resp_gemini_ok]), \
          patch("time.sleep"):
         result = review.chat_completion("fallback test", max_retries_per_model=1)
-        assert result == '{"batch": "groq-fallback-ok", "findings": []}'
+        assert result == '{"batch": "gemini-fallback-ok", "findings": []}'
 
 
 def test_chat_completion_raises_when_no_api_keys_configured():
@@ -777,6 +906,153 @@ def test_chat_completion_raises_when_no_api_keys_configured():
         with pytest.raises(RuntimeError) as exc_info:
             review.chat_completion("test without keys")
         assert "未配置任何 AI Provider 密鑰" in str(exc_info.value)
+
+
+def test_key_cooldown_marking_and_expiration():
+    review.reset_key_cooldowns()
+    test_key = "test_cooldown_key_123"
+
+    assert review.is_key_in_cooldown(test_key) is False
+    assert review.get_key_cooldown_remaining(test_key) == 0.0
+
+    # 標記冷卻 2 秒
+    review.mark_key_cooldown(test_key, 2.0)
+    assert review.is_key_in_cooldown(test_key) is True
+    assert review.get_key_cooldown_remaining(test_key) > 0.0
+
+    # 模擬時間過期
+    with patch("time.time", return_value=review.time.time() + 3.0):
+        assert review.is_key_in_cooldown(test_key) is False
+        assert review.get_key_cooldown_remaining(test_key) == 0.0
+
+
+def test_get_active_keys_filters_cooldown_keys():
+    keys = [
+        ("KEY_1", "val_1"),
+        ("KEY_2", "val_2"),
+        ("KEY_3", "val_3"),
+    ]
+    review.mark_key_cooldown("val_2", 60.0)
+
+    active = review.get_active_keys(keys)
+    assert len(active) == 2
+    assert ("KEY_1", "val_1") in active
+    assert ("KEY_3", "val_3") in active
+    assert ("KEY_2", "val_2") not in active
+
+
+def test_pick_random_active_key_behavior():
+    keys = [
+        ("KEY_1", "val_1"),
+        ("KEY_2", "val_2"),
+        ("KEY_3", "val_3"),
+    ]
+    # 當排除 KEY_1 且 KEY_2 在冷卻中時，只能抽到 KEY_3
+    review.mark_key_cooldown("val_2", 60.0)
+    picked = review.pick_random_active_key(keys, excluded_keys={"val_1"})
+    assert picked == ("KEY_3", "val_3")
+
+    # 若所有金鑰均被排除或冷卻，回傳 None
+    picked_none = review.pick_random_active_key(keys, excluded_keys={"val_1", "val_3"})
+    assert picked_none is None
+
+
+def test_pick_random_active_key_distribution():
+    keys = [
+        ("KEY_1", "val_1"),
+        ("KEY_2", "val_2"),
+        ("KEY_3", "val_3"),
+    ]
+    picked_counts = {"val_1": 0, "val_2": 0, "val_3": 0}
+    for _ in range(300):
+        res = review.pick_random_active_key(keys)
+        assert res is not None
+        picked_counts[res[1]] += 1
+
+    # 300 次隨機抽取中，每個 Key 至少被抽到 30 次以上
+    assert picked_counts["val_1"] > 30
+    assert picked_counts["val_2"] > 30
+    assert picked_counts["val_3"] > 30
+
+
+def test_chat_completion_groq_429_persists_cooldown_for_subsequent_batch():
+    mock_resp_429 = MagicMock()
+    mock_resp_429.ok = False
+    mock_resp_429.status_code = 429
+    mock_resp_429.headers = {"retry-after": "60"}
+    mock_resp_429.text = "Rate limit reached (429)"
+
+    mock_resp_ok1 = MagicMock()
+    mock_resp_ok1.ok = True
+    mock_resp_ok1.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "batch1-ok", "findings": []}'}}]
+    }
+
+    mock_resp_ok2 = MagicMock()
+    mock_resp_ok2.ok = True
+    mock_resp_ok2.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "batch2-ok", "findings": []}'}}]
+    }
+
+    env_vars = {
+        "GROQ_API_KEY_1": "groq_key_1",
+        "GROQ_API_KEY_2": "groq_key_2",
+    }
+    with patch.dict(os.environ, env_vars, clear=True), \
+         patch("random.choice", side_effect=lambda pool: pool[0]), \
+         patch("review.get_available_models", return_value=["llama-3.3-70b-versatile"]), \
+         patch("requests.post", side_effect=[mock_resp_429, mock_resp_ok1, mock_resp_ok2]) as mock_post, \
+         patch("time.sleep"):
+
+        # 批次 1：第 1 把 Key 遇到 429 進入冷卻，第 2 把 Key 成功
+        res1 = review.chat_completion("batch 1 prompt")
+        assert res1 == '{"batch": "batch1-ok", "findings": []}'
+        assert review.is_key_in_cooldown("groq_key_1") is True
+
+        # 批次 2：因為 groq_key_1 仍在冷卻清單中，直接挑選未冷卻的 groq_key_2，無須再次踩雷 429！
+        res2 = review.chat_completion("batch 2 prompt")
+        assert res2 == '{"batch": "batch2-ok", "findings": []}'
+
+        assert mock_post.call_count == 3
+        # 第一次嘗試 key 1 (429)，第二次嘗試 key 2 (成功)，第三次直接使用 key 2 (成功)
+        assert mock_post.call_args_list[0][1]["headers"]["Authorization"] == "Bearer groq_key_1"
+        assert mock_post.call_args_list[1][1]["headers"]["Authorization"] == "Bearer groq_key_2"
+        assert mock_post.call_args_list[2][1]["headers"]["Authorization"] == "Bearer groq_key_2"
+
+
+def test_chat_completion_all_groq_cooling_immediately_falls_back_to_gemini():
+    review.ACTIVE_MODEL_CANDIDATES = ["llama-3.3-70b-versatile"]
+    review.ACTIVE_GEMINI_MODELS = ["gemini-2.5-flash"]
+
+    mock_resp_gemini_ok = MagicMock()
+    mock_resp_gemini_ok.ok = True
+    mock_resp_gemini_ok.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": '{"batch": "gemini-fast-ok", "findings": []}'}],
+                    "role": "model",
+                }
+            }
+        ]
+    }
+
+    env_vars = {
+        "GROQ_API_KEY_1": "cooling_groq_key",
+        "GEMINI_API_KEY_1": "active_gemini_key",
+    }
+    # 先將 Groq Key 設為冷卻中
+    review.mark_key_cooldown("cooling_groq_key", 120.0)
+
+    with patch.dict(os.environ, env_vars, clear=True), \
+         patch("requests.post", return_value=mock_resp_gemini_ok) as mock_post, \
+         patch("time.sleep"):
+        res = review.chat_completion("prompt when groq is cooling")
+        assert res == '{"batch": "gemini-fast-ok", "findings": []}'
+        # 直接呼叫 Gemini，未對冷卻的 Groq 進行無效請求
+        assert mock_post.call_count == 1
+        assert mock_post.call_args[1]["headers"].get("x-goog-api-key") == "active_gemini_key"
+
 
 
 
