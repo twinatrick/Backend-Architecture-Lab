@@ -27,6 +27,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -249,7 +250,7 @@ class CompensationOutboxWorkerTest {
 
         compensationOutboxWorker.flushPendingEvents();
 
-        java.util.concurrent.Semaphore semaphore = (java.util.concurrent.Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
         assertEquals(2, semaphore.availablePermits());
     }
@@ -264,7 +265,7 @@ class CompensationOutboxWorkerTest {
 
         compensationOutboxWorker.flushPendingEvents();
 
-        java.util.concurrent.Semaphore semaphore = (java.util.concurrent.Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
         assertEquals(1, semaphore.availablePermits());
     }

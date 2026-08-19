@@ -18,6 +18,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -77,6 +78,8 @@ class FunctionQueryServiceTest {
             vo.setType(function.getType());
             return vo;
         });
+
+        ReflectionTestUtils.setField(functionQueryService, "self", functionQueryService);
     }
 
     @Test

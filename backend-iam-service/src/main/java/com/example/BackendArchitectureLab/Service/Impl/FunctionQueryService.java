@@ -11,6 +11,7 @@ import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -28,9 +29,12 @@ public class FunctionQueryService implements IFunctionQueryService {
     private final IFunctionDataAccess functionDataAccess;
     private final FunctionMapper functionMapper;
 
+    @Lazy
+    private final IFunctionQueryService self;
+
     @Override
     public List<FunctionVo> getFunction() {
-        return getFunctionListCache().getData();
+        return self.getFunctionListCache().getData();
     }
 
     @Override
@@ -72,15 +76,15 @@ public class FunctionQueryService implements IFunctionQueryService {
 
     @Override
     public FunctionVo getFunctionByPath(String oneLayer, String twoLayer, String threeLayer) {
-        FunctionVo one = getFunctionByName(oneLayer);
+        FunctionVo one = self.getFunctionByName(oneLayer);
         if (one == null) {
             return null;
         }
-        FunctionVo two = getFunctionByNameAndParent(twoLayer, one.getId());
+        FunctionVo two = self.getFunctionByNameAndParent(twoLayer, one.getId());
         if (two == null) {
             return null;
         }
-        return getFunctionByNameAndParent(threeLayer, two.getId());
+        return self.getFunctionByNameAndParent(threeLayer, two.getId());
     }
 
     @Override

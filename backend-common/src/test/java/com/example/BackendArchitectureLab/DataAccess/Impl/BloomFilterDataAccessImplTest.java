@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.DataAccess.IBloomFilterDataAccess;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Query;
+import jakarta.persistence.metamodel.EntityType;
+import jakarta.persistence.metamodel.Metamodel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +15,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -70,10 +73,10 @@ class BloomFilterDataAccessImplTest {
 
     @Test
     void findAllEntityIds_WhenMetamodelValidatesCanonicalName_UsesCanonicalNameInQuery() {
-        jakarta.persistence.metamodel.Metamodel metamodel = mock(jakarta.persistence.metamodel.Metamodel.class);
-        jakarta.persistence.metamodel.EntityType entityType = mock(jakarta.persistence.metamodel.EntityType.class);
+        Metamodel metamodel = mock(Metamodel.class);
+        EntityType entityType = mock(EntityType.class);
         when(entityType.getName()).thenReturn("UserEntity");
-        doReturn(java.util.Set.of(entityType)).when(metamodel).getEntities();
+        doReturn(Set.of(entityType)).when(metamodel).getEntities();
 
         when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
         when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);
@@ -89,10 +92,10 @@ class BloomFilterDataAccessImplTest {
 
     @Test
     void findAllEntityIds_WhenMetamodelHasEntitiesButEntityNotFound_ThrowsIllegalArgumentException() {
-        jakarta.persistence.metamodel.Metamodel metamodel = mock(jakarta.persistence.metamodel.Metamodel.class);
-        jakarta.persistence.metamodel.EntityType entityType = mock(jakarta.persistence.metamodel.EntityType.class);
+        Metamodel metamodel = mock(Metamodel.class);
+        EntityType entityType = mock(EntityType.class);
         when(entityType.getName()).thenReturn("UserEntity");
-        doReturn(java.util.Set.of(entityType)).when(metamodel).getEntities();
+        doReturn(Set.of(entityType)).when(metamodel).getEntities();
 
         when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
         when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);

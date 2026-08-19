@@ -111,6 +111,8 @@ class JobPostingServiceTest {
             vo.setGeminiAnalysis(jp.getGeminiAnalysis());
             return vo;
         });
+
+        ReflectionTestUtils.setField(jobPostingService, "self", jobPostingService);
     }
 
     @Test

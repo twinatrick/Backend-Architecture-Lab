@@ -19,6 +19,7 @@ import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,12 +46,12 @@ public class ProjectSkillService implements IProjectSkillService {
     private final ISkillLevelDataAccess skillLevelDataAccess;
     private final ISkillDataAccess skillDataAccess;
     private final SecurityUtil securityUtil;
-    @org.springframework.context.annotation.Lazy
+    @Lazy
     private final ProjectSkillService self;
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
-        return getProjectSkillsCache(projectId).getData();
+        return self.getProjectSkillsCache(projectId).getData();
     }
 
     @Override
