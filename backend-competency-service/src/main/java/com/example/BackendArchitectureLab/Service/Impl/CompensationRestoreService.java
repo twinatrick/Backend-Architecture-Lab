@@ -111,12 +111,12 @@ public class CompensationRestoreService implements ICompensationRestoreService {
             // 6. 還原
             if (bindings != null) {
                 for (BindingSnapshot binding : bindings) {
-                    Skill skill = skillDataAccess.findById(binding.getSkillId())
-                            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + binding.getSkillId()));
-                    SkillLevel skillLevel = skillLevelDataAccess.findById(binding.getLevelId())
-                            .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + binding.getLevelId()));
+                    Skill skill = skillDataAccess.findById(binding.skillId())
+                            .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + binding.skillId()));
+                    SkillLevel skillLevel = skillLevelDataAccess.findById(binding.levelId())
+                            .orElseThrow(() -> new IllegalArgumentException("Skill level not found: " + binding.levelId()));
                     UserProjectSkill entity = new UserProjectSkill();
-                    entity.setUserId(binding.getUserId());
+                    entity.setUserId(binding.userId());
                     entity.setProject(project);
                     entity.setSkill(skill);
                     entity.setSkillLevel(skillLevel);

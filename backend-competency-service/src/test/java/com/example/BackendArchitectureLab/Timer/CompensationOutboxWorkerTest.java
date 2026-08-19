@@ -232,6 +232,43 @@ class CompensationOutboxWorkerTest {
         assertThrows(IllegalStateException.class, compensationOutboxWorker::validateConfiguration);
     }
 
+    @Test
+    void flushPendingEvents_ShouldRespectSemaphorePermitsAndRelease_whenConcurrentTasksRun() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 2);
+        CompensationOutboxEvent outbox1 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh1 = freshWithAttempt(outbox1, 1);
+        CompensationOutboxEvent outbox2 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh2 = freshWithAttempt(outbox2, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox1, outbox2));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox1.getId())).thenReturn(Optional.of(fresh1));
+        when(outboxRepository.findById(outbox2.getId())).thenReturn(Optional.of(fresh2));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        java.util.concurrent.Semaphore semaphore = (java.util.concurrent.Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(2, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldReleaseSemaphore_evenWhenExceptionThrownInClaimOrPublish() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
+                .thenThrow(new RuntimeException("database claim connection lost"));
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        java.util.concurrent.Semaphore semaphore = (java.util.concurrent.Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
     private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {
         CompensationOutboxEvent fresh = new CompensationOutboxEvent();
         fresh.setId(outbox.getId());

@@ -67,4 +67,37 @@ class BloomFilterDataAccessImplTest {
         assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds(null));
         verify(emfProvider, never()).getIfAvailable();
     }
+
+    @Test
+    void findAllEntityIds_WhenMetamodelValidatesCanonicalName_UsesCanonicalNameInQuery() {
+        jakarta.persistence.metamodel.Metamodel metamodel = mock(jakarta.persistence.metamodel.Metamodel.class);
+        jakarta.persistence.metamodel.EntityType entityType = mock(jakarta.persistence.metamodel.EntityType.class);
+        when(entityType.getName()).thenReturn("UserEntity");
+        doReturn(java.util.Set.of(entityType)).when(metamodel).getEntities();
+
+        when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
+        when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);
+        when(entityManagerFactory.createEntityManager()).thenReturn(entityManager);
+        when(entityManager.createQuery("SELECT e.id FROM UserEntity e")).thenReturn(query);
+        when(query.getResultList()).thenReturn(List.of("id-1"));
+
+        List<String> result = dataAccess.findAllEntityIds("userentity");
+
+        assertEquals(List.of("id-1"), result);
+        verify(entityManager).createQuery("SELECT e.id FROM UserEntity e");
+    }
+
+    @Test
+    void findAllEntityIds_WhenMetamodelHasEntitiesButEntityNotFound_ThrowsIllegalArgumentException() {
+        jakarta.persistence.metamodel.Metamodel metamodel = mock(jakarta.persistence.metamodel.Metamodel.class);
+        jakarta.persistence.metamodel.EntityType entityType = mock(jakarta.persistence.metamodel.EntityType.class);
+        when(entityType.getName()).thenReturn("UserEntity");
+        doReturn(java.util.Set.of(entityType)).when(metamodel).getEntities();
+
+        when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
+        when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);
+
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds("UnknownEntity"));
+        verify(entityManagerFactory, never()).createEntityManager();
+    }
 }

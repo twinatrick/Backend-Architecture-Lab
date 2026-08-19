@@ -49,13 +49,6 @@ public class JobPostingService implements IJobPostingService {
     private final CacheManager cacheManager;
     private final StringRedisTemplate stringRedisTemplate;
 
-    @Lazy
-    private final IJobPostingService self;
-
-    private IJobPostingService getSelf() {
-        return self != null ? self : this;
-    }
-
     @Override
     @Transactional
     @Caching(put = {
@@ -84,7 +77,7 @@ public class JobPostingService implements IJobPostingService {
 
     @Override
     public List<JobPostingVo> getAllJobPostings() {
-        return getSelf().getAllJobPostingsCache().getData();
+        return getAllJobPostingsCache().getData();
     }
 
     @Override
@@ -182,7 +175,7 @@ public class JobPostingService implements IJobPostingService {
 
     @Override
     public List<JobPostingVo> getJobPostingsByCompanyId(String companyId) {
-        return getSelf().getJobPostingsByCompanyIdCache(companyId).getData();
+        return getJobPostingsByCompanyIdCache(companyId).getData();
     }
 
     @Override

@@ -15,7 +15,6 @@ import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
@@ -40,20 +39,13 @@ public class ProjectQueryService implements IProjectQueryService {
     private final SecurityUtil securityUtil;
     private final ProjectMapper projectMapper;
 
-    @Lazy
-    private final IProjectQueryService self;
-
-    private IProjectQueryService getSelf() {
-        return self != null ? self : this;
-    }
-
     /**
      * 查詢所有專案
      * @return 所有專案列表
      */
     @Override
     public List<ProjectVo> getProject() {
-        return getSelf().getProjectListCache().getData();
+        return getProjectListCache().getData();
     }
 
     @Override
@@ -86,7 +78,7 @@ public class ProjectQueryService implements IProjectQueryService {
 
     @Override
     public List<ProjectVo> getCurrentUserProjects() {
-        return getSelf().getCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString()).getData();
+        return getCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString()).getData();
     }
 
     @Override
@@ -106,7 +98,7 @@ public class ProjectQueryService implements IProjectQueryService {
 
     @Override
     public PageResult<ProjectVo> searchCurrentUserProjects(ProjectSearchQuery query) {
-        return getSelf().searchCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString(), query);
+        return searchCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString(), query);
     }
 
     @Override

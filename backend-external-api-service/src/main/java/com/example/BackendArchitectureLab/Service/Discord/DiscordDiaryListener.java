@@ -6,11 +6,13 @@ import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionReposito
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import lombok.RequiredArgsConstructor;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -69,12 +71,13 @@ public class DiscordDiaryListener extends ListenerAdapter {
             return;
         }
 
-        if (!event.getMessage().getAttachments().isEmpty()) {
+        List<Message.Attachment> attachments = event.getMessage().getAttachments();
+        if (attachments != null && !attachments.isEmpty()) {
             Optional<DiscordSubscription> sub = subscriptionRepository
                     .findByGuildIdAndBotType(guildId, "diary");
             if (sub.isEmpty()) return;
 
-            var attachment = event.getMessage().getAttachments().getFirst();
+            Message.Attachment attachment = attachments.getFirst();
             String ct = attachment.getContentType();
             if (ct == null || !ct.startsWith("audio/")) return;
 

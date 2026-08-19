@@ -301,8 +301,9 @@ public class DiscordGfListener extends ListenerAdapter {
         String userName = event.getMember() != null ? event.getMember().getEffectiveName() : event.getAuthor().getName();
 
         // 1. 處理語音附件接收
-        if (!event.getMessage().getAttachments().isEmpty()) {
-            var attachment = event.getMessage().getAttachments().getFirst();
+        List<Message.Attachment> attachments = event.getMessage().getAttachments();
+        if (attachments != null && !attachments.isEmpty()) {
+            Message.Attachment attachment = attachments.getFirst();
             String ct = attachment.getContentType();
             if (ct != null && ct.startsWith("audio/")) {
                 attachment.getProxy().download().thenAcceptAsync(inputStream -> {

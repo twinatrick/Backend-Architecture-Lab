@@ -19,7 +19,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,13 +40,6 @@ public class CompanyService implements ICompanyService {
     private final CompanyMapper companyMapper;
     private final CacheManager cacheManager;
 
-    @Lazy
-    private final ICompanyService self;
-
-    private ICompanyService getSelf() {
-        return self != null ? self : this;
-    }
-
     @Override
     @Transactional
     @CacheEvict(value = "companies", key = "'all'")
@@ -67,7 +59,7 @@ public class CompanyService implements ICompanyService {
     @Override
     @Transactional(readOnly = true)
     public List<CompanyVo> getAllCompanies() {
-        return getSelf().getAllCompaniesCache().getData();
+        return getAllCompaniesCache().getData();
     }
 
     @Override

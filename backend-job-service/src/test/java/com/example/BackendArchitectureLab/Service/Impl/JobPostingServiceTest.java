@@ -71,7 +71,6 @@ class JobPostingServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(jobPostingService, "self", jobPostingService);
         companyId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();
 
