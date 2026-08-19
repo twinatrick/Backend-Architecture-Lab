@@ -518,6 +518,9 @@ def test_chat_completion_adaptive_model_promotion_and_demotion():
 def test_parse_retry_limit_valid():
     assert review.parse_retry_limit("5") == 5
     assert review.parse_retry_limit("1") == 1
+    assert review.parse_retry_limit("12") == 12
+    assert review.parse_retry_limit("50") == 12
+    assert review.parse_retry_limit("100") == 12
 
 
 def test_parse_retry_limit_invalid_or_empty():

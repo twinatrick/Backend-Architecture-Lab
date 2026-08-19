@@ -15,12 +15,17 @@ EVENT_PATH = os.environ.get("EVENT_PATH", "")
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
+MAX_RETRY_LIMIT = 12
+
+
 def parse_retry_limit(raw_value: str | None, default: int = 9) -> int:
     if raw_value is None or not str(raw_value).strip():
         return default
     try:
         val = int(raw_value)
-        return val if val >= 1 else default
+        if val < 1:
+            return default
+        return min(val, MAX_RETRY_LIMIT)
     except (TypeError, ValueError):
         logging.warning("AI_REVIEW_MAX_RETRIES 設定值 '%s' 無效，改用預設值 %s", raw_value, default)
         return default

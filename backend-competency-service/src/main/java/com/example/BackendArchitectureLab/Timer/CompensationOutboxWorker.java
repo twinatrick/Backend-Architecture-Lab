@@ -65,7 +65,7 @@ public class CompensationOutboxWorker {
     private final ObjectMapper objectMapper;
     private final ExecutorService compensationOutboxPublisherPool;
     private final AtomicBoolean isFlushing = new AtomicBoolean(false);
-    private volatile Semaphore publishSemaphore;
+    private Semaphore publishSemaphore = new Semaphore(8);
 
     /**
      * 啟動時驗證租約組態不變式：
@@ -89,13 +89,6 @@ public class CompensationOutboxWorker {
     }
 
     private Semaphore getPublishSemaphore() {
-        if (publishSemaphore == null) {
-            synchronized (this) {
-                if (publishSemaphore == null) {
-                    publishSemaphore = new Semaphore(Math.max(1, publishParallelism));
-                }
-            }
-        }
         return publishSemaphore;
     }
 

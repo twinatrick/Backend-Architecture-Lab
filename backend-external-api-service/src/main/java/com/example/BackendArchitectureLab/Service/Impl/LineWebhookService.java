@@ -40,7 +40,11 @@ public class LineWebhookService implements ILineWebhookService {
                     String text = textContent.getText();
                     if (service instanceof ILineGfService gfService) {
                         String userId = msgEvent.getSource() != null ? msgEvent.getSource().getUserId() : null;
-                        gfService.handleText(replyToken, text, userId);
+                        if (userId == null || userId.isBlank()) {
+                            log.debug("忽略無法取得有效 userId 的 LINE 女友訊息事件: replyToken={}", replyToken);
+                        } else {
+                            gfService.handleText(replyToken, text, userId);
+                        }
                     } else if (service instanceof ILineDiaryService diaryService) {
                         diaryService.handleText(replyToken, text);
                     }
@@ -49,7 +53,11 @@ public class LineWebhookService implements ILineWebhookService {
                     String messageId = audioContent.getId();
                     if (service instanceof ILineGfService gfService) {
                         String userId = msgEvent.getSource() != null ? msgEvent.getSource().getUserId() : null;
-                        gfService.handleAudio(replyToken, messageId, userId);
+                        if (userId == null || userId.isBlank()) {
+                            log.debug("忽略無法取得有效 userId 的 LINE 女友音訊事件: replyToken={}, messageId={}", replyToken, messageId);
+                        } else {
+                            gfService.handleAudio(replyToken, messageId, userId);
+                        }
                     } else if (service instanceof ILineDiaryService diaryService) {
                         diaryService.handleAudio(replyToken, messageId);
                     }

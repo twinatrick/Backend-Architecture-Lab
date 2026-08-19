@@ -138,25 +138,28 @@ class LineWebhookServiceTest {
     }
 
     @Test
-    @DisplayName("dispatchEvents 遇 null Source 應安全傳遞 null userId 給 ILineGfService")
-    void dispatchEvents_ShouldHandleNullSource_Safely() {
-        MessageEvent<TextMessageContent> textEvent = mock(MessageEvent.class);
+    @DisplayName("dispatchEvents 遇 null 或空白 userId 時應略過 ILineGfService 避免 Session 污染")
+    void dispatchEvents_ShouldIgnoreGfEvents_whenUserIdNullOrBlank() {
+        MessageEvent<TextMessageContent> textEventNullSrc = mock(MessageEvent.class);
         TextMessageContent textContent = mock(TextMessageContent.class);
-        when(textEvent.getMessage()).thenReturn(textContent);
-        when(textEvent.getReplyToken()).thenReturn("token-no-src");
-        when(textEvent.getSource()).thenReturn(null);
+        when(textEventNullSrc.getMessage()).thenReturn(textContent);
+        when(textEventNullSrc.getReplyToken()).thenReturn("token-no-src");
+        when(textEventNullSrc.getSource()).thenReturn(null);
         when(textContent.getText()).thenReturn("Hello without source");
 
-        MessageEvent<AudioMessageContent> audioEvent = mock(MessageEvent.class);
+        MessageEvent<AudioMessageContent> audioEventNullSrc = mock(MessageEvent.class);
         AudioMessageContent audioContent = mock(AudioMessageContent.class);
-        when(audioEvent.getMessage()).thenReturn(audioContent);
-        when(audioEvent.getReplyToken()).thenReturn("token-audio-no-src");
-        when(audioEvent.getSource()).thenReturn(null);
+        when(audioEventNullSrc.getMessage()).thenReturn(audioContent);
+        when(audioEventNullSrc.getReplyToken()).thenReturn("token-audio-no-src");
+        when(audioEventNullSrc.getSource()).thenReturn(null);
         when(audioContent.getId()).thenReturn("audio-id-no-src");
 
-        assertDoesNotThrow(() -> service.dispatchEvents(List.of(textEvent, audioEvent), lineGfService));
+        assertDoesNotThrow(() -> service.dispatchEvents(List.of(textEventNullSrc, audioEventNullSrc), lineGfService));
+        verifyNoInteractions(lineGfService);
 
-        verify(lineGfService).handleText("token-no-src", "Hello without source", null);
-        verify(lineGfService).handleAudio("token-audio-no-src", "audio-id-no-src", null);
+        // 但對於不需要 userId 的 ILineDiaryService 仍應正常分發
+        assertDoesNotThrow(() -> service.dispatchEvents(List.of(textEventNullSrc, audioEventNullSrc), lineDiaryService));
+        verify(lineDiaryService).handleText("token-no-src", "Hello without source");
+        verify(lineDiaryService).handleAudio("token-audio-no-src", "audio-id-no-src");
     }
 }

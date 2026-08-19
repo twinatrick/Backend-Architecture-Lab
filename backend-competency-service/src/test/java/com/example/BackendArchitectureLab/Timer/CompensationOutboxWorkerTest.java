@@ -73,8 +73,10 @@ class CompensationOutboxWorkerTest {
         ReflectionTestUtils.setField(compensationOutboxWorker, "maxAttempts", 5);
         ReflectionTestUtils.setField(compensationOutboxWorker, "leaseSeconds", 300L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 20);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 8);
         ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 10L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "backoffSeconds", List.of(5L, 15L, 30L, 60L, 300L));
+        compensationOutboxWorker.validateConfiguration();
     }
 
     @Test
@@ -240,6 +242,7 @@ class CompensationOutboxWorkerTest {
     @Test
     void flushPendingEvents_ShouldRespectSemaphorePermitsAndRelease_whenConcurrentTasksRun() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 2);
+        compensationOutboxWorker.validateConfiguration();
         CompensationOutboxEvent outbox1 = newOutboxEvent(CompensationStatus.COMMITTED);
         CompensationOutboxEvent fresh1 = freshWithAttempt(outbox1, 1);
         CompensationOutboxEvent outbox2 = newOutboxEvent(CompensationStatus.COMMITTED);
@@ -262,6 +265,7 @@ class CompensationOutboxWorkerTest {
     @Test
     void flushPendingEvents_ShouldReleaseSemaphore_evenWhenExceptionThrownInClaimOrPublish() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
         CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
         when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
         when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
@@ -277,6 +281,7 @@ class CompensationOutboxWorkerTest {
     @Test
     void flushPendingEvents_ShouldThrottleConcurrency_whenTasksExceedParallelism() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 2);
+        compensationOutboxWorker.validateConfiguration();
         CompensationOutboxEvent outbox1 = newOutboxEvent(CompensationStatus.COMMITTED);
         CompensationOutboxEvent fresh1 = freshWithAttempt(outbox1, 1);
         CompensationOutboxEvent outbox2 = newOutboxEvent(CompensationStatus.COMMITTED);
@@ -313,6 +318,7 @@ class CompensationOutboxWorkerTest {
     @Test
     void flushPendingEvents_ShouldReturnGracefully_whenFreshEventNotFoundAfterClaim() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
         CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
         outbox.setAttemptCount(1);
         when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
@@ -354,6 +360,7 @@ class CompensationOutboxWorkerTest {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
         ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 1L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 1);
+        compensationOutboxWorker.validateConfiguration();
 
         CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
         CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
@@ -384,6 +391,7 @@ class CompensationOutboxWorkerTest {
     @Test
     void flushPendingEvents_ShouldMarkFailed_whenDeliveryInterrupted() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
         CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
         CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
 

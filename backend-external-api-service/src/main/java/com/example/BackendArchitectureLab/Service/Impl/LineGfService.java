@@ -24,6 +24,7 @@ import com.linecorp.bot.model.ReplyMessage;
 import com.linecorp.bot.model.message.AudioMessage;
 import com.linecorp.bot.model.message.TextMessage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LineGfService implements ILineGfService {
@@ -55,6 +57,10 @@ public class LineGfService implements ILineGfService {
 
     @Override
     public void handleText(String replyToken, String text, String userId) {
+        if (userId == null || userId.isBlank()) {
+            log.warn("LINE 女友服務收到無效的 userId: replyToken={}", replyToken);
+            return;
+        }
         if (text.startsWith("#")) {
             handleCommand(replyToken, text, userId);
             return;
@@ -296,6 +302,10 @@ public class LineGfService implements ILineGfService {
 
     @Override
     public void handleAudio(String replyToken, String messageId, String userId) {
+        if (userId == null || userId.isBlank()) {
+            log.warn("LINE 女友服務收到無效的 userId: replyToken={}, messageId={}", replyToken, messageId);
+            return;
+        }
         try {
             MessageContentResponse content = blobClient.getMessageContent(messageId).get();
             byte[] audioBytes = content.getStream().readAllBytes();
