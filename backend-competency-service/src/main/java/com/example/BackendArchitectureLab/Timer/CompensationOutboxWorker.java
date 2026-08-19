@@ -217,6 +217,7 @@ public class CompensationOutboxWorker {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.warn("Outbox publish task interrupted during event delivery: id={}", fresh.getId());
+                handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
             } catch (Exception e) {
                 handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
             }

@@ -295,8 +295,8 @@ def repair_json_string(text: str) -> str:
             parsed = json.loads(block_cleaned)
             if isinstance(parsed, dict):
                 return block_cleaned
-        except Exception:
-            pass
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            logging.debug("Markdown 代碼塊 JSON 解析略過: %s", exc)
 
     # 3. 使用括號平衡計數精確擷取頂層平衡的 JSON 物件
     candidates = find_balanced_json_substrings(cleaned)
@@ -310,7 +310,8 @@ def repair_json_string(text: str) -> str:
                     score += 10
                 score += len(cand)
                 valid_dicts.append((score, cand))
-        except Exception:
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            logging.debug("候選 JSON 子字串解析略過: %s", exc)
             continue
 
     if valid_dicts:

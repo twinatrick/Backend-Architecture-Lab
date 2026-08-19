@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -370,6 +371,41 @@ class CompensationOutboxWorkerTest {
         });
 
         compensationOutboxWorker.flushPendingEvents();
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldMarkFailed_whenDeliveryInterrupted() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        CompletableFuture<Void> interruptedFuture = new CompletableFuture<>() {
+            @Override
+            public Void get(long timeout, TimeUnit unit) throws InterruptedException {
+                throw new InterruptedException("Simulated task interruption during wait");
+            }
+        };
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(interruptedFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        ArgumentCaptor<Date> nextAttemptCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("Simulated task interruption"),
+                nextAttemptCaptor.capture());
+        assertNotNull(nextAttemptCaptor.getValue());
 
         Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
