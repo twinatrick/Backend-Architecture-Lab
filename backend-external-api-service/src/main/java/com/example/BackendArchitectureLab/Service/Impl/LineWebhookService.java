@@ -35,6 +35,7 @@ public class LineWebhookService implements ILineWebhookService {
             String replyToken = msgEvent.getReplyToken();
 
             switch (msgEvent.getMessage()) {
+                case null -> log.debug("忽略沒有 message content 的 LINE event");
                 case TextMessageContent textContent -> {
                     String text = textContent.getText();
                     if (service instanceof ILineGfService gfService) {
@@ -53,11 +54,7 @@ public class LineWebhookService implements ILineWebhookService {
                         diaryService.handleAudio(replyToken, messageId);
                     }
                 }
-                default -> {
-                    if (msgEvent.getMessage() != null) {
-                        log.debug("忽略未支援的 LINE 訊息型別: {}", msgEvent.getMessage().getClass().getSimpleName());
-                    }
-                }
+                default -> log.debug("忽略未支援的 LINE 訊息型別: {}", msgEvent.getMessage().getClass().getSimpleName());
             }
         }
     }

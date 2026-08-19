@@ -34,3 +34,30 @@ def test_ai_decision_field_is_rejected():
     finding = {key: "x" for key in REQUIRED}
     finding.update(severity="HIGH", confidence="HIGH", decision="APPROVE")
     assert not validate_finding(finding)
+
+
+def test_non_dict_finding_fails():
+    assert not validate_finding(["not", "a", "dict"])
+    assert not validate_finding("string finding")
+    assert not validate_finding(None)
+
+
+def test_empty_or_whitespace_location_fails():
+    finding = {key: "x" for key in REQUIRED}
+    finding.update(severity="HIGH", confidence="HIGH", location="   ")
+    assert not validate_finding(finding)
+
+    finding["location"] = ""
+    assert not validate_finding(finding)
+
+
+def test_non_string_or_empty_text_fields_fail():
+    for field in ("rule", "problem", "evidence", "risk", "recommendation"):
+        finding = {key: "x" for key in REQUIRED}
+        finding.update(severity="HIGH", confidence="HIGH")
+        finding[field] = ""
+        assert not validate_finding(finding)
+
+        finding[field] = 123
+        assert not validate_finding(finding)
+

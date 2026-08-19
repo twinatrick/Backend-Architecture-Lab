@@ -403,6 +403,16 @@ def test_extract_json_payload_rejects_non_dict():
         review.extract_json_payload('12345')
 
 
+def test_extract_json_payload_rejects_conflicting_multiple_review_payloads():
+    raw = (
+        '{"batch": "ci-1", "files_reviewed": ["a.py"], "findings": []}\n'
+        '{"batch": "ci-2", "files_reviewed": ["b.py"], "findings": []}'
+    )
+    with pytest.raises(json.JSONDecodeError):
+        review.extract_json_payload(raw)
+
+
+
 def test_chat_completion_demotes_model_on_persistent_400():
     review.ACTIVE_MODEL_CANDIDATES = ["model-400-fail", "model-ok"]
 

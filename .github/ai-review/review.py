@@ -300,23 +300,29 @@ def repair_json_string(text: str) -> str:
 
     # 3. 使用括號平衡計數精確擷取頂層平衡的 JSON 物件
     candidates = find_balanced_json_substrings(cleaned)
-    valid_dicts = []
+    valid_review_payloads = []
+    valid_other_dicts = []
     for cand in candidates:
         try:
             parsed = json.loads(cand)
             if isinstance(parsed, dict):
-                score = 0
-                if "findings" in parsed or "gate_recommendation" in parsed:
-                    score += 10
-                score += len(cand)
-                valid_dicts.append((score, cand))
+                if "batch" in parsed and "files_reviewed" in parsed and "findings" in parsed:
+                    valid_review_payloads.append(cand)
+                else:
+                    valid_other_dicts.append(cand)
         except (json.JSONDecodeError, ValueError, TypeError) as exc:
             logging.debug("候選 JSON 子字串解析略過: %s", exc)
             continue
 
-    if valid_dicts:
-        valid_dicts.sort(key=lambda x: x[0], reverse=True)
-        return valid_dicts[0][1]
+    if len(valid_review_payloads) == 1:
+        return valid_review_payloads[0]
+    elif len(valid_review_payloads) > 1:
+        raise json.JSONDecodeError("輸出包含多個相衝的 Review JSON 物件，無法確定唯一根結構", cleaned, 0)
+
+    if len(valid_other_dicts) == 1:
+        return valid_other_dicts[0]
+    elif len(valid_other_dicts) > 1:
+        raise json.JSONDecodeError("輸出包含多個歧異 JSON 物件", cleaned, 0)
 
     if candidates:
         return candidates[-1]

@@ -23,12 +23,21 @@ def is_blocking(finding, policy):
 
 
 def validate_finding(finding, policy=None):
+    if not isinstance(finding, dict):
+        return False
     if not REQUIRED_FIELDS.issubset(finding):
+        return False
+    location = finding.get("location")
+    if not isinstance(location, str) or not location.strip():
         return False
     if finding.get("severity") not in ALLOWED_SEVERITY:
         return False
     if finding.get("confidence") not in ALLOWED_CONFIDENCE:
         return False
+    for field in ("rule", "problem", "evidence", "risk", "recommendation"):
+        val = finding.get(field)
+        if not isinstance(val, str) or not val.strip():
+            return False
     return "blocking" not in finding and "decision" not in finding
 
 
