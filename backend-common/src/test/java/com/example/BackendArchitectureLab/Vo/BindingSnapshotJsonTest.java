@@ -30,11 +30,6 @@ class BindingSnapshotJsonTest {
         assertEquals(userId, deserialized.userId());
         assertEquals(skillId, deserialized.skillId());
         assertEquals(levelId, deserialized.levelId());
-
-        // Test bean-style getter compatibility
-        assertEquals(userId, deserialized.getUserId());
-        assertEquals(skillId, deserialized.getSkillId());
-        assertEquals(levelId, deserialized.getLevelId());
     }
 
     @Test

@@ -223,7 +223,7 @@ class CompensationRestoreServiceTest {
                 eq("FAILED"), any(Date.class), anyString())).thenReturn(1);
         BindingSnapshot binding = new BindingSnapshot(UUID.randomUUID(), skillId, levelId);
         UserProject up = new UserProject();
-        up.setUserId(binding.getUserId());
+        up.setUserId(binding.userId());
         up.setProject(project);
         when(userProjectDataAccess.findByProjectId(projectId)).thenReturn(List.of(up));
         doThrow(new RuntimeException("skill rebind failed"))

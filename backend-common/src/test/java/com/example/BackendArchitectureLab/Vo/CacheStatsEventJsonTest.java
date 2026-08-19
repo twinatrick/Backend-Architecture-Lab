@@ -22,10 +22,6 @@ class CacheStatsEventJsonTest {
         assertEquals(original, deserialized);
         assertEquals("roles", deserialized.cacheName());
         assertEquals("hit", deserialized.field());
-
-        // Test bean-style getter compatibility
-        assertEquals("roles", deserialized.getCacheName());
-        assertEquals("hit", deserialized.getField());
     }
 
     @Test
