@@ -15,6 +15,7 @@ EVENT_PATH = os.environ.get("EVENT_PATH", "")
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
+DEFAULT_MAX_RETRIES_PER_MODEL = int(os.environ.get("AI_REVIEW_MAX_RETRIES", "9"))
 
 DEFAULT_MODEL_CANDIDATES = [
     "llama-3.1-8b-instant",
@@ -113,7 +114,11 @@ def post_issue_comment(pr_number, body):
     try:
         existing_comments = gh_get(comments_url, params={"per_page": 100})
         existing = next(
-            (comment for comment in existing_comments if REVIEW_MARKER in (comment.get("body") or "")),
+            (
+                comment
+                for comment in existing_comments
+                if REVIEW_MARKER in (comment.get("body") or "")
+            ),
             None,
         )
         if existing:
@@ -167,7 +172,12 @@ def post_pr_review(pr_number, body, event_type="COMMENT"):
 
 def publish_review(pr_number, body, decision="COMMENT"):
     post_issue_comment(pr_number, body)
-    review_event = "APPROVE" if decision == "APPROVE" else ("REQUEST_CHANGES" if decision == "REQUEST_CHANGES" else "COMMENT")
+    if decision == "APPROVE":
+        review_event = "APPROVE"
+    elif decision == "REQUEST_CHANGES":
+        review_event = "REQUEST_CHANGES"
+    else:
+        review_event = "COMMENT"
     post_pr_review(pr_number, body, review_event)
 
 
@@ -194,7 +204,8 @@ def publish_failure_report(pr_number, title, reason, details=None):
             report.append(f"```\n{details}\n```")
         report.append("")
     report.extend([
-        "這是 fail-closed 行為：AI Review 遭遇錯誤或未完成時不得產生 APPROVE。請檢查 CI 日誌或修復相關設定後重新觸發。",
+        "這是 fail-closed 行為：AI Review 遭遇錯誤或未完成時不得產生 APPROVE。",
+        "請檢查 CI 日誌或修復相關設定後重新觸發。",
         "",
         "## 執行原則",
         "- 所有自然語言內容使用繁體中文。",
@@ -260,25 +271,16 @@ def extract_json_payload(raw_text: str) -> dict:
         raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
 
     repaired = repair_json_string(raw_text)
-
-    try:
-        parsed = json.loads(repaired)
-        if isinstance(parsed, dict):
-            return parsed
-        raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
-    except json.JSONDecodeError as exc:
-        logging.warning("標準 json.loads 解析失敗，嘗試移除未轉義控制字元: %s", exc)
-
-    # 若一般 json.loads 失敗，嘗試移除字串內未轉義的控制字元後再次嘗試
-    cleaned_controls = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", repaired)
-    parsed = json.loads(cleaned_controls)
+    parsed = json.loads(repaired)
     if isinstance(parsed, dict):
         return parsed
-    raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", cleaned_controls, 0)
+    raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
 
 
 def parse_retry_after(response) -> float:
-    header_val = response.headers.get("retry-after") if hasattr(response, "headers") and response.headers else None
+    header_val = None
+    if hasattr(response, "headers") and response.headers:
+        header_val = response.headers.get("retry-after")
     if header_val:
         try:
             return float(header_val)
@@ -325,7 +327,10 @@ def get_candidate_models() -> list:
     return candidates
 
 
-def chat_completion(prompt: str, max_retries_per_model: int = 5) -> str:
+def chat_completion(
+    prompt: str,
+    max_retries_per_model: int = DEFAULT_MAX_RETRIES_PER_MODEL,
+) -> str:
     api_key = get_groq_api_key()
     candidates = get_candidate_models()
 
@@ -375,13 +380,21 @@ def chat_completion(prompt: str, max_retries_per_model: int = 5) -> str:
                     except json.JSONDecodeError as json_exc:
                         json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{json_exc}"
                         error_details.append((model_name, json_err_msg))
-                        print(f"模型 {model_name} 輸出非合法 JSON（第 {attempt}/{max_retries_per_model} 次）：{json_exc}，退避等待後重試...")
+                        print(
+                            f"模型 {model_name} 輸出非合法 JSON"
+                            f"（第 {attempt}/{max_retries_per_model} 次）：{json_exc}，退避等待後重試..."
+                        )
                         if attempt < max_retries_per_model:
-                            wait_seconds = calculate_backoff_delay(attempt, 0.0, base_delay=2.0, max_delay=30.0)
+                            wait_seconds = calculate_backoff_delay(
+                                attempt, 0.0, base_delay=2.0, max_delay=30.0
+                            )
                             time.sleep(wait_seconds)
                             continue
 
-                        print(f"模型 {model_name} 連續 {max_retries_per_model} 次輸出非合法 JSON，降級至備援清單尾端並切換下一個模型。")
+                        print(
+                            f"模型 {model_name} 連續 {max_retries_per_model} 次輸出非合法 JSON，"
+                            "降級至備援清單尾端並切換下一個模型。"
+                        )
                         if model_name in ACTIVE_MODEL_CANDIDATES:
                             ACTIVE_MODEL_CANDIDATES.remove(model_name)
                             ACTIVE_MODEL_CANDIDATES.append(model_name)
@@ -395,9 +408,15 @@ def chat_completion(prompt: str, max_retries_per_model: int = 5) -> str:
                 # 處理 429 速率限制指數退避重試
                 if status_code == 429:
                     raw_retry_after = parse_retry_after(response)
-                    wait_seconds = calculate_backoff_delay(attempt, raw_retry_after, base_delay=2.5, max_delay=90.0)
+                    wait_seconds = calculate_backoff_delay(
+                        attempt, raw_retry_after, base_delay=2.5, max_delay=90.0
+                    )
                     if attempt < max_retries_per_model:
-                        print(f"模型 {model_name} 達到速率限制 (429)，指數退避等待 {wait_seconds:.1f} 秒後重試（第 {attempt}/{max_retries_per_model} 次）...")
+                        print(
+                            f"模型 {model_name} 達到速率限制 (429)，"
+                            f"指數退避等待 {wait_seconds:.1f} 秒後重試"
+                            f"（第 {attempt}/{max_retries_per_model} 次）..."
+                        )
                         time.sleep(wait_seconds)
                         continue
 
@@ -410,15 +429,23 @@ def chat_completion(prompt: str, max_retries_per_model: int = 5) -> str:
 
                 # 處理 400 JSON 模式校驗失敗：延後退避並降級為一般文字模式重試
                 if status_code == 400 and use_json_mode and "json_validate_failed" in response.text:
-                    wait_seconds = calculate_backoff_delay(attempt, 0.0, base_delay=3.0, max_delay=30.0)
-                    print(f"模型 {model_name} JSON 模式校驗失敗 (400)，延後等待 {wait_seconds:.1f} 秒後降級為純文字模式並重試...")
+                    wait_seconds = calculate_backoff_delay(
+                        attempt, 0.0, base_delay=3.0, max_delay=30.0
+                    )
+                    print(
+                        f"模型 {model_name} JSON 模式校驗失敗 (400)，"
+                        f"延後等待 {wait_seconds:.1f} 秒後降級為純文字模式並重試..."
+                    )
                     use_json_mode = False
                     time.sleep(wait_seconds)
                     continue
 
                 # 其他 400 格式錯誤：延後降級該模型並冷卻切換
                 if status_code == 400:
-                    print(f"模型 {model_name} 請求參數或格式錯誤 (400)：{reason_msg}，降級至備援清單尾端並切換下一個模型。")
+                    print(
+                        f"模型 {model_name} 請求參數或格式錯誤 (400)：{reason_msg}，"
+                        "降級至備援清單尾端並切換下一個模型。"
+                    )
                     if model_name in ACTIVE_MODEL_CANDIDATES:
                         ACTIVE_MODEL_CANDIDATES.remove(model_name)
                         ACTIVE_MODEL_CANDIDATES.append(model_name)
@@ -432,7 +459,9 @@ def chat_completion(prompt: str, max_retries_per_model: int = 5) -> str:
                 error_details.append((model_name, str(exc)))
                 print(f"模型 {model_name} 連線異常：{exc}")
                 if attempt < max_retries_per_model:
-                    wait_seconds = calculate_backoff_delay(attempt, 2.0, base_delay=2.5, max_delay=90.0)
+                    wait_seconds = calculate_backoff_delay(
+                        attempt, 2.0, base_delay=2.5, max_delay=90.0
+                    )
                     time.sleep(wait_seconds)
                     continue
                 time.sleep(3.0)
@@ -504,11 +533,17 @@ def main():
             groups["ci"].append(filename)
         elif path_lower.endswith(".py"):
             groups["python"].append(filename)
-        elif any(token in path_lower for token in ("controller", "security", "permission", "auth", "openapi")):
+        elif any(
+            token in path_lower
+            for token in ("controller", "security", "permission", "auth", "openapi")
+        ):
             groups["security-api"].append(filename)
         elif any(token in path_lower for token in ("feign", "client", "integration", "external")):
             groups["integration"].append(filename)
-        elif any(token in path_lower for token in ("repository", "entity", "dao", "migration", "mapper")):
+        elif any(
+            token in path_lower
+            for token in ("repository", "entity", "dao", "migration", "mapper")
+        ):
             groups["data"].append(filename)
         elif any(token in path_lower for token in ("service", "domain", "usecase")):
             groups["business"].append(filename)
@@ -536,13 +571,19 @@ def main():
             batches.append((scope, current_batch))
 
     expected_files = [filename for _, paths in batches for filename in paths]
-    if sorted(expected_files) != sorted(changed_files) or len(expected_files) != len(set(expected_files)):
+    if sorted(expected_files) != sorted(changed_files) or (
+        len(expected_files) != len(set(expected_files))
+    ):
         mismatch_msg = "覆蓋範圍規劃不符：每個變更檔案必須屬於且僅屬於一個批次。"
         publish_failure_report(pr_number, "批次檔案規劃異常", mismatch_msg)
         raise SystemExit(mismatch_msg)
 
     keywords = {
-        "ci": ("GitHub Actions", "workflow", "permissions", "Secrets", "GITHUB_TOKEN", "pull_request", "shell", "artifact", "cache", "supply-chain"),
+        "ci": (
+            "GitHub Actions", "workflow", "permissions", "Secrets",
+            "GITHUB_TOKEN", "pull_request", "shell", "artifact", "cache",
+            "supply-chain",
+        ),
         "security-api": ("BOLA", "權限", "OpenAPI", "Controller", "IAM", "Security", "API"),
         "business": ("SOLID", "DRY", "KISS", "YAGNI", "Service", "架構"),
         "data": ("Repository", "Entity", "DataAccess", "資料庫", "EntityManager", "Entity"),
@@ -569,11 +610,26 @@ def main():
         diff_parts = []
         for file_item in files:
             if file_item["filename"] in paths:
-                patch_text = file_item.get("patch") or "[GitHub did not provide a patch; review metadata only]"
+                patch_text = (
+                    file_item.get("patch")
+                    or "[GitHub did not provide a patch; review metadata only]"
+                )
                 diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
         diff = "\n\n".join(diff_parts)[:6000]
 
-        prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
+        json_template = (
+            f'{{"batch":"{scope}-{index}",'
+            f'"files_reviewed":{json.dumps(paths, ensure_ascii=False)},'
+            '"findings":[{"severity":"CRITICAL|HIGH|MEDIUM|LOW",'
+            '"confidence":"HIGH|MEDIUM|LOW","location":"file:line",'
+            '"rule":"繁體中文規範依據","problem":"繁體中文問題",'
+            '"evidence":"繁體中文證據","risk":"繁體中文風險",'
+            '"recommendation":"繁體中文修正建議"}],'
+            '"passed_checks":["繁體中文"],"coverage":"COMPLETE"}'
+        )
+
+        prompt = f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。
+所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
 
@@ -594,10 +650,13 @@ def main():
 {diff}
 ```
 
-只審查本批次。必須有程式碼或 workflow 證據才能提出 Finding。不得提出與本 PR 無關的既有技術債或純風格建議。CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Action pinning、artifact/cache、fail-open 與 Review bypass。
+只審查本批次。必須有程式碼或 workflow 證據才能提出 Finding。
+不得提出與本 PR 無關的既有技術債或純風格建議。
+CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Action pinning、
+artifact/cache、fail-open 與 Review bypass。
 
 只輸出合法 JSON，不得輸出 markdown：
-{{"batch":"{scope}-{index}","files_reviewed":{json.dumps(paths, ensure_ascii=False)},"findings":[{{"severity":"CRITICAL|HIGH|MEDIUM|LOW","confidence":"HIGH|MEDIUM|LOW","location":"file:line","rule":"繁體中文規範依據","problem":"繁體中文問題","evidence":"繁體中文證據","risk":"繁體中文風險","recommendation":"繁體中文修正建議"}}],"passed_checks":["繁體中文"],"coverage":"COMPLETE"}}
+{json_template}
 
 不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定。'''
 
@@ -629,7 +688,9 @@ def main():
         norm_reviewed_paths = normalize_paths(raw_reviewed_paths)
         coverage_status = str(batch_data.get("coverage", "")).strip().upper()
 
-        if coverage_status != "COMPLETE" or not validate_coverage(norm_expected_paths, norm_reviewed_paths):
+        if coverage_status != "COMPLETE" or not validate_coverage(
+            norm_expected_paths, norm_reviewed_paths
+        ):
             cov_err = (
                 f"批次覆蓋範圍驗證失敗：{scope}-{index}\n"
                 f"- 預期檔案：{paths}\n"
@@ -647,7 +708,11 @@ def main():
 
         results.append(batch_data)
 
-    reviewed_files = [filename for data in results for filename in normalize_paths(data.get("files_reviewed", []))]
+    reviewed_files = [
+        filename
+        for data in results
+        for filename in normalize_paths(data.get("files_reviewed", []))
+    ]
     findings = [finding for data in results for finding in data.get("findings", [])]
     passed_checks = [check for data in results for check in data.get("passed_checks", [])]
 
@@ -662,7 +727,8 @@ def main():
         "",
         f"## 審查結果\n{decision}",
         "",
-        f"已審查 {len(changed_files)} 個變更檔案、{len(results)} 個批次；共 {len(unique_findings)} 個 Finding，其中 {len(blocking_findings)} 個阻擋項目。",
+        f"已審查 {len(changed_files)} 個變更檔案、{len(results)} 個批次；"
+        f"共 {len(unique_findings)} 個 Finding，其中 {len(blocking_findings)} 個阻擋項目。",
         "",
     ]
     if unique_findings:

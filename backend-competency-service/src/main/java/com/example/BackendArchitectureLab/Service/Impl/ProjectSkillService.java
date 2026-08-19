@@ -47,7 +47,7 @@ public class ProjectSkillService implements IProjectSkillService {
     private final ISkillDataAccess skillDataAccess;
     private final SecurityUtil securityUtil;
     @Lazy
-    private final ProjectSkillService self;
+    private final IProjectSkillService self;
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {

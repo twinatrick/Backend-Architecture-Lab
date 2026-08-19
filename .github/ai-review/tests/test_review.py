@@ -95,7 +95,10 @@ def test_publish_failure_report_generates_markdown_and_publishes():
 
 
 def test_extract_json_payload_clean_json():
-    raw = '{"batch": "ci-1", "coverage": "COMPLETE", "files_reviewed": ["test.java"], "findings": []}'
+    raw = (
+        '{"batch": "ci-1", "coverage": "COMPLETE", '
+        '"files_reviewed": ["test.java"], "findings": []}'
+    )
     parsed = review.extract_json_payload(raw)
     assert parsed["batch"] == "ci-1"
     assert parsed["coverage"] == "COMPLETE"
@@ -151,7 +154,10 @@ def test_normalize_path_and_paths():
 
 def test_validate_coverage_with_order_and_normalization():
     expected = [".github/ai-review/review.py", ".github/ai-review/tests/test_review.py"]
-    reviewed_reversed = ["./.github/ai-review/tests/test_review.py", " .github/ai-review/review.py "]
+    reviewed_reversed = [
+        "./.github/ai-review/tests/test_review.py",
+        " .github/ai-review/review.py ",
+    ]
     norm_expected = review.normalize_paths(expected)
     norm_reviewed = review.normalize_paths(reviewed_reversed)
     assert review.validate_coverage(norm_expected, norm_reviewed)
@@ -161,7 +167,9 @@ def test_validate_coverage_fails_when_missing_or_extra():
     expected = ["a.py", "b.py"]
     norm_expected = review.normalize_paths(expected)
     assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py"]))
-    assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py", "b.py", "c.py"]))
+    assert not review.validate_coverage(
+        norm_expected, review.normalize_paths(["a.py", "b.py", "c.py"])
+    )
     assert not review.validate_coverage(norm_expected, review.normalize_paths(["a.py", "a.py"]))
 
 
@@ -237,7 +245,9 @@ def test_chat_completion_downgrades_on_400_json_validate_failed():
     mock_resp_400.ok = False
     mock_resp_400.status_code = 400
     mock_resp_400.headers = {}
-    mock_resp_400.text = '{"error":{"message":"json_validate_failed: failed to validate json schema"}}'
+    mock_resp_400.text = (
+        '{"error":{"message":"json_validate_failed: failed to validate json schema"}}'
+    )
 
     mock_resp_200 = MagicMock()
     mock_resp_200.ok = True
@@ -261,30 +271,69 @@ def test_chat_completion_downgrades_on_400_json_validate_failed():
 
 
 def test_calculate_backoff_delay_exponential_growth():
-    delay_1 = review.calculate_backoff_delay(attempt=1, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
-    delay_2 = review.calculate_backoff_delay(attempt=2, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
-    delay_3 = review.calculate_backoff_delay(attempt=3, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0))
+    delay_1 = review.calculate_backoff_delay(
+        attempt=1, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0)
+    )
+    delay_2 = review.calculate_backoff_delay(
+        attempt=2, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0)
+    )
+    delay_3 = review.calculate_backoff_delay(
+        attempt=3, retry_after=0.0, base_delay=2.5, jitter_range=(0.0, 0.0)
+    )
     assert delay_1 == 2.5
     assert delay_2 == 5.0
     assert delay_3 == 10.0
 
 
 def test_calculate_backoff_delay_respects_retry_after():
-    delay = review.calculate_backoff_delay(attempt=1, retry_after=12.5, base_delay=2.5, jitter_range=(0.0, 0.0))
+    delay = review.calculate_backoff_delay(
+        attempt=1, retry_after=12.5, base_delay=2.5, jitter_range=(0.0, 0.0)
+    )
     assert delay == 12.5
 
 
 def test_calculate_backoff_delay_capped_at_max_delay():
-    delay = review.calculate_backoff_delay(attempt=10, retry_after=100.0, max_delay=90.0, jitter_range=(0.0, 0.0))
+    delay = review.calculate_backoff_delay(
+        attempt=10, retry_after=100.0, max_delay=90.0, jitter_range=(0.0, 0.0)
+    )
     assert delay == 90.0
 
 
 def test_extract_json_payload_preserves_string_literals_with_commas_and_brackets():
-    raw = '{"batch": "ci-1", "files_reviewed": ["a.py"], "findings": [{"evidence": "items = [1,];", "problem": "issue with mapping,}"}]}'
+    raw = (
+        '{"batch": "ci-1", "files_reviewed": ["a.py"], '
+        '"findings": [{"evidence": "items = [1,];", "problem": "issue with mapping,}"}]}'
+    )
     parsed = review.extract_json_payload(raw)
     assert parsed["batch"] == "ci-1"
     assert parsed["findings"][0]["evidence"] == "items = [1,];"
     assert parsed["findings"][0]["problem"] == "issue with mapping,}"
+
+
+def test_extract_json_payload_preserves_newlines_tabs_and_code_snippets():
+    raw = (
+        '{\n'
+        '  "batch": "business-1",\n'
+        '  "files_reviewed": ["Service.java"],\n'
+        '  "findings": [{\n'
+        '    "severity": "HIGH",\n'
+        '    "confidence": "HIGH",\n'
+        '    "location": "Service.java:42",\n'
+        '    "rule": "SOLID 原則",\n'
+        '    "problem": "多行問題說明\\n第二行說明\\t含 Tab",\n'
+        '    "evidence": "if (a) {\\n\\treturn 1;\\n}",\n'
+        '    "risk": "架構風險",\n'
+        '    "recommendation": "重構為介面注入"\n'
+        '  }],\n'
+        '  "passed_checks": ["SOLID"],\n'
+        '  "coverage": "COMPLETE"\n'
+        '}'
+    )
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "business-1"
+    finding = parsed["findings"][0]
+    assert finding["problem"] == "多行問題說明\n第二行說明\t含 Tab"
+    assert finding["evidence"] == "if (a) {\n\treturn 1;\n}"
 
 
 def test_extract_json_payload_invalid_trailing_comma_raises_decode_error():
