@@ -224,7 +224,10 @@ public class CompensationOutboxWorker {
      * attemptCount 於 claim 時遞增（fresh 為遞增後的值），此處直接以現值判斷。
      */
     private void handleDeliveryFailure(UUID id, UUID eventId, int attempt, String ownerId, Long fencingVersion, Exception e) {
-        String errorMessage = truncate(e.getMessage());
+        String rawMessage = (e != null && e.getMessage() != null && !e.getMessage().isBlank())
+                ? e.getMessage()
+                : (e != null ? e.getClass().getSimpleName() : "Unknown error");
+        String errorMessage = truncate(rawMessage);
         if (attempt >= maxAttempts) {
             int affected = outboxRepository.markDead(id,
                     ownerId,

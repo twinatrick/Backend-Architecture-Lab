@@ -103,7 +103,7 @@ public class LineWebhookExample {
 }
 ```
 
-#### 專案應用實例 B：Record Pattern 解構
+#### 專案應用實例 B：Record Accessor 安全存取與 Fail-Fast 檢驗
 - **檔案**：`com.example.BackendArchitectureLab.Service.Impl.CompensationRestoreValidatorService`
 - **場景**：專案成員技能補償快照驗證
 
@@ -123,7 +123,7 @@ public class CompensationValidatorExample {
         }
     }
 
-    // ✅ 重構後：Fail-Fast 檢驗 + Record Pattern / Accessor 安全存取
+    // ✅ 重構後：Fail-Fast 檢驗 + Record Accessor 安全存取
     public void validateModern(List<BindingSnapshot> snapshotList) {
         for (BindingSnapshot binding : snapshotList) {
             if (binding == null) {
@@ -142,7 +142,7 @@ public class CompensationValidatorExample {
 
 ---
 
-### 3. 不可變集合流處理 `Stream.toList()` (JEP 418 / Java 16+)
+### 3. 不可變集合流處理 `Stream.toList()` (Java 16+)
 
 #### 特性概述
 Java 16 引入了 `Stream.toList()`，可直接由 Stream 終結產出不可變清單（`List`），具有以下優勢：

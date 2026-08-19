@@ -341,7 +341,7 @@ def repair_json_string(text: str) -> str:
         raise json.JSONDecodeError("輸出包含多個歧異 JSON 物件", cleaned, 0)
 
     if candidates:
-        return candidates[-1]
+        raise json.JSONDecodeError("輸出包含無法識別為合法物件的 JSON 片段", cleaned, 0)
 
     return cleaned
 
@@ -485,11 +485,40 @@ def chat_completion(
                 reason_msg = f"HTTP {status_code}: {response.text[:300]}"
                 error_details.append((model_name, reason_msg))
 
+                # 處理 413 請求負載過大：不進行無效重試，直接降級該模型並切換下一候選模型
+                if status_code == 413:
+                    print(
+                        f"模型 {model_name} 請求負載過大 (413)：{reason_msg}，"
+                        "立即降級至備援清單尾端並切換下一個模型。"
+                    )
+                    if model_name in ACTIVE_MODEL_CANDIDATES:
+                        ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                        ACTIVE_MODEL_CANDIDATES.append(model_name)
+                    time.sleep(1.0)
+                    break
+
                 # 處理 429 速率限制指數退避重試
                 if status_code == 429:
                     raw_retry_after = parse_retry_after(response)
+                    # 若 retry_after 過長 (例如 > 60s) 或錯誤訊息包含每日配額/TPD 耗盡，不應在同一模型死等
+                    if (
+                        raw_retry_after > 60.0
+                        or "TPD" in response.text
+                        or "daily limit" in response.text.lower()
+                        or "quota" in response.text.lower()
+                    ):
+                        print(
+                            f"模型 {model_name} 配額耗盡或等待時間過長 ({raw_retry_after:.1f}s)，"
+                            "立即降級至備援清單尾端並切換下一個模型。"
+                        )
+                        if model_name in ACTIVE_MODEL_CANDIDATES:
+                            ACTIVE_MODEL_CANDIDATES.remove(model_name)
+                            ACTIVE_MODEL_CANDIDATES.append(model_name)
+                        time.sleep(2.0)
+                        break
+
                     wait_seconds = calculate_backoff_delay(
-                        attempt, raw_retry_after, base_delay=2.5, max_delay=90.0
+                        attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
                     )
                     if attempt < max_retries_per_model:
                         print(
@@ -504,7 +533,7 @@ def chat_completion(
                     if model_name in ACTIVE_MODEL_CANDIDATES:
                         ACTIVE_MODEL_CANDIDATES.remove(model_name)
                         ACTIVE_MODEL_CANDIDATES.append(model_name)
-                    time.sleep(3.0)
+                    time.sleep(2.0)
                     break
 
                 # 處理 400 JSON 模式校驗失敗：延後退避並降級為一般文字模式重試

@@ -532,4 +532,62 @@ def test_parse_retry_limit_invalid_or_empty():
     assert review.parse_retry_limit("-5") == 9
 
 
+def test_chat_completion_demotes_model_on_413_payload_too_large():
+    review.ACTIVE_MODEL_CANDIDATES = ["model-413-fail", "model-fallback-ok"]
+
+    mock_resp_413 = MagicMock()
+    mock_resp_413.ok = False
+    mock_resp_413.status_code = 413
+    mock_resp_413.headers = {}
+    mock_resp_413.text = "Request Entity Too Large"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "413-ok", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["model-413-fail", "model-fallback-ok"]), \
+         patch("requests.post", side_effect=[mock_resp_413, mock_resp_ok]), \
+         patch("time.sleep"):
+        result = review.chat_completion("test payload too large", max_retries_per_model=5)
+        assert result == '{"batch": "413-ok", "findings": []}'
+        assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-fallback-ok"
+        assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-413-fail"
+
+
+def test_chat_completion_demotes_model_on_429_tpd_or_long_wait():
+    review.ACTIVE_MODEL_CANDIDATES = ["model-tpd-fail", "model-fallback-ok"]
+
+    mock_resp_429_tpd = MagicMock()
+    mock_resp_429_tpd.ok = False
+    mock_resp_429_tpd.status_code = 429
+    mock_resp_429_tpd.headers = {"retry-after": "120"}
+    mock_resp_429_tpd.text = "TPD limit reached: daily quota exhausted"
+
+    mock_resp_ok = MagicMock()
+    mock_resp_ok.ok = True
+    mock_resp_ok.json.return_value = {
+        "choices": [{"message": {"content": '{"batch": "429-tpd-ok", "findings": []}'}}]
+    }
+
+    with patch.dict(os.environ, {"GROQ_API_KEY": "fake_key"}), \
+         patch("review.get_available_models", return_value=["model-tpd-fail", "model-fallback-ok"]), \
+         patch("requests.post", side_effect=[mock_resp_429_tpd, mock_resp_ok]), \
+         patch("time.sleep"):
+        result = review.chat_completion("test 429 tpd", max_retries_per_model=5)
+        assert result == '{"batch": "429-tpd-ok", "findings": []}'
+        assert review.ACTIVE_MODEL_CANDIDATES[0] == "model-fallback-ok"
+        assert review.ACTIVE_MODEL_CANDIDATES[-1] == "model-tpd-fail"
+
+
+def test_extract_json_payload_rejects_unparseable_balanced_candidates():
+    # 含有平衡括號但內部損毀非合法 JSON 的情況
+    raw = "Prefix { this is broken key: value without quotes } suffix"
+    with pytest.raises(json.JSONDecodeError):
+        review.extract_json_payload(raw)
+
+
+
 

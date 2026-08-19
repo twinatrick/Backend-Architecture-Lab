@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -298,13 +299,29 @@ class CompensationOutboxWorkerTest {
 
         AtomicInteger activeConcurrent = new AtomicInteger(0);
         AtomicInteger maxConcurrentObserved = new AtomicInteger(0);
+        CountDownLatch firstWaveLatch = new CountDownLatch(2);
+        CountDownLatch releaseLatch = new CountDownLatch(1);
 
         when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
             int current = activeConcurrent.incrementAndGet();
             maxConcurrentObserved.accumulateAndGet(current, Math::max);
-            Thread.sleep(40);
-            activeConcurrent.decrementAndGet();
+            firstWaveLatch.countDown();
+            try {
+                releaseLatch.await(2, TimeUnit.SECONDS);
+            } finally {
+                activeConcurrent.decrementAndGet();
+            }
             return CompletableFuture.completedFuture(null);
+        });
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                if (firstWaveLatch.await(2, TimeUnit.SECONDS)) {
+                    releaseLatch.countDown();
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
         });
 
         compensationOutboxWorker.flushPendingEvents();
@@ -369,22 +386,38 @@ class CompensationOutboxWorkerTest {
         when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
         when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
 
-        // 模擬發布延遲超過整體批次逾時時間 (expectedWaves + 1) * 1 + 1 = 3 秒
+        CountDownLatch publishStartedLatch = new CountDownLatch(1);
+        CountDownLatch workerInterruptedLatch = new CountDownLatch(1);
+
+        // 模擬發布任務阻塞，直到被批次逾時 Future.cancel(true) 中斷
         when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
-            CompletableFuture<Void> delayedFuture = new CompletableFuture<>();
-            Thread.sleep(4000);
-            delayedFuture.complete(null);
-            return delayedFuture;
+            publishStartedLatch.countDown();
+            return new CompletableFuture<Void>() {
+                @Override
+                public Void get(long timeout, TimeUnit unit) throws InterruptedException {
+                    try {
+                        workerInterruptedLatch.await(timeout + 5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        throw new InterruptedException("Delivery task interrupted by batch timeout");
+                    }
+                    return null;
+                }
+            };
         });
 
         compensationOutboxWorker.flushPendingEvents();
 
+        // 驗證狀態已由中斷處理推進至 FAILED
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("interrupted"),
+                any(Date.class));
+
         Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
-        long start = System.currentTimeMillis();
-        while (semaphore.availablePermits() < 1 && System.currentTimeMillis() - start < 3000) {
-            Thread.sleep(50);
-        }
         assertEquals(1, semaphore.availablePermits());
     }
 
