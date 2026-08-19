@@ -18,12 +18,13 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * CompensationOutboxWorker - Outbox 發佈工作者（與寫入 Service 分離）。
@@ -63,6 +64,7 @@ public class CompensationOutboxWorker {
     private final ICompensationPublisher compensationPublisher;
     private final ObjectMapper objectMapper;
     private final ExecutorService compensationOutboxPublisherPool;
+    private final AtomicBoolean isFlushing = new AtomicBoolean(false);
     private volatile Semaphore publishSemaphore;
 
     /**
@@ -105,32 +107,55 @@ public class CompensationOutboxWorker {
      */
     @Scheduled(fixedDelayString = "${compensation.outbox.flush-delay-ms:5000}")
     public void flushPendingEvents() {
-        List<CompensationOutboxEvent> pending = outboxRepository.findPendingDue(
-                List.of(CompensationOutboxDeliveryStatus.PENDING,
-                        CompensationOutboxDeliveryStatus.FAILED,
-                        CompensationOutboxDeliveryStatus.PROCESSING),
-                CompensationOutboxDeliveryStatus.PROCESSING,
-                PageRequest.of(0, batchSize));
-        if (pending.isEmpty()) {
+        if (!isFlushing.compareAndSet(false, true)) {
+            log.debug("上一次 Outbox 批次發布仍在執行中，略過本次排程");
             return;
         }
-        List<CompletableFuture<Void>> futures = new ArrayList<>(pending.size());
-        for (CompensationOutboxEvent outbox : pending) {
-            futures.add(CompletableFuture.runAsync(() -> publishOne(outbox), compensationOutboxPublisherPool));
-        }
-        int poolSize = Math.max(1, publishParallelism);
-        int expectedWaves = Math.max(1, (batchSize + poolSize - 1) / poolSize);
         try {
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                    .get((expectedWaves + 1) * ackTimeoutSeconds + 1L, TimeUnit.SECONDS);
-            log.debug("Published {} outbox event(s) via shared publisher pool", pending.size());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.error("Outbox publish batch interrupted", e);
-        } catch (ExecutionException | TimeoutException e) {
-            // 單一事件逾時/失敗已在 publishOne 內各自處理並標記狀態；
-            // 此處僅反映批次整體未能於預期時間內完成（殘留工作由共用池 daemon 執行緒繼續收尾）
-            log.warn("Outbox publish batch did not complete within expected window, remaining tasks run in background", e);
+            List<CompensationOutboxEvent> pending = outboxRepository.findPendingDue(
+                    List.of(CompensationOutboxDeliveryStatus.PENDING,
+                            CompensationOutboxDeliveryStatus.FAILED,
+                            CompensationOutboxDeliveryStatus.PROCESSING),
+                    CompensationOutboxDeliveryStatus.PROCESSING,
+                    PageRequest.of(0, batchSize));
+            if (pending.isEmpty()) {
+                return;
+            }
+            List<Future<?>> futures = new ArrayList<>(pending.size());
+            for (CompensationOutboxEvent outbox : pending) {
+                futures.add(compensationOutboxPublisherPool.submit(() -> publishOne(outbox)));
+            }
+            int poolSize = Math.max(1, publishParallelism);
+            int expectedWaves = Math.max(1, (batchSize + poolSize - 1) / poolSize);
+            long timeoutMs = TimeUnit.SECONDS.toMillis((expectedWaves + 1) * ackTimeoutSeconds + 1L);
+            long deadline = System.currentTimeMillis() + timeoutMs;
+            try {
+                for (Future<?> future : futures) {
+                    long remaining = deadline - System.currentTimeMillis();
+                    if (remaining <= 0) {
+                        throw new TimeoutException("Batch timeout reached while waiting for outbox tasks");
+                    }
+                    future.get(remaining, TimeUnit.MILLISECONDS);
+                }
+                log.debug("Published {} outbox event(s) via shared publisher pool", pending.size());
+            } catch (InterruptedException e) {
+                cancelPendingFutures(futures);
+                Thread.currentThread().interrupt();
+                log.error("Outbox publish batch interrupted", e);
+            } catch (ExecutionException | TimeoutException e) {
+                cancelPendingFutures(futures);
+                log.warn("Outbox publish batch did not complete within expected window, canceled remaining tasks", e);
+            }
+        } finally {
+            isFlushing.set(false);
+        }
+    }
+
+    private void cancelPendingFutures(List<Future<?>> futures) {
+        for (Future<?> future : futures) {
+            if (!future.isDone()) {
+                future.cancel(true);
+            }
         }
     }
 
@@ -139,6 +164,10 @@ public class CompensationOutboxWorker {
      * 任何例外皆由 handleDeliveryFailure 以帶 ownerId + fencingVersion 的原子 UPDATE 標記 FAILED/DEAD，不向上拋出。
      */
     private void publishOne(CompensationOutboxEvent outbox) {
+        if (Thread.currentThread().isInterrupted()) {
+            log.warn("Outbox publish task interrupted before permit acquisition: eventId={}", outbox.getEventId());
+            return;
+        }
         Semaphore semaphore = getPublishSemaphore();
         try {
             semaphore.acquire();
@@ -148,6 +177,10 @@ public class CompensationOutboxWorker {
             return;
         }
         try {
+            if (Thread.currentThread().isInterrupted()) {
+                log.warn("Outbox publish task interrupted after permit acquisition: eventId={}", outbox.getEventId());
+                return;
+            }
             Date now = new Date();
             String ownerId = UUID.randomUUID().toString();
             int claimed = outboxRepository.claimEvent(
@@ -165,7 +198,10 @@ public class CompensationOutboxWorker {
             // claim 後重新讀取最新狀態（attemptCount 與 fencingVersion 已由 claim 原子遞增），避免使用陳舊資料
             CompensationOutboxEvent fresh = outboxRepository.findById(outbox.getId()).orElse(null);
             if (fresh == null) {
-                log.warn("Outbox 事件 claim 成功但 findById 查無資料，可能已被刪除或狀態不一致: id={}", outbox.getId());
+                log.error("Outbox 事件 claim 成功但 findById 查無資料，觸發失敗補償: id={}", outbox.getId());
+                handleDeliveryFailure(outbox.getId(), outbox.getEventId(),
+                        outbox.getAttemptCount() + 1,
+                        ownerId, null, new IllegalStateException("Event claimed but fresh entity not found"));
                 return;
             }
             Long fencingVersion = fresh.getFencingVersion();
@@ -178,6 +214,9 @@ public class CompensationOutboxWorker {
                         CompensationOutboxDeliveryStatus.SENT,
                         CompensationOutboxDeliveryStatus.PROCESSING,
                         new Date());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Outbox publish task interrupted during event delivery: id={}", fresh.getId());
             } catch (Exception e) {
                 handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
             }

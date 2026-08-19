@@ -27,7 +27,7 @@ public class CompensationRestoreStateService implements ICompensationRestoreStat
     private final ICompensationRestoreLogDataAccess restoreLogRepository;
 
     @Lazy
-    private final CompensationRestoreStateService self;
+    private final ICompensationRestoreStateService self;
 
     @Override
     @Transactional
@@ -49,10 +49,6 @@ public class CompensationRestoreStateService implements ICompensationRestoreStat
         }
     }
 
-    private CompensationRestoreStateService getSelf() {
-        return self != null ? self : this;
-    }
-
     @Override
     public void scheduleMarkRestoreFailed(UUID eventId, String ownerId, Long fencingVersion, Exception e) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -61,13 +57,13 @@ public class CompensationRestoreStateService implements ICompensationRestoreStat
                 @Override
                 public void afterCompletion(int status) {
                     if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                        getSelf().markRestoreFailed(eventId, ownerId, fencingVersion, reason);
+                        self.markRestoreFailed(eventId, ownerId, fencingVersion, reason);
                     }
                 }
             });
         } else {
             // 非交易環境（如單元測試直接呼叫）下無同步機制可用，直接標記 FAILED
-            getSelf().markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
+            self.markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
         }
     }
 }

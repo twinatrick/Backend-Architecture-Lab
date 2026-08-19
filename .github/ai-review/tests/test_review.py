@@ -365,6 +365,35 @@ End of review."""
     assert parsed["batch"] == "ci-1"
 
 
+def test_repair_json_string_with_prose_containing_brackets_before_payload():
+    raw = (
+        'Here is a note with an example: {"example_key": "val"}.\n'
+        'Below is the actual review output:\n'
+        '{"batch": "ci-actual", "coverage": "COMPLETE", '
+        '"files_reviewed": ["b.py"], "findings": []}'
+    )
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-actual"
+
+
+def test_repair_json_string_with_nested_brackets_and_strings():
+    raw = (
+        'Explanation: {\n'
+        '  "batch": "nested-1",\n'
+        '  "files_reviewed": ["c.java"],\n'
+        '  "findings": [{\n'
+        '    "severity": "HIGH",\n'
+        '    "evidence": "void fn() { map.put(\\"key\\", new Object() {}); }",\n'
+        '    "problem": "nested braces in {string}"\n'
+        '  }]\n'
+        '}\n'
+        'End of output'
+    )
+    parsed = review.extract_json_payload(raw)
+    assert parsed["batch"] == "nested-1"
+    assert parsed["findings"][0]["evidence"] == 'void fn() { map.put("key", new Object() {}); }'
+
+
 def test_extract_json_payload_rejects_non_dict():
     with pytest.raises(json.JSONDecodeError):
         review.extract_json_payload('["item1", "item2"]')

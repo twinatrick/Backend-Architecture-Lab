@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -311,6 +313,7 @@ class CompensationOutboxWorkerTest {
     void flushPendingEvents_ShouldReturnGracefully_whenFreshEventNotFoundAfterClaim() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
         CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setAttemptCount(1);
         when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
         when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
         when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.empty());
@@ -318,6 +321,56 @@ class CompensationOutboxWorkerTest {
         compensationOutboxWorker.flushPendingEvents();
 
         verify(compensationPublisher, never()).publish(any());
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                anyString(),
+                isNull(),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("not found"),
+                any(Date.class));
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldSkip_whenAlreadyFlushing() throws Exception {
+        AtomicBoolean isFlushing = (AtomicBoolean) ReflectionTestUtils.getField(compensationOutboxWorker, "isFlushing");
+        assertNotNull(isFlushing);
+        isFlushing.set(true);
+
+        try {
+            compensationOutboxWorker.flushPendingEvents();
+            verifyNoInteractions(outboxRepository);
+            verifyNoInteractions(compensationPublisher);
+        } finally {
+            isFlushing.set(false);
+        }
+    }
+
+    @Test
+    void flushPendingEvents_ShouldCancelRemainingFutures_whenBatchTimesOut() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 1L);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 1);
+
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        // 模擬發布延遲超過整體批次逾時時間 (expectedWaves + 1) * 1 + 1 = 3 秒
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
+            CompletableFuture<Void> delayedFuture = new CompletableFuture<>();
+            Thread.sleep(4000);
+            delayedFuture.complete(null);
+            return delayedFuture;
+        });
+
+        compensationOutboxWorker.flushPendingEvents();
+
         Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
         assertEquals(1, semaphore.availablePermits());

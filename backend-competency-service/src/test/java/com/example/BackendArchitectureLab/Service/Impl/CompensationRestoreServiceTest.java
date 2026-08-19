@@ -76,6 +76,7 @@ class CompensationRestoreServiceTest {
         );
 
         stateService = new CompensationRestoreStateService(restoreLogRepository, null);
+        ReflectionTestUtils.setField(stateService, "self", stateService);
 
         compensationRestoreService = new CompensationRestoreService(
                 projectDataAccess,

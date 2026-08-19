@@ -53,7 +53,11 @@ public class LineWebhookService implements ILineWebhookService {
                         diaryService.handleAudio(replyToken, messageId);
                     }
                 }
-                default -> {}
+                default -> {
+                    if (msgEvent.getMessage() != null) {
+                        log.debug("忽略未支援的 LINE 訊息型別: {}", msgEvent.getMessage().getClass().getSimpleName());
+                    }
+                }
             }
         }
     }

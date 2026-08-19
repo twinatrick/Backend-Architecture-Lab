@@ -233,6 +233,41 @@ def get_available_models():
     return {model_item.get("id") for model_item in model_entries}
 
 
+def find_balanced_json_substrings(text: str) -> list:
+    """掃描字串中所有括號平衡的最外層 { ... } 區塊，忽略字串引號內的括號。"""
+    candidates = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] == "{":
+            start = i
+            depth = 0
+            in_string = False
+            escape = False
+            j = i
+            while j < n:
+                char = text[j]
+                if escape:
+                    escape = False
+                elif char == "\\":
+                    if in_string:
+                        escape = True
+                elif char == '"':
+                    in_string = not in_string
+                elif not in_string:
+                    if char == "{":
+                        depth += 1
+                    elif char == "}":
+                        depth -= 1
+                        if depth == 0:
+                            candidates.append(text[start : j + 1])
+                            i = j
+                            break
+                j += 1
+        i += 1
+    return candidates
+
+
 def repair_json_string(text: str) -> str:
     """嘗試修復常見的 LLM 格式損毀或非標準 JSON 字串。"""
     if not isinstance(text, str):
@@ -250,18 +285,40 @@ def repair_json_string(text: str) -> str:
             else:
                 cleaned = re.sub(r"(?i)^<think>[\s\S]*?(?=\{)", "", cleaned).strip()
 
-    # 2. 提取 Markdown 代碼塊內容（支援 ```json ... ``` 或 ``` ... ```）
-    code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
-    if code_block_match:
-        cleaned = code_block_match.group(1).strip()
-    elif cleaned.startswith("```"):
-        cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    # 2. 若包含 Markdown 代碼塊（```json ... ``` 或 ``` ... ```），優先測試代碼塊內容
+    code_blocks = re.findall(
+        r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE
+    )
+    for block in code_blocks:
+        block_cleaned = block.strip()
+        try:
+            parsed = json.loads(block_cleaned)
+            if isinstance(parsed, dict):
+                return block_cleaned
+        except Exception:
+            pass
 
-    # 3. 若前後仍有說明文字，精確裁切最外層的 { ... }
-    start_idx = cleaned.find("{")
-    end_idx = cleaned.rfind("}")
-    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-        cleaned = cleaned[start_idx : end_idx + 1].strip()
+    # 3. 使用括號平衡計數精確擷取頂層平衡的 JSON 物件
+    candidates = find_balanced_json_substrings(cleaned)
+    valid_dicts = []
+    for cand in candidates:
+        try:
+            parsed = json.loads(cand)
+            if isinstance(parsed, dict):
+                score = 0
+                if "findings" in parsed or "gate_recommendation" in parsed:
+                    score += 10
+                score += len(cand)
+                valid_dicts.append((score, cand))
+        except Exception:
+            continue
+
+    if valid_dicts:
+        valid_dicts.sort(key=lambda x: x[0], reverse=True)
+        return valid_dicts[0][1]
+
+    if candidates:
+        return candidates[-1]
 
     return cleaned
 
