@@ -77,3 +77,11 @@ def test_sanitize_diff_known_env_vars():
     with patch.dict(os.environ, {"MY_TEST_SECRET_KEY": "super_hidden_env_token_999"}):
         raw_text = "Here is the token: super_hidden_env_token_999 in diff"
         assert redaction.sanitize_diff(raw_text) == "Here is the token: [REDACTED] in diff"
+
+
+def test_safe_print_redacts_tokens(capsys):
+    raw_secret = "gsk_secrettoken12345678901234567890"
+    redaction.safe_print("Processing key:", raw_secret)
+    captured = capsys.readouterr()
+    assert "gsk_" not in captured.out
+    assert "[REDACTED]" in captured.out

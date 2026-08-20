@@ -27,7 +27,27 @@ def test_call_gemini_api_constructs_proper_request():
         assert "key=" not in call_url
         assert call_headers.get("x-goog-api-key") == "test-key-123"
         assert call_json["generationConfig"]["responseMimeType"] == "application/json"
+        assert "temperature" not in call_json["generationConfig"]
         assert "test review prompt" in call_json["contents"][0]["parts"][0]["text"]
+
+
+def test_gemini_build_generation_config_sampling_parameters_by_model():
+    cfg_37 = providers.GeminiClient.build_generation_config("gemini-3.7-flash")
+    assert "temperature" not in cfg_37
+    assert "top_p" not in cfg_37
+    assert "top_k" not in cfg_37
+    assert cfg_37["responseMimeType"] == "application/json"
+    assert cfg_37["maxOutputTokens"] == 4096
+
+    cfg_36 = providers.GeminiClient.build_generation_config("gemini-3.6-flash")
+    assert "temperature" not in cfg_36
+
+    cfg_35_lite = providers.GeminiClient.build_generation_config("gemini-3.5-flash-lite")
+    assert "temperature" not in cfg_35_lite
+
+    cfg_25 = providers.GeminiClient.build_generation_config("gemini-2.5-flash")
+    assert "temperature" in cfg_25
+    assert cfg_25["temperature"] == 0.1
 
 
 def test_extract_gemini_text_valid_and_invalid():

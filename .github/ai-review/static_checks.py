@@ -1,3 +1,4 @@
+import ast
 import logging
 import os
 import re
@@ -133,48 +134,35 @@ def check_java_file(
         if is_controller:
             if re.search(r"@Operation\(", line):
                 findings.append(make_finding(
-                    path, idx, "MEDIUM", "COMPLIANCE",
-                    "開發規範 §3 OpenAPI 標註規範",
+                    path, idx, "MEDIUM", "COMPLIANCE", "開發規範 §3 OpenAPI 標註規範",
                     "Controller 應使用專案封裝之 OpenApi 註解取代原生 @Operation",
-                    raw_line.strip(),
-                    "缺少統一的 API 響應結構與錯誤碼說明",
+                    raw_line.strip(), "缺少統一的 API 響應結構與錯誤碼說明",
                     "使用 @OpenApiCommonResponse 或專案標準註解封裝",
                 ))
             if re.search(r"private\s+final\s+.*EntityManager\b", line):
                 findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE",
-                    "開發規範 §1.3 Controller 與資料層隔離規範",
-                    "Controller 嚴禁直接注入 EntityManager",
-                    raw_line.strip(),
+                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Controller 與資料層隔離規範",
+                    "Controller 嚴禁直接注入 EntityManager", raw_line.strip(),
                     "破壞 Controller/Service/DataAccess 分層架構",
                     "移除 EntityManager，僅透過 Service 介面操作",
                 ))
             if re.search(r"private\s+final\s+.*(?:Repository|Mapper)\b", line):
                 findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE",
-                    "開發規範 §1.3 Controller 依賴規範",
-                    "Controller 嚴禁直接注入 Repository 或 Mapper",
-                    raw_line.strip(),
-                    "違反 MVC 分層職責與資料隔離",
-                    "Controller 僅可注入 Service 介面，透過 Vo 進行互動",
+                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Controller 依賴規範",
+                    "Controller 嚴禁直接注入 Repository 或 Mapper", raw_line.strip(),
+                    "違反 MVC 分層職責與資料隔離", "Controller 僅可注入 Service 介面，透過 Vo 進行互動",
                 ))
             if re.search(r"public\s+(?:ResponseEntity<)?\w+Entity(?:>)?\s+\w+\(", line):
                 findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE",
-                    "開發規範 §1.3 Entity 使用規範",
-                    "Controller 方法回傳型別包含 Entity",
-                    raw_line.strip(),
-                    "Entity 洩漏至 API 對外介面，破壞封裝",
-                    "將回傳型別轉換為 Vo",
+                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Entity 使用規範",
+                    "Controller 方法回傳型別包含 Entity", raw_line.strip(),
+                    "Entity 洩漏至 API 對外介面，破壞封裝", "將回傳型別轉換為 Vo",
                 ))
         if is_service_impl and re.search(r"private\s+final\s+.*EntityManager\b", line):
             findings.append(make_finding(
-                path, idx, "HIGH", "ARCHITECTURE",
-                "開發規範 §1.1 Service 禁止操作 EntityManager",
-                "Service Impl 禁止直接注入 EntityManager",
-                raw_line.strip(),
-                "違反資料存取抽象化規範",
-                "將資料庫操作封裝至 DataAccess 或 Repository",
+                path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.1 Service 禁止操作 EntityManager",
+                "Service Impl 禁止直接注入 EntityManager", raw_line.strip(),
+                "違反資料存取抽象化規範", "將資料庫操作封裝至 DataAccess 或 Repository",
             ))
     return findings
 
@@ -184,7 +172,7 @@ def check_python_file(
     content: str,
     changed_lines: set[int] | None = None,
 ) -> list[dict[str, Any]]:
-    """針對 Python 原始碼進行單檔行數、單行長度與例外捕捉靜態檢查。"""
+    """針對 Python 原始碼進行單檔行數、單行長度、例外捕捉與 AST 靜態檢查。"""
     findings: list[dict[str, Any]] = []
     lines = content.splitlines()
     if len(lines) > 300:
@@ -221,6 +209,39 @@ def check_python_file(
                 "隱蔽非預期系統錯誤或鍵盤中斷",
                 "改為捕捉具體的例外型別 (如 RequestException, KeyError)",
             ))
+
+    try:
+        tree = ast.parse(content)
+        for node in ast.walk(tree):
+            lineno = getattr(node, "lineno", None)
+            if lineno is None or (changed_lines is not None and lineno not in changed_lines):
+                continue
+            if isinstance(node, ast.ExceptHandler) and len(node.body) == 1:
+                if isinstance(node.body[0], ast.Pass):
+                    findings.append(make_finding(
+                        path, lineno, "MEDIUM", "COMPLIANCE",
+                        "開發規範 §4.4 錯誤處理與安全規範",
+                        "禁止使用 except: pass 靜默吞掉錯誤",
+                        "except 區塊僅包含 pass 語句",
+                        "靜默忽略異常導致系統狀態不一致且難以除錯",
+                        "記錄具體警告日誌 (logging.warning) 或拋出具體例外",
+                    ))
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for child in node.body:
+                    if isinstance(child, (ast.Import, ast.ImportFrom)):
+                        c_lineno = getattr(child, "lineno", lineno)
+                        if changed_lines is None or c_lineno in changed_lines:
+                            findings.append(make_finding(
+                                path, c_lineno, "LOW", "COMPLIANCE",
+                                "開發規範 §4.1 Import 置頂規範",
+                                "禁止在函式或方法內部宣告 import",
+                                "發現函式內部局部 import 宣告",
+                                "降低依賴可見性並增加執行期載入開銷",
+                                "將 import 宣告移至檔案最頂層",
+                            ))
+    except (SyntaxError, ValueError) as exc:
+        logging.warning("Python AST 解析檔案 %s 失敗: %s", path, exc)
+
     return findings
 
 

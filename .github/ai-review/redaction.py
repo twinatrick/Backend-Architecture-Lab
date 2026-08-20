@@ -1,5 +1,6 @@
 import os
 import re
+from typing import Any
 
 from key_pool import get_gemini_api_keys, get_groq_api_keys
 
@@ -109,5 +110,11 @@ def sanitize_diff(diff: str) -> str:
 def redact_secrets(text: str) -> str:
     """對文字中的敏感金鑰進行脫敏遮蔽（統一代理至 sanitize_diff）。"""
     return sanitize_diff(text)
+
+
+def safe_print(*args: Any, **kwargs: Any) -> None:
+    """安全的終端輸出，自動對所有傳入參數進行敏感資訊脫敏。"""
+    redacted_args = [redact_secrets(str(arg)) for arg in args]
+    print(*redacted_args, **kwargs)
 
 

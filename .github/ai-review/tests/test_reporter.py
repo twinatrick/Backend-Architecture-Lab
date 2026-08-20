@@ -109,3 +109,17 @@ def test_format_reports_with_audit_info():
     assert data["audit"]["actor"] == "admin-bob"
     assert data["audit"]["trigger_type"] == "workflow_dispatch"
 
+
+def test_format_markdown_report_mandatory_human_review_notice():
+    report = reporter.format_markdown_report(
+        decision="COMMENT",
+        changed_files=[".github/workflows/ci.yml"],
+        results=[{}],
+        unique_findings=[],
+        blocking_findings=[],
+        passed_checks=[],
+    )
+    assert "## 審查結果\nCOMMENT" in report
+    assert "Mandatory Human Review" in report
+    assert "禁止 AI 自動放行 APPROVE" in report
+

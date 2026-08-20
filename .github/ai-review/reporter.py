@@ -23,6 +23,15 @@ def format_markdown_report(
         f"共 {len(unique_findings)} 個 Finding，其中 {len(blocking_findings)} 個阻擋項目。",
         "",
     ]
+    if decision == "COMMENT":
+        report.extend([
+            "> ⚠️ **安全閘門提示 (Mandatory Human Review)**：",
+            "> 本次 PR 變更涉及核心安全、架構或 CI 配置範疇（如 GitHub Workflows、",
+            "> IAM 權限、AOP/Filter、Controller/Feign 或全域依賴 pom.xml）。",
+            "> 依安全策略要求，**禁止 AI 自動放行 APPROVE**，強制以 `COMMENT` ",
+            "> 提請資深架構師進行強制人工審核。",
+            "",
+        ])
     if audit_info:
         trigger = redact_secrets(str(audit_info.get("trigger_type", "unknown")))
         actor = redact_secrets(str(audit_info.get("actor", "unknown")))

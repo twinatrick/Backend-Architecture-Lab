@@ -1,3 +1,5 @@
+from typing import Any
+
 import requests
 
 from key_pool import get_groq_api_keys
@@ -73,6 +75,18 @@ class GeminiClient:
     def __init__(self, timeout: int = 120) -> None:
         self.timeout = timeout
 
+    @staticmethod
+    def build_generation_config(model_name: str) -> dict[str, Any]:
+        """依模型版本構建 generationConfig，Gemini 3.x 移除 deprecated sampling 參數。"""
+        config: dict[str, Any] = {
+            "maxOutputTokens": 4096,
+            "responseMimeType": "application/json",
+        }
+        norm_model = model_name.lower()
+        if not ("gemini-3" in norm_model or "gemini-v3" in norm_model):
+            config["temperature"] = 0.1
+        return config
+
     def call(
         self,
         prompt: str,
@@ -94,11 +108,7 @@ class GeminiClient:
                     "parts": [{"text": clean_prompt}],
                 }
             ],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 4096,
-                "responseMimeType": "application/json",
-            },
+            "generationConfig": self.build_generation_config(model_name),
         }
         headers = {
             "Content-Type": "application/json",
