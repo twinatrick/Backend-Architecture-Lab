@@ -5,7 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from check_rules import BANNED_PERMISSIONS, SECRET_REGEXES, make_finding
+from check_java import check_java_file
+from check_rules import SECRET_REGEXES, make_finding
 from diff_parser import extract_changed_lines
 
 
@@ -92,78 +93,6 @@ def check_workflow_file(
             "授予 Workflow 過多非必要權限，增加 Token 洩漏風險",
             "依據 Job 實際需求宣告最小必要權限",
         ))
-    return findings
-
-
-def check_java_file(
-    path: str,
-    content: str,
-    changed_lines: set[int] | None = None,
-) -> list[dict[str, Any]]:
-    """針對 Java Controller 與 Service 實作進行確定性架構規範檢查。"""
-    findings: list[dict[str, Any]] = []
-    filename = os.path.basename(path)
-    lines = content.splitlines()
-    is_test_file = "src/test/java/" in path.replace("\\", "/")
-    is_controller = "Controller" in filename or "@RestController" in content
-    is_service_impl = "ServiceImpl" in filename or "/Service/Impl/" in path.replace("\\", "/")
-
-    for idx, raw_line in enumerate(lines, start=1):
-        if changed_lines is not None and idx not in changed_lines:
-            continue
-        line = raw_line.lstrip("+- ")
-        for banned in BANNED_PERMISSIONS:
-            if banned in line and ("@RequirePermission" in line or "hasAuthority" in line):
-                findings.append(make_finding(
-                    path, idx, "HIGH", "SECURITY",
-                    "開發規範 §2 權限字典與禁用字串規範",
-                    f"使用了已被廢棄或禁用的權限字串: {banned}",
-                    raw_line.strip(),
-                    "使用非標準權限名稱將導致 RBAC 權限失效或鑑權失敗",
-                    "依據《開發規範.md》§2 權限字典替換為標準權限命名",
-                ))
-        if not is_test_file and re.search(r"@Autowired\b", line):
-            findings.append(make_finding(
-                path, idx, "HIGH", "COMPLIANCE",
-                "開發規範 §1.4 依賴注入規範",
-                "生產程式碼中嚴禁使用 @Autowired 進行欄位注入",
-                raw_line.strip(),
-                "欄位注入隱藏依賴且不利於單元測試",
-                "採用 Lombok @RequiredArgsConstructor 搭配 private final",
-            ))
-        if is_controller:
-            if re.search(r"@Operation\(", line):
-                findings.append(make_finding(
-                    path, idx, "MEDIUM", "COMPLIANCE", "開發規範 §3 OpenAPI 標註規範",
-                    "Controller 應使用專案封裝之 OpenApi 註解取代原生 @Operation",
-                    raw_line.strip(), "缺少統一的 API 響應結構與錯誤碼說明",
-                    "使用 @OpenApiCommonResponse 或專案標準註解封裝",
-                ))
-            if re.search(r"private\s+final\s+.*EntityManager\b", line):
-                findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Controller 與資料層隔離規範",
-                    "Controller 嚴禁直接注入 EntityManager", raw_line.strip(),
-                    "破壞 Controller/Service/DataAccess 分層架構",
-                    "移除 EntityManager，僅透過 Service 介面操作",
-                ))
-            if re.search(r"private\s+final\s+.*(?:Repository|Mapper)\b", line):
-                findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Controller 依賴規範",
-                    "Controller 嚴禁直接注入 Repository 或 Mapper", raw_line.strip(),
-                    "違反 MVC 分層職責與資料隔離", "Controller 僅可注入 Service 介面，透過 Vo 進行互動",
-                ))
-            if re.search(r"public\s+(?:ResponseEntity<)?\w+Entity(?:>)?\s+\w+\(", line):
-                findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Entity 使用規範",
-                    "Controller 方法回傳型別包含 Entity", raw_line.strip(),
-                    "Entity 洩漏至 API 對外介面，破壞封裝", "將回傳型別轉換為 Vo",
-                ))
-        if is_service_impl and re.search(r"private\s+final\s+.*EntityManager\b", line):
-            findings.append(make_finding(
-                path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.1 Service 禁止操作 EntityManager",
-                "Service Impl 禁止直接注入 EntityManager", raw_line.strip(),
-                "違反資料存取抽象化規範", "將資料庫操作封裝至 DataAccess 或 Repository",
-            ))
     return findings
 
 

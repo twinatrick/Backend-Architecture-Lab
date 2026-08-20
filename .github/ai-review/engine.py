@@ -38,9 +38,19 @@ def is_blocking(finding: dict[str, Any], policy: dict[str, Any]) -> bool:
     blocking_confidences = {
         str(c).upper() for c in policy.get("blocking_confidence", ["HIGH"])
     }
+    blocking_categories = {
+        str(k).upper() for k in policy.get("blocking_categories", [])
+    }
     sev = str(finding.get("severity", "")).upper()
     conf = str(finding.get("confidence", "")).upper()
-    return bool(sev in blocking_severities and conf in blocking_confidences)
+    cat = str(finding.get("category", "")).upper()
+    cat_match = (
+        not blocking_categories
+        or not cat
+        or cat in blocking_categories
+        or sev == "CRITICAL"
+    )
+    return bool(sev in blocking_severities and conf in blocking_confidences and cat_match)
 
 
 def is_high_risk_path(path: str) -> bool:

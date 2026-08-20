@@ -4,7 +4,11 @@
   "blocking_severities": ["CRITICAL", "HIGH"],
   "blocking_confidence": ["HIGH"],
   "blocking_categories": [
+    "Architecture",
     "Security",
+    "Compliance",
+    "Bug",
+    "Reliability",
     "Authentication",
     "Authorization",
     "BOLA",
@@ -14,9 +18,7 @@
     "CI Supply Chain",
     "Secret Exposure",
     "Functional Correctness",
-    "Data Integrity",
-    "Architecture",
-    "Compliance"
+    "Data Integrity"
   ],
   "required_fields": [
     "location",

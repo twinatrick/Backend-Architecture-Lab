@@ -95,14 +95,20 @@ def sanitize_diff(diff: str) -> str:
         sanitized,
     )
 
-    # 5. 遮蔽程式碼/設定檔中的 key-value 密鑰指派
-    assignment_pattern = re.compile(
+    # 5. 遮蔽程式碼/設定檔中的 key-value 密鑰指派（限定引號字面值或 YAML 屬性，避免誤遮蔽函數調用）
+    quoted_pattern = re.compile(
         r"(?i)([\"']?(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
-        r"password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*[\"']?)"
-        r"([a-zA-Z0-9_\-\.\/+=~]{8,})"
-        r"([\"']?)"
+        r"password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*)([\"'])"
+        r"([^\"'\r\n]{8,})"
+        r"(\2)"
     )
-    sanitized = assignment_pattern.sub(r"\1[REDACTED]\3", sanitized)
+    sanitized = quoted_pattern.sub(r"\1\2[REDACTED]\4", sanitized)
+
+    yaml_pattern = re.compile(
+        r"(?im)(^\s*(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
+        r"password|client[_-]?secret|private[_-]?key|bearer)\s*:\s*)([a-zA-Z0-9_\-\.]{8,})\s*$"
+    )
+    sanitized = yaml_pattern.sub(r"\1[REDACTED]", sanitized)
 
     return sanitized
 

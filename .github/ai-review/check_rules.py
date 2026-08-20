@@ -8,6 +8,10 @@ BANNED_PERMISSIONS = (
     "RolePermission",
     "AquarkDataAvg",
     "LimitSetting",
+    "ViewPersonal",
+    "DeleteAll",
+    "SkillView",
+    "UserManagement",
 )
 
 SECRET_REGEXES = (

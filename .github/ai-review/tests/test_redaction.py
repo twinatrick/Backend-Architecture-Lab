@@ -72,6 +72,12 @@ def test_sanitize_diff_various_secret_patterns():
     raw_url = "clone https://admin:superSecretPass@github.com/org/repo.git"
     assert "https://admin:[REDACTED]@github.com/org/repo.git" in redaction.sanitize_diff(raw_url)
 
+    # 驗證合法函數調用與變數引用不會被誤判遮蔽
+    func_call = "api_key = build_runtime_api_key(config)"
+    var_assign = "password = user_input_password"
+    assert redaction.sanitize_diff(func_call) == func_call
+    assert redaction.sanitize_diff(var_assign) == var_assign
+
 
 def test_sanitize_diff_known_env_vars():
     with patch.dict(os.environ, {"MY_TEST_SECRET_KEY": "super_hidden_env_token_999"}):
