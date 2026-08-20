@@ -345,13 +345,35 @@ class CompensationOutboxWorkerTest {
         compensationOutboxWorker.flushPendingEvents();
 
         verify(compensationPublisher, never()).publish(any());
-        verify(outboxRepository).markFailed(eq(outbox.getId()),
+        verify(outboxRepository).markFailedByOwner(eq(outbox.getId()),
                 anyString(),
-                isNull(),
                 eq(CompensationOutboxDeliveryStatus.FAILED),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
                 contains("not found"),
                 any(Date.class));
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldMarkDeadByOwner_whenFreshEventNotFoundAndMaxAttemptsReached() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setAttemptCount(4); // +1 in worker when fresh entity missing -> 5 >= maxAttempts (5)
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.empty());
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(compensationPublisher, never()).publish(any());
+        verify(outboxRepository).markDeadByOwner(eq(outbox.getId()),
+                anyString(),
+                eq(CompensationOutboxDeliveryStatus.DEAD),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("not found"));
         Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);
         assertEquals(1, semaphore.availablePermits());
@@ -474,6 +496,7 @@ class CompensationOutboxWorkerTest {
         fresh.setPayload(outbox.getPayload());
         fresh.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
         fresh.setAttemptCount(attemptCount);
+        fresh.setFencingVersion(1L);
         return fresh;
     }
 

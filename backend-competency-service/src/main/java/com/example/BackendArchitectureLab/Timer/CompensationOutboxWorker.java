@@ -65,6 +65,12 @@ public class CompensationOutboxWorker {
     private final ObjectMapper objectMapper;
     private final ExecutorService compensationOutboxPublisherPool;
     private final AtomicBoolean isFlushing = new AtomicBoolean(false);
+
+    /**
+     * JVM 實例級發布併發量控制信號量（Instance-Local Semaphore）。
+     * 用於約束單一服務 Pod 內部發往 Kafka 的最大並行連線數，防止短時間內耗盡連線池資源；
+     * 注意：此為單節點內部流控，非跨節點全域分散式流控。
+     */
     private Semaphore publishSemaphore = new Semaphore(8);
 
     /**
@@ -219,12 +225,18 @@ public class CompensationOutboxWorker {
                 : (e != null ? e.getClass().getSimpleName() : "Unknown error");
         String errorMessage = truncate(rawMessage);
         if (attempt >= maxAttempts) {
-            int affected = outboxRepository.markDead(id,
-                    ownerId,
-                    fencingVersion,
-                    CompensationOutboxDeliveryStatus.DEAD,
-                    CompensationOutboxDeliveryStatus.PROCESSING,
-                    errorMessage);
+            int affected = (fencingVersion != null)
+                    ? outboxRepository.markDead(id,
+                            ownerId,
+                            fencingVersion,
+                            CompensationOutboxDeliveryStatus.DEAD,
+                            CompensationOutboxDeliveryStatus.PROCESSING,
+                            errorMessage)
+                    : outboxRepository.markDeadByOwner(id,
+                            ownerId,
+                            CompensationOutboxDeliveryStatus.DEAD,
+                            CompensationOutboxDeliveryStatus.PROCESSING,
+                            errorMessage);
             if (affected > 0) {
                 log.error("Outbox 事件已達最大重試次數，轉為 DEAD: eventId={}, attempt={}, ownerId={}, fencingVersion={}, cause={}",
                         eventId, attempt, ownerId, fencingVersion, e.toString());
@@ -234,13 +246,20 @@ public class CompensationOutboxWorker {
             }
         } else {
             long backoff = resolveBackoffSeconds(attempt);
-            int affected = outboxRepository.markFailed(id,
-                    ownerId,
-                    fencingVersion,
-                    CompensationOutboxDeliveryStatus.FAILED,
-                    CompensationOutboxDeliveryStatus.PROCESSING,
-                    errorMessage,
-                    new Date(System.currentTimeMillis() + backoff * 1000L));
+            int affected = (fencingVersion != null)
+                    ? outboxRepository.markFailed(id,
+                            ownerId,
+                            fencingVersion,
+                            CompensationOutboxDeliveryStatus.FAILED,
+                            CompensationOutboxDeliveryStatus.PROCESSING,
+                            errorMessage,
+                            new Date(System.currentTimeMillis() + backoff * 1000L))
+                    : outboxRepository.markFailedByOwner(id,
+                            ownerId,
+                            CompensationOutboxDeliveryStatus.FAILED,
+                            CompensationOutboxDeliveryStatus.PROCESSING,
+                            errorMessage,
+                            new Date(System.currentTimeMillis() + backoff * 1000L));
             if (affected > 0) {
                 log.warn("Outbox 事件發佈失敗，排定重試: eventId={}, attempt={}, ownerId={}, fencingVersion={}, nextAttemptIn={}s, cause={}",
                         eventId, attempt, ownerId, fencingVersion, backoff, e.toString());

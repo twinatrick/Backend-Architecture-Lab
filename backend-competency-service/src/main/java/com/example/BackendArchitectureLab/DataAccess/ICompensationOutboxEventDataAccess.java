@@ -31,4 +31,8 @@ public interface ICompensationOutboxEventDataAccess {
     int markFailed(UUID id, String ownerId, Long fencingVersion, String failed, String processing, String errorMessage, Date nextAttemptAt);
 
     int markDead(UUID id, String ownerId, Long fencingVersion, String dead, String processing, String errorMessage);
+
+    int markFailedByOwner(UUID id, String ownerId, String failed, String processing, String errorMessage, Date nextAttemptAt);
+
+    int markDeadByOwner(UUID id, String ownerId, String dead, String processing, String errorMessage);
 }
