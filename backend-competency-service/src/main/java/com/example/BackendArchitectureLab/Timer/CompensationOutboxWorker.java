@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -207,8 +208,11 @@ public class CompensationOutboxWorker {
                         new Date());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.warn("Outbox publish task interrupted during event delivery: id={}", fresh.getId());
-                handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
+                log.warn("Outbox publish task interrupted during event delivery: id={}, eventId={}",
+                        fresh.getId(), fresh.getEventId());
+            } catch (CancellationException e) {
+                log.warn("Outbox publish task cancelled during event delivery: id={}, eventId={}",
+                        fresh.getId(), fresh.getEventId());
             } catch (Exception e) {
                 handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
             }

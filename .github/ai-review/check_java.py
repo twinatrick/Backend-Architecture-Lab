@@ -13,6 +13,23 @@ SERVICE_MODULES = (
     "backend-gateway",
 )
 
+FOREIGN_ENTITIES = {
+    "backend-iam-service": (
+        "SkillEntity", "ProjectEntity", "JobPostingEntity", "Competency",
+        "SkillRepository", "ProjectRepository", "CompensationOutbox",
+        "AlertRuleEntity", "AlarmHistoryEntity", "ExternalApiConfigEntity",
+    ),
+    "backend-competency-service": (
+        "UserEntity", "RoleEntity", "PermissionEntity", "SystemUserEntity",
+        "UserRepository", "RoleRepository", "PermissionRepository",
+        "JobPostingEntity", "AlertRuleEntity",
+    ),
+    "backend-job-service": (
+        "UserEntity", "RoleEntity", "SkillEntity", "ProjectEntity",
+        "UserRepository", "SkillRepository",
+    ),
+}
+
 
 def _detect_module(path: str) -> str:
     norm_path = path.replace("\\", "/").lower()
@@ -27,63 +44,53 @@ def _check_cross_module(
 ) -> dict[str, Any] | None:
     if not mod or not line.strip().startswith("import "):
         return None
-    # 檢查是否跨服務直接引用其他微服務的 Entity 或 Repository
-    # 例：在 IAM 中引用 Competency 的 Entity/Repository，或在 Competency 中引用 IAM 的 Entity/Repository
     is_entity_or_repo = ".Entity." in line or ".Repository." in line
     if not is_entity_or_repo:
         return None
 
-    if mod == "backend-iam-service":
-        if any(
-            target in line
-            for target in (
-                "SkillEntity", "ProjectEntity", "JobPostingEntity", "Competency",
-                "SkillRepository", "ProjectRepository", "CompensationOutbox",
-            )
-        ):
-            return make_finding(
-                path, idx, "HIGH", "ARCHITECTURE",
-                "開發規範 §1.1 微服務資料庫與實體隔離規範",
-                "IAM 服務中直接引用業務微服務之 Entity 或 Repository",
-                line.strip(),
-                "破壞微服務資料庫獨立性與資料存取邊界",
-                "微服務間嚴禁共用或直接操作 Entity，應透過 Feign Client 呼叫 API",
-            )
-    elif mod == "backend-competency-service":
-        if any(
-            target in line
-            for target in (
-                "UserEntity", "RoleEntity", "PermissionEntity",
-                "UserRepository", "RoleRepository", "PermissionRepository"
-            )
-        ):
-            return make_finding(
-                path, idx, "HIGH", "ARCHITECTURE",
-                "開發規範 §1.1 微服務資料庫與實體隔離規範",
-                "業務微服務中直接引用 IAM 之 Entity 或 Repository",
-                line.strip(),
-                "破壞微服務資料庫獨立性與資料存取邊界",
-                "微服務間嚴禁共用或直接操作 Entity，應透過 Feign Client 呼叫 API",
-            )
-    return None
-
-
-def _check_self_feign(
-    path: str, line: str, idx: int, mod: str
-) -> dict[str, Any] | None:
-    if not mod or "@FeignClient" not in line:
-        return None
-    # 檢測同微服務內部是否宣告指向自身的 Feign Client
-    if f'"{mod}"' in line or f"'{mod}'" in line or f":{mod}" in line:
+    forbidden = FOREIGN_ENTITIES.get(mod, ())
+    if any(target in line for target in forbidden):
         return make_finding(
             path, idx, "HIGH", "ARCHITECTURE",
-            "開發規範 §1.2 禁止同服務自我 Feign 呼叫規範",
-            f"微服務 {mod} 內部宣告了指向自身的 Feign Client",
+            "開發規範 §1.1 微服務資料庫與實體隔離規範",
+            f"微服務 {mod} 中直接引用外部微服務之 Entity 或 Repository",
             line.strip(),
-            "自我 Feign 呼叫增加非必要網路開銷並繞過事務隔離",
-            "移除自我 Feign，改用 Spring @Lazy 介面自我代理處理 @Transactional/@Caching",
+            "破壞微服務資料庫獨立性與資料存取邊界",
+            "微服務間嚴禁共用或直接操作 Entity，應透過 Feign Client 呼叫 API",
         )
     return None
+
+
+def _check_self_feign_block(
+    path: str, content: str, mod: str, changed_lines: set[int] | None
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    if not mod or "@FeignClient" not in content:
+        return findings
+    feign_pattern = re.compile(
+        r'@FeignClient\s*\((?:[^)]*?\b(?:name|value)\s*=\s*["\']([^"\']+)["\']|'
+        r'["\']([^"\']+)["\'])',
+        re.DOTALL,
+    )
+    for match in feign_pattern.finditer(content):
+        target_client = match.group(1) or match.group(2) or ""
+        if (
+            target_client == mod
+            or target_client == mod.replace("backend-", "")
+            or f":{mod}" in target_client
+        ):
+            start_pos = match.start()
+            line_no = content[:start_pos].count("\n") + 1
+            if changed_lines is None or line_no in changed_lines:
+                findings.append(make_finding(
+                    path, line_no, "HIGH", "ARCHITECTURE",
+                    "開發規範 §1.2 禁止同服務自我 Feign 呼叫規範",
+                    f"微服務 {mod} 內部宣告了指向自身的 Feign Client: {target_client}",
+                    match.group(0).strip()[:100],
+                    "自我 Feign 呼叫增加非必要網路開銷並繞過事務隔離",
+                    "移除自我 Feign，改用 Spring @Lazy 介面自我代理處理 @Transactional/@Caching",
+                ))
+    return findings
 
 
 def _check_iam_reverse_dependency(
@@ -91,10 +98,12 @@ def _check_iam_reverse_dependency(
 ) -> dict[str, Any] | None:
     if mod != "backend-iam-service" or not line.strip().startswith("import "):
         return None
-    # IAM 為基礎服務，禁止反向依賴業務微服務之 Feign Client 或 Service
     if any(
         business in line
-        for business in ("CompetencyFeignClient", "SkillFeignClient", "AlertFeignClient")
+        for business in (
+            "CompetencyFeignClient", "SkillFeignClient", "AlertFeignClient",
+            "JobFeignClient", "JobPostingFeignClient",
+        )
     ):
         return make_finding(
             path, idx, "HIGH", "ARCHITECTURE",
@@ -121,6 +130,9 @@ def check_java_file(
     is_service_impl = "ServiceImpl" in filename or "/Service/Impl/" in path.replace("\\", "/")
     current_module = _detect_module(path)
 
+    # 檢查自我 Feign（支援跨多行註解）
+    findings.extend(_check_self_feign_block(path, content, current_module, changed_lines))
+
     for idx, raw_line in enumerate(lines, start=1):
         if changed_lines is not None and idx not in changed_lines:
             continue
@@ -131,17 +143,12 @@ def check_java_file(
         if cross_res:
             findings.append(cross_res)
 
-        # 2. 自我 Feign 檢查
-        feign_res = _check_self_feign(path, line, idx, current_module)
-        if feign_res:
-            findings.append(feign_res)
-
-        # 3. IAM 單向依賴檢查
+        # 2. IAM 單向依賴檢查
         iam_res = _check_iam_reverse_dependency(path, line, idx, current_module)
         if iam_res:
             findings.append(iam_res)
 
-        # 4. 權限字串檢查
+        # 3. 權限字串檢查
         for banned in BANNED_PERMISSIONS:
             if banned in line and ("@RequirePermission" in line or "hasAuthority" in line):
                 findings.append(make_finding(
@@ -153,7 +160,7 @@ def check_java_file(
                     "依據《開發規範.md》§2 權限字典替換為標準權限命名",
                 ))
 
-        # 5. 生產環境 @Autowired 檢查
+        # 4. 生產環境 @Autowired 檢查
         if not is_test and re.search(r"@Autowired\b", line):
             findings.append(make_finding(
                 path, idx, "HIGH", "COMPLIANCE",
@@ -164,7 +171,7 @@ def check_java_file(
                 "採用 Lombok @RequiredArgsConstructor 搭配 private final",
             ))
 
-        # 6. Controller 分層與 OpenAPI 規範檢查
+        # 5. Controller 分層與 OpenAPI 規範檢查
         if is_controller:
             if re.search(r"@Operation\(", line):
                 findings.append(make_finding(
@@ -193,7 +200,7 @@ def check_java_file(
                     "Entity 洩漏至 API 對外介面，破壞封裝", "將回傳型別轉換為 Vo",
                 ))
 
-        # 7. Service Impl EntityManager 操作檢查
+        # 6. Service Impl EntityManager 操作檢查
         if is_service_impl and re.search(r"private\s+final\s+.*EntityManager\b", line):
             findings.append(make_finding(
                 path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.1 Service 禁止操作 EntityManager",

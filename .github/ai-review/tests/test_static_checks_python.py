@@ -42,7 +42,7 @@ def test_check_python_top_level_import_not_flagged():
     content = (
         "import json\n"
         "import sys\n\n"
-        "def parse_data(raw):\n"
+        "def parse_data(raw: str) -> dict:\n"
         "    return json.loads(raw)\n"
     )
     patch = "@@ -1,5 +1,5 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
@@ -58,12 +58,12 @@ def test_check_python_ast_unmodified_lines_ignored():
         "        calc()\n"
         "    except ValueError:\n"
         "        pass\n"
-        "def new_func():\n"
+        "def new_func() -> int:\n"
         "    return 42\n"
     )
     patch = (
         "@@ -6,2 +6,2 @@\n"
-        "+def new_func():\n"
+        "+def new_func() -> int:\n"
         "+    return 42\n"
     )
     files = [

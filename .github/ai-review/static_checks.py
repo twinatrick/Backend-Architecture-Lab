@@ -139,23 +139,45 @@ def check_python_file(
                 "改為捕捉具體的例外型別 (如 RequestException, KeyError)",
             ))
 
+    is_test_file = any(
+        p in path.replace("\\", "/").lower()
+        for p in ("src/test/", "/tests/", "tests/", "/test_", "test_")
+    )
     try:
         tree = ast.parse(content)
         for node in ast.walk(tree):
             lineno = getattr(node, "lineno", None)
-            if lineno is None or (changed_lines is not None and lineno not in changed_lines):
+            if lineno is None:
                 continue
-            if isinstance(node, ast.ExceptHandler) and len(node.body) == 1:
-                if isinstance(node.body[0], ast.Pass):
-                    findings.append(make_finding(
-                        path, lineno, "MEDIUM", "COMPLIANCE",
-                        "開發規範 §4.4 錯誤處理與安全規範",
-                        "禁止使用 except: pass 靜默吞掉錯誤",
-                        "except 區塊僅包含 pass 語句",
-                        "靜默忽略異常導致系統狀態不一致且難以除錯",
-                        "記錄具體警告日誌 (logging.warning) 或拋出具體例外",
-                    ))
+            if isinstance(node, ast.ExceptHandler):
+                h_lineno = getattr(node, "lineno", lineno)
+                if (changed_lines is None or h_lineno in changed_lines) and len(node.body) == 1:
+                    if isinstance(node.body[0], ast.Pass):
+                        findings.append(make_finding(
+                            path, h_lineno, "MEDIUM", "COMPLIANCE",
+                            "開發規範 §4.4 錯誤處理與安全規範",
+                            "禁止使用 except: pass 靜默吞掉錯誤",
+                            "except 區塊僅包含 pass 語句",
+                            "靜默忽略異常導致系統狀態不一致且難以除錯",
+                            "記錄具體警告日誌 (logging.warning) 或拋出具體例外",
+                        ))
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                fn_start = node.lineno
+                fn_end = getattr(node, "end_lineno", fn_start)
+                fn_changed = changed_lines is None or any(
+                    line_idx in changed_lines for line_idx in range(fn_start, fn_end + 1)
+                )
+                if fn_changed and not node.name.startswith("_") and not is_test_file:
+                    is_decl_changed = changed_lines is None or fn_start in changed_lines
+                    if node.returns is None and is_decl_changed:
+                        findings.append(make_finding(
+                            path, fn_start, "LOW", "COMPLIANCE",
+                            "開發規範 §4.3 型別標註規範",
+                            f"公開函式 {node.name} 缺少明確的回傳型別標註",
+                            f"def {node.name}(...)",
+                            "缺少 Type Hints 降低程式碼可讀性與靜態檢查強度",
+                            "為函式補齊回傳值 Type Hint (例如 -> None / -> str)",
+                        ))
                 for child in node.body:
                     if isinstance(child, (ast.Import, ast.ImportFrom)):
                         c_lineno = getattr(child, "lineno", lineno)

@@ -55,14 +55,15 @@ def test_evaluate_policy_severity_and_decision():
     assert res_low["decision"] == "APPROVE"
     assert len(res_low["blocking_findings"]) == 0
 
-    # 高風險核心範疇 (CI/安全/IAM/pom) 變更無阻擋項目時應降級為 COMMENT
+    # 高風險核心範疇 (CI/安全/IAM/pom) 變更應觸發 Fail-Closed REQUEST_CHANGES
     res_high_risk_ci = engine.evaluate(
         findings=[],
         expected_files=[".github/workflows/ci.yml"],
         reviewed_files=[".github/workflows/ci.yml"],
         policy=policy,
     )
-    assert res_high_risk_ci["decision"] == "COMMENT"
+    assert res_high_risk_ci["decision"] == "REQUEST_CHANGES"
+    assert len(res_high_risk_ci["blocking_findings"]) >= 1
 
     # 覆蓋率未達標時應回傳 FAIL 決策
     res_cov_fail = engine.evaluate(

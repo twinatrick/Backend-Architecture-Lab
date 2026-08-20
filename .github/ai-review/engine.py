@@ -121,11 +121,29 @@ def evaluate(
         return {"decision": "FAIL", "blocking_findings": [], "findings": []}
     unique = deduplicate(findings)
     blocking = [f for f in unique if is_blocking(f, active_policy)]
-    if blocking:
+    if has_high_risk_scope(expected_files):
+        # 高風險核心範疇變更禁止 LLM 自動放行，強制 REQUEST_CHANGES (Fail-Closed) 要求人工審核
+        high_risk_decision = str(
+            active_policy.get("high_risk_decision", "REQUEST_CHANGES")
+        ).upper()
+        high_risk_files = [f for f in expected_files if is_high_risk_path(f)]
+        mandatory_finding = {
+            "location": f"{high_risk_files[0]}:1",
+            "category": "Security",
+            "rule": "Mandatory Human Architecture & Security Review",
+            "problem": "變更涉及核心安全或基礎架構高風險範疇，禁止由 AI 自動放行。",
+            "evidence": f"涉及高風險檔案: {', '.join(high_risk_files[:5])}",
+            "risk": "未經資深工程師或架構師人工審查可能引入特權繞過或架構缺陷。",
+            "recommendation": "請指派專案資深維護者進行人工審查並批准 PR。",
+            "severity": "HIGH",
+            "confidence": "HIGH",
+        }
+        unique.append(mandatory_finding)
+        if high_risk_decision == "REQUEST_CHANGES":
+            blocking.append(mandatory_finding)
+        decision = high_risk_decision
+    elif blocking:
         decision = "REQUEST_CHANGES"
-    elif has_high_risk_scope(expected_files):
-        # 高風險核心範疇 (CI/安全/IAM/pom) 變更禁止 LLM 自動 APPROVE，強制降級為 COMMENT 供人工審查
-        decision = "COMMENT"
     else:
         decision = "APPROVE"
     return {

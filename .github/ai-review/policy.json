@@ -1,6 +1,7 @@
 {
   "version": 1,
   "language": "zh-TW",
+  "high_risk_decision": "REQUEST_CHANGES",
   "blocking_severities": ["CRITICAL", "HIGH"],
   "blocking_confidence": ["HIGH"],
   "blocking_categories": [
