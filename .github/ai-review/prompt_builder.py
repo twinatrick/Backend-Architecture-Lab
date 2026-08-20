@@ -9,7 +9,7 @@ SCOPE_SECTION_MAP: dict[str, list[int]] = {
     "data": [1, 2, 3, 5],
     "integration": [1, 2, 3, 5],
     "python": [4, 5],
-    "ci": [5],
+    "ci": [1, 2, 5],
     "other": [1, 2, 3, 5],
 }
 

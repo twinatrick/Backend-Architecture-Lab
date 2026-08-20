@@ -227,6 +227,20 @@ def test_static_checks_secret_in_tests_dir_real_pattern_detected():
     assert any("敏感資訊與金鑰保護規範" in r for r in rules)
 
 
+def test_static_checks_secret_with_test_comment_not_bypassed():
+    fake_secret = "g" + "sk_" + ("realvalue12345" * 4)
+    files = [
+        {
+            "filename": "backend-iam/src/main/resources/application.yml",
+            "patch": f'+API_KEY = "{fake_secret}" # test mock dummy comment\n',
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    assert len(findings) >= 1
+    rules = [f["rule"] for f in findings]
+    assert any("敏感資訊與金鑰保護規範" in r for r in rules)
+
+
 def test_static_checks_self_compliance():
     py_files = list(AI_REVIEW_DIR.glob("*.py"))
     assert len(py_files) >= 10

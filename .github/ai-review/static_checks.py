@@ -29,19 +29,16 @@ SECRET_REGEXES = (
 def check_secrets(path: str, content: str) -> list[dict[str, Any]]:
     """檢查原始碼或配置檔中是否含有硬編碼之機密金鑰。"""
     findings: list[dict[str, Any]] = []
+    norm_path = path.replace("\\", "/").lower()
+    is_test = any(p in norm_path for p in ("src/test/", "/tests/", "tests/", "/test_", "test_"))
+
     for idx, raw_line in enumerate(content.splitlines(), start=1):
         line = raw_line.lstrip("+- ")
-        line_lower = line.lower()
-        # 僅豁免明確標記為 mock / dummy / test / sample / example / fake / placeholder 之測試假金鑰
-        if any(
-            ind in line_lower
-            for ind in (
-                "mock", "dummy", "fake", "sample", "example", "placeholder", "test"
-            )
-        ):
-            continue
         for pattern in SECRET_REGEXES:
-            if pattern.search(line):
+            for match in pattern.finditer(line):
+                matched = match.group(0).lower()
+                if is_test and any(k in matched for k in ("dummy", "mock", "fake", "placeholder")):
+                    continue
                 findings.append({
                     "location": f"{path}:{idx}",
                     "severity": "HIGH",

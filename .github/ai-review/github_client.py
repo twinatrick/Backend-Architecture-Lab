@@ -234,22 +234,13 @@ def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT") -> di
 def publish_review(pr_number: int, body: str, decision: str = "COMMENT") -> bool:
     """發布審查意見至 PR Issue 留言與 PR Review。若發布失敗則拋出例外落實 Fail-Closed。"""
     comment_res = post_issue_comment(pr_number, body)
-    review_event = (
-        "APPROVE" if decision == "APPROVE"
-        else "REQUEST_CHANGES" if decision == "REQUEST_CHANGES"
-        else "COMMENT"
-    )
+    review_event = decision if decision in ("APPROVE", "REQUEST_CHANGES") else "COMMENT"
     review_res = post_pr_review(pr_number, body, review_event)
 
     if review_res is None:
         raise RuntimeError(
             f"無法在 PR #{pr_number} 提交正式 PR Review（決策：{decision}），"
             f"觸發 Fail-Closed 保護。"
-        )
-
-    if comment_res is None and review_res is None:
-        raise RuntimeError(
-            f"無法將審查結果發布至 PR #{pr_number}（Issue Comment 與 PR Review 均失敗）"
         )
     return True
 
@@ -267,7 +258,10 @@ def publish_failure_report(
         f"**原因**：{redact_secrets(str(reason))}\n",
     ]
     if details:
-        logging.error("AI Review 失敗詳細診斷資訊 (保留於 CI 日誌)：%s", details)
+        logging.error(
+            "AI Review 失敗詳細診斷資訊 (保留於 CI 日誌)：%s",
+            redact_secrets(str(details))[:2000],
+        )
         report.append("**摘要資訊**：")
         if isinstance(details, list):
             for item in details:
@@ -291,7 +285,7 @@ def publish_failure_report(
             publish_review(pr_number, body, "REQUEST_CHANGES")
         except (RuntimeError, requests.RequestException) as exc:
             logging.error(
-                "發布失敗診斷報告至 PR #%s 失敗: %s",
+                "發布失敗報告至 PR #%s 失敗: %s",
                 pr_number,
                 redact_secrets(str(exc)),
             )

@@ -56,6 +56,11 @@ def test_parse_rule_sections_and_filter_relevant_rules():
     assert "OpenAPI" in biz_rules
     assert "SOLID與DRY" in biz_rules
 
+    ci_rules = prompt_builder.filter_relevant_rules(sample_rules, "ci")
+    assert "禁止跨服務操作" in ci_rules
+    assert "三層權限" in ci_rules
+    assert "SOLID與DRY" in ci_rules
+
 
 def test_build_batch_prompt_contains_untrusted_tag_and_redaction():
     rules = "## 1. 規則一\n內容一\n## 5. 規則五\n內容五"

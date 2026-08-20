@@ -12,16 +12,16 @@ import redaction
 
 def test_redact_secrets():
     env_vars = {
-        "GROQ_API_KEY": "gsk_1234567890abcdef1234567890abcdef",
-        "GEMINI_API_KEY": "AIzaSyTestKey1234567890abcdef1234567890",
-        "GH_TOKEN": "ghp_1234567890abcdef1234567890abcdef",
+        "GROQ_API_KEY": "gsk_mock1234567890abcdef1234567890abcdef",
+        "GEMINI_API_KEY": "AIzaSyMockKey1234567890abcdef1234567890",
+        "GH_TOKEN": "ghp_mock1234567890abcdef1234567890abcdef",
     }
     with patch.dict(os.environ, env_vars, clear=True):
         raw_msg = (
-            "Error with key gsk_1234567890abcdef1234567890abcdef "
-            "and Gemini AIzaSyTestKey1234567890abcdef1234567890 "
-            "and GitHub ghp_1234567890abcdef1234567890abcdef "
-            "and pat github_pat_11ABCD1234567890123456_abcdef"
+            "Error with key gsk_mock1234567890abcdef1234567890abcdef "
+            "and Gemini AIzaSyMockKey1234567890abcdef1234567890 "
+            "and GitHub ghp_mock1234567890abcdef1234567890abcdef "
+            "and pat github_pat_mock11ABCD1234567890123456_abcdef"
         )
         redacted = redaction.redact_secrets(raw_msg)
         assert "gsk_" not in redacted
@@ -45,10 +45,10 @@ def test_sanitize_diff_various_secret_patterns():
     assert redaction.sanitize_diff(mock_raw_pk) == "[REDACTED_PRIVATE_KEY]"
     assert redaction.sanitize_diff(mock_raw_cert) == "[REDACTED_CERTIFICATE]"
 
-    raw_groq = "key is gsk_abcdef12345678901234567890 in config"
-    raw_gemini = "gemini key AIzaSyD123456789012345678901234567890 used"
-    raw_ghp = "github token ghp_123456789012345678901234567890"
-    raw_pat = "github pat github_pat_12345678901234567890_12345"
+    raw_groq = "key is gsk_mockabcdef12345678901234567890 in config"
+    raw_gemini = "gemini key AIzaDummy123456789012345678901234567890 used"
+    raw_ghp = "github token ghp_mock123456789012345678901234567890"
+    raw_pat = "github pat github_pat_mock12345678901234567890_12345"
     raw_aws = "aws key AKIAIOSFODNN7EXAMPLE and ASIAIOSFODNN7EXAMPLE"
     raw_slack = "slack token xoxb-1234567890-123456789012-abcdef123456"
     raw_jwt = (

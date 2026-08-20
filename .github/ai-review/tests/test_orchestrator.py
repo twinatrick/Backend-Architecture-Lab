@@ -34,6 +34,26 @@ def test_orchestrator_chat_completion_no_keys():
     assert "未配置任何 AI Provider 密鑰" in str(exc_info.value)
 
 
+def test_orchestrator_chat_completion_gemini_success(monkeypatch):
+    gemini_pool = MagicMock()
+    gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY", "gkey1")]
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
+
+    monkeypatch.setattr(
+        orchestrator,
+        "execute_gemini_loop",
+        MagicMock(return_value='[{"location": "gemini.py:1"}]'),
+    )
+
+    orch = orchestrator.ReviewOrchestrator(
+        groq_key_pool=groq_pool,
+        gemini_key_pool=gemini_pool,
+    )
+    result = orch.chat_completion("test prompt")
+    assert result == '[{"location": "gemini.py:1"}]'
+
+
 def test_orchestrator_chat_completion_groq_success(monkeypatch):
     groq_pool = MagicMock()
     groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
@@ -43,7 +63,7 @@ def test_orchestrator_chat_completion_groq_success(monkeypatch):
     monkeypatch.setattr(
         orchestrator,
         "execute_groq_loop",
-        MagicMock(return_value="[{\"location\": \"a.py:1\"}]"),
+        MagicMock(return_value='[{"location": "a.py:1"}]'),
     )
 
     orch = orchestrator.ReviewOrchestrator(
@@ -51,20 +71,20 @@ def test_orchestrator_chat_completion_groq_success(monkeypatch):
         gemini_key_pool=gemini_pool,
     )
     result = orch.chat_completion("test prompt")
-    assert result == "[{\"location\": \"a.py:1\"}]"
+    assert result == '[{"location": "a.py:1"}]'
 
 
-def test_orchestrator_chat_completion_fallback_to_gemini(monkeypatch):
-    groq_pool = MagicMock()
-    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
+def test_orchestrator_chat_completion_fallback_to_groq(monkeypatch):
     gemini_pool = MagicMock()
     gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY", "gkey1")]
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
 
-    monkeypatch.setattr(orchestrator, "execute_groq_loop", MagicMock(return_value=None))
+    monkeypatch.setattr(orchestrator, "execute_gemini_loop", MagicMock(return_value=None))
     monkeypatch.setattr(
         orchestrator,
-        "execute_gemini_loop",
-        MagicMock(return_value="[{\"location\": \"b.py:2\"}]"),
+        "execute_groq_loop",
+        MagicMock(return_value='[{"location": "groq_fallback.py:2"}]'),
     )
 
     orch = orchestrator.ReviewOrchestrator(
@@ -72,7 +92,7 @@ def test_orchestrator_chat_completion_fallback_to_gemini(monkeypatch):
         gemini_key_pool=gemini_pool,
     )
     result = orch.chat_completion("test prompt")
-    assert result == "[{\"location\": \"b.py:2\"}]"
+    assert result == '[{"location": "groq_fallback.py:2"}]'
 
 
 def test_orchestrator_chat_completion_all_fail(monkeypatch):
@@ -81,8 +101,8 @@ def test_orchestrator_chat_completion_all_fail(monkeypatch):
     gemini_pool = MagicMock()
     gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY", "gkey1")]
 
-    monkeypatch.setattr(orchestrator, "execute_groq_loop", MagicMock(return_value=None))
     monkeypatch.setattr(orchestrator, "execute_gemini_loop", MagicMock(return_value=None))
+    monkeypatch.setattr(orchestrator, "execute_groq_loop", MagicMock(return_value=None))
 
     orch = orchestrator.ReviewOrchestrator(
         groq_key_pool=groq_pool,
@@ -92,22 +112,22 @@ def test_orchestrator_chat_completion_all_fail(monkeypatch):
         orch.chat_completion("test prompt")
 
 
-def test_orchestrator_groq_tpd_exhaustion_switches_to_gemini(monkeypatch):
-    groq_pool = MagicMock()
-    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
+def test_orchestrator_gemini_quota_exhaustion_switches_to_groq(monkeypatch):
     gemini_pool = MagicMock()
     gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY", "gkey1")]
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
 
-    def fake_groq_loop(*args, **kwargs):
+    def fake_gemini_loop(*args, **kwargs):
         error_details = kwargs.get("error_details", args[7] if len(args) > 7 else [])
-        error_details.append(("Groq/llama-3.3-70b-versatile", "HTTP 429: tokens per day (TPD)"))
+        error_details.append(("Gemini/gemini-3.7-flash", "HTTP 429: Resource exhausted"))
         return None
 
-    monkeypatch.setattr(orchestrator, "execute_groq_loop", fake_groq_loop)
+    monkeypatch.setattr(orchestrator, "execute_gemini_loop", fake_gemini_loop)
     monkeypatch.setattr(
         orchestrator,
-        "execute_gemini_loop",
-        MagicMock(return_value="[{\"location\": \"gemini.py:1\"}]"),
+        "execute_groq_loop",
+        MagicMock(return_value='[{"location": "groq.py:1"}]'),
     )
 
     orch = orchestrator.ReviewOrchestrator(
@@ -115,4 +135,4 @@ def test_orchestrator_groq_tpd_exhaustion_switches_to_gemini(monkeypatch):
         gemini_key_pool=gemini_pool,
     )
     result = orch.chat_completion("test prompt")
-    assert result == "[{\"location\": \"gemini.py:1\"}]"
+    assert result == '[{"location": "groq.py:1"}]'

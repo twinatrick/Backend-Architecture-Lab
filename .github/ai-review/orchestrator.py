@@ -105,24 +105,7 @@ class ReviewOrchestrator:
 
         error_details: list[tuple[str, str]] = []
 
-        if groq_keys:
-            groq_models = self._get_groq_candidate_models()
-            result = execute_groq_loop(
-                prompt,
-                max_retries_per_model,
-                groq_models,
-                self.groq_key_pool,
-                self.groq_model_pool,
-                self.groq_client,
-                self.parser,
-                error_details,
-            )
-            if result is not None:
-                return result
-
         if gemini_keys:
-            if groq_keys:
-                print("所有 Groq 金鑰與模型均無法取得有效回應或已冷卻，降級至備援 Provider：Google Gemini...")
             gemini_models = self.gemini_model_pool.get_candidates()
             result = execute_gemini_loop(
                 prompt,
@@ -131,6 +114,23 @@ class ReviewOrchestrator:
                 self.gemini_key_pool,
                 self.gemini_model_pool,
                 self.gemini_client,
+                self.parser,
+                error_details,
+            )
+            if result is not None:
+                return result
+
+        if groq_keys:
+            if gemini_keys:
+                print("所有 Gemini 金鑰與模型均無法取得有效回應，降級至備援 Provider：Groq...")
+            groq_models = self._get_groq_candidate_models()
+            result = execute_groq_loop(
+                prompt,
+                max_retries_per_model,
+                groq_models,
+                self.groq_key_pool,
+                self.groq_model_pool,
+                self.groq_client,
                 self.parser,
                 error_details,
             )
