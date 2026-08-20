@@ -5,15 +5,15 @@ def _classify_file(filename: str, file_item: dict) -> str:
     content = file_item.get("content", "")
     text_sample = f"{patch}\n{content}"
 
+    if path_lower.endswith(".py"):
+        return "python"
+
     if (
         path_lower.startswith(".github/")
         or path_lower.endswith((".yml", ".yaml"))
         or filename in ("Dockerfile", "compose.yaml", "pom.xml")
     ):
         return "ci"
-
-    if path_lower.endswith(".py"):
-        return "python"
 
     # 安全與 API 邊界特徵（優先於一般業務）
     if (

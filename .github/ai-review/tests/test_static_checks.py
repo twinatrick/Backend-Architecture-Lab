@@ -202,6 +202,31 @@ def test_static_checks_secret_exposure():
     assert any("敏感資訊與金鑰保護規範" in r for r in rules)
 
 
+def test_static_checks_secret_in_tests_dir_mock_fixture_ignored():
+    fake_mock_secret = "g" + "sk_" + ("mockkey" * 6)
+    files = [
+        {
+            "filename": "tests/test_auth.py",
+            "patch": f'+mock_api_key = "{fake_mock_secret}"\n',
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    assert findings == []
+
+
+def test_static_checks_secret_in_tests_dir_real_pattern_detected():
+    fake_real_secret = "g" + "sk_" + ("xyz12345" * 6)
+    files = [
+        {
+            "filename": "tests/test_auth.py",
+            "patch": f'+production_api_key = "{fake_real_secret}"\n',
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    rules = [f["rule"] for f in findings]
+    assert any("敏感資訊與金鑰保護規範" in r for r in rules)
+
+
 def test_static_checks_self_compliance():
     py_files = list(AI_REVIEW_DIR.glob("*.py"))
     assert len(py_files) >= 10

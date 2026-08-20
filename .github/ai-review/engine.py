@@ -44,9 +44,7 @@ def has_high_risk_scope(files: list[str]) -> bool:
     return any(is_high_risk_path(f) for f in files)
 
 
-def validate_finding(
-    finding: dict[str, Any], policy: dict[str, Any] | None = None
-) -> bool:
+def validate_finding(finding: dict[str, Any]) -> bool:
     if not isinstance(finding, dict):
         return False
     if set(finding.keys()) != REQUIRED_FIELDS:

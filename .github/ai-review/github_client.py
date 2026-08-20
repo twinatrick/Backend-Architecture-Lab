@@ -240,7 +240,7 @@ def publish_review(pr_number: int, body: str, decision: str = "COMMENT") -> bool
     )
     review_res = post_pr_review(pr_number, body, review_event)
 
-    if decision in ("REQUEST_CHANGES", "APPROVE") and review_res is None:
+    if review_res is None:
         raise RuntimeError(
             f"無法在 PR #{pr_number} 提交正式 PR Review（決策：{decision}），"
             f"觸發 Fail-Closed 保護。"

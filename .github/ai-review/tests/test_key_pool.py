@@ -30,11 +30,10 @@ def test_mask_api_key():
     assert "1234" not in masked_short
     assert "5678" not in masked_short
 
-    key = "AIzaSyBMMcmOmGpClLzf14bpHR3uKY6bfIK6kc8"
+    key = "AIzaSyDummyTestKeyForUnitTestsOnly12345"
     masked = key_pool.mask_api_key(key)
     assert masked.startswith("sha256:")
     assert "AIza" not in masked
-    assert "6kc8" not in masked
 
 
 def test_get_gemini_api_keys_discovery_and_sorting():

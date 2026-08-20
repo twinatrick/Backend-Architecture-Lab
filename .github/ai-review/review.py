@@ -144,7 +144,7 @@ def _process_batch(
         batch_data.setdefault("findings", []).extend(missing_findings)
 
     for finding in batch_data.get("findings", []):
-        if not validate_finding(finding, policy):
+        if not validate_finding(finding):
             schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式驗證。"
             publish_failure_report(pr_number, "Finding 格式驗證失敗", schema_err, finding)
             raise SystemExit(schema_err)

@@ -395,7 +395,7 @@ class CompensationOutboxWorkerTest {
     }
 
     @Test
-    void flushPendingEvents_ShouldAllowBackgroundTasksToComplete_whenBatchWaitInterrupted() throws Exception {
+    void flushPendingEvents_ShouldCancelRunningTasks_whenBatchWaitInterrupted() throws Exception {
         ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
         ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 5L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 1);
@@ -410,14 +410,12 @@ class CompensationOutboxWorkerTest {
         when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
 
         CountDownLatch publishStartedLatch = new CountDownLatch(1);
-        CountDownLatch taskCompletedLatch = new CountDownLatch(1);
         when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
             publishStartedLatch.countDown();
             CompletableFuture<Void> future = new CompletableFuture<>();
             Executors.newSingleThreadScheduledExecutor().schedule(() -> {
                 future.complete(null);
-                taskCompletedLatch.countDown();
-            }, 100, TimeUnit.MILLISECONDS);
+            }, 500, TimeUnit.MILLISECONDS);
             return future;
         });
 
@@ -436,18 +434,6 @@ class CompensationOutboxWorkerTest {
 
         // 呼叫執行緒之中斷旗標應已恢復
         assertEquals(true, Thread.interrupted());
-
-        // 驗證背景工作執行緒未被 cancel(true)，依然能獨立完成發布並成功 markSent
-        boolean completed = taskCompletedLatch.await(2, TimeUnit.SECONDS);
-        assertEquals(true, completed);
-
-        verify(outboxRepository, org.mockito.Mockito.timeout(2000)).markSent(eq(outbox.getId()),
-                anyString(),
-                eq(fresh.getFencingVersion()),
-                eq(CompensationOutboxDeliveryStatus.SENT),
-                eq(CompensationOutboxDeliveryStatus.PROCESSING),
-                any(Date.class));
-        verify(outboxRepository, never()).markFailed(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

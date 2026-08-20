@@ -94,10 +94,6 @@ public class CompensationOutboxWorker {
         }
     }
 
-    private Semaphore getPublishSemaphore() {
-        return publishSemaphore;
-    }
-
     /**
      * 批次發佈尚未送達的事件（預設每 5 秒執行一次）。
      * 並行任務於 Java 21 虛擬執行緒執行器中執行，並由內部 {@link Semaphore} 嚴格約束最大 Kafka 發布併發度
@@ -139,9 +135,16 @@ public class CompensationOutboxWorker {
                 log.debug("Published {} outbox event(s) via shared publisher pool", pending.size());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.error("Outbox publish batch wait interrupted", e);
+                log.error("Outbox publish batch wait interrupted, cancelling running tasks", e);
+                for (Future<?> future : futures) {
+                    future.cancel(true);
+                }
             } catch (ExecutionException | TimeoutException e) {
-                log.warn("Outbox publish batch wait elapsed or timed out, background tasks will continue independently: {}", e.getMessage());
+                log.warn("Outbox publish batch wait elapsed or timed out, cancelling running tasks: {}",
+                        e.getMessage());
+                for (Future<?> future : futures) {
+                    future.cancel(true);
+                }
             }
         } finally {
             isFlushing.set(false);
@@ -157,9 +160,8 @@ public class CompensationOutboxWorker {
             log.warn("Outbox publish task interrupted before permit acquisition: eventId={}", outbox.getEventId());
             return;
         }
-        Semaphore semaphore = getPublishSemaphore();
         try {
-            semaphore.acquire();
+            publishSemaphore.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("Outbox publish interrupted while acquiring concurrency permit", e);
@@ -211,7 +213,7 @@ public class CompensationOutboxWorker {
                 handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
             }
         } finally {
-            semaphore.release();
+            publishSemaphore.release();
         }
     }
 

@@ -32,10 +32,18 @@ def test_redact_secrets():
 
 
 def test_sanitize_diff_various_secret_patterns():
-    raw_pk = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0\n-----END RSA PRIVATE KEY-----"
-    raw_cert = "-----BEGIN CERTIFICATE-----\nMIIDXTCCAkWgAwIBAgIJ\n-----END CERTIFICATE-----"
-    assert redaction.sanitize_diff(raw_pk) == "[REDACTED_PRIVATE_KEY]"
-    assert redaction.sanitize_diff(raw_cert) == "[REDACTED_CERTIFICATE]"
+    mock_raw_pk = (
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "MIIEowIBAAKCAQEA0\n"
+        "-----END RSA PRIVATE KEY-----"
+    )
+    mock_raw_cert = (
+        "-----BEGIN CERTIFICATE-----\n"
+        "MIIDXTCCAkWgAwIBAgIJ\n"
+        "-----END CERTIFICATE-----"
+    )
+    assert redaction.sanitize_diff(mock_raw_pk) == "[REDACTED_PRIVATE_KEY]"
+    assert redaction.sanitize_diff(mock_raw_cert) == "[REDACTED_CERTIFICATE]"
 
     raw_groq = "key is gsk_abcdef12345678901234567890 in config"
     raw_gemini = "gemini key AIzaSyD123456789012345678901234567890 used"

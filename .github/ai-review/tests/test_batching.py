@@ -44,6 +44,19 @@ def test_build_batches_splits_large_batch():
     assert len(flattened) == 4
 
 
+def test_build_batches_github_ai_review_python_scope():
+    files = [
+        {"filename": ".github/ai-review/review.py", "patch": "diff -- py"},
+        {"filename": ".github/ai-review/engine.py", "patch": "diff -- py"},
+        {"filename": ".github/workflows/ci.yml", "patch": "diff -- ci"},
+    ]
+    batches = batching.build_batches(files, max_chars=10000)
+    scope_map = {path: scope for scope, paths in batches for path in paths}
+    assert scope_map[".github/ai-review/review.py"] == "python"
+    assert scope_map[".github/ai-review/engine.py"] == "python"
+    assert scope_map[".github/workflows/ci.yml"] == "ci"
+
+
 def test_build_batches_handles_missing_patch():
     files = [
         {"filename": "deleted.txt", "patch": None, "status": "removed"},
