@@ -172,6 +172,7 @@ def resolve_review_target(event: dict) -> dict[str, Any]:
     return {
         "pr_number": pr_number,
         "expected_head_sha": expected_sha or None,
+        "head_sha": expected_sha or None,
         "actor": str(raw_actor),
         "trigger_type": trigger_type,
     }

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 AI_REVIEW_DIR = Path(__file__).resolve().parents[1]
 if str(AI_REVIEW_DIR) not in sys.path:
@@ -136,3 +137,90 @@ def test_main_with_static_checks_fail_closed(monkeypatch, tmp_path):
     assert mock_publish.called
     call_args = mock_publish.call_args[0]
     assert call_args[2] == "REQUEST_CHANGES"
+
+
+def test_main_toctou_head_sha_mismatch_raises_system_exit(monkeypatch, tmp_path):
+    event_file = tmp_path / "event.json"
+    event_file.write_text('{"pull_request": {"number": 123}}', encoding="utf-8")
+
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GH_TOKEN", "mock_token")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test123456789012345678901234")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_file))
+
+    mock_pr_initial = {
+        "state": "open",
+        "base": {"ref": "master", "repo": {"full_name": "owner/repo"}},
+        "head": {"sha": "sha_old"},
+    }
+    mock_pr_latest = {
+        "state": "open",
+        "base": {"ref": "master", "repo": {"full_name": "owner/repo"}},
+        "head": {"sha": "sha_new"},
+    }
+    mock_pr_files = [{"filename": "App.java", "patch": "+ class App {}"}]
+
+    call_count = {"pull": 0}
+
+    def mock_gh_get(url, params=None):
+        if "/pulls/123/files" in url:
+            return mock_pr_files
+        if "/pulls/123" in url:
+            call_count["pull"] += 1
+            return mock_pr_initial if call_count["pull"] == 1 else mock_pr_latest
+        return {}
+
+    monkeypatch.setattr(review, "gh_get", mock_gh_get)
+    monkeypatch.setattr(
+        review, "chat_completion",
+        MagicMock(return_value='{"batch":"business-1","files_reviewed":["App.java"],"findings":[],'
+                               '"passed_checks":[],"coverage":"COMPLETE"}'),
+    )
+    mock_publish = MagicMock()
+    monkeypatch.setattr(review, "publish_review", mock_publish)
+
+    with pytest.raises(SystemExit) as exc_info:
+        review.main()
+    assert "TOCTOU" in str(exc_info.value) or exc_info.value.code != 0
+
+
+def test_main_toctou_network_error_raises_system_exit(monkeypatch, tmp_path):
+    event_file = tmp_path / "event.json"
+    event_file.write_text('{"pull_request": {"number": 123}}', encoding="utf-8")
+
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GH_TOKEN", "mock_token")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test123456789012345678901234")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_file))
+
+    mock_pr_initial = {
+        "state": "open",
+        "base": {"ref": "master", "repo": {"full_name": "owner/repo"}},
+        "head": {"sha": "sha_old"},
+    }
+    mock_pr_files = [{"filename": "App.java", "patch": "+ class App {}"}]
+
+    call_count = {"pull": 0}
+
+    def mock_gh_get(url, params=None):
+        if "/pulls/123/files" in url:
+            return mock_pr_files
+        if "/pulls/123" in url:
+            call_count["pull"] += 1
+            if call_count["pull"] == 1:
+                return mock_pr_initial
+            raise requests.RequestException("GitHub API 500 Server Error")
+        return {}
+
+    monkeypatch.setattr(review, "gh_get", mock_gh_get)
+    monkeypatch.setattr(
+        review, "chat_completion",
+        MagicMock(return_value='{"batch":"business-1","files_reviewed":["App.java"],"findings":[],'
+                               '"passed_checks":[],"coverage":"COMPLETE"}'),
+    )
+    mock_publish = MagicMock()
+    monkeypatch.setattr(review, "publish_review", mock_publish)
+
+    with pytest.raises(SystemExit) as exc_info:
+        review.main()
+    assert exc_info.value.code != 0

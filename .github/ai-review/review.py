@@ -37,8 +37,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _fetch_all_pr_files(repo_name: str, pr_number: int) -> list[dict]:
-    files = []
-    page = 1
+    files, page = [], 1
     while True:
         chunk = gh_get(
             f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/files",
@@ -133,9 +132,11 @@ def _process_batch(
         raise SystemExit(f"批次 {scope}-{index} JSON 解析失敗：{exc}")
 
     norm_exp, norm_rev = normalize_paths(paths), normalize_paths(batch_data.get("files_reviewed"))
-    if str(batch_data.get("coverage", "")).strip().upper() != "COMPLETE" or not validate_coverage(
-        norm_exp, norm_rev
-    ):
+    is_cov_valid = (
+        str(batch_data.get("coverage", "")).strip().upper() == "COMPLETE"
+        and validate_coverage(norm_exp, norm_rev)
+    )
+    if not is_cov_valid:
         cov_err = f"批次覆蓋範圍驗證失敗：{scope}-{index}\n預期：{paths}\n模型回傳：{norm_rev}"
         publish_failure_report(pr_number, "批次覆蓋範圍不符", cov_err)
         raise SystemExit(cov_err)
@@ -165,7 +166,7 @@ def main() -> None:
     event = json.loads(Path(event_path_str).read_text(encoding="utf-8"))
     target = resolve_review_target(event)
     pr_number = target["pr_number"]
-    expected_sha = target.get("head_sha")
+    expected_sha = target.get("expected_head_sha") or target.get("head_sha")
     repo_name = get_repo() or REPO
 
     try:
@@ -179,8 +180,9 @@ def main() -> None:
         expected_head_sha=expected_sha,
     )
     if not is_valid:
-        print(f"PR #{pr_number} 未通過目標校驗（{validation_err}），略過審查發布。")
-        return
+        err_msg = f"PR #{pr_number} 未通過目標校驗（{validation_err}），中止審查。"
+        publish_failure_report(pr_number, "目標 PR 校驗未通過", err_msg)
+        raise SystemExit(err_msg)
 
     try:
         files = _fetch_all_pr_files(repo_name, pr_number)
@@ -198,14 +200,15 @@ def main() -> None:
     rules_text = rules_path.read_text(encoding="utf-8") if rules_path.exists() else ""
     contract_text = contract_path.read_text(encoding="utf-8") if contract_path.exists() else ""
     policy = load_policy()
-
     max_batch_chars = int(os.environ.get("AI_REVIEW_MAX_BATCH_CHARS", "24000"))
     batches = build_batches(files, max_chars=max_batch_chars)
 
     expected_files = [fn for _, paths in batches for fn in paths]
-    if sorted(expected_files) != sorted(changed_files) or (
-        len(expected_files) != len(set(expected_files))
-    ):
+    is_batch_valid = (
+        sorted(expected_files) == sorted(changed_files)
+        and len(expected_files) == len(set(expected_files))
+    )
+    if not is_batch_valid:
         mismatch_msg = "覆蓋範圍規劃不符：每個變更檔案必須屬於且僅屬於一個批次。"
         publish_failure_report(pr_number, "批次檔案規劃異常", mismatch_msg)
         raise SystemExit(mismatch_msg)
@@ -219,16 +222,8 @@ def main() -> None:
 
     results = [
         _process_batch(
-            scope,
-            idx,
-            paths,
-            files,
-            rules_text,
-            contract_text,
-            policy,
-            pr_number,
-            repo_name=repo_name,
-            head_sha=head_sha,
+            scope, idx, paths, files, rules_text, contract_text,
+            policy, pr_number, repo_name=repo_name, head_sha=head_sha,
         )
         for idx, (scope, paths) in enumerate(batches, 1)
     ]
@@ -252,7 +247,11 @@ def main() -> None:
     try:
         latest_pr = gh_get(f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}")
         latest_head_sha = latest_pr.get("head", {}).get("sha", "")
-        if latest_head_sha and latest_head_sha != head_sha:
+        if not latest_head_sha:
+            toctou_err = f"無法取得 PR #{pr_number} 最新 head SHA，拒絕發布過期 Review。"
+            publish_failure_report(pr_number, "無法驗證最新 PR head SHA", toctou_err)
+            raise SystemExit(toctou_err)
+        if latest_head_sha != head_sha:
             toctou_err = (
                 f"TOCTOU 衝突：PR #{pr_number} head SHA 於審查期間已變更 "
                 f"({head_sha[:8]} -> {latest_head_sha[:8]})，中止本次過期審查。"
@@ -260,7 +259,9 @@ def main() -> None:
             publish_failure_report(pr_number, "審查目標過期 (TOCTOU)", toctou_err)
             raise SystemExit(toctou_err)
     except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
-        logging.warning("發布前二次 PR 校驗失敗（略過）：%s", exc)
+        err_msg = f"發布前二次 PR 校驗失敗：{exc}"
+        publish_failure_report(pr_number, "發布前二次 PR 校驗失敗", err_msg)
+        raise SystemExit(err_msg)
 
     audit_info = {
         "trigger_type": target.get("trigger_type", "unknown"),
