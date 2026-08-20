@@ -104,3 +104,56 @@ def test_static_checks_python_generic_exception():
     findings = static_checks.run_static_checks(files)
     rules = [f["rule"] for f in findings]
     assert any("具體例外處理規範" in r for r in rules)
+
+
+def test_static_checks_java_banned_permissions_and_autowired():
+    files = [
+        {
+            "filename": "backend-iam/src/main/java/com/example/Controller/RoleController.java",
+            "patch": """@@ -1,5 +1,9 @@
++@RestController
++public class RoleController {
++    @Autowired
++    private RoleService roleService;
++
++    @RequirePermission("PersonalEdit")
++    public void edit() {}
++}
++""",
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    rules = [f["rule"] for f in findings]
+    assert any("權限字典與禁用字串規範" in r for r in rules)
+    assert any("依賴注入規範" in r for r in rules)
+
+
+def test_static_checks_java_controller_raw_operation():
+    files = [
+        {
+            "filename": "backend-iam/src/main/java/com/example/Controller/TestController.java",
+            "patch": """@@ -1,5 +1,8 @@
++@RestController
++public class TestController {
++    @Operation(summary = "test")
++    public void test() {}
++}
++""",
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    rules = [f["rule"] for f in findings]
+    assert any("OpenAPI 標註規範" in r for r in rules)
+
+
+def test_static_checks_python_line_length_and_loc():
+    long_line = "a = '" + ("x" * 120) + "'"
+    files = [
+        {
+            "filename": "scripts/long.py",
+            "patch": f"+{long_line}\n",
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    rules = [f["rule"] for f in findings]
+    assert any("程式碼格式與行長規範" in r for r in rules)

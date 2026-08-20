@@ -15,7 +15,7 @@ import review
 def test_fetch_file_content_fallback_success(monkeypatch):
     mock_getter = MagicMock(return_value={
         "encoding": "base64",
-        "content": "cHJpbnQoJ2hlbGxvIHdvcmxkJyk=",  # print('hello world')
+        "content": "cHJpbnQoJ2hlbGxvIHdvcmxkJyk=",  # base64 編碼之 print('hello world')
     })
     monkeypatch.setattr(review, "gh_get", mock_getter)
     content = review._fetch_file_content_fallback(

@@ -125,14 +125,28 @@ def test_publish_review_raises_fail_closed_when_both_fail():
     with patch("github_client.post_issue_comment", return_value=None), \
          patch("github_client.post_pr_review", return_value=None):
         with pytest.raises(RuntimeError) as exc_info:
-            github_client.publish_review(42, "review body", "APPROVE")
+            github_client.publish_review(42, "review body", "COMMENT")
         assert "無法將審查結果發布至 PR #42" in str(exc_info.value)
 
 
-def test_publish_review_succeeds_when_issue_comment_succeeds_and_pr_review_422():
+def test_publish_review_raises_fail_closed_when_request_changes_review_fails():
     with patch("github_client.post_issue_comment", return_value={"id": 123}), \
          patch("github_client.post_pr_review", return_value=None):
-        assert github_client.publish_review(42, "review body", "APPROVE") is True
+        with pytest.raises(RuntimeError) as exc_info:
+            github_client.publish_review(42, "review body", "REQUEST_CHANGES")
+        assert "無法在 PR #42 提交正式 PR Review" in str(exc_info.value)
+
+
+def test_publish_review_succeeds_when_comment_decision_and_issue_comment_succeeds():
+    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
+         patch("github_client.post_pr_review", return_value=None):
+        assert github_client.publish_review(42, "review body", "COMMENT") is True
+
+
+def test_publish_review_succeeds_when_request_changes_review_succeeds():
+    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
+         patch("github_client.post_pr_review", return_value={"id": 456}):
+        assert github_client.publish_review(42, "review body", "REQUEST_CHANGES") is True
 
 
 def test_resolve_pr_number_fails_when_unresolved():

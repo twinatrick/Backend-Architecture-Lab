@@ -55,7 +55,7 @@ def test_evaluate_policy_severity_and_decision():
     assert res_low["decision"] == "APPROVE"
     assert len(res_low["blocking_findings"]) == 0
 
-    # Coverage failure returns FAIL
+    # 覆蓋率未達標時應回傳 FAIL 決策
     res_cov_fail = engine.evaluate(
         findings=[],
         expected_files=["src/App.java"],
@@ -83,7 +83,7 @@ def test_validate_finding_invalid_or_missing_fields():
     assert engine.validate_finding(None) is False
     assert engine.validate_finding("not a dict") is False
     assert engine.validate_finding({}) is False
-    # missing location
+    # 缺少必要欄位 location
     assert engine.validate_finding({
         "rule": "R1",
         "problem": "Crash",
@@ -93,7 +93,7 @@ def test_validate_finding_invalid_or_missing_fields():
         "severity": "HIGH",
         "confidence": "HIGH",
     }) is False
-    # invalid severity
+    # 無效的 severity 嚴重等級
     assert engine.validate_finding({
         "location": "foo.py:1",
         "rule": "R1",

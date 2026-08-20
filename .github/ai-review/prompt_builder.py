@@ -5,12 +5,12 @@ from redaction import sanitize_diff
 
 SCOPE_SECTION_MAP: dict[str, list[int]] = {
     "security-api": [1, 2, 3, 5],
-    "business": [1, 5],
-    "data": [1, 5],
-    "integration": [1, 5],
+    "business": [1, 2, 3, 5],
+    "data": [1, 2, 3, 5],
+    "integration": [1, 2, 3, 5],
     "python": [4, 5],
     "ci": [5],
-    "other": [1, 5],
+    "other": [1, 2, 3, 5],
 }
 
 

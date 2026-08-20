@@ -1,6 +1,16 @@
 import os
 import re
+from pathlib import Path
 from typing import Any
+
+BANNED_PERMISSIONS = (
+    "PersonalEdit",
+    "EditAll",
+    "SkillManagement",
+    "RolePermission",
+    "AquarkDataAvg",
+    "LimitSetting",
+)
 
 
 def check_workflow_file(path: str, content: str) -> list[dict[str, Any]]:
@@ -66,6 +76,7 @@ def check_java_file(path: str, content: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     filename = os.path.basename(path)
     lines = content.splitlines()
+    is_test_file = "src/test/java/" in path.replace("\\", "/")
 
     is_controller = "Controller" in filename or "@RestController" in content
     is_service_impl = (
@@ -73,9 +84,54 @@ def check_java_file(path: str, content: str) -> list[dict[str, Any]]:
         or "/Service/Impl/" in path.replace("\\", "/")
     )
 
+    for idx, raw_line in enumerate(lines, start=1):
+        line = raw_line.lstrip("+- ")
+
+        # 檢查禁用權限字串
+        for banned in BANNED_PERMISSIONS:
+            if banned in line and ("@RequirePermission" in line or "hasAuthority" in line):
+                findings.append({
+                    "location": f"{path}:{idx}",
+                    "severity": "HIGH",
+                    "confidence": "HIGH",
+                    "rule": "開發規範 §2 權限字典與禁用字串規範",
+                    "problem": f"使用了已被廢棄或禁用的權限字串: {banned}",
+                    "evidence": raw_line.strip()[:100],
+                    "risk": "使用非標準權限名稱將導致 RBAC 權限失效或鑑權失敗",
+                    "recommendation": "依據《開發規範.md》§2 權限字典替換為標準權限命名",
+                })
+
+        # 生產程式碼禁止 @Autowired 欄位注入
+        if not is_test_file and re.search(r"@Autowired\b", line):
+            if "required = false" not in line and "required=false" not in line:
+                findings.append({
+                    "location": f"{path}:{idx}",
+                    "severity": "HIGH",
+                    "confidence": "HIGH",
+                    "rule": "開發規範 §1.4 依賴注入規範",
+                    "problem": "生產程式碼中嚴禁使用 @Autowired 進行欄位注入",
+                    "evidence": raw_line.strip()[:100],
+                    "risk": "欄位注入隱藏依賴且不利於單元測試",
+                    "recommendation": "全面採用 Lombok @RequiredArgsConstructor 搭配 private final",
+                })
+
     if is_controller:
         for idx, raw_line in enumerate(lines, start=1):
             line = raw_line.lstrip("+- ")
+
+            # Controller OpenAPI 原生註解檢查
+            if re.search(r"@Operation\(", line):
+                findings.append({
+                    "location": f"{path}:{idx}",
+                    "severity": "MEDIUM",
+                    "confidence": "HIGH",
+                    "rule": "開發規範 §3 OpenAPI 標註規範",
+                    "problem": "Controller 應使用專案封裝之 OpenApi 註解取代原生 @Operation",
+                    "evidence": raw_line.strip()[:100],
+                    "risk": "缺少統一的 API 響應結構與錯誤碼說明",
+                    "recommendation": "使用 @OpenApiCommonResponse 或專案標準註解封裝",
+                })
+
             # Controller 禁止注入 EntityManager, Repository, Mapper
             if re.search(r"private\s+final\s+.*EntityManager\b", line):
                 findings.append({
@@ -132,11 +188,11 @@ def check_java_file(path: str, content: str) -> list[dict[str, Any]]:
 
 
 def check_python_file(path: str, content: str) -> list[dict[str, Any]]:
-    """針對 Python 原始碼進行單檔行數與例外捕捉靜態檢查。"""
+    """針對 Python 原始碼進行單檔行數、單行長度與例外捕捉靜態檢查。"""
     findings: list[dict[str, Any]] = []
     lines = content.splitlines()
 
-    # 1. 檢查單檔行數限制
+    # 1. 檢查單檔總行數上限 (LOC)
     if len(lines) > 300:
         findings.append({
             "location": f"{path}:1",
@@ -149,9 +205,23 @@ def check_python_file(path: str, content: str) -> list[dict[str, Any]]:
             "recommendation": "依職責拆分模組至獨立檔案 (< 300 行)",
         })
 
-    # 2. 檢查泛型 Exception 捕捉
+    # 2. 檢查單行長度上限與泛型 Exception 捕捉
     for idx, raw_line in enumerate(lines, start=1):
         line = raw_line.lstrip("+- ")
+
+        # 檢查單行長度上限（排除長 URL 或純註解）
+        if len(raw_line) > 100 and not raw_line.strip().startswith("#"):
+            findings.append({
+                "location": f"{path}:{idx}",
+                "severity": "MEDIUM",
+                "confidence": "HIGH",
+                "rule": "開發規範 §4.2 程式碼格式與行長規範",
+                "problem": f"單行長度 ({len(raw_line)}) 超過 100 字元上限",
+                "evidence": raw_line[:90] + "...",
+                "risk": "降低程式碼可讀性與審查效率",
+                "recommendation": "適當換行拆分表達式，確保行長 <= 100 字元",
+            })
+
         if re.search(r"^\s*except\s*:\s*$", line) or re.search(
             r"^\s*except\s+Exception(?:\s+as\s+\w+)?:\s*$",
             line,
@@ -179,7 +249,7 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
         patch = file_item.get("patch") or ""
         content = file_item.get("content") or patch
 
-        if not path or not content:
+        if not path:
             continue
 
         normalized_path = path.replace("\\", "/")
@@ -188,12 +258,21 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
             normalized_path.startswith(".github/workflows/")
             and (normalized_path.endswith(".yml") or normalized_path.endswith(".yaml"))
         ):
-            all_findings.extend(check_workflow_file(path, content))
+            if content:
+                all_findings.extend(check_workflow_file(path, content))
 
         elif normalized_path.endswith(".java"):
-            all_findings.extend(check_java_file(path, content))
+            if content:
+                all_findings.extend(check_java_file(path, content))
 
         elif normalized_path.endswith(".py"):
-            all_findings.extend(check_python_file(path, content))
+            # 對 Python 檔案優先讀取本地全檔內容以精確計算 LOC
+            if Path(path).exists():
+                try:
+                    content = Path(path).read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError):
+                    pass
+            if content:
+                all_findings.extend(check_python_file(path, content))
 
     return all_findings

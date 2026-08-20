@@ -486,6 +486,67 @@ class CompensationOutboxWorkerTest {
         assertEquals(1, semaphore.availablePermits());
     }
 
+    @Test
+    void flushPendingEvents_ShouldHandleAckTimeoutAndReleaseSemaphore() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 1L);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        CompletableFuture<Void> neverEndingFuture = new CompletableFuture<>();
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(neverEndingFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        ArgumentCaptor<Date> nextAttemptCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("TimeoutException"),
+                nextAttemptCaptor.capture());
+        assertNotNull(nextAttemptCaptor.getValue());
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldHandleStaleFencingVersionWhenMarkSentReturnsZero() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(outboxRepository.markSent(any(UUID.class), anyString(), any(), anyString(), anyString(), any(Date.class)))
+                .thenReturn(0);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
     private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {
         CompensationOutboxEvent fresh = new CompensationOutboxEvent();
         fresh.setId(outbox.getId());

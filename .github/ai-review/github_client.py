@@ -196,7 +196,11 @@ def post_issue_comment(pr_number: int, body: str) -> dict | None:
         return None
 
 
-def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT") -> dict | None:
+def post_pr_review(
+    pr_number: int,
+    body: str,
+    event_type: str = "COMMENT",
+) -> dict | None:
     repo_name = get_repo()
     review_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
     try:
@@ -207,7 +211,10 @@ def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT") -> di
             timeout=30,
         )
         if response.status_code == 422:
-            print("PR Review API 回傳 422，已由 Issue 留言保障可見性。")
+            print(
+                f"PR Review API 回傳 422（無法提交狀態：{event_type}）："
+                f"{redact_secrets(response.text)}"
+            )
             return None
         response.raise_for_status()
         print(f"成功提交 PR Review（狀態：{event_type}）")
@@ -217,8 +224,12 @@ def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT") -> di
         return None
 
 
-def publish_review(pr_number: int, body: str, decision: str = "COMMENT") -> bool:
-    """發布審查意見至 PR Issue 留言與 PR Review。若兩者皆失敗則拋出例外落實 Fail-Closed。"""
+def publish_review(
+    pr_number: int,
+    body: str,
+    decision: str = "COMMENT",
+) -> bool:
+    """發布審查意見至 PR Issue 留言與 PR Review。若發布失敗則拋出例外落實 Fail-Closed。"""
     comment_res = post_issue_comment(pr_number, body)
     review_event = (
         "APPROVE" if decision == "APPROVE"
@@ -226,6 +237,13 @@ def publish_review(pr_number: int, body: str, decision: str = "COMMENT") -> bool
         else "COMMENT"
     )
     review_res = post_pr_review(pr_number, body, review_event)
+
+    # 正式審查決策 (REQUEST_CHANGES / APPROVE) 必須成功建立 GitHub Review
+    if decision in ("REQUEST_CHANGES", "APPROVE") and review_res is None:
+        raise RuntimeError(
+            f"無法在 PR #{pr_number} 提交正式 PR Review（決策：{decision}），"
+            f"觸發 Fail-Closed 保護。"
+        )
 
     if comment_res is None and review_res is None:
         raise RuntimeError(
