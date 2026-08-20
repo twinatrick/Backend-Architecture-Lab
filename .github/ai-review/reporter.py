@@ -1,5 +1,7 @@
 import json
 
+from redaction import redact_secrets
+
 
 def format_markdown_report(
     decision: str,
@@ -22,15 +24,23 @@ def format_markdown_report(
     if unique_findings:
         report.append("## Findings")
         for finding in unique_findings:
+            sev = redact_secrets(str(finding.get("severity", "")))
+            prob = redact_secrets(str(finding.get("problem", "")))
+            loc = redact_secrets(str(finding.get("location", "")))
+            rule = redact_secrets(str(finding.get("rule", "")))
+            evi = redact_secrets(str(finding.get("evidence", "")))
+            risk = redact_secrets(str(finding.get("risk", "")))
+            rec = redact_secrets(str(finding.get("recommendation", "")))
+            conf = redact_secrets(str(finding.get("confidence", "")))
             report.extend([
                 "",
-                f"### [{finding['severity']}] {finding['problem']}",
-                f"**位置**：`{finding['location']}`",
-                f"**規範依據**：{finding['rule']}",
-                f"**證據**：{finding['evidence']}",
-                f"**風險**：{finding['risk']}",
-                f"**修正建議**：{finding['recommendation']}",
-                f"**信心度**：{finding['confidence']}",
+                f"### [{sev}] {prob}",
+                f"**位置**：`{loc}`",
+                f"**規範依據**：{rule}",
+                f"**證據**：{evi}",
+                f"**風險**：{risk}",
+                f"**修正建議**：{rec}",
+                f"**信心度**：{conf}",
             ])
     else:
         report.extend(["## Findings", "無。"])
@@ -40,7 +50,7 @@ def format_markdown_report(
         "## 已通過檢查",
     ])
     for item in sorted(set(passed_checks)):
-        report.append(f"- {item}")
+        report.append(f"- {redact_secrets(str(item))}")
     report.extend([
         "",
         "## 審查結論",
@@ -58,14 +68,27 @@ def format_json_report(
     changed_files: list[str],
 ) -> str:
     """產出 JSON 格式之審查元數據。"""
+    sanitized_findings = []
+    for f in unique_findings:
+        sanitized_findings.append({
+            k: redact_secrets(str(v)) if isinstance(v, str) else v
+            for k, v in f.items()
+        })
+    sanitized_blocking = []
+    for f in blocking_findings:
+        sanitized_blocking.append({
+            k: redact_secrets(str(v)) if isinstance(v, str) else v
+            for k, v in f.items()
+        })
     return json.dumps(
         {
             "decision": decision,
-            "findings": unique_findings,
-            "blocking_findings": blocking_findings,
+            "findings": sanitized_findings,
+            "blocking_findings": sanitized_blocking,
             "batches": batch_count,
             "files_reviewed": changed_files,
         },
         ensure_ascii=False,
         indent=2,
     )
+

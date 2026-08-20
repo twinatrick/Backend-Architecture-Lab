@@ -31,7 +31,7 @@ def get_provider_api_keys(prefix: str) -> list[tuple[str, str]]:
         if pattern.match(var_name) and var_val and str(var_val).strip():
             raw_keys[var_name] = str(var_val).strip()
 
-    def sort_key(item: tuple[str, str]):
+    def sort_key(item: tuple[str, str]) -> tuple[int, int, str]:
         name = item[0].upper()
         if name == prefix.upper():
             return (0, 0, name)
@@ -79,7 +79,7 @@ class KeyPool:
         prefix: str = "",
         fallback_env_var: str = "",
         cooldown_map: dict[str, float] | None = None,
-    ):
+    ) -> None:
         self.prefix = prefix
         self.fallback_env_var = fallback_env_var
         self.cooldown_map: dict[str, float] = (

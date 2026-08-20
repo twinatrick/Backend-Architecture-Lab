@@ -2,6 +2,9 @@ import logging
 import os
 import sys
 
+from collections.abc import Callable
+from typing import Any
+
 import requests
 
 from redaction import get_gh_token, redact_secrets
@@ -12,7 +15,7 @@ GH_TOKEN = os.environ.get("GH_TOKEN", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
 
 
-def _get_review_attr(attr_name: str, fallback_callable):
+def _get_review_attr(attr_name: str, fallback_callable: Callable[..., Any]) -> Callable[..., Any]:
     review_mod = sys.modules.get("review")
     if review_mod and hasattr(review_mod, attr_name):
         return getattr(review_mod, attr_name)
@@ -34,13 +37,13 @@ def normalize_path(path_str: str) -> str:
     return normalized.removeprefix("./")
 
 
-def normalize_paths(path_list: list) -> list:
+def normalize_paths(path_list: list[str]) -> list[str]:
     if not isinstance(path_list, list):
         return []
     return [normalize_path(p) for p in path_list if normalize_path(p)]
 
 
-def get_github_headers() -> dict:
+def get_github_headers() -> dict[str, str]:
     return {
         "Authorization": f"Bearer {get_gh_token()}",
         "Accept": "application/vnd.github+json",
@@ -48,7 +51,7 @@ def get_github_headers() -> dict:
     }
 
 
-def gh_get(url: str, params: dict | None = None):
+def gh_get(url: str, params: dict[str, Any] | None = None) -> Any:
     response = requests.get(
         url,
         headers=get_github_headers(),
@@ -232,7 +235,12 @@ def publish_review(pr_number: int, body: str, decision: str = "COMMENT") -> bool
     return True
 
 
-def publish_failure_report(pr_number: int, title: str, reason: str, details=None) -> str:
+def publish_failure_report(
+    pr_number: int,
+    title: str,
+    reason: str,
+    details: Any = None,
+) -> str:
     clean_title = redact_secrets(str(title))
     clean_reason = redact_secrets(str(reason))
     report = [

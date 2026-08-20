@@ -59,7 +59,7 @@ class ReviewOrchestrator:
         groq_client: GroqClient | None = None,
         gemini_client: GeminiClient | None = None,
         parser: ReviewResponseParser | None = None,
-    ):
+    ) -> None:
         self.groq_key_pool = groq_key_pool or GLOBAL_KEY_POOL_GROQ
         self.gemini_key_pool = gemini_key_pool or GLOBAL_KEY_POOL_GEMINI
         self.groq_model_pool = groq_model_pool or GLOBAL_MODEL_POOL_GROQ

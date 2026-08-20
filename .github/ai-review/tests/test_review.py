@@ -1272,6 +1272,101 @@ def test_build_batches_handles_missing_patch():
     assert sorted(flattened) == sorted(["deleted.txt", "binary.png"])
 
 
+def test_sanitize_diff_various_secret_patterns():
+    # 1. Private key & Certificate
+    raw_pk = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0\n-----END RSA PRIVATE KEY-----"
+    raw_cert = "-----BEGIN CERTIFICATE-----\nMIIDXTCCAkWgAwIBAgIJ\n-----END CERTIFICATE-----"
+    assert review.sanitize_diff(raw_pk) == "[REDACTED_PRIVATE_KEY]"
+    assert review.sanitize_diff(raw_cert) == "[REDACTED_CERTIFICATE]"
+
+    # 2. Known tokens
+    raw_groq = "key is gsk_abcdef12345678901234567890 in config"
+    raw_gemini = "gemini key AIzaSyD123456789012345678901234567890 used"
+    raw_ghp = "github token ghp_123456789012345678901234567890"
+    raw_pat = "github pat github_pat_12345678901234567890_12345"
+    raw_aws = "aws key AKIAIOSFODNN7EXAMPLE and ASIAIOSFODNN7EXAMPLE"
+    raw_slack = "slack token xoxb-1234567890-123456789012-abcdef123456"
+    raw_jwt = (
+        "jwt eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+        "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0."
+        "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c token"
+    )
+    assert review.sanitize_diff(raw_groq) == "key is [REDACTED] in config"
+    assert review.sanitize_diff(raw_gemini) == "gemini key [REDACTED] used"
+    assert review.sanitize_diff(raw_ghp) == "github token [REDACTED]"
+    assert review.sanitize_diff(raw_pat) == "github pat [REDACTED]"
+    assert review.sanitize_diff(raw_aws) == "aws key [REDACTED] and [REDACTED]"
+    assert review.sanitize_diff(raw_slack) == "slack token [REDACTED]"
+    assert "[REDACTED_JWT]" in review.sanitize_diff(raw_jwt)
+
+    # 3. Key-Value secret assignments & Basic Auth
+    raw_assign = 'api_key = "super_secret_value_123"\npassword: \'topsecretpass456\''
+    sanitized_assign = review.sanitize_diff(raw_assign)
+    assert 'api_key = "[REDACTED]"' in sanitized_assign
+    assert "password: '[REDACTED]'" in sanitized_assign
+
+    raw_url = "clone https://admin:superSecretPass@github.com/org/repo.git"
+    assert "https://admin:[REDACTED]@github.com/org/repo.git" in review.sanitize_diff(raw_url)
+
+
+def test_sanitize_diff_known_env_vars():
+    with patch.dict(os.environ, {"MY_TEST_SECRET_KEY": "super_hidden_env_token_999"}):
+        raw_text = "Here is the token: super_hidden_env_token_999 in diff"
+        assert review.sanitize_diff(raw_text) == "Here is the token: [REDACTED] in diff"
+
+
+def test_parse_rule_sections_and_filter_relevant_rules():
+    sample_rules = """# 開發規範
+## 1. 微服務職責與邊界
+第 1 章完整內文...
+## 2. 權限與存取控制
+第 2 章完整內文...
+## 3. Controller API 註記
+第 3 章完整內文...
+## 4. Python 語法規範
+第 4 章完整內文...
+## 5. 程式碼品質標準
+第 5 章完整內文...
+## 6. 常見稽核指令
+第 6 章完整內文...
+"""
+    sections = review.parse_rule_sections(sample_rules)
+    assert len(sections) == 6
+    assert "第 1 章完整內文" in sections[1]
+    assert "第 2 章完整內文" in sections[2]
+
+    # security-api scope should get sections 1, 2, 3, 5
+    sec_api = review.filter_relevant_rules(sample_rules, "security-api")
+    assert "第 1 章完整內文" in sec_api
+    assert "第 2 章完整內文" in sec_api
+    assert "第 3 章完整內文" in sec_api
+    assert "第 5 章完整內文" in sec_api
+    assert "第 4 章完整內文" not in sec_api
+
+    # python scope should get sections 4, 5
+    py_rules = review.filter_relevant_rules(sample_rules, "python")
+    assert "第 4 章完整內文" in py_rules
+    assert "第 5 章完整內文" in py_rules
+    assert "第 1 章完整內文" not in py_rules
+
+
+def test_prompt_and_clients_sanitize_payload():
+    mock_groq_resp = MagicMock()
+    mock_groq_resp.ok = True
+    mock_groq_resp.json.return_value = {"choices": [{"message": {"content": "{}"}}]}
+
+    with patch("requests.post", return_value=mock_groq_resp) as mock_post:
+        client = review.GroqClient()
+        prompt_with_secret = "Review diff containing gsk_123456789012345678901234 and AKIAIOSFODNN7EXAMPLE"
+        client.call(prompt_with_secret, "model-a", "gsk_test")
+        called_payload = mock_post.call_args[1]["json"]
+        user_message = called_payload["messages"][1]["content"]
+        assert "gsk_123456789012345678901234" not in user_message
+        assert "AKIAIOSFODNN7EXAMPLE" not in user_message
+        assert "[REDACTED]" in user_message
+
+
+
 
 
 

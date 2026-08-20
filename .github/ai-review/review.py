@@ -66,7 +66,11 @@ from parser import (
     find_balanced_json_substrings,
     repair_json_string,
 )
-from prompt_builder import build_batch_prompt, filter_relevant_rules
+from prompt_builder import (
+    build_batch_prompt,
+    filter_relevant_rules,
+    parse_rule_sections,
+)
 from providers import (
     GeminiClient,
     GroqClient,
@@ -74,7 +78,7 @@ from providers import (
     extract_gemini_text,
     get_available_models,
 )
-from redaction import get_gh_token, redact_secrets
+from redaction import get_gh_token, redact_secrets, sanitize_diff
 from reporter import format_json_report, format_markdown_report
 from retry_utils import (
     DEFAULT_MAX_RETRIES_PER_MODEL,
@@ -121,13 +125,14 @@ def _process_batch(
     diff_parts = []
     for file_item in files:
         if file_item["filename"] in paths:
-            patch_text = (
+            raw_patch = (
                 file_item.get("patch")
                 or f"[GitHub patch not provided; status={file_item.get('status', 'unknown')}, "
                 f"changes={file_item.get('changes', 0)}]"
             )
-            diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
-    diff = "\n\n".join(diff_parts)
+            clean_patch = sanitize_diff(raw_patch)
+            diff_parts.append(f"diff -- {file_item['filename']}\n{clean_patch}")
+    diff = sanitize_diff("\n\n".join(diff_parts))
 
     prompt = build_batch_prompt(scope, index, paths, diff, contract_text, relevant_rules)
 
@@ -178,7 +183,7 @@ def _process_batch(
     return batch_data
 
 
-def main():
+def main() -> None:
     if not get_gh_token() or (not get_groq_api_keys() and not get_gemini_api_keys()):
         raise SystemExit(
             "未配置必要的信任密鑰（GH_TOKEN 與至少一組 AI Provider 密鑰：GROQ_API_KEY_* 或 GEMINI_API_KEY_*）。"

@@ -28,16 +28,5 @@ public class AlarmService implements IAlarmService {
                 alarmMessage.getFirst().setMessage("告警消息發送失敗：" + e.getMessage());
             }
         }
-
-    }
-
-    private void saveAlarm(AlarmMessage alarmMessage) {
-        // 實作：保存至資料庫
-//        System.out.println("保存告警：" + alarmMessage.getMessage());
-    }
-
-    private void logAlarm(AlarmMessage alarmMessage) {
-        // 實作：記錄到日誌系統
-        log.info("記錄告警：{}", alarmMessage.getMessage());
     }
 }

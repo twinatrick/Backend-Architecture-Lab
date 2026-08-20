@@ -2,6 +2,7 @@ import logging
 import os
 import random
 import re
+from typing import Any
 
 MAX_RETRY_LIMIT = 12
 
@@ -22,7 +23,7 @@ def parse_retry_limit(raw_value: str | None, default: int = 3) -> int:
 DEFAULT_MAX_RETRIES_PER_MODEL = parse_retry_limit(os.environ.get("AI_REVIEW_MAX_RETRIES"))
 
 
-def parse_retry_after(response) -> float:
+def parse_retry_after(response: Any) -> float:
     header_val = None
     if hasattr(response, "headers") and response.headers:
         header_val = response.headers.get("retry-after")
@@ -52,9 +53,10 @@ def calculate_backoff_delay(
     retry_after: float = 0.0,
     base_delay: float = 2.5,
     max_delay: float = 90.0,
-    jitter_range: tuple = (0.5, 1.5),
+    jitter_range: tuple[float, float] = (0.5, 1.5),
 ) -> float:
     exponential_delay = base_delay * (2 ** max(0, attempt - 1))
     effective_delay = max(retry_after, exponential_delay)
     jitter = random.uniform(jitter_range[0], jitter_range[1])
     return min(effective_delay + jitter, max_delay)
+

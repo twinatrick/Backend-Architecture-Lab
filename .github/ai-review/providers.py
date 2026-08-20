@@ -1,6 +1,7 @@
 import requests
 
 from key_pool import get_groq_api_keys
+from redaction import sanitize_diff
 
 SYSTEM_CONTENT = (
     "你必須使用繁體中文。只輸出單一合法 JSON 物件，嚴禁輸出 <think> 思維鏈標籤、"
@@ -13,7 +14,7 @@ class GroqClient:
 
     SYSTEM_CONTENT = SYSTEM_CONTENT
 
-    def __init__(self, timeout: int = 120):
+    def __init__(self, timeout: int = 120) -> None:
         self.timeout = timeout
 
     def call(
@@ -23,11 +24,12 @@ class GroqClient:
         api_key: str,
         use_json_mode: bool = True,
     ) -> requests.Response:
+        clean_prompt = sanitize_diff(prompt)
         request_payload = {
             "model": model_name,
             "messages": [
                 {"role": "system", "content": self.SYSTEM_CONTENT},
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": clean_prompt},
             ],
             "temperature": 0.1,
             "max_tokens": 4096,
@@ -68,7 +70,7 @@ class GeminiClient:
 
     SYSTEM_CONTENT = SYSTEM_CONTENT
 
-    def __init__(self, timeout: int = 120):
+    def __init__(self, timeout: int = 120) -> None:
         self.timeout = timeout
 
     def call(
@@ -77,6 +79,7 @@ class GeminiClient:
         model_name: str,
         api_key: str,
     ) -> requests.Response:
+        clean_prompt = sanitize_diff(prompt)
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model_name}:generateContent"
@@ -88,7 +91,7 @@ class GeminiClient:
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": prompt}],
+                    "parts": [{"text": clean_prompt}],
                 }
             ],
             "generationConfig": {
@@ -130,10 +133,11 @@ def extract_gemini_text(response_json: dict) -> str:
     return GeminiClient.extract_text(response_json)
 
 
-def get_available_models():
+def get_available_models() -> set[str]:
     groq_keys = get_groq_api_keys()
     if not groq_keys:
         return set()
     api_key = groq_keys[0][1]
     client = GroqClient()
     return client.get_available_models(api_key)
+

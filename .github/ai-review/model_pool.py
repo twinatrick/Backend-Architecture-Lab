@@ -27,7 +27,7 @@ class ModelPool:
         env_override_var: str | None = None,
         module_var_name: str | None = None,
         target_module_name: str = "review",
-    ):
+    ) -> None:
         self.default_models = list(default_models)
         self.env_override_var = env_override_var
         self.module_var_name = module_var_name

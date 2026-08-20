@@ -1,18 +1,62 @@
 import json
+import re
 
-KEYWORDS_BY_SCOPE = {
-    "ci": (
-        "GitHub Actions", "workflow", "permissions", "Secrets",
-        "GITHUB_TOKEN", "pull_request", "shell", "artifact", "cache",
-        "supply-chain",
-    ),
-    "security-api": ("BOLA", "權限", "OpenAPI", "Controller", "IAM", "Security", "API"),
-    "business": ("SOLID", "DRY", "KISS", "YAGNI", "Service", "架構"),
-    "data": ("Repository", "Entity", "DataAccess", "資料庫", "EntityManager", "Entity"),
-    "integration": ("Feign", "跨服務", "外部", "Microservice", "Client"),
-    "python": ("Python", "Ruff", "Exception", "Type Hint", "snake_case"),
-    "other": ("CI", "規範", "品質"),
+from redaction import sanitize_diff
+
+SCOPE_SECTION_MAP: dict[str, list[int]] = {
+    "security-api": [1, 2, 3, 5],
+    "business": [1, 5],
+    "data": [1, 5],
+    "integration": [1, 5],
+    "python": [4, 5],
+    "ci": [5],
+    "other": [1, 5],
 }
+
+
+def parse_rule_sections(rules_text: str) -> dict[int, str]:
+    """解析開發規範中的 Markdown 主章節（## 1. ~ ## 6.）。"""
+    if not rules_text or not isinstance(rules_text, str):
+        return {}
+
+    section_matches = list(re.finditer(r"(?m)^##\s+(\d+)\.\s+", rules_text))
+    if not section_matches:
+        return {}
+
+    sections: dict[int, str] = {}
+    for i, match in enumerate(section_matches):
+        sec_num = int(match.group(1))
+        start_idx = match.start()
+        end_idx = (
+            section_matches[i + 1].start()
+            if i + 1 < len(section_matches)
+            else len(rules_text)
+        )
+        sections[sec_num] = rules_text[start_idx:end_idx].strip()
+
+    return sections
+
+
+def filter_relevant_rules(rules_text: str, scope: str) -> str:
+    """依據批次 scope 提取結構化的完整章節規範內容，消除截斷風險。"""
+    if not rules_text:
+        return ""
+
+    sections = parse_rule_sections(rules_text)
+    if not sections:
+        return rules_text
+
+    target_sections = SCOPE_SECTION_MAP.get(scope, SCOPE_SECTION_MAP["other"])
+    selected_parts = [
+        sections[sec_id]
+        for sec_id in target_sections
+        if sec_id in sections
+    ]
+
+    if not selected_parts:
+        return rules_text
+
+    return "\n\n".join(selected_parts)
 
 
 def build_batch_prompt(
@@ -23,7 +67,11 @@ def build_batch_prompt(
     contract_text: str,
     relevant_rules: str,
 ) -> str:
-    """組裝特定批次的 Review LLM 提示詞。"""
+    """組裝特定批次的 Review LLM 提示詞，並落實敏感資訊脫敏。"""
+    clean_diff = sanitize_diff(diff)
+    clean_contract = sanitize_diff(contract_text)
+    clean_rules = sanitize_diff(relevant_rules)
+
     json_template = (
         f'{{"batch":"{scope}-{index}",'
         f'"files_reviewed":{json.dumps(paths, ensure_ascii=False)},'
@@ -44,17 +92,17 @@ def build_batch_prompt(
 各欄位描述務必簡潔扼要，單一 Finding 不得贅述；若無違規，findings 輸出空陣列 []。確保回應在 1000 Tokens 內結束。
 
 【Review Contract】
-{contract_text[:1500]}
+{clean_contract}
 
 【相關規範】
-{relevant_rules}
+{clean_rules}
 
 【本批次檔案】（files_reviewed 欄位必須完整包含下列所有路徑字串，不可修改或遺漏）
 {chr(10).join(paths)}
 
 【PR Diff】
 ```diff
-{diff}
+{clean_diff}
 ```
 
 只審查本批次。必須有程式碼或 workflow 證據才能提出 Finding。
@@ -67,17 +115,3 @@ artifact/cache、fail-open 與 Review bypass。
 
 不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定。'''
 
-
-def filter_relevant_rules(rules_text: str, scope: str) -> str:
-    """依據批次 scope 從開發規範文本中篩選相關段落。"""
-    if not rules_text:
-        return ""
-    relevant_rules_list = []
-    rule_lines = rules_text.splitlines()
-    scope_keywords = KEYWORDS_BY_SCOPE.get(scope, KEYWORDS_BY_SCOPE["other"])
-    for line_index, line_content in enumerate(rule_lines):
-        if any(kw.lower() in line_content.lower() for kw in scope_keywords):
-            start_pos = max(0, line_index - 2)
-            end_pos = min(len(rule_lines), line_index + 14)
-            relevant_rules_list.extend(rule_lines[start_pos:end_pos])
-    return "\n".join(dict.fromkeys(relevant_rules_list))[:2000] or rules_text[:1500]
