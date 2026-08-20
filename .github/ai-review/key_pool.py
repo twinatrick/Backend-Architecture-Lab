@@ -22,8 +22,8 @@ def mask_api_key(key: str) -> str:
 def get_provider_api_keys(prefix: str) -> list[tuple[str, str]]:
     """
     探索環境變數中特定 Provider 的所有 API Keys。
-    支援 {PREFIX} 與 {PREFIX}_1, {PREFIX}_2, ..., {PREFIX}_10 等數字後綴命名格式。
-    回傳 [(var_name, key_value), ...] 依照自然排序排列，並過濾空值與重複金鑰。
+    支援 {PREFIX} 與 {PREFIX}_1, {PREFIX}_2 等格式。
+    回傳 [(var_name, key_value), ...] 依自然排序排列，過濾空值與重複金鑰。
     """
     raw_keys = {}
     pattern = re.compile(rf"^{prefix}(?:_\d+)?$", re.IGNORECASE)
@@ -142,40 +142,32 @@ class KeyPool:
 
 GLOBAL_KEY_POOL_GROQ = KeyPool("GROQ_API_KEY", "GROQ_API_KEY", KEY_COOLDOWN_MAP)
 GLOBAL_KEY_POOL_GEMINI = KeyPool("GEMINI_API_KEY", "GEMINI_API_KEY", KEY_COOLDOWN_MAP)
+_DEFAULT_KEY_POOL = KeyPool(cooldown_map=KEY_COOLDOWN_MAP)
 
 
 def reset_key_cooldowns() -> None:
     """清空所有金鑰的冷卻狀態（供測試與初始化使用）。"""
-    KEY_COOLDOWN_MAP.clear()
+    _DEFAULT_KEY_POOL.reset_cooldowns()
 
 
 def mark_key_cooldown(api_key: str, cooldown_seconds: float) -> None:
     """將特定金鑰標記進入冷卻清單，設定解除冷卻的時間戳記。"""
-    if not api_key:
-        return
-    KEY_COOLDOWN_MAP[api_key] = time.time() + max(1.0, float(cooldown_seconds))
+    _DEFAULT_KEY_POOL.mark_cooldown(api_key, cooldown_seconds)
 
 
 def is_key_in_cooldown(api_key: str) -> bool:
     """檢查金鑰是否仍處於冷卻期。若冷卻時間已過，自動解除並回傳 False。"""
-    if not api_key or api_key not in KEY_COOLDOWN_MAP:
-        return False
-    if time.time() >= KEY_COOLDOWN_MAP[api_key]:
-        KEY_COOLDOWN_MAP.pop(api_key, None)
-        return False
-    return True
+    return _DEFAULT_KEY_POOL.is_in_cooldown(api_key)
 
 
 def get_key_cooldown_remaining(api_key: str) -> float:
     """取得金鑰剩餘冷卻秒數，若未處於冷卻中則回傳 0.0。"""
-    if not is_key_in_cooldown(api_key):
-        return 0.0
-    return max(0.0, KEY_COOLDOWN_MAP.get(api_key, 0.0) - time.time())
+    return _DEFAULT_KEY_POOL.get_cooldown_remaining(api_key)
 
 
 def get_active_keys(keys: list[tuple[str, str]]) -> list[tuple[str, str]]:
     """過濾出當前未處於冷卻清單中的可用金鑰清單。"""
-    return [item for item in keys if not is_key_in_cooldown(item[1])]
+    return _DEFAULT_KEY_POOL.get_active_keys(keys)
 
 
 def pick_random_active_key(
@@ -183,12 +175,4 @@ def pick_random_active_key(
     excluded_keys: set[str] | None = None,
 ) -> tuple[str, str] | None:
     """自候選金鑰清單中，排除冷卻中與本輪已嘗試過之金鑰，隨機抽取一把。"""
-    excluded = excluded_keys or set()
-    active_pool = [
-        item
-        for item in keys
-        if item[1] not in excluded and not is_key_in_cooldown(item[1])
-    ]
-    if not active_pool:
-        return None
-    return random.choice(active_pool)
+    return _DEFAULT_KEY_POOL.pick_random_active_key(keys, excluded_keys=excluded_keys)

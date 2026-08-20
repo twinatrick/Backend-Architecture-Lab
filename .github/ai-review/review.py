@@ -1,7 +1,10 @@
 import json
+import logging
 import os
 import time
 from pathlib import Path
+
+import requests
 
 from batching import build_batches
 from engine import evaluate, load_policy, validate_coverage, validate_finding
@@ -21,6 +24,7 @@ from github_client import (
     publish_failure_report,
     publish_review,
     resolve_pr_number,
+    validate_target_pr,
 )
 from key_pool import (
     GLOBAL_KEY_POOL_GEMINI,
@@ -119,7 +123,8 @@ def _process_batch(
         if file_item["filename"] in paths:
             patch_text = (
                 file_item.get("patch")
-                or f"[GitHub patch not provided; status={file_item.get('status', 'unknown')}, changes={file_item.get('changes', 0)}]"
+                or f"[GitHub patch not provided; status={file_item.get('status', 'unknown')}, "
+                f"changes={file_item.get('changes', 0)}]"
             )
             diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
     diff = "\n\n".join(diff_parts)
@@ -188,17 +193,18 @@ def main():
 
     try:
         pull_request_data = gh_get(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}")
-    except Exception as exc:
+    except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
         publish_failure_report(pr_number, "無法取得 PR 資訊", str(exc))
         raise SystemExit(f"無法取得 PR 資訊：{exc}")
 
-    if pull_request_data.get("state") != "open":
-        print(f"PR #{pr_number} 目前非開啟狀態（state: {pull_request_data.get('state')}），略過審查發布。")
+    is_valid, validation_err = validate_target_pr(pull_request_data)
+    if not is_valid:
+        print(f"PR #{pr_number} 未通過目標校驗（{validation_err}），略過審查發布。")
         return
 
     try:
         files = _fetch_all_pr_files(REPO, pr_number)
-    except Exception as exc:
+    except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
         publish_failure_report(pr_number, "無法取得 PR 變更檔案清單", str(exc))
         raise SystemExit(f"無法取得 PR 變更檔案清單：{exc}")
 
@@ -248,7 +254,13 @@ def main():
     publish_review(pr_number, body, decision)
     Path("review.md").write_text(body + "\n", encoding="utf-8")
     Path("ai-review.json").write_text(
-        format_json_report(decision, unique_findings, blocking_findings, len(results), changed_files),
+        format_json_report(
+            decision,
+            unique_findings,
+            blocking_findings,
+            len(results),
+            changed_files,
+        ),
         encoding="utf-8",
     )
     print(body)
@@ -258,3 +270,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

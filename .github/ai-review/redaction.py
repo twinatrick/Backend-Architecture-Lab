@@ -1,5 +1,6 @@
 import os
 import re
+
 from key_pool import get_gemini_api_keys, get_groq_api_keys
 
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
@@ -31,3 +32,4 @@ def redact_secrets(text: str) -> str:
     sanitized = re.sub(r"\bgithub_pat_[0-9A-Za-z_]{20,}\b", "[REDACTED]", sanitized)
 
     return sanitized
+

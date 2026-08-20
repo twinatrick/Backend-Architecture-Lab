@@ -1,4 +1,5 @@
 import requests
+
 from key_pool import get_groq_api_keys
 
 SYSTEM_CONTENT = (
@@ -76,7 +77,10 @@ class GeminiClient:
         model_name: str,
         api_key: str,
     ) -> requests.Response:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model_name}:generateContent"
+        )
         payload = {
             "systemInstruction": {
                 "parts": [{"text": self.SYSTEM_CONTENT}],

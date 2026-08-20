@@ -42,6 +42,109 @@ def test_resolve_pr_number_from_commit_sha_query():
         assert review.resolve_pr_number(event) == 99
 
 
+def test_resolve_pr_number_from_commit_sha_multiple_associated_pulls_filters_open():
+    event = {"workflow_run": {"head_sha": "abc1234", "pull_requests": []}}
+    mock_pulls = [
+        {"number": 10, "state": "closed"},
+        {"number": 99, "state": "open"},
+    ]
+    with patch.dict(os.environ, {"REPO": "owner/repo", "GH_TOKEN": "token"}), \
+         patch("review.gh_get", return_value=mock_pulls):
+        assert review.resolve_pr_number(event) == 99
+
+
+def test_resolve_pr_number_from_commit_sha_multiple_open_pulls_raises():
+    event = {"workflow_run": {"head_sha": "abc1234", "pull_requests": []}}
+    mock_pulls = [
+        {"number": 10, "state": "open"},
+        {"number": 99, "state": "open"},
+    ]
+    with patch.dict(os.environ, {"REPO": "owner/repo", "GH_TOKEN": "token"}), \
+         patch("review.gh_get", return_value=mock_pulls):
+        with pytest.raises(SystemExit):
+            review.resolve_pr_number(event)
+
+
+def test_resolve_pr_number_from_workflow_run_multiple_prs_matching_head_sha():
+    event = {
+        "workflow_run": {
+            "head_sha": "sha_target",
+            "pull_requests": [
+                {"number": 11, "head": {"sha": "sha_other"}},
+                {"number": 22, "head": {"sha": "sha_target"}},
+            ],
+        }
+    }
+    assert review.resolve_pr_number(event) == 22
+
+
+def test_resolve_pr_number_from_workflow_run_multiple_prs_unresolved_raises():
+    event = {
+        "workflow_run": {
+            "head_sha": "sha_none",
+            "pull_requests": [
+                {"number": 11, "head": {"sha": "sha_a"}},
+                {"number": 22, "head": {"sha": "sha_b"}},
+            ],
+        }
+    }
+    with pytest.raises(SystemExit):
+        review.resolve_pr_number(event)
+
+
+def test_validate_target_pr_scenarios():
+    with patch.dict(os.environ, {"REPO": "org/repo"}):
+        # 正常 open + master
+        pr_valid = {
+            "state": "open",
+            "base": {"ref": "master", "repo": {"full_name": "org/repo"}},
+        }
+        ok, msg = review.validate_target_pr(pr_valid)
+        assert ok is True
+        assert msg == ""
+
+        # closed 狀態
+        pr_closed = {
+            "state": "closed",
+            "base": {"ref": "master", "repo": {"full_name": "org/repo"}},
+        }
+        ok, msg = review.validate_target_pr(pr_closed)
+        assert ok is False
+        assert "非開啟" in msg
+
+        # 不在 allowed_base_refs 的分支
+        pr_wrong_branch = {
+            "state": "open",
+            "base": {"ref": "feature-x", "repo": {"full_name": "org/repo"}},
+        }
+        ok, msg = review.validate_target_pr(pr_wrong_branch)
+        assert ok is False
+        assert "非受信任的基準分支" in msg
+
+        # Repo 不一致
+        pr_wrong_repo = {
+            "state": "open",
+            "base": {"ref": "master", "repo": {"full_name": "other/repo"}},
+        }
+        ok, msg = review.validate_target_pr(pr_wrong_repo)
+        assert ok is False
+        assert "不一致" in msg
+
+
+def test_publish_review_raises_fail_closed_when_both_fail():
+    with patch("review.post_issue_comment", return_value=None), \
+         patch("review.post_pr_review", return_value=None):
+        with pytest.raises(RuntimeError) as exc_info:
+            review.publish_review(42, "review body", "APPROVE")
+        assert "無法將審查結果發布至 PR #42" in str(exc_info.value)
+
+
+def test_publish_review_succeeds_when_issue_comment_succeeds_and_pr_review_422():
+    with patch("review.post_issue_comment", return_value={"id": 123}), \
+         patch("review.post_pr_review", return_value=None):
+        assert review.publish_review(42, "review body", "APPROVE") is True
+
+
 def test_resolve_pr_number_fails_when_unresolved():
     event = {"action": "completed"}
     with pytest.raises(SystemExit):
