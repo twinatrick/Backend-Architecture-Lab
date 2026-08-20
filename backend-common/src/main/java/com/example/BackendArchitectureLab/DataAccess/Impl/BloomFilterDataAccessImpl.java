@@ -30,16 +30,16 @@ public class BloomFilterDataAccessImpl implements IBloomFilterDataAccess {
         if (emf == null) {
             throw new IllegalStateException("EntityManagerFactory 不可用，無法查詢 Entity: " + entityName);
         }
-        String targetEntityName = entityName;
-        if (emf.getMetamodel() != null && !emf.getMetamodel().getEntities().isEmpty()) {
-            var matchedEntity = emf.getMetamodel().getEntities().stream()
-                    .filter(e -> e.getName().equalsIgnoreCase(entityName))
-                    .findFirst();
-            if (matchedEntity.isEmpty()) {
-                throw new IllegalArgumentException("Entity not found in JPA Metamodel: " + entityName);
-            }
-            targetEntityName = matchedEntity.get().getName();
+        if (emf.getMetamodel() == null || emf.getMetamodel().getEntities().isEmpty()) {
+            throw new IllegalStateException("JPA Metamodel 不可用或為空，拒絕動態查詢 Entity: " + entityName);
         }
+        var matchedEntity = emf.getMetamodel().getEntities().stream()
+                .filter(e -> e.getName().equalsIgnoreCase(entityName))
+                .findFirst();
+        if (matchedEntity.isEmpty()) {
+            throw new IllegalArgumentException("Entity not found in JPA Metamodel: " + entityName);
+        }
+        String targetEntityName = matchedEntity.get().getName();
         EntityManager em = emf.createEntityManager();
         try {
             String ql = "SELECT e.id FROM " + targetEntityName + " e";

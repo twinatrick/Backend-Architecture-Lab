@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import os
@@ -9,84 +10,27 @@ import requests
 from batching import build_batches
 from engine import evaluate, load_policy, validate_coverage, validate_finding
 from github_client import (
-    EVENT_PATH,
-    GH_TOKEN,
     REPO,
-    REVIEW_MARKER,
     get_event_path,
-    get_github_headers,
     get_repo,
     gh_get,
-    normalize_path,
     normalize_paths,
-    post_issue_comment,
-    post_pr_review,
     publish_failure_report,
     publish_review,
     resolve_pr_number,
     validate_target_pr,
 )
 from key_pool import (
-    GLOBAL_KEY_POOL_GEMINI,
-    GLOBAL_KEY_POOL_GROQ,
-    GROQ_API_KEY,
-    KEY_COOLDOWN_MAP,
-    KeyPool,
-    get_active_keys,
     get_gemini_api_keys,
-    get_groq_api_key,
     get_groq_api_keys,
-    get_key_cooldown_remaining,
-    get_provider_api_keys,
-    is_key_in_cooldown,
-    mark_key_cooldown,
-    mask_api_key,
-    pick_random_active_key,
     reset_key_cooldowns,
 )
-from model_pool import (
-    ACTIVE_GEMINI_MODELS,
-    ACTIVE_MODEL_CANDIDATES,
-    DEFAULT_GEMINI_MODELS,
-    DEFAULT_MODEL_CANDIDATES,
-    GLOBAL_MODEL_POOL_GEMINI,
-    GLOBAL_MODEL_POOL_GROQ,
-    ModelPool,
-    get_gemini_candidate_models,
-)
-from orchestrator import (
-    DEFAULT_ORCHESTRATOR,
-    ReviewOrchestrator,
-    chat_completion,
-    get_candidate_models,
-)
-from parser import (
-    ReviewResponseParser,
-    extract_json_payload,
-    find_balanced_json_substrings,
-    repair_json_string,
-)
-from prompt_builder import (
-    build_batch_prompt,
-    filter_relevant_rules,
-    parse_rule_sections,
-)
-from providers import (
-    GeminiClient,
-    GroqClient,
-    call_gemini_api,
-    extract_gemini_text,
-    get_available_models,
-)
-from redaction import get_gh_token, redact_secrets, sanitize_diff
+from orchestrator import chat_completion
+from parser import extract_json_payload
+from prompt_builder import build_batch_prompt, filter_relevant_rules
+from redaction import get_gh_token, sanitize_diff
 from reporter import format_json_report, format_markdown_report
-from retry_utils import (
-    DEFAULT_MAX_RETRIES_PER_MODEL,
-    MAX_RETRY_LIMIT,
-    calculate_backoff_delay,
-    parse_retry_after,
-    parse_retry_limit,
-)
+from static_checks import run_static_checks
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -95,15 +39,31 @@ def _fetch_all_pr_files(repo_name: str, pr_number: int) -> list[dict]:
     files = []
     page = 1
     while True:
-        file_chunk = gh_get(
+        chunk = gh_get(
             f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/files",
             params={"per_page": 100, "page": page},
         )
-        files.extend(file_chunk)
-        if len(file_chunk) < 100:
+        files.extend(chunk)
+        if len(chunk) < 100:
             break
         page += 1
     return files
+
+
+def _fetch_file_content_fallback(
+    repo_name: str,
+    path: str,
+    ref: str | None = None,
+) -> str | None:
+    try:
+        url = f"https://api.github.com/repos/{repo_name}/contents/{path}"
+        params = {"ref": ref} if ref else None
+        data = gh_get(url, params=params)
+        if isinstance(data, dict) and data.get("encoding") == "base64" and data.get("content"):
+            return base64.b64decode(data["content"]).decode("utf-8", errors="replace")
+    except (requests.RequestException, UnicodeDecodeError, ValueError) as exc:
+        logging.warning("無法自 Contents API 讀取檔案 %s: %s", path, exc)
+    return None
 
 
 def _process_batch(
@@ -115,25 +75,43 @@ def _process_batch(
     contract_text: str,
     policy: dict,
     pr_number: int,
+    repo_name: str = "",
+    head_sha: str = "",
 ) -> dict:
     if index > 1:
         print("批次間隔節流：等待 5 秒以平滑 API 速率限制...")
         time.sleep(5.0)
 
     relevant_rules = filter_relevant_rules(rules_text, scope)
-
     diff_parts = []
-    for file_item in files:
-        if file_item["filename"] in paths:
-            raw_patch = (
-                file_item.get("patch")
-                or f"[GitHub patch not provided; status={file_item.get('status', 'unknown')}, "
-                f"changes={file_item.get('changes', 0)}]"
-            )
-            clean_patch = sanitize_diff(raw_patch)
-            diff_parts.append(f"diff -- {file_item['filename']}\n{clean_patch}")
-    diff = sanitize_diff("\n\n".join(diff_parts))
+    missing_content_findings = []
 
+    for file_item in files:
+        fname = file_item.get("filename", "")
+        if fname in paths:
+            raw_patch = file_item.get("patch")
+            if not raw_patch and file_item.get("status") not in ("removed", "deleted"):
+                fallback_content = _fetch_file_content_fallback(repo_name, fname, head_sha)
+                if fallback_content is not None:
+                    file_item["content"] = fallback_content
+                    raw_patch = f"[Content fallback fetched]\n{fallback_content}"
+                else:
+                    missing_content_findings.append({
+                        "location": f"{fname}:1",
+                        "severity": "HIGH",
+                        "confidence": "HIGH",
+                        "rule": "開發規範 §5 Review 完整性與可見度",
+                        "problem": f"無法取得檔案 {fname} 的 Patch 或原始內容",
+                        "evidence": "GitHub API 未提供 patch 且 Contents API 讀取失敗",
+                        "risk": "變更內容未經審查即合併可能引入潛在安全缺陷",
+                        "recommendation": "手動檢查該檔案變更內容，確認符合架構與安全規範",
+                    })
+                    raw_patch = f"[Patch unavailable; status={file_item.get('status', 'unknown')}]"
+
+            clean_patch = sanitize_diff(raw_patch or "[Empty diff]")
+            diff_parts.append(f"diff -- {fname}\n{clean_patch}")
+
+    diff = sanitize_diff("\n\n".join(diff_parts))
     prompt = build_batch_prompt(scope, index, paths, diff, contract_text, relevant_rules)
 
     try:
@@ -174,6 +152,9 @@ def _process_batch(
         publish_failure_report(pr_number, "批次覆蓋範圍不符", cov_err)
         raise SystemExit(cov_err)
 
+    if missing_content_findings:
+        batch_data.setdefault("findings", []).extend(missing_content_findings)
+
     for finding in batch_data.get("findings", []):
         if not validate_finding(finding, policy):
             schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式驗證。"
@@ -186,7 +167,7 @@ def _process_batch(
 def main() -> None:
     if not get_gh_token() or (not get_groq_api_keys() and not get_gemini_api_keys()):
         raise SystemExit(
-            "未配置必要的信任密鑰（GH_TOKEN 與至少一組 AI Provider 密鑰：GROQ_API_KEY_* 或 GEMINI_API_KEY_*）。"
+            "未配置必要的信任密鑰（GH_TOKEN 與至少一組 AI Provider 密鑰）。"
         )
 
     event_path_str = get_event_path()
@@ -195,20 +176,28 @@ def main() -> None:
 
     event = json.loads(Path(event_path_str).read_text(encoding="utf-8"))
     pr_number = resolve_pr_number(event)
+    repo_name = get_repo() or REPO
 
     try:
-        pull_request_data = gh_get(f"https://api.github.com/repos/{REPO}/pulls/{pr_number}")
+        pull_request_data = gh_get(f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}")
     except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
         publish_failure_report(pr_number, "無法取得 PR 資訊", str(exc))
         raise SystemExit(f"無法取得 PR 資訊：{exc}")
 
-    is_valid, validation_err = validate_target_pr(pull_request_data)
+    expected_sha = (
+        event.get("workflow_run", {}).get("head_sha")
+        or event.get("after")
+    )
+    is_valid, validation_err = validate_target_pr(
+        pull_request_data,
+        expected_head_sha=expected_sha,
+    )
     if not is_valid:
         print(f"PR #{pr_number} 未通過目標校驗（{validation_err}），略過審查發布。")
         return
 
     try:
-        files = _fetch_all_pr_files(REPO, pr_number)
+        files = _fetch_all_pr_files(repo_name, pr_number)
     except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
         publish_failure_report(pr_number, "無法取得 PR 變更檔案清單", str(exc))
         raise SystemExit(f"無法取得 PR 變更檔案清單：{exc}")
@@ -235,9 +224,19 @@ def main() -> None:
         publish_failure_report(pr_number, "批次檔案規劃異常", mismatch_msg)
         raise SystemExit(mismatch_msg)
 
+    head_sha = pull_request_data.get("head", {}).get("sha", "")
     results = [
         _process_batch(
-            scope, idx, paths, files, rules_text, contract_text, policy, pr_number
+            scope,
+            idx,
+            paths,
+            files,
+            rules_text,
+            contract_text,
+            policy,
+            pr_number,
+            repo_name=repo_name,
+            head_sha=head_sha,
         )
         for idx, (scope, paths) in enumerate(batches, 1)
     ]
@@ -245,10 +244,14 @@ def main() -> None:
     reviewed_files = [
         fn for d in results for fn in normalize_paths(d.get("files_reviewed", []))
     ]
-    findings = [f for d in results for f in d.get("findings", [])]
+    llm_findings = [f for d in results for f in d.get("findings", [])]
     passed_checks = [c for d in results for c in d.get("passed_checks", [])]
 
-    eval_result = evaluate(findings, normalize_paths(expected_files), reviewed_files, policy)
+    # 執行確定性靜態規則檢查
+    static_findings = run_static_checks(files)
+    all_findings = llm_findings + static_findings
+
+    eval_result = evaluate(all_findings, normalize_paths(expected_files), reviewed_files, policy)
     decision = eval_result["decision"]
     unique_findings = eval_result["findings"]
     blocking_findings = eval_result["blocking_findings"]
@@ -275,4 +278,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

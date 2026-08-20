@@ -9,7 +9,7 @@ GH_TOKEN = os.environ.get("GH_TOKEN", "")
 TOKEN_REGEX_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----"),
-    re.compile(r"\bgsk_[0-9A-Za-z]{20,}\b"),
+    re.compile(r"\bgsk_[0-9A-Za-z_]{20,}\b"),
     re.compile(r"\bAIza[0-9A-Za-z\-_]{30,}\b"),
     re.compile(r"\bgh[pousr]_[0-9A-Za-z]{20,}\b"),
     re.compile(r"\bgithub_pat_[0-9A-Za-z_]{20,}\b"),
@@ -75,7 +75,7 @@ def sanitize_diff(diff: str) -> str:
         sanitized = sanitized.replace(secret, "[REDACTED]")
 
     # 3. 遮蔽各類標準 Token Regex（Groq, Gemini, GitHub, AWS, Slack, JWT）
-    sanitized = re.sub(r"\bgsk_[0-9A-Za-z]{20,}\b", "[REDACTED]", sanitized)
+    sanitized = re.sub(r"\bgsk_[0-9A-Za-z_]{20,}\b", "[REDACTED]", sanitized)
     sanitized = re.sub(r"\bAIza[0-9A-Za-z\-_]{30,}\b", "[REDACTED]", sanitized)
     sanitized = re.sub(r"\bgh[pousr]_[0-9A-Za-z]{20,}\b", "[REDACTED]", sanitized)
     sanitized = re.sub(r"\bgithub_pat_[0-9A-Za-z_]{20,}\b", "[REDACTED]", sanitized)
