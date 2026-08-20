@@ -531,12 +531,12 @@ def test_parse_retry_limit_valid():
 
 
 def test_parse_retry_limit_invalid_or_empty():
-    assert review.parse_retry_limit(None) == 9
-    assert review.parse_retry_limit("") == 9
-    assert review.parse_retry_limit("   ") == 9
-    assert review.parse_retry_limit("not_a_number") == 9
-    assert review.parse_retry_limit("0") == 9
-    assert review.parse_retry_limit("-5") == 9
+    assert review.parse_retry_limit(None) == 3
+    assert review.parse_retry_limit("") == 3
+    assert review.parse_retry_limit("   ") == 3
+    assert review.parse_retry_limit("not_a_number") == 3
+    assert review.parse_retry_limit("0") == 3
+    assert review.parse_retry_limit("-5") == 3
 
 
 def test_chat_completion_demotes_model_on_413_payload_too_large():

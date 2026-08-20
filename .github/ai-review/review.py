@@ -37,7 +37,7 @@ ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
 KEY_COOLDOWN_MAP: dict[str, float] = {}
 
 
-def parse_retry_limit(raw_value: str | None, default: int = 9) -> int:
+def parse_retry_limit(raw_value: str | None, default: int = 3) -> int:
     if raw_value is None or not str(raw_value).strip():
         return default
     try:
