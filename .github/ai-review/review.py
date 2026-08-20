@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -65,9 +66,10 @@ def mask_api_key(key: str) -> str:
     if not key or not isinstance(key, str):
         return ""
     stripped = key.strip()
-    if len(stripped) <= 8:
-        return "***"
-    return f"{stripped[:4]}...{stripped[-4:]}"
+    if not stripped:
+        return ""
+    digest = hashlib.sha256(stripped.encode("utf-8")).hexdigest()[:8]
+    return f"sha256:{digest}"
 
 
 def get_provider_api_keys(prefix: str) -> list[tuple[str, str]]:
@@ -1215,6 +1217,70 @@ def chat_completion(
     return DEFAULT_ORCHESTRATOR.chat_completion(prompt, max_retries_per_model)
 
 
+def build_batches(
+    files: list[dict],
+    max_chars: int = 24000,
+) -> list[tuple[str, list[str]]]:
+    """
+    依據領域分類與 diff 大小，將變更檔案切分為獨立批次。
+    保證每個變更檔案屬於且僅屬於一個批次，無遺漏或重複。
+    """
+    groups: dict[str, list[str]] = {
+        "ci": [],
+        "security-api": [],
+        "business": [],
+        "data": [],
+        "integration": [],
+        "python": [],
+        "other": [],
+    }
+    file_map = {item["filename"]: item for item in files}
+    for item in files:
+        filename = item["filename"]
+        path_lower = filename.lower()
+        if path_lower.startswith(".github/"):
+            groups["ci"].append(filename)
+        elif path_lower.endswith(".py"):
+            groups["python"].append(filename)
+        elif any(
+            token in path_lower
+            for token in ("controller", "security", "permission", "auth", "openapi")
+        ):
+            groups["security-api"].append(filename)
+        elif any(token in path_lower for token in ("feign", "client", "integration", "external")):
+            groups["integration"].append(filename)
+        elif any(
+            token in path_lower
+            for token in ("repository", "entity", "dao", "migration", "mapper")
+        ):
+            groups["data"].append(filename)
+        elif any(token in path_lower for token in ("service", "domain", "usecase")):
+            groups["business"].append(filename)
+        else:
+            groups["other"].append(filename)
+
+    batches: list[tuple[str, list[str]]] = []
+    for scope, paths in groups.items():
+        if not paths:
+            continue
+        current_batch: list[str] = []
+        current_size = 0
+        for filename in paths:
+            file_item = file_map.get(filename, {})
+            patch_content = file_item.get("patch") or ""
+            cost = len(filename) + max(len(patch_content), 1000)
+            if current_batch and current_size + cost > max_chars:
+                batches.append((scope, current_batch))
+                current_batch = []
+                current_size = 0
+            current_batch.append(filename)
+            current_size += cost
+        if current_batch:
+            batches.append((scope, current_batch))
+
+    return batches
+
+
 def main():
     has_token = bool(get_gh_token())
     has_groq = bool(get_groq_api_keys())
@@ -1268,57 +1334,8 @@ def main():
     contract_text = contract_path.read_text(encoding="utf-8") if contract_path.exists() else ""
     policy = load_policy()
 
-    groups = {
-        "ci": [],
-        "security-api": [],
-        "business": [],
-        "data": [],
-        "integration": [],
-        "python": [],
-        "other": [],
-    }
-    for filename in changed_files:
-        path_lower = filename.lower()
-        if path_lower.startswith(".github/"):
-            groups["ci"].append(filename)
-        elif path_lower.endswith(".py"):
-            groups["python"].append(filename)
-        elif any(
-            token in path_lower
-            for token in ("controller", "security", "permission", "auth", "openapi")
-        ):
-            groups["security-api"].append(filename)
-        elif any(token in path_lower for token in ("feign", "client", "integration", "external")):
-            groups["integration"].append(filename)
-        elif any(
-            token in path_lower
-            for token in ("repository", "entity", "dao", "migration", "mapper")
-        ):
-            groups["data"].append(filename)
-        elif any(token in path_lower for token in ("service", "domain", "usecase")):
-            groups["business"].append(filename)
-        else:
-            groups["other"].append(filename)
-
-    max_chars = 6000
-    batches = []
-    for scope, paths in groups.items():
-        if not paths:
-            continue
-        current_batch = []
-        current_size = 0
-        for filename in paths:
-            file_item = next(item for item in files if item["filename"] == filename)
-            patch_content = file_item.get("patch") or ""
-            cost = len(filename) + max(len(patch_content), 1000)
-            if current_batch and current_size + cost > max_chars:
-                batches.append((scope, current_batch))
-                current_batch = []
-                current_size = 0
-            current_batch.append(filename)
-            current_size += cost
-        if current_batch:
-            batches.append((scope, current_batch))
+    max_batch_chars = int(os.environ.get("AI_REVIEW_MAX_BATCH_CHARS", "24000"))
+    batches = build_batches(files, max_chars=max_batch_chars)
 
     expected_files = [filename for _, paths in batches for filename in paths]
     if sorted(expected_files) != sorted(changed_files) or (
@@ -1362,10 +1379,10 @@ def main():
             if file_item["filename"] in paths:
                 patch_text = (
                     file_item.get("patch")
-                    or "[GitHub did not provide a patch; review metadata only]"
+                    or f"[GitHub patch not provided; status={file_item.get('status', 'unknown')}, changes={file_item.get('changes', 0)}]"
                 )
                 diff_parts.append(f"diff -- {file_item['filename']}\n{patch_text}")
-        diff = "\n\n".join(diff_parts)[:6000]
+        diff = "\n\n".join(diff_parts)
 
         json_template = (
             f'{{"batch":"{scope}-{index}",'

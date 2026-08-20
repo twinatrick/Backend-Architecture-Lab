@@ -1,25 +1,31 @@
 name: AI Architecture & Security Review
 
 # Trusted execution boundary:
-# - Triggered by the same PR lifecycle as the other CI workflows.
-# - Runs only the trusted workflow source from the default branch.
+# - Triggered by the completion of the untrusted AI Review Trigger workflow on the default branch.
+# - Runs only the trusted workflow definition and scripts from the default branch.
 # - Never checks out or executes PR code; PR content is read through the GitHub API.
 # - Secret-backed review is isolated from untrusted PR code.
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master, main]
+  workflow_run:
+    workflows: ["AI Review Trigger"]
+    types:
+      - completed
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request Number to review"
+        required: false
+        type: string
 
 permissions:
   contents: read
   pull-requests: write
   issues: write
-  actions: read
 
 jobs:
   review:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: apikey
     steps:

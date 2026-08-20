@@ -599,8 +599,18 @@ def test_extract_json_payload_rejects_unparseable_balanced_candidates():
 def test_mask_api_key():
     assert review.mask_api_key("") == ""
     assert review.mask_api_key(None) == ""
-    assert review.mask_api_key("12345678") == "***"
-    assert review.mask_api_key("AIzaSyBMMcmOmGpClLzf14bpHR3uKY6bfIK6kc8") == "AIza...6kc8"
+    assert review.mask_api_key("   ") == ""
+    masked_short = review.mask_api_key("12345678")
+    assert masked_short.startswith("sha256:")
+    assert len(masked_short) == 15
+    assert "1234" not in masked_short
+    assert "5678" not in masked_short
+
+    key = "AIzaSyBMMcmOmGpClLzf14bpHR3uKY6bfIK6kc8"
+    masked = review.mask_api_key(key)
+    assert masked.startswith("sha256:")
+    assert "AIza" not in masked
+    assert "6kc8" not in masked
 
 
 def test_get_gemini_api_keys_discovery_and_sorting():
@@ -1110,6 +1120,54 @@ def test_review_orchestrator_custom_instances():
     result = orchestrator.chat_completion("test custom orchestrator")
     assert result == '{"batch": "custom-ok", "findings": []}'
     mock_gemini_client.call.assert_called_once()
+
+
+def test_build_batches_categorization_and_chunking():
+    files = [
+        {"filename": ".github/workflows/ci.yml", "patch": "diff -- ci"},
+        {"filename": "backend-auth/src/main/java/AuthController.java", "patch": "diff -- auth"},
+        {"filename": "backend-service/src/main/java/OrderService.java", "patch": "diff -- service"},
+        {"filename": "backend-data/src/main/java/UserEntity.java", "patch": "diff -- entity"},
+        {"filename": "backend-feign/src/main/java/UserClient.java", "patch": "diff -- client"},
+        {"filename": "backend-ai-py/main.py", "patch": "diff -- python"},
+        {"filename": "README.md", "patch": "diff -- doc"},
+    ]
+    batches = review.build_batches(files, max_chars=10000)
+    scopes = [scope for scope, _ in batches]
+    assert "ci" in scopes
+    assert "security-api" in scopes
+    assert "business" in scopes
+    assert "data" in scopes
+    assert "integration" in scopes
+    assert "python" in scopes
+    assert "other" in scopes
+
+    flattened = [filename for _, paths in batches for filename in paths]
+    assert sorted(flattened) == sorted([f["filename"] for f in files])
+
+
+def test_build_batches_splits_large_batch():
+    files = [
+        {"filename": f"backend-service/Service{i}.java", "patch": "+" * 8000}
+        for i in range(4)
+    ]
+    # Total chars per file ~ 8000 + 1000 = 9000. With max_chars=15000, 4 files should split into 2-4 batches.
+    batches = review.build_batches(files, max_chars=15000)
+    assert len(batches) >= 2
+    flattened = [filename for _, paths in batches for filename in paths]
+    assert sorted(flattened) == sorted([f["filename"] for f in files])
+    assert len(flattened) == 4
+
+
+def test_build_batches_handles_missing_patch():
+    files = [
+        {"filename": "deleted.txt", "patch": None, "status": "removed"},
+        {"filename": "binary.png", "patch": None, "status": "added"},
+    ]
+    batches = review.build_batches(files, max_chars=5000)
+    flattened = [filename for _, paths in batches for filename in paths]
+    assert sorted(flattened) == sorted(["deleted.txt", "binary.png"])
+
 
 
 
