@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -457,8 +458,49 @@ class CompensationOutboxWorkerTest {
 
         compensationOutboxWorker.flushPendingEvents();
 
-        verify(outboxRepository, never()).markFailed(any(UUID.class), anyString(), any(), anyString(), anyString(), anyString(), any(Date.class));
-        verify(outboxRepository, never()).markDead(any(UUID.class), anyString(), any(), anyString(), anyString(), anyString());
+        verify(outboxRepository).markFailed(
+                eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("interruption"),
+                any(Date.class));
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldGracefullyHandle_whenDeliveryCancelled() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        CompletableFuture<Void> cancelledFuture = new CompletableFuture<>() {
+            @Override
+            public Void get(long timeout, TimeUnit unit) {
+                throw new CancellationException("Simulated task cancellation during wait");
+            }
+        };
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(cancelledFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).markFailed(
+                eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("cancellation"),
+                any(Date.class));
 
         Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
         assertNotNull(semaphore);

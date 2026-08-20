@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+from engine import has_high_risk_scope
 from redaction import redact_secrets
 
 
@@ -14,6 +15,10 @@ def format_markdown_report(
     audit_info: dict[str, Any] | None = None,
 ) -> str:
     """產出 Markdown 格式之 AI Review 報告全文。"""
+    has_mandatory_review = any(
+        f.get("rule") == "Mandatory Human Architecture & Security Review"
+        for f in blocking_findings
+    ) or has_high_risk_scope(changed_files)
     report = [
         "# AI Code Review",
         "",
@@ -23,13 +28,18 @@ def format_markdown_report(
         f"共 {len(unique_findings)} 個 Finding，其中 {len(blocking_findings)} 個阻擋項目。",
         "",
     ]
-    if decision == "COMMENT":
+    if has_mandatory_review:
         report.extend([
-            "> ⚠️ **安全閘門提示 (Mandatory Human Review)**：",
-            "> 本次 PR 變更涉及核心安全、架構或 CI 配置範疇（如 GitHub Workflows、",
+            "> ⚠️ **安全閘門策略提示 (Mandatory Human Review Gate)**：",
+            "> 本次 PR 變更涉及核心安全、微服務架構或全域配置範疇（如 GitHub Workflows、",
             "> IAM 權限、AOP/Filter、Controller/Feign 或全域依賴 pom.xml）。",
-            "> 依安全策略要求，**禁止 AI 自動放行 APPROVE**，強制以 `COMMENT` ",
-            "> 提請資深架構師進行強制人工審核。",
+            "> 依安全策略要求，**禁止 AI 自動放行 APPROVE**，強制觸發 `REQUEST_CHANGES` ",
+            "> 提請資深架構師與安全專家進行人工審查與最終放行簽署。",
+            "",
+        ])
+    elif decision == "COMMENT":
+        report.extend([
+            "> ℹ️ **審查提示**：本次審查未發現嚴重阻擋項目，請參考相關建議。",
             "",
         ])
     if audit_info:
