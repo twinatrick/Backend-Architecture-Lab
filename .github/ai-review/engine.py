@@ -38,24 +38,9 @@ def is_blocking(finding: dict[str, Any], policy: dict[str, Any]) -> bool:
     blocking_confidences = {
         str(c).upper() for c in policy.get("blocking_confidence", ["HIGH"])
     }
-    blocking_categories = {
-        str(c).strip().upper() for c in policy.get("blocking_categories", [])
-    }
-    category = finding.get("category")
-    cat_upper = str(category).strip().upper() if category else ""
-    cat_matches = (
-        not blocking_categories
-        or not cat_upper
-        or cat_upper in blocking_categories
-        or any(bc in cat_upper for bc in blocking_categories)
-    )
     sev = str(finding.get("severity", "")).upper()
     conf = str(finding.get("confidence", "")).upper()
-    return bool(
-        sev in blocking_severities
-        and conf in blocking_confidences
-        and cat_matches
-    )
+    return bool(sev in blocking_severities and conf in blocking_confidences)
 
 
 def is_high_risk_path(path: str) -> bool:

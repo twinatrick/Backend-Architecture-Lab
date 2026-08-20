@@ -14,7 +14,9 @@
     "CI Supply Chain",
     "Secret Exposure",
     "Functional Correctness",
-    "Data Integrity"
+    "Data Integrity",
+    "Architecture",
+    "Compliance"
   ],
   "required_fields": [
     "location",

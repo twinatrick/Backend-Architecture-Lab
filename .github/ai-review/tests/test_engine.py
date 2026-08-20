@@ -114,3 +114,106 @@ def test_validate_finding_invalid_or_missing_fields():
         "severity": "INVALID_SEVERITY",
         "confidence": "HIGH",
     }) is False
+
+
+def test_is_blocking_with_all_categories_and_severities():
+    policy = {
+        "blocking_severities": ["CRITICAL", "HIGH"],
+        "blocking_confidence": ["HIGH"],
+        "blocking_categories": [
+            "Security", "Architecture", "Compliance",
+        ],
+    }
+
+    # 驗證 Architecture 類別之 HIGH 違規判定為阻擋
+    f_arch = {
+        "location": "src/Service.java:10",
+        "category": "Architecture",
+        "severity": "HIGH",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_arch, policy) is True
+
+    # 驗證 Compliance 類別之 HIGH 違規判定為阻擋
+    f_comp = {
+        "location": "script.py:20",
+        "category": "Compliance",
+        "severity": "HIGH",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_comp, policy) is True
+
+    # 驗證任意自定義/未知類別之 CRITICAL 違規判定為阻擋
+    f_custom = {
+        "location": "src/Util.java:5",
+        "category": "CustomCategory",
+        "severity": "CRITICAL",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_custom, policy) is True
+
+    # 驗證大小寫混合之類別判定為阻擋
+    f_lower = {
+        "location": "src/App.java:1",
+        "category": "architecture",
+        "severity": "HIGH",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_lower, policy) is True
+
+    # 驗證 MEDIUM 與 LOW 違規不判定為阻擋
+    f_med = {
+        "location": "src/App.java:1",
+        "category": "Architecture",
+        "severity": "MEDIUM",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_med, policy) is False
+
+    f_low = {
+        "location": "src/App.java:1",
+        "category": "Compliance",
+        "severity": "LOW",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_low, policy) is False
+
+
+def test_evaluate_with_architecture_and_compliance_findings_triggers_request_changes():
+    policy = {
+        "blocking_severities": ["CRITICAL", "HIGH"],
+        "blocking_confidence": ["HIGH"],
+        "blocking_categories": ["Security", "Architecture", "Compliance"],
+    }
+    findings = [
+        {
+            "location": "src/main/Service.java:42",
+            "category": "Architecture",
+            "rule": "ARCH-01",
+            "problem": "Controller 直接操作 EntityManager",
+            "evidence": "entityManager.persist(entity)",
+            "risk": "破壞分層架構",
+            "recommendation": "改由 DataAccess 層操作",
+            "severity": "HIGH",
+            "confidence": "HIGH",
+        },
+        {
+            "location": "scripts/tool.py:100",
+            "category": "Compliance",
+            "rule": "PY-01",
+            "problem": "單檔超過 300 行且包含泛型 Exception",
+            "evidence": "except Exception: pass",
+            "risk": "違反開發規範 4.3 條",
+            "recommendation": "拆分模組並捕捉具體例外",
+            "severity": "HIGH",
+            "confidence": "HIGH",
+        },
+    ]
+    res = engine.evaluate(
+        findings=findings,
+        expected_files=["src/main/Service.java", "scripts/tool.py"],
+        reviewed_files=["src/main/Service.java", "scripts/tool.py"],
+        policy=policy,
+    )
+    assert res["decision"] == "REQUEST_CHANGES"
+    assert len(res["blocking_findings"]) == 2
