@@ -18,6 +18,7 @@ from github_client import (
     publish_failure_report,
     publish_review,
     resolve_pr_number,
+    resolve_review_target,
     validate_target_pr,
 )
 from key_pool import (
@@ -83,26 +84,22 @@ def _process_batch(
         time.sleep(5.0)
 
     relevant_rules = filter_relevant_rules(rules_text, scope)
-    diff_parts = []
-    missing_content_findings = []
+    diff_parts, missing_findings = [], []
 
     for file_item in files:
         fname = file_item.get("filename", "")
         if fname in paths:
             raw_patch = file_item.get("patch")
             if not raw_patch and file_item.get("status") not in ("removed", "deleted"):
-                fallback_content = file_item.get("full_content")
-                if fallback_content is None:
-                    fallback_content = _fetch_file_content_fallback(repo_name, fname, head_sha)
-                if fallback_content is not None:
-                    file_item["full_content"] = fallback_content
-                    file_item["content"] = fallback_content
-                    raw_patch = f"[Content fallback fetched]\n{fallback_content}"
+                fallback = file_item.get("full_content") or _fetch_file_content_fallback(
+                    repo_name, fname, head_sha
+                )
+                if fallback is not None:
+                    file_item["full_content"] = file_item["content"] = fallback
+                    raw_patch = f"[Content fallback fetched]\n{fallback}"
                 else:
-                    missing_content_findings.append({
-                        "location": f"{fname}:1",
-                        "severity": "HIGH",
-                        "confidence": "HIGH",
+                    missing_findings.append({
+                        "location": f"{fname}:1", "severity": "HIGH", "confidence": "HIGH",
                         "rule": "開發規範 §5 Review 完整性與可見度",
                         "problem": f"無法取得檔案 {fname} 的 Patch 或原始內容",
                         "evidence": "GitHub API 未提供 patch 且 Contents API 讀取失敗",
@@ -111,8 +108,7 @@ def _process_batch(
                     })
                     raw_patch = f"[Patch unavailable; status={file_item.get('status', 'unknown')}]"
 
-            clean_patch = sanitize_diff(raw_patch or "[Empty diff]")
-            diff_parts.append(f"diff -- {fname}\n{clean_patch}")
+            diff_parts.append(f"diff -- {fname}\n{sanitize_diff(raw_patch or '[Empty diff]')}")
 
     diff = sanitize_diff("\n\n".join(diff_parts))
     prompt = build_batch_prompt(scope, index, paths, diff, contract_text, relevant_rules)
@@ -120,43 +116,32 @@ def _process_batch(
     try:
         text_output = chat_completion(prompt).strip()
     except RuntimeError as exc:
-        error_details = json.loads(str(exc))
+        details = json.loads(str(exc))
         publish_failure_report(
-            pr_number,
-            "AI Provider 呼叫失敗",
-            "所有已配置的 AI 模型/金鑰（Google Gemini / Groq）均無法取得有效回應。",
-            error_details,
+            pr_number, "AI Provider 呼叫失敗",
+            "所有已配置的 AI 模型/金鑰（Google Gemini / Groq）均無法取得有效回應。", details,
         )
-        raise SystemExit(f"AI Provider 無法使用：{error_details}")
+        raise SystemExit(f"AI Provider 無法使用：{details}")
 
     try:
         batch_data = extract_json_payload(text_output)
     except json.JSONDecodeError as exc:
         publish_failure_report(
-            pr_number,
-            "AI 模型輸出非合法 JSON",
-            f"批次 {scope}-{index} 模型輸出解析失敗：{exc}",
-            text_output[:500],
+            pr_number, "AI 模型輸出非合法 JSON",
+            f"批次 {scope}-{index} 模型輸出解析失敗：{exc}", text_output[:500],
         )
         raise SystemExit(f"批次 {scope}-{index} JSON 解析失敗：{exc}")
 
-    norm_expected = normalize_paths(paths)
-    raw_reviewed = batch_data.get("files_reviewed")
-    norm_reviewed = normalize_paths(raw_reviewed)
-    coverage_status = str(batch_data.get("coverage", "")).strip().upper()
-
-    if coverage_status != "COMPLETE" or not validate_coverage(norm_expected, norm_reviewed):
-        cov_err = (
-            f"批次覆蓋範圍驗證失敗：{scope}-{index}\n"
-            f"- 預期檔案：{paths}\n"
-            f"- 模型回傳檔案：{raw_reviewed}\n"
-            f"- 覆蓋標記：{batch_data.get('coverage')}"
-        )
+    norm_exp, norm_rev = normalize_paths(paths), normalize_paths(batch_data.get("files_reviewed"))
+    if str(batch_data.get("coverage", "")).strip().upper() != "COMPLETE" or not validate_coverage(
+        norm_exp, norm_rev
+    ):
+        cov_err = f"批次覆蓋範圍驗證失敗：{scope}-{index}\n預期：{paths}\n模型回傳：{norm_rev}"
         publish_failure_report(pr_number, "批次覆蓋範圍不符", cov_err)
         raise SystemExit(cov_err)
 
-    if missing_content_findings:
-        batch_data.setdefault("findings", []).extend(missing_content_findings)
+    if missing_findings:
+        batch_data.setdefault("findings", []).extend(missing_findings)
 
     for finding in batch_data.get("findings", []):
         if not validate_finding(finding, policy):
@@ -178,7 +163,9 @@ def main() -> None:
         raise SystemExit(f"找不到 GitHub 事件檔案：{event_path_str}")
 
     event = json.loads(Path(event_path_str).read_text(encoding="utf-8"))
-    pr_number = resolve_pr_number(event)
+    target = resolve_review_target(event)
+    pr_number = target["pr_number"]
+    expected_sha = target.get("head_sha")
     repo_name = get_repo() or REPO
 
     try:
@@ -187,10 +174,6 @@ def main() -> None:
         publish_failure_report(pr_number, "無法取得 PR 資訊", str(exc))
         raise SystemExit(f"無法取得 PR 資訊：{exc}")
 
-    expected_sha = (
-        event.get("workflow_run", {}).get("head_sha")
-        or event.get("after")
-    )
     is_valid, validation_err = validate_target_pr(
         pull_request_data,
         expected_head_sha=expected_sha,
@@ -265,8 +248,28 @@ def main() -> None:
     unique_findings = eval_result["findings"]
     blocking_findings = eval_result["blocking_findings"]
 
+    # 發布前二次驗證 head_sha，阻斷 TOCTOU 競態衝突
+    try:
+        latest_pr = gh_get(f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}")
+        latest_head_sha = latest_pr.get("head", {}).get("sha", "")
+        if latest_head_sha and latest_head_sha != head_sha:
+            toctou_err = (
+                f"TOCTOU 衝突：PR #{pr_number} head SHA 於審查期間已變更 "
+                f"({head_sha[:8]} -> {latest_head_sha[:8]})，中止本次過期審查。"
+            )
+            publish_failure_report(pr_number, "審查目標過期 (TOCTOU)", toctou_err)
+            raise SystemExit(toctou_err)
+    except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
+        logging.warning("發布前二次 PR 校驗失敗（略過）：%s", exc)
+
+    audit_info = {
+        "trigger_type": target.get("trigger_type", "unknown"),
+        "actor": target.get("actor", "unknown"),
+        "head_sha": head_sha,
+    }
     body = format_markdown_report(
-        decision, changed_files, results, unique_findings, blocking_findings, passed_checks
+        decision, changed_files, results, unique_findings, blocking_findings,
+        passed_checks, audit_info=audit_info,
     )
     publish_review(pr_number, body, decision)
     Path("review.md").write_text(body + "\n", encoding="utf-8")
@@ -277,6 +280,7 @@ def main() -> None:
             blocking_findings,
             len(results),
             changed_files,
+            audit_info=audit_info,
         ),
         encoding="utf-8",
     )

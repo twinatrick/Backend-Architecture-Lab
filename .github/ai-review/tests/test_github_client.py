@@ -209,3 +209,33 @@ def test_publish_failure_report_generates_markdown_and_publishes():
         assert "model-a" in body
         assert "model-b" in body
         mock_publish.assert_called_once_with(42, body, "REQUEST_CHANGES")
+
+
+def test_resolve_review_target_dispatch_and_workflow_run():
+    # 1. 測試 workflow_dispatch
+    event_dispatch = {
+        "inputs": {"pr_number": "60", "head_sha": "abc1234"},
+        "sender": {"login": "dev-alice"},
+    }
+    target_dispatch = github_client.resolve_review_target(event_dispatch)
+    assert target_dispatch["pr_number"] == 60
+    assert target_dispatch["expected_head_sha"] == "abc1234"
+    assert target_dispatch["actor"] == "dev-alice"
+    assert target_dispatch["trigger_type"] == "workflow_dispatch"
+
+    # 2. 測試 workflow_run
+    event_run = {
+        "workflow_run": {
+            "head_sha": "def5678",
+            "actor": {"login": "ci-bot"},
+            "pull_requests": [{"number": 60, "head": {"sha": "def5678"}}],
+            "repository": {"full_name": "twinatrick/Backend-Architecture-Lab"},
+        },
+        "repository": {"full_name": "twinatrick/Backend-Architecture-Lab"},
+    }
+    target_run = github_client.resolve_review_target(event_run)
+    assert target_run["pr_number"] == 60
+    assert target_run["expected_head_sha"] == "def5678"
+    assert target_run["actor"] == "ci-bot"
+    assert target_run["trigger_type"] == "workflow_run"
+

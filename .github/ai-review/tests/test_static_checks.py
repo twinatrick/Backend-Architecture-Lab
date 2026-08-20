@@ -188,6 +188,20 @@ def test_static_checks_github_workflow_unpinned_action():
     assert any("Action 版本鎖定規範" in r for r in rules)
 
 
+def test_static_checks_secret_exposure():
+    # 建立敏感金鑰測試變數 (分段拼接以避免自身的正則檢測)
+    fake_secret = "g" + "sk_" + ("a" * 48)
+    files = [
+        {
+            "filename": "backend-common/src/main/resources/application.yml",
+            "patch": f"+api_key: \"{fake_secret}\"\n",
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    rules = [f["rule"] for f in findings]
+    assert any("敏感資訊與金鑰保護規範" in r for r in rules)
+
+
 def test_static_checks_self_compliance():
     py_files = list(AI_REVIEW_DIR.glob("*.py"))
     assert len(py_files) >= 10

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_FIELDS = {
@@ -9,20 +10,43 @@ REQUIRED_FIELDS = {
 ALLOWED_SEVERITY = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
 ALLOWED_CONFIDENCE = {"HIGH", "MEDIUM", "LOW"}
 
+HIGH_RISK_PATH_KEYWORDS = (
+    ".github/workflows/",
+    ".github/ai-review/",
+    "pom.xml",
+    "Dockerfile",
+    "compose.yaml",
+    "/security/",
+    "/filter/",
+    "/aop/",
+    "backend-iam-service/",
+)
 
-def load_policy(path: str | Path | None = None) -> dict:
+
+def load_policy(path: str | Path | None = None) -> dict[str, Any]:
     policy_path = path or ROOT / ".github/ai-review/policy.json"
     return json.loads(Path(policy_path).read_text(encoding="utf-8"))
 
 
-def is_blocking(finding: dict, policy: dict) -> bool:
+def is_blocking(finding: dict[str, Any], policy: dict[str, Any]) -> bool:
     return (
         finding.get("severity") in set(policy.get("blocking_severities", []))
         and finding.get("confidence") in set(policy.get("blocking_confidence", []))
     )
 
 
-def validate_finding(finding: dict, policy: dict | None = None) -> bool:
+def is_high_risk_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").lower()
+    return any(keyword in normalized for keyword in HIGH_RISK_PATH_KEYWORDS)
+
+
+def has_high_risk_scope(files: list[str]) -> bool:
+    return any(is_high_risk_path(f) for f in files)
+
+
+def validate_finding(
+    finding: dict[str, Any], policy: dict[str, Any] | None = None
+) -> bool:
     if not isinstance(finding, dict):
         return False
     if set(finding.keys()) != REQUIRED_FIELDS:
@@ -45,8 +69,8 @@ def validate_coverage(expected: list[str], reviewed: list[str]) -> bool:
     return sorted(expected) == sorted(reviewed) and len(reviewed) == len(set(reviewed))
 
 
-def deduplicate(findings: list[dict]) -> list[dict]:
-    result: list[dict] = []
+def deduplicate(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
     seen: set[tuple[str | None, str | None, str | None]] = set()
     for finding in findings:
         key = (finding.get("location"), finding.get("problem"), finding.get("rule"))
@@ -57,18 +81,25 @@ def deduplicate(findings: list[dict]) -> list[dict]:
 
 
 def evaluate(
-    findings: list[dict],
+    findings: list[dict[str, Any]],
     expected_files: list[str],
     reviewed_files: list[str],
-    policy: dict | None = None,
-) -> dict:
+    policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     active_policy = policy or load_policy()
     if not validate_coverage(expected_files, reviewed_files):
         return {"decision": "FAIL", "blocking_findings": [], "findings": []}
     unique = deduplicate(findings)
     blocking = [f for f in unique if is_blocking(f, active_policy)]
+    if blocking:
+        decision = "REQUEST_CHANGES"
+    elif has_high_risk_scope(expected_files):
+        # 高風險核心範疇 (CI/安全/IAM/pom) 變更禁止 LLM 自動 APPROVE，強制降級為 COMMENT 供人工審查
+        decision = "COMMENT"
+    else:
+        decision = "APPROVE"
     return {
-        "decision": "REQUEST_CHANGES" if blocking else "APPROVE",
+        "decision": decision,
         "blocking_findings": blocking,
         "findings": unique,
     }

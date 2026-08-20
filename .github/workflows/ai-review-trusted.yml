@@ -17,6 +17,10 @@ on:
         description: "Pull Request Number to review"
         required: true
         type: string
+      head_sha:
+        description: "Target Commit SHA to review (prevents TOCTOU)"
+        required: false
+        type: string
 
 permissions:
   contents: read

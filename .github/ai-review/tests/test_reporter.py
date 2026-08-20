@@ -76,3 +76,36 @@ def test_format_json_report():
     assert len(data["blocking_findings"]) == 1
     assert data["batches"] == 1
     assert data["files_reviewed"] == ["app.py"]
+
+
+def test_format_reports_with_audit_info():
+    audit_info = {
+        "trigger_type": "workflow_dispatch",
+        "actor": "admin-bob",
+        "head_sha": "1234567890abcdef",
+    }
+    report = reporter.format_markdown_report(
+        decision="APPROVE",
+        changed_files=["src/App.java"],
+        results=[{}],
+        unique_findings=[],
+        blocking_findings=[],
+        passed_checks=["Check A"],
+        audit_info=audit_info,
+    )
+    assert "## 審查稽核軌跡" in report
+    assert "admin-bob" in report
+    assert "1234567890abcdef" in report
+
+    json_str = reporter.format_json_report(
+        decision="APPROVE",
+        unique_findings=[],
+        blocking_findings=[],
+        batch_count=1,
+        changed_files=["src/App.java"],
+        audit_info=audit_info,
+    )
+    data = json.loads(json_str)
+    assert data["audit"]["actor"] == "admin-bob"
+    assert data["audit"]["trigger_type"] == "workflow_dispatch"
+

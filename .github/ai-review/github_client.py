@@ -13,19 +13,11 @@ REVIEW_MARKER = "<!-- ai-review-gate -->"
 
 
 def get_repo() -> str:
-    return (
-        os.environ.get("REPO")
-        or os.environ.get("GITHUB_REPOSITORY")
-        or REPO
-    )
+    return os.environ.get("REPO") or os.environ.get("GITHUB_REPOSITORY") or REPO
 
 
 def get_event_path() -> str:
-    return (
-        os.environ.get("EVENT_PATH")
-        or os.environ.get("GITHUB_EVENT_PATH")
-        or EVENT_PATH
-    )
+    return os.environ.get("EVENT_PATH") or os.environ.get("GITHUB_EVENT_PATH") or EVENT_PATH
 
 
 def normalize_path(path_str: str) -> str:
@@ -63,10 +55,9 @@ def validate_target_pr(
     allowed_base_refs: list[str] | None = None,
     expected_head_sha: str | None = None,
 ) -> tuple[bool, str]:
-    """嚴格校驗目標 PR 狀態、目標基準分支與所屬 Repository 一致性。"""
+    """嚴格校驗目標 PR 狀態、目標基準分支、所屬 Repository 與 head_sha 一致性。"""
     if not isinstance(pr_data, dict):
         return False, "PR 資料無效或非字典型態"
-
     state = pr_data.get("state", "").lower()
     if state != "open":
         return False, f"PR 狀態為 '{state}'（非開啟中 open 狀態）"
@@ -77,7 +68,6 @@ def validate_target_pr(
         "ALLOWED_BASE_BRANCHES", "master,main"
     ).split(",")
     allowed_clean = [b.strip() for b in allowed if b.strip()]
-
     if base_ref not in allowed_clean:
         return False, f"PR 目標分支 '{base_ref}' 非受信任基準分支（允許：{allowed_clean}）"
 
@@ -89,16 +79,12 @@ def validate_target_pr(
     if expected_head_sha:
         pr_head_sha = pr_data.get("head", {}).get("sha", "")
         if pr_head_sha and pr_head_sha != expected_head_sha:
-            return (
-                False,
-                f"PR head_sha '{pr_head_sha}' 與觸發 SHA '{expected_head_sha}' 不一致",
-            )
-
+            return False, f"PR head_sha '{pr_head_sha}' 與期望 SHA '{expected_head_sha}' 不一致"
     return True, ""
 
 
 def resolve_pr_number(event: dict) -> int:
-    """自 GitHub Webhook 事件或環境變數中精確解析唯一 Pull Request 編號。"""
+    """自 GitHub Webhook 事件中精確解析唯一 Pull Request 編號。"""
     pull_request = event.get("pull_request") or {}
     if pull_request.get("number"):
         return int(pull_request["number"])
@@ -137,27 +123,58 @@ def resolve_pr_number(event: dict) -> int:
         try:
             return int(inputs["pr_number"])
         except (ValueError, TypeError) as exc:
-            raise SystemExit(
-                f"無法將 inputs.pr_number '{inputs.get('pr_number')}' 解析為整數: {exc}"
-            )
+            raise SystemExit(f"無法將 inputs.pr_number 解析為整數: {exc}")
 
     repo_name = get_repo()
     token_value = get_gh_token()
     if head_sha and repo_name and token_value:
         try:
             commits_url = f"https://api.github.com/repos/{repo_name}/commits/{head_sha}/pulls"
-            associated_pulls = gh_get(commits_url)
-            if len(associated_pulls) == 1 and associated_pulls[0].get("number"):
-                return int(associated_pulls[0]["number"])
-            if len(associated_pulls) > 1:
-                open_pulls = [p for p in associated_pulls if p.get("state") == "open"]
+            associated = gh_get(commits_url)
+            if len(associated) == 1 and associated[0].get("number"):
+                return int(associated[0]["number"])
+            if len(associated) > 1:
+                open_pulls = [p for p in associated if p.get("state") == "open"]
                 if len(open_pulls) == 1 and open_pulls[0].get("number"):
                     return int(open_pulls[0]["number"])
                 raise SystemExit(f"Commit SHA {head_sha} 關聯多個候選 PR，無法唯一確定。")
         except requests.RequestException as exc:
-            print(f"無法透過 Commit SHA 查詢關聯 PR：{exc}")
+            logging.warning("無法透過 Commit SHA 查詢關聯 PR：%s", exc)
 
     raise SystemExit("無法從 GitHub 事件或環境中解析對應的 Pull Request 編號。")
+
+
+def resolve_review_target(event: dict) -> dict[str, Any]:
+    """解析觸發審查的目標 PR 編號、期望 SHA、觸發者與觸發型態。"""
+    pr_number = resolve_pr_number(event)
+    workflow_run = event.get("workflow_run") or {}
+    inputs = event.get("inputs") or {}
+    raw_actor = (
+        event.get("sender", {}).get("login")
+        or workflow_run.get("actor", {}).get("login")
+        or workflow_run.get("triggering_actor", {}).get("login")
+        or event.get("actor")
+        or "system"
+    )
+    raw_sha = (
+        inputs.get("head_sha")
+        or workflow_run.get("head_sha")
+        or event.get("after")
+        or ""
+    )
+    expected_sha = raw_sha.strip() if isinstance(raw_sha, str) else ""
+    trigger_type = (
+        "workflow_dispatch" if inputs.get("pr_number")
+        else "workflow_run" if workflow_run
+        else "pull_request" if event.get("pull_request")
+        else "event"
+    )
+    return {
+        "pr_number": pr_number,
+        "expected_head_sha": expected_sha or None,
+        "actor": str(raw_actor),
+        "trigger_type": trigger_type,
+    }
 
 
 def post_issue_comment(pr_number: int, body: str) -> dict | None:
@@ -171,22 +188,15 @@ def post_issue_comment(pr_number: int, body: str) -> dict | None:
             None,
         )
         if existing:
-            c_id = existing["id"]
-            patch_url = f"https://api.github.com/repos/{repo_name}/issues/comments/{c_id}"
+            patch_url = f"https://api.github.com/repos/{repo_name}/issues/comments/{existing['id']}"
             res = requests.patch(
-                patch_url,
-                headers=get_github_headers(),
-                json={"body": marked_body},
-                timeout=30,
+                patch_url, headers=get_github_headers(), json={"body": marked_body}, timeout=30
             )
             res.raise_for_status()
-            print(f"成功更新現有 PR Issue 留言（ID: {c_id}）")
+            print(f"成功更新現有 PR Issue 留言（ID: {existing['id']}）")
             return res.json()
         res = requests.post(
-            comments_url,
-            headers=get_github_headers(),
-            json={"body": marked_body},
-            timeout=30,
+            comments_url, headers=get_github_headers(), json={"body": marked_body}, timeout=30
         )
         res.raise_for_status()
         print(f"成功在 PR #{pr_number} 建立新 Issue 留言")
@@ -196,11 +206,7 @@ def post_issue_comment(pr_number: int, body: str) -> dict | None:
         return None
 
 
-def post_pr_review(
-    pr_number: int,
-    body: str,
-    event_type: str = "COMMENT",
-) -> dict | None:
+def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT") -> dict | None:
     repo_name = get_repo()
     review_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
     try:
@@ -224,11 +230,7 @@ def post_pr_review(
         return None
 
 
-def publish_review(
-    pr_number: int,
-    body: str,
-    decision: str = "COMMENT",
-) -> bool:
+def publish_review(pr_number: int, body: str, decision: str = "COMMENT") -> bool:
     """發布審查意見至 PR Issue 留言與 PR Review。若發布失敗則拋出例外落實 Fail-Closed。"""
     comment_res = post_issue_comment(pr_number, body)
     review_event = (
@@ -238,7 +240,6 @@ def publish_review(
     )
     review_res = post_pr_review(pr_number, body, review_event)
 
-    # 正式審查決策 (REQUEST_CHANGES / APPROVE) 必須成功建立 GitHub Review
     if decision in ("REQUEST_CHANGES", "APPROVE") and review_res is None:
         raise RuntimeError(
             f"無法在 PR #{pr_number} 提交正式 PR Review（決策：{decision}），"
