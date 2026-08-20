@@ -90,3 +90,29 @@ def test_orchestrator_chat_completion_all_fail(monkeypatch):
     )
     with pytest.raises(RuntimeError):
         orch.chat_completion("test prompt")
+
+
+def test_orchestrator_groq_tpd_exhaustion_switches_to_gemini(monkeypatch):
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
+    gemini_pool = MagicMock()
+    gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY", "gkey1")]
+
+    def fake_groq_loop(*args, **kwargs):
+        error_details = kwargs.get("error_details", args[7] if len(args) > 7 else [])
+        error_details.append(("Groq/llama-3.3-70b-versatile", "HTTP 429: tokens per day (TPD)"))
+        return None
+
+    monkeypatch.setattr(orchestrator, "execute_groq_loop", fake_groq_loop)
+    monkeypatch.setattr(
+        orchestrator,
+        "execute_gemini_loop",
+        MagicMock(return_value="[{\"location\": \"gemini.py:1\"}]"),
+    )
+
+    orch = orchestrator.ReviewOrchestrator(
+        groq_key_pool=groq_pool,
+        gemini_key_pool=gemini_pool,
+    )
+    result = orch.chat_completion("test prompt")
+    assert result == "[{\"location\": \"gemini.py:1\"}]"

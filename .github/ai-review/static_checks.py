@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from pathlib import Path
@@ -36,7 +37,7 @@ def check_workflow_file(path: str, content: str) -> list[dict[str, Any]]:
                 "recommendation": "改用 workflow_run 機制或移除動態 untrusted ref checkout",
             })
 
-    # 2. 檢查 run 腳本中的直接表達式注入
+    # 2. 檢查 run 腳本中的直接表達式注入與浮動分支 Action
     lines = content.splitlines()
     for idx, raw_line in enumerate(lines, start=1):
         line = raw_line.lstrip("+- ")
@@ -53,6 +54,18 @@ def check_workflow_file(path: str, content: str) -> list[dict[str, Any]]:
                 "evidence": raw_line.strip()[:100],
                 "risk": "攻擊者可構造特殊 PR 標題或內容進行 Bash 命令注入",
                 "recommendation": "將 github.event 參數映射至 env 變數後於腳本使用",
+            })
+
+        if re.search(r"uses:\s+[\w\-\.\/]+@(main|master)\b", line):
+            findings.append({
+                "location": f"{path}:{idx}",
+                "severity": "HIGH",
+                "confidence": "HIGH",
+                "rule": "開發規範 §2 CI Action 版本鎖定規範",
+                "problem": "Action 使用未鎖定的浮動分支 (@main/@master)",
+                "evidence": raw_line.strip()[:100],
+                "risk": "浮動分支可能被上游篡改或遭遇供應鏈投毒攻擊",
+                "recommendation": "將 Action 鎖定為具體 commit SHA 或明確版本 tag (如 @v4)",
             })
 
     # 3. 檢查 permissions: write-all
@@ -247,7 +260,8 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for file_item in files:
         path = file_item.get("filename") or file_item.get("path") or ""
         patch = file_item.get("patch") or ""
-        content = file_item.get("content") or patch
+        # 優先採用 PR head 的全檔完整內容 (full_content)，其次為本地讀取或 patch
+        content = file_item.get("full_content") or file_item.get("content") or patch
 
         if not path:
             continue
@@ -266,12 +280,12 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 all_findings.extend(check_java_file(path, content))
 
         elif normalized_path.endswith(".py"):
-            # 對 Python 檔案優先讀取本地全檔內容以精確計算 LOC
-            if Path(path).exists():
+            # 若無遠端 full_content，優先嘗試讀取本地全檔內容以精確計算 LOC
+            if not file_item.get("full_content") and Path(path).exists():
                 try:
                     content = Path(path).read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError):
-                    pass
+                except (OSError, UnicodeDecodeError) as exc:
+                    logging.warning("無法讀取本地 Python 檔案 %s：%s", path, exc)
             if content:
                 all_findings.extend(check_python_file(path, content))
 

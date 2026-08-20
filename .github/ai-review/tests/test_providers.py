@@ -15,13 +15,15 @@ def test_call_gemini_api_constructs_proper_request():
     mock_resp = MagicMock()
     mock_resp.ok = True
     with patch("requests.post", return_value=mock_resp) as mock_post:
-        resp = providers.call_gemini_api("test review prompt", "gemini-2.0-flash", "test-key-123")
+        resp = providers.call_gemini_api(
+            "test review prompt", "gemini-3.7-flash", "test-key-123"
+        )
         assert resp == mock_resp
         assert mock_post.called
         call_url = mock_post.call_args[0][0]
         call_headers = mock_post.call_args[1]["headers"]
         call_json = mock_post.call_args[1]["json"]
-        assert "models/gemini-2.0-flash:generateContent" in call_url
+        assert "models/gemini-3.7-flash:generateContent" in call_url
         assert "key=" not in call_url
         assert call_headers.get("x-goog-api-key") == "test-key-123"
         assert call_json["generationConfig"]["responseMimeType"] == "application/json"

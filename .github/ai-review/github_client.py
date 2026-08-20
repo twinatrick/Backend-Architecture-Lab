@@ -265,17 +265,19 @@ def publish_failure_report(
         f"**原因**：{redact_secrets(str(reason))}\n",
     ]
     if details:
-        report.append("**詳細資訊**：")
+        logging.error("AI Review 失敗詳細診斷資訊 (保留於 CI 日誌)：%s", details)
+        report.append("**摘要資訊**：")
         if isinstance(details, list):
             for item in details:
                 if isinstance(item, (tuple, list)) and len(item) == 2:
-                    report.append(
-                        f"- `{redact_secrets(str(item[0]))}`：{redact_secrets(str(item[1]))}"
-                    )
+                    tag = str(item[0])
+                    msg = str(item[1]).split("\n")[0][:120]
+                    report.append(f"- `{redact_secrets(tag)}`：{redact_secrets(msg)}")
                 else:
-                    report.append(f"- {redact_secrets(str(item))}")
+                    report.append(f"- {redact_secrets(str(item)[:120])}")
         else:
-            report.append(f"```\n{redact_secrets(str(details))}\n```")
+            short_detail = str(details).split("\n")[0][:200]
+            report.append(f"```\n{redact_secrets(short_detail)}\n```")
         report.append("")
     report.extend([
         "這是 fail-closed 行為：AI Review 遭遇錯誤或未完成時不得產生 APPROVE。",
@@ -286,5 +288,9 @@ def publish_failure_report(
         try:
             publish_review(pr_number, body, "REQUEST_CHANGES")
         except (RuntimeError, requests.RequestException) as exc:
-            logging.error("發布失敗診斷報告至 PR #%s 失敗: %s", pr_number, redact_secrets(str(exc)))
+            logging.error(
+                "發布失敗診斷報告至 PR #%s 失敗: %s",
+                pr_number,
+                redact_secrets(str(exc)),
+            )
     return body

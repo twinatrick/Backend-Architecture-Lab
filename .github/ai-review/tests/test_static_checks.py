@@ -157,3 +157,49 @@ def test_static_checks_python_line_length_and_loc():
     findings = static_checks.run_static_checks(files)
     rules = [f["rule"] for f in findings]
     assert any("程式碼格式與行長規範" in r for r in rules)
+
+
+def test_static_checks_python_full_content_loc_exceeded():
+    fake_full_content = "\n".join([f"x_{i} = {i}" for i in range(305)])
+    files = [
+        {
+            "filename": "scripts/large_module.py",
+            "patch": "+x_0 = 0\n",
+            "full_content": fake_full_content,
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    rules = [f["rule"] for f in findings]
+    assert any("單檔行數限制" in r for r in rules)
+
+
+def test_static_checks_github_workflow_unpinned_action():
+    files = [
+        {
+            "filename": ".github/workflows/unpinned.yml",
+            "patch": """@@ -0,0 +1,5 @@
++    steps:
++      - uses: actions/checkout@main
++""",
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    rules = [f["rule"] for f in findings]
+    assert any("Action 版本鎖定規範" in r for r in rules)
+
+
+def test_static_checks_self_compliance():
+    py_files = list(AI_REVIEW_DIR.glob("*.py"))
+    assert len(py_files) >= 10
+    file_payloads = []
+    for py_file in py_files:
+        content = py_file.read_text(encoding="utf-8")
+        file_payloads.append(
+            {
+                "filename": f".github/ai-review/{py_file.name}",
+                "patch": "",
+                "full_content": content,
+            }
+        )
+    findings = static_checks.run_static_checks(file_payloads)
+    assert findings == []

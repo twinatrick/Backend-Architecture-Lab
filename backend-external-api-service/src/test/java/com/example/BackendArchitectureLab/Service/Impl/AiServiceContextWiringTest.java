@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         CompositeAiService.class
 }, properties = {
         "gemini.api.key=test-gemini-key",
-        "gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
         "deepseek.api.key=test-deepseek-key",
         "deepseek.api.url=https://api.deepseek.com/chat/completions",
         "deepseek.api.model=deepseek-v4-flash",

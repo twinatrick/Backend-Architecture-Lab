@@ -76,20 +76,33 @@ def execute_groq_loop(
 
                     if status_code == 429:
                         raw_retry_after = parse_retry_after(response)
-                        if len(groq_keys) > 1:
-                            if (
-                                raw_retry_after > 60.0
-                                or "TPD" in resp_text
-                                or "daily limit" in resp_text.lower()
-                                or "quota" in resp_text.lower()
-                            ):
-                                cooldown_seconds = max(raw_retry_after, 300.0)
-                            else:
-                                cooldown_seconds = max(raw_retry_after, 30.0)
-                            groq_key_pool.mark_cooldown(api_key, cooldown_seconds)
+                        is_tpd = (
+                            raw_retry_after > 60.0
+                            or "TPD" in resp_text
+                            or "daily limit" in resp_text.lower()
+                            or "quota" in resp_text.lower()
+                            or "tokens per day" in resp_text.lower()
+                        )
+                        cooldown_seconds = max(raw_retry_after, 3600.0 if is_tpd else 30.0)
+                        groq_key_pool.mark_cooldown(api_key, cooldown_seconds)
+
+                        active_keys = groq_key_pool.get_active_keys(groq_keys)
+                        if is_tpd:
                             print(
-                                f"Groq 金鑰 {var_name} ({masked_key}) 達到速率限制或配額耗盡 (429)，"
-                                f"已放入冷卻清單（{cooldown_seconds:.1f} 秒），隨機切換下一把可用金鑰..."
+                                f"Groq 金鑰 {var_name} ({masked_key}) 當日配額耗盡 (TPD 429)，"
+                                f"已冷卻 {cooldown_seconds:.0f} 秒。"
+                            )
+                            if not active_keys:
+                                print("Groq 所有可用金鑰配額均已耗盡，立即交棒由備援 Provider 接管。")
+                                return None
+                            print(f"切換下一把可用 Groq 金鑰（剩餘 {len(active_keys)} 把）...")
+                            time.sleep(1.0)
+                            break
+
+                        if len(active_keys) > 0 and len(groq_keys) > 1:
+                            print(
+                                f"Groq 金鑰 {var_name} 達到速率限制 (429)，"
+                                f"冷卻 {cooldown_seconds:.1f} 秒並切換其他金鑰..."
                             )
                             time.sleep(1.0)
                             break
@@ -97,24 +110,18 @@ def execute_groq_loop(
                         wait_seconds = calculate_backoff_delay(
                             attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
                         )
-                        if (
-                            attempt < max_retries_per_model
-                            and raw_retry_after <= 60.0
-                            and "TPD" not in resp_text
-                            and "daily limit" not in resp_text.lower()
-                            and "quota" not in resp_text.lower()
-                        ):
+                        if attempt < max_retries_per_model and raw_retry_after <= 60.0:
                             print(
-                                f"模型 {model_name} 達到速率限制 (429)，"
-                                f"指數退避等待 {wait_seconds:.1f} 秒後重試"
+                                f"模型 {model_name} 暫時速率限制 (429)，"
+                                f"等待 {wait_seconds:.1f} 秒後重試"
                                 f"（第 {attempt}/{max_retries_per_model} 次）..."
                             )
                             time.sleep(wait_seconds)
                             continue
 
-                        print(f"模型 {model_name} 達到重試上限或額度已滿，降級至備援清單尾端並切換下一個模型。")
+                        print(f"模型 {model_name} 達到重試上限，切換下一個候選模型。")
                         groq_model_pool.demote(model_name)
-                        time.sleep(2.0)
+                        time.sleep(1.0)
                         model_unsupported = True
                         break
 
@@ -128,7 +135,10 @@ def execute_groq_loop(
                         break
 
                     if status_code == 413:
-                        print(f"Groq 模型 {model_name} 請求負載過大 (413)：{reason_msg}，立即降級並切換下一個模型。")
+                        print(
+                            f"Groq 模型 {model_name} 請求負載過大 (413)：{reason_msg}，"
+                            "立即降級並切換下一個模型。"
+                        )
                         groq_model_pool.demote(model_name)
                         time.sleep(1.0)
                         model_unsupported = True
@@ -140,7 +150,7 @@ def execute_groq_loop(
                         )
                         print(
                             f"Groq 模型 {model_name} JSON 模式校驗失敗 (400)，"
-                            f"延後等待 {wait_seconds:.1f} 秒後降級為純文字模式並重試..."
+                            f"延後等待 {wait_seconds:.1f} 秒後降級為純文字模式重試..."
                         )
                         use_json_mode = False
                         time.sleep(wait_seconds)

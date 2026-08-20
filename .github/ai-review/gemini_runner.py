@@ -72,15 +72,31 @@ def execute_gemini_loop(
 
                     if status_code == 429 or "RESOURCE_EXHAUSTED" in resp_text:
                         raw_retry_after = parse_retry_after(response)
-                        cooldown_seconds = max(raw_retry_after, 60.0)
-                        if "quota" in resp_text.lower() or "RESOURCE_EXHAUSTED" in resp_text:
-                            cooldown_seconds = max(cooldown_seconds, 300.0)
+                        is_quota = (
+                            "quota" in resp_text.lower()
+                            or "RESOURCE_EXHAUSTED" in resp_text
+                            or raw_retry_after > 60.0
+                        )
+                        cooldown_seconds = max(raw_retry_after, 3600.0 if is_quota else 30.0)
+                        gemini_key_pool.mark_cooldown(api_key, cooldown_seconds)
 
-                        if len(gemini_keys) > 1:
-                            gemini_key_pool.mark_cooldown(api_key, cooldown_seconds)
+                        active_keys = gemini_key_pool.get_active_keys(gemini_keys)
+                        if is_quota:
                             print(
-                                f"Gemini 金鑰 {var_name} ({masked_key}) 達到速率限制或配額耗盡 (429)，"
-                                f"已放入冷卻清單（{cooldown_seconds:.1f} 秒），隨機切換下一把可用金鑰..."
+                                f"Gemini 金鑰 {var_name} ({masked_key}) 配額耗盡 (429)，"
+                                f"已冷卻 {cooldown_seconds:.0f} 秒。"
+                            )
+                            if not active_keys:
+                                print("Gemini 所有可用金鑰配額均已耗盡。")
+                                return None
+                            print(f"切換下一把可用 Gemini 金鑰（剩餘 {len(active_keys)} 把）...")
+                            time.sleep(1.0)
+                            break
+
+                        if len(active_keys) > 0 and len(gemini_keys) > 1:
+                            print(
+                                f"Gemini 金鑰 {var_name} 達到速率限制 (429)，"
+                                f"冷卻 {cooldown_seconds:.1f} 秒並切換其他金鑰..."
                             )
                             time.sleep(1.0)
                             break
@@ -88,23 +104,17 @@ def execute_gemini_loop(
                         wait_sec = calculate_backoff_delay(
                             attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
                         )
-                        if (
-                            attempt < max_retries_per_model
-                            and raw_retry_after <= 60.0
-                            and "quota" not in resp_text.lower()
-                            and "RESOURCE_EXHAUSTED" not in resp_text
-                        ):
+                        if attempt < max_retries_per_model and raw_retry_after <= 60.0:
                             print(
-                                f"Gemini 模型 {model_name} 達到速率限制 (429)，"
-                                f"指數退避等待 {wait_sec:.1f} 秒後重試"
-                                f"（第 {attempt}/{max_retries_per_model} 次）..."
+                                f"Gemini 模型 {model_name} 暫時速率限制 (429)，"
+                                f"等待 {wait_sec:.1f} 秒後重試（第 {attempt}/{max_retries_per_model} 次）..."
                             )
                             time.sleep(wait_sec)
                             continue
 
-                        print(f"Gemini 模型 {model_name} 達到重試上限或額度耗盡，切換下一個模型。")
+                        print(f"Gemini 模型 {model_name} 達到重試上限，切換下一個模型。")
                         gemini_model_pool.demote(model_name)
-                        time.sleep(2.0)
+                        time.sleep(1.0)
                         model_unsupported = True
                         break
 

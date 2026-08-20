@@ -91,8 +91,11 @@ def _process_batch(
         if fname in paths:
             raw_patch = file_item.get("patch")
             if not raw_patch and file_item.get("status") not in ("removed", "deleted"):
-                fallback_content = _fetch_file_content_fallback(repo_name, fname, head_sha)
+                fallback_content = file_item.get("full_content")
+                if fallback_content is None:
+                    fallback_content = _fetch_file_content_fallback(repo_name, fname, head_sha)
                 if fallback_content is not None:
+                    file_item["full_content"] = fallback_content
                     file_item["content"] = fallback_content
                     raw_patch = f"[Content fallback fetched]\n{fallback_content}"
                 else:
@@ -225,6 +228,12 @@ def main() -> None:
         raise SystemExit(mismatch_msg)
 
     head_sha = pull_request_data.get("head", {}).get("sha", "")
+    for file_item in files:
+        if file_item.get("status") not in ("removed", "deleted"):
+            blob = _fetch_file_content_fallback(repo_name, file_item.get("filename", ""), head_sha)
+            if blob is not None:
+                file_item["full_content"] = blob
+
     results = [
         _process_batch(
             scope,
