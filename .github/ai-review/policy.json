@@ -18,6 +18,7 @@
   ],
   "required_fields": [
     "location",
+    "category",
     "rule",
     "problem",
     "evidence",

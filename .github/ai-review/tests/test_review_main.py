@@ -43,18 +43,19 @@ def test_process_batch_with_llm_response(monkeypatch):
 {
   "batch": "business-1",
   "files_reviewed": ["App.java"],
-  "findings": [
-    {
-      "location": "App.java:10",
-      "rule": "RULE-01",
-      "problem": "Bad logic",
-      "evidence": "if (true)",
-      "risk": "Bug",
-      "recommendation": "Fix",
-      "severity": "HIGH",
-      "confidence": "HIGH"
-    }
-  ],
+      "findings": [
+        {
+          "location": "App.java:10",
+          "category": "Functional Correctness",
+          "rule": "RULE-01",
+          "problem": "Bad logic",
+          "evidence": "if (true)",
+          "risk": "Bug",
+          "recommendation": "Fix",
+          "severity": "HIGH",
+          "confidence": "HIGH"
+        }
+      ],
   "passed_checks": ["Check 1"],
   "coverage": "COMPLETE"
 }

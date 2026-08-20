@@ -4,7 +4,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_FIELDS = {
-    "location", "rule", "problem", "evidence", "risk",
+    "location", "category", "rule", "problem", "evidence", "risk",
     "recommendation", "severity", "confidence",
 }
 ALLOWED_SEVERITY = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
@@ -19,6 +19,9 @@ HIGH_RISK_PATH_KEYWORDS = (
     "/security/",
     "/filter/",
     "/aop/",
+    "/controller/",
+    "/feign/",
+    "backend-gateway/",
     "backend-iam-service/",
 )
 
@@ -29,9 +32,29 @@ def load_policy(path: str | Path | None = None) -> dict[str, Any]:
 
 
 def is_blocking(finding: dict[str, Any], policy: dict[str, Any]) -> bool:
-    return (
-        finding.get("severity") in set(policy.get("blocking_severities", []))
-        and finding.get("confidence") in set(policy.get("blocking_confidence", []))
+    blocking_severities = {
+        str(s).upper() for s in policy.get("blocking_severities", ["CRITICAL", "HIGH"])
+    }
+    blocking_confidences = {
+        str(c).upper() for c in policy.get("blocking_confidence", ["HIGH"])
+    }
+    blocking_categories = {
+        str(c).strip().upper() for c in policy.get("blocking_categories", [])
+    }
+    category = finding.get("category")
+    cat_upper = str(category).strip().upper() if category else ""
+    cat_matches = (
+        not blocking_categories
+        or not cat_upper
+        or cat_upper in blocking_categories
+        or any(bc in cat_upper for bc in blocking_categories)
+    )
+    sev = str(finding.get("severity", "")).upper()
+    conf = str(finding.get("confidence", "")).upper()
+    return bool(
+        sev in blocking_severities
+        and conf in blocking_confidences
+        and cat_matches
     )
 
 
@@ -44,7 +67,10 @@ def has_high_risk_scope(files: list[str]) -> bool:
     return any(is_high_risk_path(f) for f in files)
 
 
-def validate_finding(finding: dict[str, Any]) -> bool:
+def validate_finding(
+    finding: dict[str, Any],
+    allowed_files: list[str] | None = None,
+) -> bool:
     if not isinstance(finding, dict):
         return False
     if set(finding.keys()) != REQUIRED_FIELDS:
@@ -52,11 +78,22 @@ def validate_finding(finding: dict[str, Any]) -> bool:
     location = finding.get("location")
     if not isinstance(location, str) or not location.strip():
         return False
+    if ":" not in location:
+        return False
+    path, line_str = location.rsplit(":", 1)
+    if not path.strip() or not line_str.isdigit() or int(line_str) < 1:
+        return False
+    if allowed_files is not None:
+        norm_allowed = {f.replace("\\", "/").lower() for f in allowed_files}
+        if path.replace("\\", "/").lower() not in norm_allowed:
+            return False
     if finding.get("severity") not in ALLOWED_SEVERITY:
         return False
     if finding.get("confidence") not in ALLOWED_CONFIDENCE:
         return False
-    for field in ("rule", "problem", "evidence", "risk", "recommendation"):
+    for field in (
+        "category", "rule", "problem", "evidence", "risk", "recommendation"
+    ):
         val = finding.get(field)
         if not isinstance(val, str) or not val.strip():
             return False

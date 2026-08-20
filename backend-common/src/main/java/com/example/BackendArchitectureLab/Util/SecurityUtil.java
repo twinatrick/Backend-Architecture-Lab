@@ -2,20 +2,23 @@ package com.example.BackendArchitectureLab.Util;
 
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class SecurityUtil {
 
-    @Autowired(required = false)
-    private UserServiceFeignClient userServiceFeignClient;
+    private final UserServiceFeignClient userServiceFeignClient;
+
+    public SecurityUtil(Optional<UserServiceFeignClient> userServiceFeignClientOptional) {
+        this.userServiceFeignClient = userServiceFeignClientOptional.orElse(null);
+    }
 
     public UUID requireCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -27,7 +30,8 @@ public class SecurityUtil {
             throw new IllegalStateException("Current user not found - no email in authentication");
         }
         if (userServiceFeignClient == null) {
-            throw new IllegalStateException("Current user not found - UserServiceFeignClient is not available in this service");
+            throw new IllegalStateException(
+                    "Current user not found - UserServiceFeignClient is not available in this service");
         }
         UserVo userVo = userServiceFeignClient.getUserByEmail(email);
         if (userVo == null || userVo.getId() == null) {

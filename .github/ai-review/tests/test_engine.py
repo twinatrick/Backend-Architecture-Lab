@@ -77,6 +77,7 @@ def test_evaluate_policy_severity_and_decision():
 def test_validate_finding_schema_and_defaults():
     raw_finding = {
         "location": "src/main/App.java:10",
+        "category": "Security",
         "rule": "RULE-01",
         "problem": "Bad code",
         "evidence": "foo = bar",

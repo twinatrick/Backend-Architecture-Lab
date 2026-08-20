@@ -1,7 +1,8 @@
 package com.example.BackendArchitectureLab.Aop;
 
 import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
-import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.Optional;
 
 /**
  * 權限驗證抽象父類：預設以 Feign 呼叫 IAM 驗證。
@@ -9,10 +10,14 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public abstract class LocalPermissionValidator {
 
-    // required=false：IAM 環境下（已移除 @EnableFeignClients）無此 Feign bean，
-    // 因覆寫 validate() 不會使用到此欄位，注入失敗也不致影響啟動。
-    @Autowired(required = false)
-    protected PermissionCheckFeignClient permissionCheckFeignClient;
+    // 透過 Optional 建構子注入：IAM 環境下無此 Feign bean，
+    // 注入 Optional.empty() 不影響啟動。
+    protected final PermissionCheckFeignClient permissionCheckFeignClient;
+
+    protected LocalPermissionValidator(
+            Optional<PermissionCheckFeignClient> permissionCheckFeignClientOptional) {
+        this.permissionCheckFeignClient = permissionCheckFeignClientOptional.orElse(null);
+    }
 
     /**
      * 預設實作：透過 Feign 呼叫 IAM 的權限驗證端點。
@@ -24,6 +29,10 @@ public abstract class LocalPermissionValidator {
      * @return 是否具備權限
      */
     public boolean validate(String email, String one, String two, String three) {
+        if (permissionCheckFeignClient == null) {
+            throw new IllegalStateException(
+                    "PermissionCheckFeignClient is not available in this service");
+        }
         return permissionCheckFeignClient.validatePermission(email, one, two, three);
     }
 }

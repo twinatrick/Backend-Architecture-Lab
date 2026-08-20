@@ -1,7 +1,10 @@
 package com.example.BackendArchitectureLab.Aop;
 
+import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
 
 /**
  * 預設權限驗證器：當服務未提供 LocalPermissionValidator 實作時使用，
@@ -10,4 +13,9 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnMissingBean(LocalPermissionValidator.class)
 public class DefaultPermissionValidator extends LocalPermissionValidator {
+
+    public DefaultPermissionValidator(
+            Optional<PermissionCheckFeignClient> permissionCheckFeignClientOptional) {
+        super(permissionCheckFeignClientOptional);
+    }
 }

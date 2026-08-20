@@ -19,7 +19,7 @@ on:
         type: string
       head_sha:
         description: "Target Commit SHA to review (prevents TOCTOU)"
-        required: false
+        required: true
         type: string
 
 permissions:

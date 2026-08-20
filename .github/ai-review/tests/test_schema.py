@@ -7,14 +7,14 @@ if str(AI_REVIEW_DIR) not in sys.path:
 from engine import validate_finding
 
 REQUIRED = {
-    "location", "rule", "problem", "evidence", "risk",
+    "location", "category", "rule", "problem", "evidence", "risk",
     "recommendation", "severity", "confidence",
 }
 
 
 def test_valid_finding_passes():
     finding = {key: "x" for key in REQUIRED}
-    finding.update(severity="HIGH", confidence="HIGH")
+    finding.update(location="App.java:10", severity="HIGH", confidence="HIGH")
     assert validate_finding(finding)
 
 

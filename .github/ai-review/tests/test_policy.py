@@ -27,7 +27,7 @@ def test_medium_high_does_not_block():
 
 def test_policy_required_fields_are_present():
     required = {
-        "location", "rule", "problem", "evidence", "risk",
+        "location", "category", "rule", "problem", "evidence", "risk",
         "recommendation", "severity", "confidence",
     }
     assert required == set(POLICY["required_fields"])

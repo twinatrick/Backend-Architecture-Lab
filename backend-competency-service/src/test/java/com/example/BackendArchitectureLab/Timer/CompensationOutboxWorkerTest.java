@@ -533,6 +533,50 @@ class CompensationOutboxWorkerTest {
         assertEquals(1, semaphore.availablePermits());
     }
 
+    @Test
+    void flushPendingEvents_ShouldPreventConcurrentExecution_WhenWorkerAlreadyFlushing() {
+        AtomicBoolean isFlushing = (AtomicBoolean) ReflectionTestUtils.getField(compensationOutboxWorker, "isFlushing");
+        assertNotNull(isFlushing);
+        isFlushing.set(true);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository, never()).findPendingDue(anyList(), anyString(), any(Pageable.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldReclaimEvent_WhenPreviousLeaseExpired() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 2);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(outboxRepository.markSent(any(UUID.class), anyString(), any(), anyString(), anyString(), any(Date.class)))
+                .thenReturn(1);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).claimEvent(eq(outbox.getId()),
+                anyList(),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                anyString(),
+                any(Date.class),
+                any(Date.class));
+        verify(compensationPublisher).publish(any(CompensationEvent.class));
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+    }
+
     private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {
         CompensationOutboxEvent fresh = new CompensationOutboxEvent();
         fresh.setId(outbox.getId());
