@@ -177,3 +177,18 @@ def test_extract_json_payload_rejects_unparseable_balanced_candidates():
     raw = "Some invalid candidates { invalid: json } without quotes."
     with pytest.raises(json.JSONDecodeError):
         review_parser.extract_json_payload(raw)
+
+
+def test_extract_json_payload_autofills_missing_category():
+    raw = (
+        '{"batch": "ci-1", "files_reviewed": ["a.py"], '
+        '"findings": [{"severity": "HIGH", "confidence": "HIGH", '
+        '"location": "a.py:10", "rule": "SQL 注入與安全性規範", '
+        '"problem": "潛在注入風險", "evidence": "query()", '
+        '"risk": "資料洩漏", "recommendation": "改用參數化查詢"}]}'
+    )
+    parsed = review_parser.extract_json_payload(raw)
+    assert parsed["batch"] == "ci-1"
+    finding = parsed["findings"][0]
+    assert finding.get("category") == "SECURITY"
+

@@ -241,6 +241,40 @@ def test_static_checks_secret_with_test_comment_not_bypassed():
     assert any("敏感資訊與金鑰保護規範" in r for r in rules)
 
 
+def test_static_checks_ignores_unmodified_lines_in_full_content():
+    """驗證靜態檢查僅掃描 Patch 中的變更行，忽略未修改的歷史行。"""
+    # 建立一個全檔內容，其中第 2 行有 @Autowired，但 Patch 僅修改第 5 行
+    full_content = (
+        "@RestController\n"
+        "public class OldController {\n"
+        "    @Autowired\n"
+        "    private OldService oldService;\n"
+        "    public void newMethod() {\n"
+        "        int a = 1;\n"
+        "    }\n"
+        "}\n"
+    )
+    # Patch 僅新增第 5~7 行，未修改第 3~4 行的 @Autowired
+    patch = (
+        "@@ -4,2 +4,5 @@ public class OldController {\n"
+        "     private OldService oldService;\n"
+        "+    public void newMethod() {\n"
+        "+        int a = 1;\n"
+        "+    }\n"
+        " }\n"
+    )
+    files = [
+        {
+            "filename": "backend-iam/src/main/java/com/example/Controller/OldController.java",
+            "patch": patch,
+            "full_content": full_content,
+        }
+    ]
+    findings = static_checks.run_static_checks(files)
+    # 歷史行上的 @Autowired 應被過濾，不產生違規
+    assert findings == []
+
+
 def test_static_checks_self_compliance():
     py_files = list(AI_REVIEW_DIR.glob("*.py"))
     assert len(py_files) >= 10

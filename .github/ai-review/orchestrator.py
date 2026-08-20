@@ -1,5 +1,4 @@
 import json
-import sys
 
 import requests
 
@@ -29,16 +28,12 @@ from retry_utils import (
 
 def get_candidate_models() -> list[str]:
     candidates = GLOBAL_MODEL_POOL_GROQ.get_candidates()
-    if not get_groq_api_key():
+    key = get_groq_api_key()
+    if not key:
         return candidates
     try:
-        review_mod = sys.modules.get("review")
-        getter = getattr(review_mod, "get_available_models", None)
-        if getter is not None:
-            available_models = getter()
-        else:
-            client = GroqClient()
-            available_models = client.get_available_models(get_groq_api_key())
+        client = GroqClient()
+        available_models = client.get_available_models(key)
         filtered_candidates = [model for model in candidates if model in available_models]
         if filtered_candidates:
             return filtered_candidates
@@ -74,12 +69,7 @@ class ReviewOrchestrator:
         if not groq_keys:
             return candidates
         try:
-            review_mod = sys.modules.get("review")
-            getter = getattr(review_mod, "get_available_models", None)
-            if getter is not None:
-                available = getter()
-            else:
-                available = self.groq_client.get_available_models(groq_keys[0][1])
+            available = self.groq_client.get_available_models(groq_keys[0][1])
             filtered = [m for m in candidates if m in available]
             if filtered:
                 return filtered

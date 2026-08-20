@@ -145,8 +145,8 @@ def _process_batch(
         batch_data.setdefault("findings", []).extend(missing_findings)
 
     for finding in batch_data.get("findings", []):
-        if not validate_finding(finding):
-            schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式驗證。"
+        if not validate_finding(finding, allowed_files=paths):
+            schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式或範圍驗證。"
             publish_failure_report(pr_number, "Finding 格式驗證失敗", schema_err, finding)
             raise SystemExit(schema_err)
 
@@ -232,6 +232,11 @@ def main() -> None:
         fn for d in results for fn in normalize_paths(d.get("files_reviewed", []))
     ]
     llm_findings = [f for d in results for f in d.get("findings", [])]
+    for finding in llm_findings:
+        if not validate_finding(finding, allowed_files=expected_files):
+            invalid_err = f"發現超出本次 PR 範圍之 Finding：{finding.get('location')}"
+            publish_failure_report(pr_number, "Finding 超出 PR 範圍", invalid_err, finding)
+            raise SystemExit(invalid_err)
     passed_checks = [c for d in results for c in d.get("passed_checks", [])]
 
     # 執行確定性靜態規則檢查
@@ -274,17 +279,11 @@ def main() -> None:
     )
     publish_review(pr_number, body, decision)
     Path("review.md").write_text(body + "\n", encoding="utf-8")
-    Path("ai-review.json").write_text(
-        format_json_report(
-            decision,
-            unique_findings,
-            blocking_findings,
-            len(results),
-            changed_files,
-            audit_info=audit_info,
-        ),
-        encoding="utf-8",
+    json_report = format_json_report(
+        decision, unique_findings, blocking_findings, len(results),
+        changed_files, audit_info=audit_info,
     )
+    Path("ai-review.json").write_text(json_report, encoding="utf-8")
     print(body)
     if decision == "REQUEST_CHANGES":
         raise SystemExit(1)

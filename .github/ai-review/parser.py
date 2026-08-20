@@ -117,6 +117,35 @@ class ReviewResponseParser:
         repaired = ReviewResponseParser.repair_json_string(raw_text)
         parsed = json.loads(repaired)
         if isinstance(parsed, dict):
+            findings = parsed.get("findings")
+            if isinstance(findings, list):
+                for f in findings:
+                    if isinstance(f, dict):
+                        cat = str(f.get("category", "")).strip().upper()
+                        if not cat:
+                            rule_text = (
+                                str(f.get("rule", "")) + " " + str(f.get("problem", ""))
+                            ).lower()
+                            if any(
+                                k in rule_text
+                                for k in (
+                                    "security", "secret", "permission", "auth", "token",
+                                    "inject", "injection", "注入", "安全", "機密", "權限"
+                                )
+                            ):
+                                f["category"] = "SECURITY"
+                            elif any(
+                                k in rule_text
+                                for k in (
+                                    "architecture", "entity", "layer", "feign", "controller",
+                                    "service", "架構", "分層"
+                                )
+                            ):
+                                f["category"] = "ARCHITECTURE"
+                            else:
+                                f["category"] = "COMPLIANCE"
+                        else:
+                            f["category"] = cat
             return parsed
         raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
 

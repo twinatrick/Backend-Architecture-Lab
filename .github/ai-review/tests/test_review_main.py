@@ -225,3 +225,49 @@ def test_main_toctou_network_error_raises_system_exit(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as exc_info:
         review.main()
     assert exc_info.value.code != 0
+
+
+def test_process_batch_finding_outside_allowed_files_raises_system_exit(monkeypatch):
+    monkeypatch.setattr(
+        review,
+        "chat_completion",
+        MagicMock(return_value="""```json
+{
+  "batch": "business-1",
+  "files_reviewed": ["App.java"],
+  "findings": [
+    {
+      "location": "OtherFile.java:10",
+      "category": "ARCHITECTURE",
+      "rule": "RULE-01",
+      "problem": "Bad logic",
+      "evidence": "if (true)",
+      "risk": "Bug",
+      "recommendation": "Fix",
+      "severity": "HIGH",
+      "confidence": "HIGH"
+    }
+  ],
+  "passed_checks": ["Check 1"],
+  "coverage": "COMPLETE"
+}
+```"""),
+    )
+    files = [{"filename": "App.java", "patch": "+ if (true) return;"}]
+    policy = {
+        "blocking_severities": ["CRITICAL", "HIGH"],
+        "blocking_confidence": ["HIGH"],
+    }
+    with pytest.raises(SystemExit) as exc_info:
+        review._process_batch(
+            scope="business",
+            index=1,
+            paths=["App.java"],
+            files=files,
+            rules_text="## 1. 規則",
+            contract_text="contract",
+            policy=policy,
+            pr_number=42,
+        )
+    assert "未通過格式驗證" in str(exc_info.value) or exc_info.value.code != 0
+
