@@ -16,8 +16,8 @@ def format_markdown_report(
 ) -> str:
     """產出 Markdown 格式之 AI Review 報告全文。"""
     has_mandatory_review = any(
-        f.get("rule") == "Mandatory Human Architecture & Security Review"
-        for f in blocking_findings
+        finding_item.get("rule") == "Mandatory Human Architecture & Security Review"
+        for finding_item in blocking_findings
     ) or has_high_risk_scope(changed_files)
     report = [
         "# AI Code Review",
@@ -102,16 +102,16 @@ def format_json_report(
 ) -> str:
     """產出 JSON 格式之審查元數據。"""
     sanitized_findings = []
-    for f in unique_findings:
+    for finding_item in unique_findings:
         sanitized_findings.append({
-            k: redact_secrets(str(v)) if isinstance(v, str) else v
-            for k, v in f.items()
+            key_name: redact_secrets(str(val_obj)) if isinstance(val_obj, str) else val_obj
+            for key_name, val_obj in finding_item.items()
         })
     sanitized_blocking = []
-    for f in blocking_findings:
+    for finding_item in blocking_findings:
         sanitized_blocking.append({
-            k: redact_secrets(str(v)) if isinstance(v, str) else v
-            for k, v in f.items()
+            key_name: redact_secrets(str(val_obj)) if isinstance(val_obj, str) else val_obj
+            for key_name, val_obj in finding_item.items()
         })
     payload: dict[str, Any] = {
         "decision": decision,
@@ -122,8 +122,8 @@ def format_json_report(
     }
     if audit_info:
         payload["audit"] = {
-            k: redact_secrets(str(v)) if isinstance(v, str) else v
-            for k, v in audit_info.items()
+            key_name: redact_secrets(str(val_obj)) if isinstance(val_obj, str) else val_obj
+            for key_name, val_obj in audit_info.items()
         }
     return json.dumps(
         payload,

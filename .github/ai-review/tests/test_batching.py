@@ -29,7 +29,7 @@ def test_build_batches_categorization_and_chunking():
     assert "other" in scopes
 
     flattened = [filename for _, paths in batches for filename in paths]
-    assert sorted(flattened) == sorted([f["filename"] for f in files])
+    assert sorted(flattened) == sorted([file_dict["filename"] for file_dict in files])
 
 
 def test_build_batches_splits_large_batch():
@@ -40,7 +40,7 @@ def test_build_batches_splits_large_batch():
     batches = batching.build_batches(files, max_chars=15000)
     assert len(batches) >= 2
     flattened = [filename for _, paths in batches for filename in paths]
-    assert sorted(flattened) == sorted([f["filename"] for f in files])
+    assert sorted(flattened) == sorted([file_dict["filename"] for file_dict in files])
     assert len(flattened) == 4
 
 

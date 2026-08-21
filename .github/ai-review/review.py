@@ -10,22 +10,11 @@ import requests
 from batching import build_batches
 from engine import evaluate, load_policy, validate_coverage, validate_finding
 from github_client import (
-    REPO,
-    get_event_path,
-    get_repo,
-    gh_get,
-    normalize_paths,
-    publish_failure_report,
-    publish_review,
-    resolve_pr_number,
-    resolve_review_target,
-    validate_target_pr,
+    REPO, get_event_path, get_repo, gh_get, normalize_paths,
+    publish_failure_report, publish_review, resolve_pr_number,
+    resolve_review_target, validate_target_pr,
 )
-from key_pool import (
-    get_gemini_api_keys,
-    get_groq_api_keys,
-    reset_key_cooldowns,
-)
+from key_pool import get_gemini_api_keys, get_groq_api_keys
 from orchestrator import chat_completion
 from parser import extract_json_payload
 from prompt_builder import build_batch_prompt, filter_relevant_rules
@@ -206,7 +195,7 @@ def main() -> None:
     max_batch_chars = int(os.environ.get("AI_REVIEW_MAX_BATCH_CHARS", "24000"))
     batches = build_batches(files, max_chars=max_batch_chars)
 
-    expected_files = [fn for _, paths in batches for fn in paths]
+    expected_files = [file_name for _, paths in batches for file_name in paths]
     is_batch_valid = (
         sorted(expected_files) == sorted(changed_files)
         and len(expected_files) == len(set(expected_files))
@@ -232,15 +221,25 @@ def main() -> None:
     ]
 
     reviewed_files = [
-        fn for d in results for fn in normalize_paths(d.get("files_reviewed", []))
+        file_name
+        for result_dict in results
+        for file_name in normalize_paths(result_dict.get("files_reviewed", []))
     ]
-    llm_findings = [f for d in results for f in d.get("findings", [])]
+    llm_findings = [
+        finding_item
+        for result_dict in results
+        for finding_item in result_dict.get("findings", [])
+    ]
     for finding in llm_findings:
         if not validate_finding(finding, allowed_files=expected_files):
             invalid_err = f"發現超出本次 PR 範圍之 Finding：{finding.get('location')}"
             publish_failure_report(pr_number, "Finding 超出 PR 範圍", invalid_err, finding)
             raise SystemExit(invalid_err)
-    passed_checks = [c for d in results for c in d.get("passed_checks", [])]
+    passed_checks = [
+        check_item
+        for result_dict in results
+        for check_item in result_dict.get("passed_checks", [])
+    ]
 
     # 執行確定性靜態規則檢查
     static_findings = run_static_checks(files)
@@ -288,7 +287,7 @@ def main() -> None:
     )
     Path("ai-review.json").write_text(json_report, encoding="utf-8")
     print(body)
-    if decision == "REQUEST_CHANGES":
+    if decision != "APPROVE":
         raise SystemExit(1)
 
 

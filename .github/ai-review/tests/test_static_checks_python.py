@@ -19,9 +19,9 @@ def test_check_python_except_pass_ast_detected():
     patch = "@@ -1,5 +1,5 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
     files = [{"filename": "scripts/calc.py", "patch": patch, "full_content": content}]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("錯誤處理與安全規範" in r for r in rules)
-    assert any("禁止使用 except: pass" in f["problem"] for f in findings)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("錯誤處理與安全規範" in rule_text for rule_text in rules)
+    assert any("禁止使用 except: pass" in finding_item["problem"] for finding_item in findings)
 
 
 def test_check_python_function_level_import_detected():
@@ -33,9 +33,9 @@ def test_check_python_function_level_import_detected():
     patch = "@@ -1,3 +1,3 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
     files = [{"filename": "scripts/parser.py", "patch": patch, "full_content": content}]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("Import 置頂規範" in r for r in rules)
-    assert any("禁止在函式或方法內部宣告 import" in f["problem"] for f in findings)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("Import 置頂規範" in rule_text for rule_text in rules)
+    assert any("禁止在函式或方法內部宣告 import" in finding_item["problem"] for finding_item in findings)
 
 
 def test_check_python_top_level_import_not_flagged():
@@ -75,6 +75,70 @@ def test_check_python_ast_unmodified_lines_ignored():
     ]
     findings = static_checks.run_static_checks(files)
     assert findings == []
+
+
+def test_check_python_single_letter_variable_detected():
+    content = (
+        "def compute_total(price: int) -> int:\n"
+        "    total_val = price * 2\n"
+        "    var_x = total_val\n"
+        "    x = var_x\n"
+        "    return x\n"
+    )
+    patch = "@@ -1,5 +1,5 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
+    files = [{"filename": "scripts/calc.py", "patch": patch, "full_content": content}]
+    findings = static_checks.run_static_checks(files)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("禁止單字母變數規範" in rule_text for rule_text in rules)
+    assert any("變數 'x' 使用單字母命名" in finding_item["problem"] for finding_item in findings)
+
+
+def test_check_python_single_letter_parameter_detected():
+    content = (
+        "def transform(param_a: int) -> int:\n"
+        "    a = param_a\n"
+        "    return a + 1\n"
+    )
+    patch = "@@ -1,3 +1,3 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
+    files = [{"filename": "scripts/transform.py", "patch": patch, "full_content": content}]
+    findings = static_checks.run_static_checks(files)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("禁止單字母變數規範" in rule_text for rule_text in rules)
+    assert any("變數 'a' 使用單字母命名" in finding_item["problem"] for finding_item in findings)
+
+
+def test_check_python_loop_counter_i_and_underscore_allowed():
+    content = (
+        "def process_items(items: list[str]) -> list[str]:\n"
+        "    results: list[str] = []\n"
+        "    for i, item in enumerate(items):\n"
+        "        results.append(f'{i}:{item}')\n"
+        "    for _ in range(2):\n"
+        "        results.append('pad')\n"
+        "    return results\n"
+    )
+    patch = "@@ -1,7 +1,7 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
+    files = [{"filename": "scripts/processor.py", "patch": patch, "full_content": content}]
+    findings = static_checks.run_static_checks(files)
+    single_letter_findings = [
+        finding_item for finding_item in findings
+        if "禁止單字母變數規範" in finding_item["rule"]
+    ]
+    assert single_letter_findings == []
+
+
+def test_check_python_missing_type_hints_detected():
+    content = (
+        "def format_summary(title, count: int):\n"
+        "    return f'{title}: {count}'\n"
+    )
+    patch = "@@ -1,2 +1,2 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
+    files = [{"filename": "scripts/formatter.py", "patch": patch, "full_content": content}]
+    findings = static_checks.run_static_checks(files)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("型別標註規範" in rule_text for rule_text in rules)
+    assert any("參數 'title' 缺少型別標註" in finding_item["problem"] for finding_item in findings)
+    assert any("缺少明確的回傳型別標註" in finding_item["problem"] for finding_item in findings)
 
 
 def test_all_ai_review_python_files_compliance():

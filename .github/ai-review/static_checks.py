@@ -6,7 +6,19 @@ from pathlib import Path
 from typing import Any
 
 from check_java import check_java_file
-from check_rules import SECRET_REGEXES, make_finding
+from check_rules import (
+    RULE_PYTHON_ERROR_HANDLING,
+    RULE_PYTHON_IMPORT_TOP,
+    RULE_PYTHON_LINE_LENGTH,
+    RULE_PYTHON_MODULE_LOC,
+    RULE_PYTHON_SINGLE_LETTER,
+    RULE_PYTHON_SPECIFIC_EXCEPTION,
+    RULE_PYTHON_TYPE_HINTS,
+    RULE_SECRET_PROTECTION,
+    SECRET_REGEXES,
+    make_finding,
+)
+from check_workflow import check_workflow_file
 from diff_parser import extract_changed_lines
 
 
@@ -18,7 +30,10 @@ def check_secrets(
     """檢查原始碼或配置檔中是否含有硬編碼之機密金鑰。"""
     findings: list[dict[str, Any]] = []
     norm_path = path.replace("\\", "/").lower()
-    is_test = any(p in norm_path for p in ("src/test/", "/tests/", "tests/", "/test_", "test_"))
+    is_test = any(
+        test_path in norm_path
+        for test_path in ("src/test/", "/tests/", "tests/", "/test_", "test_")
+    )
 
     for idx, raw_line in enumerate(content.splitlines(), start=1):
         if changed_lines is not None and idx not in changed_lines:
@@ -27,80 +42,19 @@ def check_secrets(
         for pattern in SECRET_REGEXES:
             for match in pattern.finditer(line):
                 matched = match.group(0).lower()
-                if is_test and any(k in matched for k in ("dummy", "mock", "fake", "placeholder")):
+                if is_test and any(
+                    token in matched for token in ("dummy", "mock", "fake", "placeholder")
+                ):
                     continue
                 findings.append(make_finding(
                     path, idx, "HIGH", "SECURITY",
-                    "開發規範 §2 敏感資訊與金鑰保護規範",
+                    RULE_SECRET_PROTECTION,
                     "程式碼中發現疑似硬編碼之機密金鑰或 Token",
                     "發現符合 API Key / Private Key 格式之敏感字串",
                     "原始碼提交至版控將造成金鑰洩漏與未授權存取",
                     "將金鑰移除並改由環境變數或 Secret Manager 注入",
                 ))
                 break
-    return findings
-
-
-def check_workflow_file(
-    path: str,
-    content: str,
-    changed_lines: set[int] | None = None,
-) -> list[dict[str, Any]]:
-    """針對 GitHub Actions Workflow 檔案進行權限、觸發與安全表達式檢查。"""
-    findings: list[dict[str, Any]] = []
-    lines = content.splitlines()
-
-    for idx, raw_line in enumerate(lines, start=1):
-        if changed_lines is not None and idx not in changed_lines:
-            continue
-        line = raw_line.lstrip("+- ")
-        if "pull_request_target" in line:
-            has_checkout = "actions/checkout" in content
-            has_dyn = re.search(
-                r"ref:\s*['\"]?\$\{\{\s*github\.event\.pull_request\.head",
-                content,
-            )
-            if has_checkout and has_dyn:
-                findings.append(make_finding(
-                    path, idx, "HIGH", "SECURITY",
-                    "開發規範 §2 CI 信任邊界防護",
-                    "pull_request_target 搭配檢出不信任 PR 程式碼存在 RCE 風險",
-                    raw_line.strip(),
-                    "攻擊者可透過 PR 注入惡意程式碼並讀取 Repository Secrets",
-                    "改用 workflow_run 機制或移除動態 untrusted ref checkout",
-                ))
-        if re.search(r"\$\{\{\s*github\.event\.(?:issue|pull_request|comment)\.", line):
-            findings.append(make_finding(
-                path, idx, "HIGH", "SECURITY",
-                "開發規範 §2 CI 腳本表達式注入防護",
-                "在腳本中直接內嵌 github.event 上下文表達式",
-                raw_line.strip(),
-                "攻擊者可構造特殊 PR 標題或內容進行 Bash 命令注入",
-                "將 github.event 參數映射至 env 變數後於腳本使用",
-            ))
-        uses_match = re.search(r"uses:\s+([\w\-\.\/]+)@([^\s#]+)", line)
-        if uses_match:
-            action_name, ref = uses_match.groups()
-            if not action_name.startswith("./") and not action_name.startswith("docker://"):
-                if not re.fullmatch(r"[0-9a-fA-F]{40}", ref):
-                    findings.append(make_finding(
-                        path, idx, "HIGH", "SECURITY",
-                        "開發規範 §2 CI Action 版本鎖定規範",
-                        "Action 未鎖定 40 位元 Commit SHA",
-                        raw_line.strip(),
-                        "可變版本標籤或分支可能遭遇供應鏈投毒攻擊",
-                        "將 Action 鎖定為 40 位元 commit SHA (如 @11bd719... # v4.2.2)",
-                    ))
-        if "permissions: write-all" in line or re.search(r"permissions:\s*write-all", line):
-            findings.append(make_finding(
-                path, idx, "MEDIUM", "SECURITY",
-                "開發規範 §2 CI 最小權限原則",
-                "Workflow 宣告 permissions: write-all",
-                raw_line.strip(),
-                "授予 Workflow 過多非必要權限，增加 Token 洩漏風險",
-                "依據 Job 實際需求宣告最小必要權限",
-            ))
-
     return findings
 
 
@@ -115,7 +69,7 @@ def check_python_file(
     if len(lines) > 300:
         findings.append(make_finding(
             path, 1, "HIGH", "COMPLIANCE",
-            "開發規範 §4.3 單一職責與單檔行數限制",
+            RULE_PYTHON_MODULE_LOC,
             f"Python 檔案總行數 ({len(lines)}) 超過 300 行上限",
             f"Total lines: {len(lines)}",
             "God Module 難以維護且違反 SRP 原則",
@@ -129,7 +83,7 @@ def check_python_file(
         if len(raw_line) > 100 and not raw_line.strip().startswith("#"):
             findings.append(make_finding(
                 path, idx, "MEDIUM", "COMPLIANCE",
-                "開發規範 §4.2 程式碼格式與行長規範",
+                RULE_PYTHON_LINE_LENGTH,
                 f"單行長度 ({len(raw_line)}) 超過 100 字元上限",
                 raw_line[:90] + "...",
                 "降低程式碼可讀性與審查效率",
@@ -140,7 +94,7 @@ def check_python_file(
         ):
             findings.append(make_finding(
                 path, idx, "MEDIUM", "COMPLIANCE",
-                "開發規範 §4.4 具體例外處理規範",
+                RULE_PYTHON_SPECIFIC_EXCEPTION,
                 "捕捉過於寬泛的泛型 Exception 或 bare except",
                 raw_line.strip(),
                 "隱蔽非預期系統錯誤或鍵盤中斷",
@@ -148,8 +102,8 @@ def check_python_file(
             ))
 
     is_test_file = any(
-        p in path.replace("\\", "/").lower()
-        for p in ("src/test/", "/tests/", "tests/", "/test_", "test_")
+        test_path in path.replace("\\", "/").lower()
+        for test_path in ("src/test/", "/tests/", "tests/", "/test_", "test_")
     )
     try:
         tree = ast.parse(content)
@@ -157,47 +111,104 @@ def check_python_file(
             lineno = getattr(node, "lineno", None)
             if lineno is None:
                 continue
+
+            # 1. AST: 禁止 except: pass
             if isinstance(node, ast.ExceptHandler):
-                h_lineno = getattr(node, "lineno", lineno)
-                if (changed_lines is None or h_lineno in changed_lines) and len(node.body) == 1:
-                    if isinstance(node.body[0], ast.Pass):
-                        findings.append(make_finding(
-                            path, h_lineno, "MEDIUM", "COMPLIANCE",
-                            "開發規範 §4.4 錯誤處理與安全規範",
-                            "禁止使用 except: pass 靜默吞掉錯誤",
-                            "except 區塊僅包含 pass 語句",
-                            "靜默忽略異常導致系統狀態不一致且難以除錯",
-                            "記錄具體警告日誌 (logging.warning) 或拋出具體例外",
-                        ))
+                handler_lineno = getattr(node, "lineno", lineno)
+                is_single_pass = len(node.body) == 1 and isinstance(node.body[0], ast.Pass)
+                if (changed_lines is None or handler_lineno in changed_lines) and is_single_pass:
+                    findings.append(make_finding(
+                        path, handler_lineno, "MEDIUM", "COMPLIANCE",
+                        RULE_PYTHON_ERROR_HANDLING,
+                        "禁止使用 except: pass 靜默吞掉錯誤",
+                        "except 區塊僅包含 pass 語句",
+                        "靜默忽略異常導致系統狀態不一致且難以除錯",
+                        "記錄具體警告日誌 (logging.warning) 或拋出具體例外",
+                    ))
+
+            # 2. AST: 函式定義（型別標註與內部 import 檢查）
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 fn_start = node.lineno
                 fn_end = getattr(node, "end_lineno", fn_start)
                 fn_changed = changed_lines is None or any(
                     line_idx in changed_lines for line_idx in range(fn_start, fn_end + 1)
                 )
-                if fn_changed and not node.name.startswith("_") and not is_test_file:
+                if fn_changed and not is_test_file:
                     is_decl_changed = changed_lines is None or fn_start in changed_lines
+                    # 檢查回傳值 Type Hint
                     if node.returns is None and is_decl_changed:
                         findings.append(make_finding(
                             path, fn_start, "LOW", "COMPLIANCE",
-                            "開發規範 §4.3 型別標註規範",
-                            f"公開函式 {node.name} 缺少明確的回傳型別標註",
+                            RULE_PYTHON_TYPE_HINTS,
+                            f"函式 '{node.name}' 缺少明確的回傳型別標註",
                             f"def {node.name}(...)",
                             "缺少 Type Hints 降低程式碼可讀性與靜態檢查強度",
                             "為函式補齊回傳值 Type Hint (例如 -> None / -> str)",
                         ))
+                    # 檢查參數 Type Hint
+                    all_args = (
+                        list(node.args.posonlyargs)
+                        + list(node.args.args)
+                        + list(node.args.kwonlyargs)
+                    )
+                    for arg_node in all_args:
+                        if arg_node.arg in ("self", "cls"):
+                            continue
+                        arg_lineno = getattr(arg_node, "lineno", fn_start)
+                        is_arg_changed = (
+                            changed_lines is None
+                            or arg_lineno in changed_lines
+                            or is_decl_changed
+                        )
+                        if is_arg_changed and arg_node.annotation is None:
+                            findings.append(make_finding(
+                                path, arg_lineno, "LOW", "COMPLIANCE",
+                                RULE_PYTHON_TYPE_HINTS,
+                                f"函式 '{node.name}' 的參數 '{arg_node.arg}' 缺少型別標註",
+                                f"def {node.name}(..., {arg_node.arg}, ...)",
+                                "缺少參數 Type Hints 降低程式碼可讀性與靜態檢查強度",
+                                f"為參數補齊 Type Hint (例如 {arg_node.arg}: str)",
+                            ))
+
                 for child in node.body:
                     if isinstance(child, (ast.Import, ast.ImportFrom)):
-                        c_lineno = getattr(child, "lineno", lineno)
-                        if changed_lines is None or c_lineno in changed_lines:
+                        child_lineno = getattr(child, "lineno", lineno)
+                        if changed_lines is None or child_lineno in changed_lines:
                             findings.append(make_finding(
-                                path, c_lineno, "LOW", "COMPLIANCE",
-                                "開發規範 §4.1 Import 置頂規範",
+                                path, child_lineno, "LOW", "COMPLIANCE",
+                                RULE_PYTHON_IMPORT_TOP,
                                 "禁止在函式或方法內部宣告 import",
                                 "發現函式內部局部 import 宣告",
                                 "降低依賴可見性並增加執行期載入開銷",
                                 "將 import 宣告移至檔案最頂層",
                             ))
+
+            # 3. AST: 禁止單字母變數 (除迴圈 i 與忽略變數 _ 外)
+            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                var_name = node.id
+                if len(var_name) == 1 and var_name not in ("i", "_"):
+                    if changed_lines is None or lineno in changed_lines:
+                        findings.append(make_finding(
+                            path, lineno, "MEDIUM", "COMPLIANCE",
+                            RULE_PYTHON_SINGLE_LETTER,
+                            f"變數 '{var_name}' 使用單字母命名（僅允許迴圈計數器 i 或忽略變數 _）",
+                            var_name,
+                            "單字母變數降低程式碼可讀性並增加維護與審查成本",
+                            "將變數名稱重構為具備明確業務或技術語意的 snake_case 名稱",
+                        ))
+            elif isinstance(node, ast.arg):
+                param_name = node.arg
+                if len(param_name) == 1 and param_name not in ("i", "_"):
+                    if changed_lines is None or lineno in changed_lines:
+                        findings.append(make_finding(
+                            path, lineno, "MEDIUM", "COMPLIANCE",
+                            RULE_PYTHON_SINGLE_LETTER,
+                            f"參數 '{param_name}' 使用單字母命名（僅允許迴圈計數器 i）",
+                            param_name,
+                            "單字母參數降低函式介面可讀性與維護性",
+                            "將參數名稱重構為具備明確業務或技術語意的 snake_case 名稱",
+                        ))
+
     except (SyntaxError, ValueError) as exc:
         logging.warning("Python AST 解析檔案 %s 失敗: %s", path, exc)
 

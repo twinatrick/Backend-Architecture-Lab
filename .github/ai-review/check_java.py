@@ -2,7 +2,20 @@ import os
 import re
 from typing import Any
 
-from check_rules import BANNED_PERMISSIONS, make_finding
+from check_rules import (
+    BANNED_PERMISSIONS,
+    RULE_CONTROLLER_DATA_ISOLATION,
+    RULE_CONTROLLER_DEPENDENCY,
+    RULE_DEPENDENCY_INJECTION,
+    RULE_ENTITY_USAGE,
+    RULE_IAM_UNIDIRECTIONAL,
+    RULE_MICROSERVICE_ISOLATION,
+    RULE_OPENAPI_ANNOTATION,
+    RULE_PERMISSION_DICTIONARY,
+    RULE_PROHIBIT_SELF_FEIGN,
+    RULE_SERVICE_ENTITY_MANAGER,
+    make_finding,
+)
 
 SERVICE_MODULES = (
     "backend-iam-service",
@@ -70,7 +83,7 @@ def _check_cross_module(
     if any(target in line for target in forbidden):
         return make_finding(
             path, idx, "HIGH", "ARCHITECTURE",
-            "開發規範 §1.1 微服務資料庫與實體隔離規範",
+            RULE_MICROSERVICE_ISOLATION,
             f"微服務 {mod} 中直接引用外部微服務之 Entity 或 Repository",
             line.strip(),
             "破壞微服務資料庫獨立性與資料存取邊界",
@@ -102,10 +115,10 @@ def _check_self_feign_block(
             start_line = content[:start_pos].count("\n") + 1
             end_line = content[:end_pos].count("\n") + 1
             scope_lines = range(start_line, end_line + 1)
-            if changed_lines is None or any(l in changed_lines for l in scope_lines):
+            if changed_lines is None or any(line_num in changed_lines for line_num in scope_lines):
                 findings.append(make_finding(
                     path, start_line, "HIGH", "ARCHITECTURE",
-                    "開發規範 §1.2 禁止同服務自我 Feign 呼叫規範",
+                    RULE_PROHIBIT_SELF_FEIGN,
                     f"微服務 {mod} 內部宣告了指向自身的 Feign Client: {target_client}",
                     match.group(0).strip()[:100],
                     "自我 Feign 呼叫增加非必要網路開銷並繞過事務隔離",
@@ -128,7 +141,7 @@ def _check_iam_reverse_dependency(
     ):
         return make_finding(
             path, idx, "HIGH", "ARCHITECTURE",
-            "開發規範 §1.1 IAM 單向依賴原則",
+            RULE_IAM_UNIDIRECTIONAL,
             "IAM 基礎服務中反向引用業務微服務之 FeignClient",
             line.strip(),
             "違反 IAM 作為基礎核心服務的單向依賴架構，造成微服務循環依賴",
@@ -174,7 +187,7 @@ def check_java_file(
             if banned in line and ("@RequirePermission" in line or "hasAuthority" in line):
                 findings.append(make_finding(
                     path, idx, "HIGH", "SECURITY",
-                    "開發規範 §2 權限字典與禁用字串規範",
+                    RULE_PERMISSION_DICTIONARY,
                     f"使用了已被廢棄或禁用的權限字串: {banned}",
                     raw_line.strip(),
                     "使用非標準權限名稱將導致 RBAC 權限失效或鑑權失敗",
@@ -185,7 +198,7 @@ def check_java_file(
         if not is_test and re.search(r"@Autowired\b", line):
             findings.append(make_finding(
                 path, idx, "HIGH", "COMPLIANCE",
-                "開發規範 §1.4 依賴注入規範",
+                RULE_DEPENDENCY_INJECTION,
                 "生產程式碼中嚴禁使用 @Autowired 進行欄位注入",
                 raw_line.strip(),
                 "欄位注入隱藏依賴且不利於單元測試",
@@ -196,37 +209,50 @@ def check_java_file(
         if is_controller:
             if re.search(r"@Operation\(", line):
                 findings.append(make_finding(
-                    path, idx, "MEDIUM", "COMPLIANCE", "開發規範 §3 OpenAPI 標註規範",
+                    path, idx, "MEDIUM", "COMPLIANCE",
+                    RULE_OPENAPI_ANNOTATION,
                     "Controller 應使用專案封裝之 OpenApi 註解取代原生 @Operation",
-                    raw_line.strip(), "缺少統一的 API 響應結構與錯誤碼說明",
+                    raw_line.strip(),
+                    "缺少統一的 API 響應結構與錯誤碼說明",
                     "使用 @OpenApiCommonResponse 或專案標準註解封裝",
                 ))
             if re.search(r"private\s+final\s+.*EntityManager\b", line):
                 findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Controller 與資料層隔離規範",
-                    "Controller 嚴禁直接注入 EntityManager", raw_line.strip(),
+                    path, idx, "HIGH", "ARCHITECTURE",
+                    RULE_CONTROLLER_DATA_ISOLATION,
+                    "Controller 嚴禁直接注入 EntityManager",
+                    raw_line.strip(),
                     "破壞 Controller/Service/DataAccess 分層架構",
                     "移除 EntityManager，僅透過 Service 介面操作",
                 ))
             if re.search(r"private\s+final\s+.*(?:Repository|Mapper)\b", line):
                 findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Controller 依賴規範",
-                    "Controller 嚴禁直接注入 Repository 或 Mapper", raw_line.strip(),
-                    "違反 MVC 分層職責與資料隔離", "Controller 僅可注入 Service 介面，透過 Vo 進行互動",
+                    path, idx, "HIGH", "ARCHITECTURE",
+                    RULE_CONTROLLER_DEPENDENCY,
+                    "Controller 嚴禁直接注入 Repository 或 Mapper",
+                    raw_line.strip(),
+                    "違反 MVC 分層職責與資料隔離",
+                    "Controller 僅可注入 Service 介面，透過 Vo 進行互動",
                 ))
             if re.search(r"public\s+(?:ResponseEntity<)?\w+Entity(?:>)?\s+\w+\(", line):
                 findings.append(make_finding(
-                    path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.3 Entity 使用規範",
-                    "Controller 方法回傳型別包含 Entity", raw_line.strip(),
-                    "Entity 洩漏至 API 對外介面，破壞封裝", "將回傳型別轉換為 Vo",
+                    path, idx, "HIGH", "ARCHITECTURE",
+                    RULE_ENTITY_USAGE,
+                    "Controller 方法回傳型別包含 Entity",
+                    raw_line.strip(),
+                    "Entity 洩漏至 API 對外介面，破壞封裝",
+                    "將回傳型別轉換為 Vo",
                 ))
 
         # 6. Service Impl EntityManager 操作檢查
         if is_service_impl and re.search(r"private\s+final\s+.*EntityManager\b", line):
             findings.append(make_finding(
-                path, idx, "HIGH", "ARCHITECTURE", "開發規範 §1.1 Service 禁止操作 EntityManager",
-                "Service Impl 禁止直接注入 EntityManager", raw_line.strip(),
-                "違反資料存取抽象化規範", "將資料庫操作封裝至 DataAccess 或 Repository",
+                path, idx, "HIGH", "ARCHITECTURE",
+                RULE_SERVICE_ENTITY_MANAGER,
+                "Service Impl 禁止直接注入 EntityManager",
+                raw_line.strip(),
+                "違反資料存取抽象化規範",
+                "將資料庫操作封裝至 DataAccess 或 Repository",
             ))
 
     return findings

@@ -147,8 +147,22 @@ def test_publish_review_raises_fail_closed_when_comment_review_fails():
 
 def test_publish_review_succeeds_when_request_changes_review_succeeds():
     with patch("github_client.post_issue_comment", return_value={"id": 123}), \
-         patch("github_client.post_pr_review", return_value={"id": 456}):
-        assert github_client.publish_review(42, "review body", "REQUEST_CHANGES") is True
+         patch("github_client.post_pr_review", return_value={"id": 456}), \
+         patch("github_client.post_commit_status", return_value={"id": 789}):
+        assert github_client.publish_review(
+            42, "review body", "REQUEST_CHANGES", commit_id="commit123"
+        ) is True
+
+
+def test_publish_review_raises_fail_closed_when_commit_status_fails():
+    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
+         patch("github_client.post_pr_review", return_value={"id": 456}), \
+         patch("github_client.post_commit_status", return_value=None):
+        with pytest.raises(RuntimeError) as exc_info:
+            github_client.publish_review(
+                42, "review body", "APPROVE", commit_id="commit123"
+            )
+        assert "無法為 Commit commit123 發布 Commit Status" in str(exc_info.value)
 
 
 def test_resolve_pr_number_fails_when_unresolved():

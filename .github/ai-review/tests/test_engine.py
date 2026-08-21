@@ -65,14 +65,15 @@ def test_evaluate_policy_severity_and_decision():
     assert res_high_risk_ci["decision"] == "REQUEST_CHANGES"
     assert len(res_high_risk_ci["blocking_findings"]) >= 1
 
-    # 覆蓋率未達標時應回傳 FAIL 決策
+    # 覆蓋率未達標時應回傳 REQUEST_CHANGES 決策且包含 blocking findings
     res_cov_fail = engine.evaluate(
         findings=[],
         expected_files=["src/App.java"],
         reviewed_files=[],
         policy=policy,
     )
-    assert res_cov_fail["decision"] == "FAIL"
+    assert res_cov_fail["decision"] == "REQUEST_CHANGES"
+    assert len(res_cov_fail["blocking_findings"]) >= 1
 
 
 def test_validate_finding_schema_and_defaults():

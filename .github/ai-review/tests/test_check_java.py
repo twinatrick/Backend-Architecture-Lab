@@ -20,8 +20,8 @@ def test_check_java_cross_module_data_access():
         "backend-iam-service/src/main/java/com/example/UserServiceImpl.java",
         content,
     )
-    rules = [f["rule"] for f in findings]
-    assert any("微服務資料庫與實體隔離規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("微服務資料庫與實體隔離規範" in rule_text for rule_text in rules)
 
 
 def test_check_java_self_feign_prohibition():
@@ -35,8 +35,8 @@ def test_check_java_self_feign_prohibition():
         "backend-competency-service/src/main/java/com/example/CompetencySelfFeignClient.java",
         content,
     )
-    rules = [f["rule"] for f in findings]
-    assert any("禁止同服務自我 Feign 呼叫" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("禁止同服務自我 Feign 呼叫" in rule_text for rule_text in rules)
 
 
 def test_check_java_iam_dependency_inversion():
@@ -51,5 +51,5 @@ def test_check_java_iam_dependency_inversion():
         "backend-iam-service/src/main/java/com/example/IamServiceImpl.java",
         content,
     )
-    rules = [f["rule"] for f in findings]
-    assert any("IAM 單向依賴原則" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("IAM 單向依賴原則" in rule_text for rule_text in rules)

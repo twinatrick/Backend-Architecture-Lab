@@ -121,33 +121,33 @@ class ReviewResponseParser:
         if isinstance(parsed, dict):
             findings = parsed.get("findings")
             if isinstance(findings, list):
-                for f in findings:
-                    if isinstance(f, dict):
-                        cat = str(f.get("category", "")).strip().upper()
-                        if not cat or cat not in ALLOWED_CATEGORIES:
-                            rule_text = (
-                                str(f.get("rule", "")) + " " + str(f.get("problem", ""))
-                            ).lower()
+                for finding_item in findings:
+                    if isinstance(finding_item, dict):
+                        category_val = str(finding_item.get("category", "")).strip().upper()
+                        if not category_val or category_val not in ALLOWED_CATEGORIES:
+                            rule_str = str(finding_item.get("rule", ""))
+                            prob_str = str(finding_item.get("problem", ""))
+                            rule_text = f"{rule_str} {prob_str}".lower()
                             if any(
-                                k in rule_text
-                                for k in (
+                                keyword in rule_text
+                                for keyword in (
                                     "security", "secret", "permission", "auth", "token",
                                     "inject", "injection", "注入", "安全", "機密", "權限"
                                 )
                             ):
-                                f["category"] = "SECURITY"
+                                finding_item["category"] = "SECURITY"
                             elif any(
-                                k in rule_text
-                                for k in (
+                                keyword in rule_text
+                                for keyword in (
                                     "architecture", "entity", "layer", "feign", "controller",
                                     "service", "架構", "分層"
                                 )
                             ):
-                                f["category"] = "ARCHITECTURE"
+                                finding_item["category"] = "ARCHITECTURE"
                             else:
-                                f["category"] = "COMPLIANCE"
+                                finding_item["category"] = "COMPLIANCE"
                         else:
-                            f["category"] = cat
+                            finding_item["category"] = category_val
             return parsed
         raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
 

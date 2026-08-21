@@ -27,9 +27,9 @@ def test_static_checks_github_workflow_pull_request_target():
     ]
     findings = static_checks.run_static_checks(files)
     assert len(findings) >= 1
-    rules = [f["rule"] for f in findings]
-    assert any("CI 信任邊界防護" in r for r in rules)
-    assert any(f["severity"] == "HIGH" for f in findings)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("CI 信任邊界防護" in rule_text for rule_text in rules)
+    assert any(finding_item["severity"] == "HIGH" for finding_item in findings)
 
 
 def test_static_checks_github_workflow_expression_injection():
@@ -44,8 +44,8 @@ def test_static_checks_github_workflow_expression_injection():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("CI 腳本表達式注入防護" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("CI 腳本表達式注入防護" in rule_text for rule_text in rules)
 
 
 def test_static_checks_java_controller_entity_manager_and_entity():
@@ -66,10 +66,10 @@ def test_static_checks_java_controller_entity_manager_and_entity():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("Controller 與資料層隔離規範" in r for r in rules)
-    assert any("Controller 依賴規範" in r for r in rules)
-    assert any("Entity 使用規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("Controller 與資料層隔離規範" in rule_text for rule_text in rules)
+    assert any("Controller 依賴規範" in rule_text for rule_text in rules)
+    assert any("Entity 使用規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_java_service_entity_manager():
@@ -85,8 +85,8 @@ def test_static_checks_java_service_entity_manager():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("Service 禁止操作 EntityManager" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("Service 禁止操作 EntityManager" in rule_text for rule_text in rules)
 
 
 def test_static_checks_python_generic_exception():
@@ -102,8 +102,8 @@ def test_static_checks_python_generic_exception():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("具體例外處理規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("具體例外處理規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_java_banned_permissions_and_autowired():
@@ -123,9 +123,9 @@ def test_static_checks_java_banned_permissions_and_autowired():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("權限字典與禁用字串規範" in r for r in rules)
-    assert any("依賴注入規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("權限字典與禁用字串規範" in rule_text for rule_text in rules)
+    assert any("依賴注入規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_java_controller_raw_operation():
@@ -142,12 +142,12 @@ def test_static_checks_java_controller_raw_operation():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("OpenAPI 標註規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("OpenAPI 標註規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_python_line_length_and_loc():
-    long_line = "a = '" + ("x" * 120) + "'"
+    long_line = "dummy_long_var = '" + ("x" * 120) + "'"
     files = [
         {
             "filename": "scripts/long.py",
@@ -155,22 +155,22 @@ def test_static_checks_python_line_length_and_loc():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("程式碼格式與行長規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("程式碼格式與行長規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_python_full_content_loc_exceeded():
-    fake_full_content = "\n".join([f"x_{i} = {i}" for i in range(305)])
+    fake_full_content = "\n".join([f"var_{idx} = {idx}" for idx in range(305)])
     files = [
         {
             "filename": "scripts/large_module.py",
-            "patch": "+x_0 = 0\n",
+            "patch": "+var_0 = 0\n",
             "full_content": fake_full_content,
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("單檔行數限制" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("單檔行數限制" in rule_text for rule_text in rules)
 
 
 def test_static_checks_github_workflow_unpinned_action():
@@ -184,8 +184,8 @@ def test_static_checks_github_workflow_unpinned_action():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("Action 版本鎖定規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("Action 版本鎖定規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_secret_exposure():
@@ -198,8 +198,8 @@ def test_static_checks_secret_exposure():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("敏感資訊與金鑰保護規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("敏感資訊與金鑰保護規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_secret_in_tests_dir_mock_fixture_ignored():
@@ -223,8 +223,8 @@ def test_static_checks_secret_in_tests_dir_real_pattern_detected():
         }
     ]
     findings = static_checks.run_static_checks(files)
-    rules = [f["rule"] for f in findings]
-    assert any("敏感資訊與金鑰保護規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("敏感資訊與金鑰保護規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_secret_with_test_comment_not_bypassed():
@@ -237,29 +237,27 @@ def test_static_checks_secret_with_test_comment_not_bypassed():
     ]
     findings = static_checks.run_static_checks(files)
     assert len(findings) >= 1
-    rules = [f["rule"] for f in findings]
-    assert any("敏感資訊與金鑰保護規範" in r for r in rules)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("敏感資訊與金鑰保護規範" in rule_text for rule_text in rules)
 
 
 def test_static_checks_ignores_unmodified_lines_in_full_content():
     """驗證靜態檢查僅掃描 Patch 中的變更行，忽略未修改的歷史行。"""
-    # 建立一個全檔內容，其中第 2 行有 @Autowired，但 Patch 僅修改第 5 行
     full_content = (
         "@RestController\n"
         "public class OldController {\n"
         "    @Autowired\n"
         "    private OldService oldService;\n"
         "    public void newMethod() {\n"
-        "        int a = 1;\n"
+        "        int count = 1;\n"
         "    }\n"
         "}\n"
     )
-    # Patch 僅新增第 5~7 行，未修改第 3~4 行的 @Autowired
     patch = (
         "@@ -4,2 +4,5 @@ public class OldController {\n"
         "     private OldService oldService;\n"
         "+    public void newMethod() {\n"
-        "+        int a = 1;\n"
+        "+        int count = 1;\n"
         "+    }\n"
         " }\n"
     )

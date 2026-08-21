@@ -21,16 +21,15 @@ def get_event_path() -> str:
 
 
 def normalize_path(path_str: str) -> str:
-    return (
-        path_str.strip().replace("\\", "/").removeprefix("./")
-        if isinstance(path_str, str) else ""
-    )
+    if not isinstance(path_str, str):
+        return ""
+    return path_str.strip().replace("\\", "/").removeprefix("./")
 
 
 def normalize_paths(path_list: list[str]) -> list[str]:
     return [
-        normalize_path(p) for p in (path_list or [])
-        if isinstance(p, str) and normalize_path(p)
+        normalize_path(item_path) for item_path in (path_list or [])
+        if isinstance(item_path, str) and normalize_path(item_path)
     ]
 
 
@@ -65,7 +64,7 @@ def validate_target_pr(
     allowed = allowed_base_refs or os.environ.get(
         "ALLOWED_BASE_BRANCHES", "master,main"
     ).split(",")
-    allowed_clean = [b.strip() for b in allowed if b.strip()]
+    allowed_clean = [branch_name.strip() for branch_name in allowed if branch_name.strip()]
     if base_ref not in allowed_clean:
         return False, f"PR 目標分支 '{base_ref}' 非受信任基準分支（允許：{allowed_clean}）"
 
@@ -102,8 +101,8 @@ def resolve_pr_number(event: dict) -> int:
 
     if len(pull_requests) > 1:
         matching = [
-            p for p in pull_requests
-            if head_sha and p.get("head", {}).get("sha") == head_sha
+            pull_request_item for pull_request_item in pull_requests
+            if head_sha and pull_request_item.get("head", {}).get("sha") == head_sha
         ]
         if len(matching) == 1 and matching[0].get("number"):
             return int(matching[0]["number"])
@@ -126,7 +125,10 @@ def resolve_pr_number(event: dict) -> int:
             if len(associated) == 1 and associated[0].get("number"):
                 return int(associated[0]["number"])
             if len(associated) > 1:
-                open_pulls = [p for p in associated if p.get("state") == "open"]
+                open_pulls = [
+                    pull_item for pull_item in associated
+                    if pull_item.get("state") == "open"
+                ]
                 if len(open_pulls) == 1 and open_pulls[0].get("number"):
                     return int(open_pulls[0]["number"])
                 raise SystemExit(f"Commit SHA {head_sha} 關聯多個候選 PR，無法唯一確定。")
@@ -169,11 +171,14 @@ def post_issue_comment(pr_number: int, body: str) -> dict | None:
     url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
     try:
         existing = gh_get(url, params={"per_page": 100})
-        for c in existing:
-            if REVIEW_MARKER in c.get("body", ""):
-                c_url = f"https://api.github.com/repos/{repo}/issues/comments/{c['id']}"
+        for comment_item in existing:
+            if REVIEW_MARKER in comment_item.get("body", ""):
+                target_comment_id = comment_item["id"]
+                comment_url = (
+                    f"https://api.github.com/repos/{repo}/issues/comments/{target_comment_id}"
+                )
                 res = requests.patch(
-                    c_url, headers=get_github_headers(),
+                    comment_url, headers=get_github_headers(),
                     json={"body": marked_body}, timeout=30,
                 )
                 res.raise_for_status()
@@ -248,7 +253,10 @@ def publish_review(
         raise RuntimeError(f"無法在 PR #{pr_number} 提交正式 PR Review，觸發 Fail-Closed。")
     if commit_id:
         status_state = "success" if decision == "APPROVE" else "failure"
-        post_commit_status(commit_id, status_state, f"AI Review: {decision}")
+        status_res = post_commit_status(commit_id, status_state, f"AI Review: {decision}")
+        if status_res is None:
+            err = f"無法為 Commit {commit_id} 發布 Commit Status ({status_state})，觸發 Fail-Closed。"
+            raise RuntimeError(err)
     return True
 
 

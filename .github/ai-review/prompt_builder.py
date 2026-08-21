@@ -71,7 +71,7 @@ def build_batch_prompt(
     clean_diff = sanitize_diff(diff)
     clean_contract = sanitize_diff(contract_text)
     clean_rules = sanitize_diff(relevant_rules)
-    clean_paths = [sanitize_diff(p) for p in paths]
+    clean_paths = [sanitize_diff(path_item) for path_item in paths]
     paths_str = "\n".join(clean_paths)
 
     json_template = (

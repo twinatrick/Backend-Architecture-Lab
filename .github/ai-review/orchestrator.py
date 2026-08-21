@@ -8,7 +8,6 @@ from key_pool import (
     GLOBAL_KEY_POOL_GEMINI,
     GLOBAL_KEY_POOL_GROQ,
     KeyPool,
-    get_groq_api_key,
 )
 from model_pool import (
     GLOBAL_MODEL_POOL_GEMINI,
@@ -17,29 +16,7 @@ from model_pool import (
 )
 from parser import ReviewResponseParser
 from providers import GeminiClient, GroqClient
-from retry_utils import (
-    DEFAULT_MAX_RETRIES_PER_MODEL,
-    MAX_RETRY_LIMIT,
-    calculate_backoff_delay,
-    parse_retry_after,
-    parse_retry_limit,
-)
-
-
-def get_candidate_models() -> list[str]:
-    candidates = GLOBAL_MODEL_POOL_GROQ.get_candidates()
-    key = get_groq_api_key()
-    if not key:
-        return candidates
-    try:
-        client = GroqClient()
-        available_models = client.get_available_models(key)
-        filtered_candidates = [model for model in candidates if model in available_models]
-        if filtered_candidates:
-            return filtered_candidates
-    except requests.RequestException as exc:
-        print(f"無法列舉 Groq 可用模型清單：{exc}，直接依序嘗試備援候選模型。")
-    return candidates
+from retry_utils import DEFAULT_MAX_RETRIES_PER_MODEL
 
 
 class ReviewOrchestrator:
@@ -70,7 +47,10 @@ class ReviewOrchestrator:
             return candidates
         try:
             available = self.groq_client.get_available_models(groq_keys[0][1])
-            filtered = [m for m in candidates if m in available]
+            filtered = [
+                model_name for model_name in candidates
+                if model_name in available
+            ]
             if filtered:
                 return filtered
         except requests.RequestException as exc:

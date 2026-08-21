@@ -51,8 +51,8 @@ def test_get_gemini_api_keys_discovery_and_sorting():
     }
     with patch.dict(os.environ, env_vars, clear=True):
         keys = key_pool.get_gemini_api_keys()
-        var_names = [k[0] for k in keys]
-        key_vals = [k[1] for k in keys]
+        var_names = [key_item[0] for key_item in keys]
+        key_vals = [key_item[1] for key_item in keys]
         assert var_names == [
             "GEMINI_API_KEY",
             "GEMINI_API_KEY_1",
@@ -72,8 +72,8 @@ def test_get_groq_api_keys_discovery_and_sorting():
     }
     with patch.dict(os.environ, env_vars, clear=True):
         keys = key_pool.get_groq_api_keys()
-        var_names = [k[0] for k in keys]
-        key_vals = [k[1] for k in keys]
+        var_names = [key_item[0] for key_item in keys]
+        key_vals = [key_item[1] for key_item in keys]
         assert var_names == [
             "GROQ_API_KEY",
             "GROQ_API_KEY_1",

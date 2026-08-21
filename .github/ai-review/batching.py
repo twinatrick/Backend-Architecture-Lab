@@ -17,7 +17,7 @@ def _classify_file(filename: str, file_item: dict) -> str:
 
     # 安全與 API 邊界特徵（優先於一般業務）
     if (
-        any(k in path_lower for k in (
+        any(keyword in path_lower for keyword in (
             "/controller/", "/security/", "/permission/", "/auth/",
             "/gateway/", "/filter/", "/aop/", "controller", "security",
             "permission", "auth", "openapi",
@@ -30,7 +30,7 @@ def _classify_file(filename: str, file_item: dict) -> str:
 
     # 外部整合與通訊特徵
     if (
-        any(k in path_lower for k in (
+        any(keyword in path_lower for keyword in (
             "/feign/", "/client/", "/external/", "/integration/",
             "/kafka/", "/consumer/", "/publisher/", "feign",
             "client", "integration", "external",
@@ -41,7 +41,7 @@ def _classify_file(filename: str, file_item: dict) -> str:
         return "integration"
 
     # 資料存取與持久化特徵
-    if any(k in path_lower for k in (
+    if any(keyword in path_lower for keyword in (
         "/repository/", "/entity/", "/dataaccess/", "/dao/",
         "/migration/", "/mapper/", "repository", "entity",
         "dao", "migration", "mapper",
@@ -49,7 +49,7 @@ def _classify_file(filename: str, file_item: dict) -> str:
         return "data"
 
     # 核心業務邏輯特徵
-    if any(k in path_lower for k in (
+    if any(keyword in path_lower for keyword in (
         "/service/", "/domain/", "/usecase/", "/timer/",
         "service", "domain", "usecase", "timer",
     )):
