@@ -17,12 +17,12 @@ TOKEN_REGEX_PATTERNS = [
     re.compile(r"\b(?:AKIA|ASIA|AROA|AIDA)[0-9A-Z]{16}\b"),
     re.compile(r"\bxox[baprs]-[0-9A-Za-z\-]{10,}\b"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
-    re.compile(r"(?i)(https?://[a-zA-Z0-9_\-\.]+):([a-zA-Z0-9_\-\.+=~@]+)@"),
     re.compile(
-        r"(?i)([\"']?(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
-        r"password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*[\"']?)"
-        r"([a-zA-Z0-9_\-\.\/+=~]{8,})"
-        r"([\"']?)"
+        r"(?i)((?:https?|jdbc:[a-zA-Z0-9_\-]+|postgresql|postgres|mysql|oracle|"
+        r"redis|mongodb|amqp|grpc)://[^:\s/@]*):([^@\s/]+)@"
+    ),
+    re.compile(
+        r"(?i)([?&](?:token|key|secret|password|auth|access_token|api_key|credential)=)([^&\s]+)"
     ),
 ]
 
@@ -46,7 +46,7 @@ def _get_all_known_secrets() -> set[str]:
             for token_keyword in ("KEY", "SECRET", "TOKEN", "PASSWORD", "AUTH", "CREDENTIAL")
         ):
             str_val = str(env_val).strip()
-            if len(str_val) >= 8:
+            if len(str_val) >= 6:
                 known_secrets.add(str_val)
 
     return known_secrets
@@ -88,27 +88,41 @@ def sanitize_diff(diff: str) -> str:
         sanitized,
     )
 
-    # 4. 遮蔽 URL Basic Auth 密碼
+    # 4. 遮蔽各類連線字串 (HTTP/JDBC/Redis/Mongo/AMQP/gRPC) 與 URL Query Parameter 中的帳密/Token
     sanitized = re.sub(
-        r"(?i)(https?://[a-zA-Z0-9_\-\.]+):([a-zA-Z0-9_\-\.+=~@]+)@",
+        r"(?i)((?:https?|jdbc:[a-zA-Z0-9_\-]+|postgresql|postgres|mysql|oracle|"
+        r"redis|mongodb|amqp|grpc)://[^:\s/@]*):([^@\s/]+)@",
         r"\1:[REDACTED]@",
         sanitized,
     )
+    sanitized = re.sub(
+        r"(?i)([?&](?:token|key|secret|password|auth|access_token|api_key|credential)=)([^&\s]+)",
+        r"\1[REDACTED]",
+        sanitized,
+    )
 
-    # 5. 遮蔽程式碼/設定檔中的 key-value 密鑰指派（限定引號字面值或 YAML 屬性，避免誤遮蔽函數調用）
+    # 5. 遮蔽程式碼與設定檔 (YAML/Properties/.env) 中的各類敏感鍵值
+    yaml_pattern = re.compile(
+        r"(?im)(^\s*[a-zA-Z0-9_.-]*(?:password|secret|token|credential|"
+        r"api[_-]?key|auth|private[_-]?key)[a-zA-Z0-9_.-]*\s*:\s+)([^\"'\r\n#\s()]{3,})"
+        r"(\s*(?:#.*)?)$"
+    )
+    sanitized = yaml_pattern.sub(r"\1[REDACTED]\3", sanitized)
+
+    prop_env_pattern = re.compile(
+        r"(?im)(^\s*(?:[a-zA-Z0-9_]+\.[a-zA-Z0-9_.-]*|[A-Z0-9_]{3,})"
+        r"(?:password|secret|token|credential|api[_-]?key|auth|private[_-]?key)"
+        r"[a-zA-Z0-9_.-]*\s*=\s*)([^\"'\r\n#\s()]{3,})(\s*(?:#.*)?)$"
+    )
+    sanitized = prop_env_pattern.sub(r"\1[REDACTED]\3", sanitized)
+
     quoted_pattern = re.compile(
         r"(?i)([\"']?(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
         r"password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*)([\"'])"
-        r"([^\"'\r\n]{8,})"
+        r"([^\"'\r\n]{3,})"
         r"(\2)"
     )
     sanitized = quoted_pattern.sub(r"\1\2[REDACTED]\4", sanitized)
-
-    yaml_pattern = re.compile(
-        r"(?im)(^\s*(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
-        r"password|client[_-]?secret|private[_-]?key|bearer)\s*:\s*)([a-zA-Z0-9_\-\.]{8,})\s*$"
-    )
-    sanitized = yaml_pattern.sub(r"\1[REDACTED]", sanitized)
 
     return sanitized
 

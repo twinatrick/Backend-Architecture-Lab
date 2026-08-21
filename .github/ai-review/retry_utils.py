@@ -21,6 +21,9 @@ def parse_retry_limit(raw_value: str | None, default: int = 3) -> int:
 
 
 DEFAULT_MAX_RETRIES_PER_MODEL = parse_retry_limit(os.environ.get("AI_REVIEW_MAX_RETRIES"))
+DEFAULT_MAX_429_RETRIES_PER_PROVIDER = int(
+    os.environ.get("AI_REVIEW_MAX_429_RETRIES_PER_PROVIDER", "4")
+)
 
 
 def parse_retry_after(response: Any) -> float:

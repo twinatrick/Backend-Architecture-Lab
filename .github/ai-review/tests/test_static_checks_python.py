@@ -75,3 +75,16 @@ def test_check_python_ast_unmodified_lines_ignored():
     ]
     findings = static_checks.run_static_checks(files)
     assert findings == []
+
+
+def test_all_ai_review_python_files_compliance():
+    violations = []
+    for py_file in AI_REVIEW_DIR.rglob("*.py"):
+        content = py_file.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        if len(lines) > 300:
+            violations.append(f"{py_file.name}: {len(lines)} lines (> 300)")
+        for idx, line in enumerate(lines, 1):
+            if len(line) > 100:
+                violations.append(f"{py_file.name}:{idx} length {len(line)} (> 100)")
+    assert violations == [], f"Python 規範違規：{violations}"

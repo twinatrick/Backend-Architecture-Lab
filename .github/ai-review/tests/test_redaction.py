@@ -72,6 +72,22 @@ def test_sanitize_diff_various_secret_patterns():
     raw_url = "clone https://admin:superSecretPass@github.com/org/repo.git"
     assert "https://admin:[REDACTED]@github.com/org/repo.git" in redaction.sanitize_diff(raw_url)
 
+    raw_jdbc = "jdbc:postgresql://dbuser:dbpass123@postgres-host:5432/mydb"
+    sanitized_jdbc = redaction.sanitize_diff(raw_jdbc)
+    assert "jdbc:postgresql://dbuser:[REDACTED]@postgres-host:5432/mydb" in sanitized_jdbc
+
+    raw_redis = "redis://:redisSecretPass@redis-server:6379/0"
+    sanitized_redis = redaction.sanitize_diff(raw_redis)
+    assert "redis://:[REDACTED]@redis-server:6379/0" in sanitized_redis
+
+    raw_yaml = "spring.datasource.password: rawSecretPassword456"
+    sanitized_yaml = redaction.sanitize_diff(raw_yaml)
+    assert "spring.datasource.password: [REDACTED]" in sanitized_yaml
+
+    raw_env = "SPRING_SECURITY_PASSWORD=envSecretPassword789"
+    sanitized_env = redaction.sanitize_diff(raw_env)
+    assert "SPRING_SECURITY_PASSWORD=[REDACTED]" in sanitized_env
+
     # 驗證合法函數調用與變數引用不會被誤判遮蔽
     func_call = "api_key = build_runtime_api_key(config)"
     var_assign = "password = user_input_password"

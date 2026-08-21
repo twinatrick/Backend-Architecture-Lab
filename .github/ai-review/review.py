@@ -115,7 +115,10 @@ def _process_batch(
     try:
         text_output = chat_completion(prompt).strip()
     except RuntimeError as exc:
-        details = json.loads(str(exc))
+        try:
+            details = json.loads(str(exc))
+        except (json.JSONDecodeError, ValueError):
+            details = str(exc)
         publish_failure_report(
             pr_number, "AI Provider 呼叫失敗",
             "所有已配置的 AI 模型/金鑰（Google Gemini / Groq）均無法取得有效回應。", details,

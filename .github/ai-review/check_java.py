@@ -98,10 +98,13 @@ def _check_self_feign_block(
             or f":{mod}" in target_client
         ):
             start_pos = match.start()
-            line_no = content[:start_pos].count("\n") + 1
-            if changed_lines is None or line_no in changed_lines:
+            end_pos = match.end()
+            start_line = content[:start_pos].count("\n") + 1
+            end_line = content[:end_pos].count("\n") + 1
+            scope_lines = range(start_line, end_line + 1)
+            if changed_lines is None or any(l in changed_lines for l in scope_lines):
                 findings.append(make_finding(
-                    path, line_no, "HIGH", "ARCHITECTURE",
+                    path, start_line, "HIGH", "ARCHITECTURE",
                     "開發規範 §1.2 禁止同服務自我 Feign 呼叫規範",
                     f"微服務 {mod} 內部宣告了指向自身的 Feign Client: {target_client}",
                     match.group(0).strip()[:100],

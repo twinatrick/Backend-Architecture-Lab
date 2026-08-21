@@ -8,7 +8,11 @@ from model_pool import ModelPool
 from parser import ReviewResponseParser
 from providers import GroqClient
 from redaction import redact_secrets
-from retry_utils import calculate_backoff_delay, parse_retry_after
+from retry_utils import (
+    DEFAULT_MAX_429_RETRIES_PER_PROVIDER,
+    calculate_backoff_delay,
+    parse_retry_after,
+)
 
 
 def execute_groq_loop(
@@ -20,11 +24,13 @@ def execute_groq_loop(
     groq_client: GroqClient,
     parser: ReviewResponseParser,
     error_details: list[tuple[str, str]],
+    max_429_retries: int = DEFAULT_MAX_429_RETRIES_PER_PROVIDER,
 ) -> str | None:
     groq_keys = groq_key_pool.get_all_keys()
     if not groq_keys:
         return None
 
+    total_429_count = 0
     for model_name in groq_models:
         tried_keys = set()
         model_unsupported = False
@@ -75,6 +81,7 @@ def execute_groq_loop(
                     error_details.append((key_tag, redact_secrets(reason_msg)))
 
                     if status_code == 429:
+                        total_429_count += 1
                         raw_retry_after = parse_retry_after(response)
                         is_tpd = (
                             raw_retry_after > 60.0
@@ -98,6 +105,10 @@ def execute_groq_loop(
                             print(f"切換下一把可用 Groq 金鑰（剩餘 {len(active_keys)} 把）...")
                             time.sleep(1.0)
                             break
+
+                        if total_429_count >= max_429_retries:
+                            print("Groq 連續遭遇 429 達到預算上限，停止無效重試。")
+                            return None
 
                         if len(active_keys) > 0 and len(groq_keys) > 1:
                             print(

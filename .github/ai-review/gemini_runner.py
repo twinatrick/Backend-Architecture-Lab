@@ -8,7 +8,11 @@ from model_pool import ModelPool
 from parser import ReviewResponseParser
 from providers import GeminiClient
 from redaction import redact_secrets
-from retry_utils import calculate_backoff_delay, parse_retry_after
+from retry_utils import (
+    DEFAULT_MAX_429_RETRIES_PER_PROVIDER,
+    calculate_backoff_delay,
+    parse_retry_after,
+)
 
 
 def execute_gemini_loop(
@@ -20,11 +24,13 @@ def execute_gemini_loop(
     gemini_client: GeminiClient,
     parser: ReviewResponseParser,
     error_details: list[tuple[str, str]],
+    max_429_retries: int = DEFAULT_MAX_429_RETRIES_PER_PROVIDER,
 ) -> str | None:
     gemini_keys = gemini_key_pool.get_all_keys()
     if not gemini_keys:
         return None
 
+    total_429_count = 0
     for model_name in gemini_models:
         tried_keys = set()
         model_unsupported = False
@@ -71,6 +77,7 @@ def execute_gemini_loop(
                     error_details.append((key_tag, redact_secrets(reason_msg)))
 
                     if status_code == 429 or "RESOURCE_EXHAUSTED" in resp_text:
+                        total_429_count += 1
                         raw_retry_after = parse_retry_after(response)
                         is_quota = (
                             "quota" in resp_text.lower()
@@ -92,6 +99,10 @@ def execute_gemini_loop(
                             print(f"切換下一把可用 Gemini 金鑰（剩餘 {len(active_keys)} 把）...")
                             time.sleep(1.0)
                             break
+
+                        if total_429_count >= max_429_retries:
+                            print("Gemini 連續遭遇 429 達到預算上限，立即交棒備援 Provider。")
+                            return None
 
                         if len(active_keys) > 0 and len(gemini_keys) > 1:
                             print(
