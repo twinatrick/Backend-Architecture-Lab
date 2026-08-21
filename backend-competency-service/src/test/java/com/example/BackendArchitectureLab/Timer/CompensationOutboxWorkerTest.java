@@ -24,9 +24,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -36,7 +42,9 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -68,8 +76,10 @@ class CompensationOutboxWorkerTest {
         ReflectionTestUtils.setField(compensationOutboxWorker, "maxAttempts", 5);
         ReflectionTestUtils.setField(compensationOutboxWorker, "leaseSeconds", 300L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 20);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 8);
         ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 10L);
         ReflectionTestUtils.setField(compensationOutboxWorker, "backoffSeconds", List.of(5L, 15L, 30L, 60L, 300L));
+        compensationOutboxWorker.validateConfiguration();
     }
 
     @Test
@@ -232,6 +242,440 @@ class CompensationOutboxWorkerTest {
         assertThrows(IllegalStateException.class, compensationOutboxWorker::validateConfiguration);
     }
 
+    @Test
+    void flushPendingEvents_ShouldRespectSemaphorePermitsAndRelease_whenConcurrentTasksRun() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 2);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox1 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh1 = freshWithAttempt(outbox1, 1);
+        CompensationOutboxEvent outbox2 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh2 = freshWithAttempt(outbox2, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox1, outbox2));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox1.getId())).thenReturn(Optional.of(fresh1));
+        when(outboxRepository.findById(outbox2.getId())).thenReturn(Optional.of(fresh2));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(2, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldReleaseSemaphore_evenWhenExceptionThrownInClaimOrPublish() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
+                .thenThrow(new RuntimeException("database claim connection lost"));
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldThrottleConcurrency_whenTasksExceedParallelism() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 2);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox1 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh1 = freshWithAttempt(outbox1, 1);
+        CompensationOutboxEvent outbox2 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh2 = freshWithAttempt(outbox2, 1);
+        CompensationOutboxEvent outbox3 = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh3 = freshWithAttempt(outbox3, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
+                .thenReturn(List.of(outbox1, outbox2, outbox3));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox1.getId())).thenReturn(Optional.of(fresh1));
+        when(outboxRepository.findById(outbox2.getId())).thenReturn(Optional.of(fresh2));
+        when(outboxRepository.findById(outbox3.getId())).thenReturn(Optional.of(fresh3));
+
+        AtomicInteger activeConcurrent = new AtomicInteger(0);
+        AtomicInteger maxConcurrentObserved = new AtomicInteger(0);
+        CountDownLatch firstWaveLatch = new CountDownLatch(2);
+        CountDownLatch releaseLatch = new CountDownLatch(1);
+
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
+            int current = activeConcurrent.incrementAndGet();
+            maxConcurrentObserved.accumulateAndGet(current, Math::max);
+            firstWaveLatch.countDown();
+            try {
+                releaseLatch.await(2, TimeUnit.SECONDS);
+            } finally {
+                activeConcurrent.decrementAndGet();
+            }
+            return CompletableFuture.completedFuture(null);
+        });
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                if (firstWaveLatch.await(2, TimeUnit.SECONDS)) {
+                    releaseLatch.countDown();
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        assertEquals(2, maxConcurrentObserved.get());
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(2, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldReturnGracefully_whenFreshEventNotFoundAfterClaim() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setAttemptCount(1);
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.empty());
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(compensationPublisher, never()).publish(any());
+        verify(outboxRepository).markFailedByOwner(eq(outbox.getId()),
+                anyString(),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("not found"),
+                any(Date.class));
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldMarkDeadByOwner_whenFreshEventNotFoundAndMaxAttemptsReached() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setAttemptCount(4); // +1 in worker when fresh entity missing -> 5 >= maxAttempts (5)
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.empty());
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(compensationPublisher, never()).publish(any());
+        verify(outboxRepository).markDeadByOwner(eq(outbox.getId()),
+                anyString(),
+                eq(CompensationOutboxDeliveryStatus.DEAD),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("not found"));
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldSkip_whenAlreadyFlushing() throws Exception {
+        AtomicBoolean isFlushing = (AtomicBoolean) ReflectionTestUtils.getField(compensationOutboxWorker, "isFlushing");
+        assertNotNull(isFlushing);
+        isFlushing.set(true);
+
+        try {
+            compensationOutboxWorker.flushPendingEvents();
+            verifyNoInteractions(outboxRepository);
+            verifyNoInteractions(compensationPublisher);
+        } finally {
+            isFlushing.set(false);
+        }
+    }
+
+    @Test
+    void flushPendingEvents_ShouldCancelRunningTasks_whenBatchWaitInterrupted() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 5L);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "batchSize", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "leaseSeconds", 300L);
+        compensationOutboxWorker.validateConfiguration();
+
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        CountDownLatch publishStartedLatch = new CountDownLatch(1);
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenAnswer(invocation -> {
+            publishStartedLatch.countDown();
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+                future.complete(null);
+            }, 500, TimeUnit.MILLISECONDS);
+            return future;
+        });
+
+        // 模擬呼叫執行緒在等待批次 Future 時被中斷（例如排程終止或容器信號）
+        Thread mainThread = Thread.currentThread();
+        Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+            try {
+                if (publishStartedLatch.await(1, TimeUnit.SECONDS)) {
+                    mainThread.interrupt();
+                }
+            } catch (InterruptedException ignored) {
+            }
+        }, 30, TimeUnit.MILLISECONDS);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        // 呼叫執行緒之中斷旗標應已恢復
+        assertEquals(true, Thread.interrupted());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldGracefullyHandle_whenDeliveryInterrupted() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        CompletableFuture<Void> interruptedFuture = new CompletableFuture<>() {
+            @Override
+            public Void get(long timeout, TimeUnit unit) throws InterruptedException {
+                throw new InterruptedException("Simulated task interruption during wait");
+            }
+        };
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(interruptedFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).markFailed(
+                eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("interruption"),
+                any(Date.class));
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldGracefullyHandle_whenDeliveryCancelled() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        CompletableFuture<Void> cancelledFuture = new CompletableFuture<>() {
+            @Override
+            public Void get(long timeout, TimeUnit unit) {
+                throw new CancellationException("Simulated task cancellation during wait");
+            }
+        };
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(cancelledFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).markFailed(
+                eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("cancellation"),
+                any(Date.class));
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldHandleAckTimeoutAndReleaseSemaphore() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 1L);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+
+        CompletableFuture<Void> neverEndingFuture = new CompletableFuture<>();
+        when(compensationPublisher.publish(any(CompensationEvent.class))).thenReturn(neverEndingFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        ArgumentCaptor<Date> nextAttemptCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("TimeoutException"),
+                nextAttemptCaptor.capture());
+        assertNotNull(nextAttemptCaptor.getValue());
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldHandleStaleFencingVersionWhenMarkSentReturnsZero() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 1);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(outboxRepository.markSent(any(UUID.class), anyString(), any(), anyString(), anyString(), any(Date.class)))
+                .thenReturn(0);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+
+        Semaphore semaphore = (Semaphore) ReflectionTestUtils.getField(compensationOutboxWorker, "publishSemaphore");
+        assertNotNull(semaphore);
+        assertEquals(1, semaphore.availablePermits());
+    }
+
+    @Test
+    void flushPendingEvents_ShouldPreventConcurrentExecution_WhenWorkerAlreadyFlushing() {
+        AtomicBoolean isFlushing = (AtomicBoolean) ReflectionTestUtils.getField(compensationOutboxWorker, "isFlushing");
+        assertNotNull(isFlushing);
+        isFlushing.set(true);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository, never()).findPendingDue(anyList(), anyString(), any(Pageable.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldReclaimEvent_WhenPreviousLeaseExpired() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        compensationOutboxWorker.validateConfiguration();
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        outbox.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
+        CompensationOutboxEvent fresh = freshWithAttempt(outbox, 2);
+
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class))).thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class))).thenReturn(1);
+        when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(fresh));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(outboxRepository.markSent(any(UUID.class), anyString(), any(), anyString(), anyString(), any(Date.class)))
+                .thenReturn(1);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        verify(outboxRepository).claimEvent(eq(outbox.getId()),
+                anyList(),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                anyString(),
+                any(Date.class),
+                any(Date.class));
+        verify(compensationPublisher).publish(any(CompensationEvent.class));
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                anyString(),
+                eq(fresh.getFencingVersion()),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldSupportAtLeastOnceDeliveryAndDeduplication_WhenDelayedAckFollowedBySuccessfulRetry() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 1L);
+        compensationOutboxWorker.validateConfiguration();
+
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent freshFirstAttempt = freshWithAttempt(outbox, 1);
+        freshFirstAttempt.setFencingVersion(1L);
+
+        // 模擬第一次執行：Kafka 發送延遲 ACK 導致逾時
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
+                .thenReturn(1);
+        when(outboxRepository.findById(outbox.getId()))
+                .thenReturn(Optional.of(freshFirstAttempt));
+
+        CompletableFuture<Void> delayedFuture = new CompletableFuture<>();
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(delayedFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        // 驗證第一次逾時被標記為 FAILED，並保留 eventId
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                anyString(),
+                eq(1L),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("TimeoutException"),
+                any(Date.class));
+
+        // 模擬第二次重試執行：相同 eventId 再次發佈並獲得成功 ACK
+        CompensationOutboxEvent freshSecondAttempt = freshWithAttempt(outbox, 2);
+        freshSecondAttempt.setFencingVersion(2L);
+        when(outboxRepository.findById(outbox.getId()))
+                .thenReturn(Optional.of(freshSecondAttempt));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(outboxRepository.markSent(any(UUID.class), anyString(), any(), anyString(), anyString(), any(Date.class)))
+                .thenReturn(1);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        // 驗證第二次重試成功標記 SENT
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                anyString(),
+                eq(2L),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+
+        // 驗證兩次發布所發送的 CompensationEvent 均具有相同的 eventId，證明支援下游 Consumer 等冪去重 (Dedup)
+        ArgumentCaptor<CompensationEvent> eventCaptor = ArgumentCaptor.forClass(CompensationEvent.class);
+        verify(compensationPublisher, times(2)).publish(eventCaptor.capture());
+        List<CompensationEvent> capturedEvents = eventCaptor.getAllValues();
+        assertEquals(2, capturedEvents.size());
+        assertEquals(outbox.getEventId(), capturedEvents.get(0).getEventId());
+        assertEquals(outbox.getEventId(), capturedEvents.get(1).getEventId());
+    }
+
     private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {
         CompensationOutboxEvent fresh = new CompensationOutboxEvent();
         fresh.setId(outbox.getId());
@@ -242,6 +686,7 @@ class CompensationOutboxWorkerTest {
         fresh.setPayload(outbox.getPayload());
         fresh.setDeliveryStatus(CompensationOutboxDeliveryStatus.PROCESSING);
         fresh.setAttemptCount(attemptCount);
+        fresh.setFencingVersion(1L);
         return fresh;
     }
 

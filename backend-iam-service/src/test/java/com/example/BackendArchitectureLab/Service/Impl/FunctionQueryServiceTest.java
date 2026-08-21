@@ -18,6 +18,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -53,15 +54,6 @@ class FunctionQueryServiceTest {
         testFunction.setId(testId);
         testFunction.setName("Test Function");
 
-        // Self injection for tests
-        try {
-            Field selfField = FunctionQueryService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(functionQueryService, functionQueryService);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self into FunctionQueryService", e);
-        }
-
         when(functionMapper.toEntity(any(FunctionVo.class))).thenAnswer(invocation -> {
             FunctionVo vo = invocation.getArgument(0);
             Function function = new Function();
@@ -86,6 +78,8 @@ class FunctionQueryServiceTest {
             vo.setType(function.getType());
             return vo;
         });
+
+        ReflectionTestUtils.setField(functionQueryService, "self", functionQueryService);
     }
 
     @Test

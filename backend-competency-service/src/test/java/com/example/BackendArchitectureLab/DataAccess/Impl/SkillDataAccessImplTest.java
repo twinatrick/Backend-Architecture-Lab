@@ -154,6 +154,27 @@ class SkillDataAccessImplTest {
     }
 
     @Test
+    @DisplayName("Should find skills by their IDs")
+    void testFindAllById() {
+        // Arrange
+        Skill skill1 = new Skill();
+        skill1.setName("React");
+        skillRepository.save(skill1);
+
+        Skill skill2 = new Skill();
+        skill2.setName("Angular");
+        skillRepository.save(skill2);
+
+        // Act
+        List<Skill> skills = skillDataAccess.findAllById(List.of(skill1.getId(), skill2.getId()));
+
+        // Assert
+        assertEquals(2, skills.size());
+        assertTrue(skills.stream().anyMatch(s -> s.getId().equals(skill1.getId())));
+        assertTrue(skills.stream().anyMatch(s -> s.getId().equals(skill2.getId())));
+    }
+
+    @Test
     @DisplayName("Should return empty list when no skills exist")
     void testFindAll_Empty() {
         // Act

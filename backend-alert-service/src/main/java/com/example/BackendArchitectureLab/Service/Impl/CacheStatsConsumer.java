@@ -20,8 +20,8 @@ public class CacheStatsConsumer {
     public void consume(CacheStatsEvent event) {
         try {
             stringRedisTemplate.opsForHash().increment(
-                "cache:stats:" + event.getCacheName(),
-                event.getField(),
+                "cache:stats:" + event.cacheName(),
+                event.field(),
                 1
             );
         } catch (Exception e) {

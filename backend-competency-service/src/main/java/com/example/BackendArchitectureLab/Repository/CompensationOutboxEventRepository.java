@@ -137,4 +137,42 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
                  @Param("dead") String dead,
                  @Param("processing") String processing,
                  @Param("errorMessage") String errorMessage);
+
+    /**
+     * 原子標記失敗（當 fencingVersion 未知或實體讀取失敗時，依 ownerId 與 processing 狀態進行 CAS 恢復；FAILED + 記錄錯誤 + 排定下次重試 + 清除租約）。
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationOutboxEvent e
+            SET e.deliveryStatus = :failed, e.errorMessage = :errorMessage,
+                e.nextAttemptAt = :nextAttemptAt, e.leaseUntil = NULL
+            WHERE e.id = :id
+              AND e.ownerId = :ownerId
+              AND e.deliveryStatus = :processing
+            """)
+    int markFailedByOwner(@Param("id") UUID id,
+                          @Param("ownerId") String ownerId,
+                          @Param("failed") String failed,
+                          @Param("processing") String processing,
+                          @Param("errorMessage") String errorMessage,
+                          @Param("nextAttemptAt") Date nextAttemptAt);
+
+    /**
+     * 原子標記死亡（當 fencingVersion 未知或實體讀取失敗時，依 ownerId 與 processing 狀態進行 CAS 恢復；DEAD + 記錄錯誤 + 清除租約）。
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE CompensationOutboxEvent e
+            SET e.deliveryStatus = :dead, e.errorMessage = :errorMessage, e.leaseUntil = NULL
+            WHERE e.id = :id
+              AND e.ownerId = :ownerId
+              AND e.deliveryStatus = :processing
+            """)
+    int markDeadByOwner(@Param("id") UUID id,
+                        @Param("ownerId") String ownerId,
+                        @Param("dead") String dead,
+                        @Param("processing") String processing,
+                        @Param("errorMessage") String errorMessage);
 }

@@ -71,7 +71,6 @@ class JobPostingServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(jobPostingService, "self", jobPostingService);
         companyId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();
 
@@ -112,6 +111,8 @@ class JobPostingServiceTest {
             vo.setGeminiAnalysis(jp.getGeminiAnalysis());
             return vo;
         });
+
+        ReflectionTestUtils.setField(jobPostingService, "self", jobPostingService);
     }
 
     @Test

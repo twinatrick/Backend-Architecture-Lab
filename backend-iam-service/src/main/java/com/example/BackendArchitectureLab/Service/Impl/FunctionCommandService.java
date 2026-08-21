@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -98,7 +97,7 @@ public class FunctionCommandService implements IFunctionCommandService {
         }
         List<Function> f= functionDataAccess.findAllById(function.stream().map(
                 FunctionVo::getId
-        ).map(UUID::fromString).collect(Collectors.toList()));
+        ).map(UUID::fromString).toList());
         roleFunctionDataAccess.deleteAllByFunctionIn(f)  ;
         functionDataAccess.deleteAll(f);
     }
@@ -113,7 +112,7 @@ public class FunctionCommandService implements IFunctionCommandService {
         }
         List<Function> f = function.stream()
                 .map(functionMapper::toEntity)
-                .collect(Collectors.toList());
+                .toList();
 
         functionDataAccess.saveAll(f);
     }

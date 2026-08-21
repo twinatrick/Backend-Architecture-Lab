@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.DataAccess.IBloomFilterDataAccess;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Query;
+import jakarta.persistence.metamodel.EntityType;
+import jakarta.persistence.metamodel.Metamodel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +15,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -41,7 +44,13 @@ class BloomFilterDataAccessImplTest {
 
     @Test
     void findAllEntityIds_WhenEmfAvailable_ReturnsStringIds() {
+        Metamodel metamodel = mock(Metamodel.class);
+        EntityType entityType = mock(EntityType.class);
+        when(entityType.getName()).thenReturn("User");
+        doReturn(Set.of(entityType)).when(metamodel).getEntities();
+
         when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
+        when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);
         when(entityManagerFactory.createEntityManager()).thenReturn(entityManager);
         when(entityManager.createQuery("SELECT e.id FROM User e")).thenReturn(query);
         when(query.getResultList()).thenReturn(List.of(1L, 2L, 3L));
@@ -53,10 +62,65 @@ class BloomFilterDataAccessImplTest {
     }
 
     @Test
+    void findAllEntityIds_WhenMetamodelNullOrEmpty_ThrowsIllegalStateException() {
+        when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
+        when(entityManagerFactory.getMetamodel()).thenReturn(null);
+
+        assertThrows(IllegalStateException.class, () -> dataAccess.findAllEntityIds("User"));
+
+        Metamodel metamodel = mock(Metamodel.class);
+        when(metamodel.getEntities()).thenReturn(Set.of());
+        when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);
+
+        assertThrows(IllegalStateException.class, () -> dataAccess.findAllEntityIds("User"));
+    }
+
+    @Test
     void findAllEntityIds_WhenEmfUnavailable_ThrowsIllegalStateException() {
         when(emfProvider.getIfAvailable()).thenReturn(null);
 
         assertThrows(IllegalStateException.class, () -> dataAccess.findAllEntityIds("User"));
+        verify(entityManagerFactory, never()).createEntityManager();
+    }
+
+    @Test
+    void findAllEntityIds_WhenEntityNameInvalid_ThrowsIllegalArgumentException() {
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds("User; DROP TABLE users;"));
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds("User-Name"));
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds(null));
+        verify(emfProvider, never()).getIfAvailable();
+    }
+
+    @Test
+    void findAllEntityIds_WhenMetamodelValidatesCanonicalName_UsesCanonicalNameInQuery() {
+        Metamodel metamodel = mock(Metamodel.class);
+        EntityType entityType = mock(EntityType.class);
+        when(entityType.getName()).thenReturn("UserEntity");
+        doReturn(Set.of(entityType)).when(metamodel).getEntities();
+
+        when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
+        when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);
+        when(entityManagerFactory.createEntityManager()).thenReturn(entityManager);
+        when(entityManager.createQuery("SELECT e.id FROM UserEntity e")).thenReturn(query);
+        when(query.getResultList()).thenReturn(List.of("id-1"));
+
+        List<String> result = dataAccess.findAllEntityIds("userentity");
+
+        assertEquals(List.of("id-1"), result);
+        verify(entityManager).createQuery("SELECT e.id FROM UserEntity e");
+    }
+
+    @Test
+    void findAllEntityIds_WhenMetamodelHasEntitiesButEntityNotFound_ThrowsIllegalArgumentException() {
+        Metamodel metamodel = mock(Metamodel.class);
+        EntityType entityType = mock(EntityType.class);
+        when(entityType.getName()).thenReturn("UserEntity");
+        doReturn(Set.of(entityType)).when(metamodel).getEntities();
+
+        when(emfProvider.getIfAvailable()).thenReturn(entityManagerFactory);
+        when(entityManagerFactory.getMetamodel()).thenReturn(metamodel);
+
+        assertThrows(IllegalArgumentException.class, () -> dataAccess.findAllEntityIds("UnknownEntity"));
         verify(entityManagerFactory, never()).createEntityManager();
     }
 }

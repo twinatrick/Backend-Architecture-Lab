@@ -31,26 +31,38 @@ public class LineWebhookService implements ILineWebhookService {
     @Override
     public void dispatchEvents(List<Event> events, Object service) {
         for (Event event : events) {
-            if (!(event instanceof MessageEvent)) continue;
-            MessageEvent<?> msgEvent = (MessageEvent<?>) event;
+            if (!(event instanceof MessageEvent<?> msgEvent)) continue;
             String replyToken = msgEvent.getReplyToken();
 
-            if (msgEvent.getMessage() instanceof TextMessageContent) {
-                String text = ((TextMessageContent) msgEvent.getMessage()).getText();
-                if (service instanceof ILineGfService) {
-                    String userId = msgEvent.getSource().getUserId();
-                    ((ILineGfService) service).handleText(replyToken, text, userId);
-                } else if (service instanceof ILineDiaryService) {
-                    ((ILineDiaryService) service).handleText(replyToken, text);
+            switch (msgEvent.getMessage()) {
+                case null -> log.debug("忽略沒有 message content 的 LINE event");
+                case TextMessageContent textContent -> {
+                    String text = textContent.getText();
+                    if (service instanceof ILineGfService gfService) {
+                        String userId = msgEvent.getSource() != null ? msgEvent.getSource().getUserId() : null;
+                        if (userId == null || userId.isBlank()) {
+                            log.debug("忽略無法取得有效 userId 的 LINE 女友訊息事件: replyToken={}", replyToken);
+                        } else {
+                            gfService.handleText(replyToken, text, userId);
+                        }
+                    } else if (service instanceof ILineDiaryService diaryService) {
+                        diaryService.handleText(replyToken, text);
+                    }
                 }
-            } else if (msgEvent.getMessage() instanceof AudioMessageContent) {
-                String messageId = ((AudioMessageContent) msgEvent.getMessage()).getId();
-                if (service instanceof ILineGfService) {
-                    String userId = msgEvent.getSource().getUserId();
-                    ((ILineGfService) service).handleAudio(replyToken, messageId, userId);
-                } else if (service instanceof ILineDiaryService) {
-                    ((ILineDiaryService) service).handleAudio(replyToken, messageId);
+                case AudioMessageContent audioContent -> {
+                    String messageId = audioContent.getId();
+                    if (service instanceof ILineGfService gfService) {
+                        String userId = msgEvent.getSource() != null ? msgEvent.getSource().getUserId() : null;
+                        if (userId == null || userId.isBlank()) {
+                            log.debug("忽略無法取得有效 userId 的 LINE 女友音訊事件: replyToken={}, messageId={}", replyToken, messageId);
+                        } else {
+                            gfService.handleAudio(replyToken, messageId, userId);
+                        }
+                    } else if (service instanceof ILineDiaryService diaryService) {
+                        diaryService.handleAudio(replyToken, messageId);
+                    }
                 }
+                default -> log.debug("忽略未支援的 LINE 訊息型別: {}", msgEvent.getMessage().getClass().getSimpleName());
             }
         }
     }

@@ -15,8 +15,10 @@ import java.util.UUID;
 
 public interface ISkillService {
     SkillVo addSkill(SkillVo skillVo);
+    SkillVo doAddSkill(SkillVo skillVo);
 
     void updateSkill(SkillVo skillVo);
+    void doUpdateSkill(SkillVo skillVo);
 
     List<SkillVo> getSkill();
     CacheListWrapper<SkillVo> getSkillListCache();
@@ -31,10 +33,13 @@ public interface ISkillService {
     void deleteSkillLevel(String skillLevelId);
 
     void bindUserSkill(String userId, String skillId, String skillLevelId);
+    void doBindUserSkill(UUID userUuid, UUID skillUuid, UUID skillLevelUuid);
 
     void bindProjectSkill(String projectId, String skillId, String skillLevelId);
+    void rebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping);
 
     void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
+    void doRebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
 
     void deleteSkill(SkillVo skillVo);
     

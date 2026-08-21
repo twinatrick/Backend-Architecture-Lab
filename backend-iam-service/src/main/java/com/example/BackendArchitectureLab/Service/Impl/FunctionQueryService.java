@@ -28,6 +28,7 @@ public class FunctionQueryService implements IFunctionQueryService {
 
     private final IFunctionDataAccess functionDataAccess;
     private final FunctionMapper functionMapper;
+
     @Lazy
     private final IFunctionQueryService self;
 

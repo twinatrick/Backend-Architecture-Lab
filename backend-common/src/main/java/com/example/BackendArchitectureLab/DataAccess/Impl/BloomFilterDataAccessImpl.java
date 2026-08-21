@@ -23,13 +23,26 @@ public class BloomFilterDataAccessImpl implements IBloomFilterDataAccess {
 
     @Override
     public List<String> findAllEntityIds(String entityName) {
+        if (entityName == null || !entityName.matches("^[A-Za-z0-9_]+$")) {
+            throw new IllegalArgumentException("Invalid entity name: " + entityName);
+        }
         EntityManagerFactory emf = entityManagerFactoryProvider.getIfAvailable();
         if (emf == null) {
             throw new IllegalStateException("EntityManagerFactory 不可用，無法查詢 Entity: " + entityName);
         }
+        if (emf.getMetamodel() == null || emf.getMetamodel().getEntities().isEmpty()) {
+            throw new IllegalStateException("JPA Metamodel 不可用或為空，拒絕動態查詢 Entity: " + entityName);
+        }
+        var matchedEntity = emf.getMetamodel().getEntities().stream()
+                .filter(e -> e.getName().equalsIgnoreCase(entityName))
+                .findFirst();
+        if (matchedEntity.isEmpty()) {
+            throw new IllegalArgumentException("Entity not found in JPA Metamodel: " + entityName);
+        }
+        String targetEntityName = matchedEntity.get().getName();
         EntityManager em = emf.createEntityManager();
         try {
-            String ql = "SELECT e.id FROM " + entityName + " e";
+            String ql = "SELECT e.id FROM " + targetEntityName + " e";
             List<?> ids = em.createQuery(ql).getResultList();
             return ids.stream().map(Object::toString).toList();
         } finally {

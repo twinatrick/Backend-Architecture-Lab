@@ -160,7 +160,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
             m.put("skillId", b.getSkill().getId().toString());
             m.put("levelId", b.getSkillLevel().getId().toString());
             return m;
-        }).collect(Collectors.toList());
+        }).toList();
         state.put("bindings", bindingsList);
 
         return state;
@@ -327,7 +327,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
                     vo.setSkills(skills);
                     return vo;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private MemberSkillLevelVo toMemberSkillLevelVo(UserProjectSkill binding) {

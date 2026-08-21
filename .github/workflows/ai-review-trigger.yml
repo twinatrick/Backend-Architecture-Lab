@@ -17,4 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Record review trigger
-        run: echo "AI review requested for PR ${{ github.event.pull_request.number || 'manual run' }}"
+        env:
+          PR_NUM: ${{ github.event.pull_request.number }}
+        run: echo "AI review requested for PR ${PR_NUM:-manual run}"

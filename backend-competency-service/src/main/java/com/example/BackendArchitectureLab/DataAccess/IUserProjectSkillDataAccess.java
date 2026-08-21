@@ -26,6 +26,8 @@ public interface IUserProjectSkillDataAccess {
 
     UserProjectSkill save(UserProjectSkill userProjectSkill);
 
+    List<UserProjectSkill> saveAll(List<UserProjectSkill> userProjectSkills);
+
     void deleteByProjectId(UUID projectId);
 
     void deleteByUserIdAndProjectId(UUID userId, UUID projectId);

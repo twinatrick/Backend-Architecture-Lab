@@ -76,6 +76,7 @@ class CompensationRestoreServiceTest {
         );
 
         stateService = new CompensationRestoreStateService(restoreLogRepository, null);
+        ReflectionTestUtils.setField(stateService, "self", stateService);
 
         compensationRestoreService = new CompensationRestoreService(
                 projectDataAccess,
@@ -119,8 +120,8 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull())).thenReturn(1);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
-        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
-        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(skillDataAccess.findAllById(List.of(skillId))).thenReturn(List.of(skill));
+        when(skillLevelDataAccess.findAllById(List.of(levelId))).thenReturn(List.of(level));
         UserProject up = new UserProject();
         up.setUserId(userId);
         up.setProject(project);
@@ -131,7 +132,7 @@ class CompensationRestoreServiceTest {
         compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId, fencingVersion, List.of(binding));
 
         verify(userProjectSkillDataAccess).deleteByProjectId(projectId);
-        verify(userProjectSkillDataAccess).save(any(UserProjectSkill.class));
+        verify(userProjectSkillDataAccess).saveAll(anyList());
         verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull());
         verify(projectDataAccess).save(project);
@@ -168,8 +169,8 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("SUCCESS"), any(Date.class), isNull())).thenReturn(1);
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
-        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
-        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(skillDataAccess.findAllById(List.of(skillId))).thenReturn(List.of(skill));
+        when(skillLevelDataAccess.findAllById(List.of(levelId))).thenReturn(List.of(level));
         UserProject up2 = new UserProject();
         up2.setUserId(userId);
         up2.setProject(project);
@@ -217,13 +218,13 @@ class CompensationRestoreServiceTest {
         when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
         when(restoreLogRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(claimLog));
         when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
-        when(skillDataAccess.findById(skillId)).thenReturn(Optional.of(skill));
-        when(skillLevelDataAccess.findById(levelId)).thenReturn(Optional.of(level));
+        when(skillDataAccess.findAllById(List.of(skillId))).thenReturn(List.of(skill));
+        when(skillLevelDataAccess.findAllById(List.of(levelId))).thenReturn(List.of(level));
         when(restoreLogRepository.markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("FAILED"), any(Date.class), anyString())).thenReturn(1);
         BindingSnapshot binding = new BindingSnapshot(UUID.randomUUID(), skillId, levelId);
         UserProject up = new UserProject();
-        up.setUserId(binding.getUserId());
+        up.setUserId(binding.userId());
         up.setProject(project);
         when(userProjectDataAccess.findByProjectId(projectId)).thenReturn(List.of(up));
         doThrow(new RuntimeException("skill rebind failed"))
@@ -668,6 +669,40 @@ class CompensationRestoreServiceTest {
                         fencingVersion, tooMany));
 
         assertTrue(ex.getMessage().contains("exceeds maximum allowed limit of 1000"));
+        verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
+                eq("FAILED"), any(Date.class), anyString());
+    }
+
+    @Test
+    void testRestoreMemberSkills_shouldThrow_whenNullBindingSnapshotElement() {
+        UUID projectId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        String ownerId = "owner-" + UUID.randomUUID();
+        long fencingVersion = 3L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setVersion(1L);
+
+        CompensationRestoreLog claimLog = new CompensationRestoreLog();
+        claimLog.setEventId(eventId);
+        claimLog.setProjectId(projectId);
+        claimLog.setStatus("PROCESSING");
+        claimLog.setOwnerId(ownerId);
+        claimLog.setFencingVersion(fencingVersion);
+
+        when(restoreLogRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(restoreLogRepository.saveAndFlush(any(CompensationRestoreLog.class))).thenReturn(claimLog);
+        when(projectDataAccess.findById(projectId)).thenReturn(Optional.of(project));
+
+        List<BindingSnapshot> listWithNull = new ArrayList<>();
+        listWithNull.add(null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> compensationRestoreService.restoreMemberSkills(projectId, eventId, 1L, ownerId,
+                        fencingVersion, listWithNull));
+
+        assertTrue(ex.getMessage().contains("Binding snapshot element must not be null"));
         verify(restoreLogRepository).markRestoreState(eq(eventId), eq(ownerId), eq(fencingVersion),
                 eq("FAILED"), any(Date.class), anyString());
     }

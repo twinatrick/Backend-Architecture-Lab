@@ -1,25 +1,35 @@
 name: AI Architecture & Security Review
 
 # Trusted execution boundary:
-# - Triggered by the same PR lifecycle as the other CI workflows.
-# - Runs only the trusted workflow source from the default branch.
+# - Triggered by the completion of the untrusted AI Review Trigger workflow on the default branch.
+# - Runs only the trusted workflow definition and scripts from the default branch.
 # - Never checks out or executes PR code; PR content is read through the GitHub API.
 # - Secret-backed review is isolated from untrusted PR code.
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master, main]
+  workflow_run:
+    workflows: ["AI Review Trigger"]
+    types:
+      - completed
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request Number to review"
+        required: true
+        type: string
+      head_sha:
+        description: "Target Commit SHA to review (prevents TOCTOU)"
+        required: true
+        type: string
 
 permissions:
   contents: read
   pull-requests: write
   issues: write
-  actions: read
 
 jobs:
   review:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: apikey
     steps:
@@ -33,6 +43,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_1: ${{ secrets.GROQ_API_KEY_1 }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4: ${{ secrets.GROQ_API_KEY_4 }}
+          GROQ_API_KEY_5: ${{ secrets.GROQ_API_KEY_5 }}
+          GROQ_API_KEY_6: ${{ secrets.GROQ_API_KEY_6 }}
+          GROQ_API_KEY_7: ${{ secrets.GROQ_API_KEY_7 }}
+          GROQ_API_KEY_8: ${{ secrets.GROQ_API_KEY_8 }}
+          GROQ_API_KEY_9: ${{ secrets.GROQ_API_KEY_9 }}
+          GROQ_API_KEY_10: ${{ secrets.GROQ_API_KEY_10 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+          GEMINI_API_KEY_6: ${{ secrets.GEMINI_API_KEY_6 }}
+          GEMINI_API_KEY_7: ${{ secrets.GEMINI_API_KEY_7 }}
+          GEMINI_API_KEY_8: ${{ secrets.GEMINI_API_KEY_8 }}
+          GEMINI_API_KEY_9: ${{ secrets.GEMINI_API_KEY_9 }}
+          GEMINI_API_KEY_10: ${{ secrets.GEMINI_API_KEY_10 }}
           REPO: ${{ github.repository }}
           EVENT_PATH: ${{ github.event_path }}
         run: python3 .github/ai-review/review.py

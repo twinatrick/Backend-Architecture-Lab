@@ -59,12 +59,12 @@ public class GeminiService implements IAiService {
                 ? htmlContent.substring(0, 60000)
                 : htmlContent;
 
-        String userPrompt = String.format("""
+        String userPrompt = """
                 公司名稱: %s
                 
                 HTML 內容:
                 %s
-                """, companyName, truncatedHtml);
+                """.formatted(companyName, truncatedHtml);
 
         String previousResponse = null;
 

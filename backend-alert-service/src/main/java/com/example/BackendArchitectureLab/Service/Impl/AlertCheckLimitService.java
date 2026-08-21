@@ -16,7 +16,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
@@ -98,7 +97,7 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
         // 轉換為 VO
         List<AlertCheckLimitVo> content = page.getContent().stream()
                 .map(alertCheckLimitMapper::toVo)
-                .collect(Collectors.toList());
+                .toList();
         
         return PageResult.of(page, content);
     }

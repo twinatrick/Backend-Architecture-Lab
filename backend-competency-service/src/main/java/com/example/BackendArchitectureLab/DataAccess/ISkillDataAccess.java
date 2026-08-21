@@ -39,6 +39,14 @@ public interface ISkillDataAccess {
     List<Skill> findAll();
 
     /**
+     * Find all skills by their IDs.
+     *
+     * @param ids collection of skill UUIDs
+     * @return list of found skills
+     */
+    List<Skill> findAllById(List<UUID> ids);
+
+    /**
      * Find a skill by its ID.
      *
      * @param key the skill UUID

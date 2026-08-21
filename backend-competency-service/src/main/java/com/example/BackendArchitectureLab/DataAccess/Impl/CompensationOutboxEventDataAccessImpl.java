@@ -66,4 +66,14 @@ public class CompensationOutboxEventDataAccessImpl implements ICompensationOutbo
     public int markDead(UUID id, String ownerId, Long fencingVersion, String dead, String processing, String errorMessage) {
         return repository.markDead(id, ownerId, fencingVersion, dead, processing, errorMessage);
     }
+
+    @Override
+    public int markFailedByOwner(UUID id, String ownerId, String failed, String processing, String errorMessage, Date nextAttemptAt) {
+        return repository.markFailedByOwner(id, ownerId, failed, processing, errorMessage, nextAttemptAt);
+    }
+
+    @Override
+    public int markDeadByOwner(UUID id, String ownerId, String dead, String processing, String errorMessage) {
+        return repository.markDeadByOwner(id, ownerId, dead, processing, errorMessage);
+    }
 }

@@ -25,8 +25,22 @@
 - 當 API 已棄用，於對應標準註記加上 `deprecated = true`，不要使用原生的 `@Operation(deprecated = true)`：
 
 ```java
-@ApiOperationOk(summary = "Legacy", description = "...", deprecated = true)
-public ResponseType<String> legacy() { ... }
+package com.example.BackendArchitectureLab.Controller;
+
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
+import com.example.BackendArchitectureLab.Vo.Common.ResponseType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class LegacyControllerExample {
+
+    @ApiOperationOk(summary = "Legacy", description = "說明", deprecated = true)
+    @GetMapping("/legacy")
+    public ResponseType<String> legacy() {
+        return ResponseType.Success("OK");
+    }
+}
 ```
 
 - 同時方法上可使用 `@Deprecated`（編譯器層級標記）。

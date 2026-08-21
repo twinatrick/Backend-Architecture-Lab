@@ -74,7 +74,7 @@ public class SkillService implements ISkillService {
     private final IUserGateway userGateway;
 
     @Lazy
-    private final SkillService self;
+    private final ISkillService self;
 
     @Override
     public SkillVo addSkill(SkillVo skillVo) {
@@ -182,7 +182,7 @@ public class SkillService implements ISkillService {
             // 如果沒有提供技能等級，使用該技能的第一個等級
             List<SkillLevel> levels = skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(skillId);
             if (!levels.isEmpty()) {
-                skillLevel = levels.get(0);
+                skillLevel = levels.getFirst();
             }
         }
         
@@ -566,7 +566,7 @@ public class SkillService implements ISkillService {
         // 轉換為 VO
         List<SkillVo> content = page.getContent().stream()
                 .map(skillMapper::toVo)
-                .collect(Collectors.toList());
+                .toList();
         
         return PageResult.of(page, content);
     }
@@ -640,7 +640,7 @@ public class SkillService implements ISkillService {
         // 套用搜尋條件
         List<CurrentUserSkillVo> filteredSkills = allSkills.stream()
                 .filter(skill -> matchesQuery(skill, query))
-                .collect(Collectors.toList());
+                .toList();
         
         // 套用排序
         filteredSkills = applySorting(filteredSkills, query);
@@ -690,37 +690,23 @@ public class SkillService implements ISkillService {
     
     private List<CurrentUserSkillVo> applySorting(List<CurrentUserSkillVo> skills, SkillSearchQuery query) {
         boolean ascending = "asc".equalsIgnoreCase(query.getSortDir());
+        String sortBy = query.getSortBy() != null ? query.getSortBy() : "id";
         
         return skills.stream()
                 .sorted((s1, s2) -> {
-                    int comparison = 0;
-                    switch (query.getSortBy()) {
-                        case "name":
-                            comparison = compareNullable(s1.getName(), s2.getName());
-                            break;
-                        case "description":
-                            comparison = compareNullable(s1.getDescription(), s2.getDescription());
-                            break;
-                        case "createdBy":
-                            comparison = compareNullable(s1.getCreatedBy(), s2.getCreatedBy());
-                            break;
-                        case "updatedBy":
-                            comparison = compareNullable(s1.getUpdatedBy(), s2.getUpdatedBy());
-                            break;
-                        case "createdTime":
-                            comparison = compareNullable(s1.getCreatedTime(), s2.getCreatedTime());
-                            break;
-                        case "updatedTime":
-                            comparison = compareNullable(s1.getUpdatedTime(), s2.getUpdatedTime());
-                            break;
-                        case "id":
-                        default:
-                            comparison = compareNullable(s1.getId(), s2.getId());
-                            break;
-                    }
+                    int comparison = switch (sortBy) {
+                        case "name" -> compareNullable(s1.getName(), s2.getName());
+                        case "description" -> compareNullable(s1.getDescription(), s2.getDescription());
+                        case "createdBy" -> compareNullable(s1.getCreatedBy(), s2.getCreatedBy());
+                        case "updatedBy" -> compareNullable(s1.getUpdatedBy(), s2.getUpdatedBy());
+                        case "createdTime" -> compareNullable(s1.getCreatedTime(), s2.getCreatedTime());
+                        case "updatedTime" -> compareNullable(s1.getUpdatedTime(), s2.getUpdatedTime());
+                        case "id" -> compareNullable(s1.getId(), s2.getId());
+                        default -> compareNullable(s1.getId(), s2.getId());
+                    };
                     return ascending ? comparison : -comparison;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
     
     @Override
@@ -736,7 +722,7 @@ public class SkillService implements ISkillService {
         // 轉換為 VO
         List<SkillLevelVo> content = page.getContent().stream()
                 .map(this::mapSkillLevelVo)
-                .collect(Collectors.toList());
+                .toList();
         
         return PageResult.of(page, content);
     }
@@ -850,7 +836,7 @@ public class SkillService implements ISkillService {
             if (levels.isEmpty()) {
                 throw new IllegalArgumentException("Skill level data is required");
             }
-            bindingLevel = levels.get(0);
+            bindingLevel = levels.getFirst();
         }
 
         userSkill.setSkillLevel(bindingLevel);
@@ -906,7 +892,7 @@ public class SkillService implements ISkillService {
             // 更新 UserSkill 的等級
             List<UserSkill> userSkills = userSkillDataAccess.findByUserIdAndSkillId(securityUtil.requireCurrentUserId(), skillId);
             if (!userSkills.isEmpty()) {
-                UserSkill userSkill = userSkills.get(0);
+                UserSkill userSkill = userSkills.getFirst();
                 userSkill.setSkillLevel(skillLevel);
                 userSkillDataAccess.save(userSkill);
             }
@@ -937,7 +923,7 @@ public class SkillService implements ISkillService {
             throw new IllegalArgumentException("Skill is not bind to current user");
         }
 
-        UserSkill userSkill = userSkills.get(0);
+        UserSkill userSkill = userSkills.getFirst();
         userSkill.setSkillLevel(skillLevel);
         userSkillDataAccess.save(userSkill);
         

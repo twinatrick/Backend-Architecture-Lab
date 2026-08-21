@@ -1,13 +1,10 @@
 package com.example.BackendArchitectureLab.Vo;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class CacheStatsEvent {
-    private String cacheName;
-    private String field;
+/**
+ * CacheStatsEvent - 快取命中與指標統計事件。
+ */
+public record CacheStatsEvent(
+        String cacheName,
+        String field
+) {
 }

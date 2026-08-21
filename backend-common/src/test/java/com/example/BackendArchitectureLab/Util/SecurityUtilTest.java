@@ -2,15 +2,16 @@ package com.example.BackendArchitectureLab.Util;
 
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,12 +23,32 @@ class SecurityUtilTest {
     @Mock
     private UserServiceFeignClient userServiceFeignClient;
 
-    @InjectMocks
     private SecurityUtil securityUtil;
+
+    @BeforeEach
+    void setUp() {
+        securityUtil = new SecurityUtil(Optional.of(userServiceFeignClient));
+    }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void requireCurrentUserId_shouldThrowException_whenFeignClientNotAvailable() {
+        SecurityUtil unavailableUtil = new SecurityUtil(Optional.empty());
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(new Object());
+        when(auth.getName()).thenReturn("test@example.com");
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                unavailableUtil::requireCurrentUserId);
+
+        assertEquals(
+                "Current user not found - UserServiceFeignClient is not available in this service",
+                ex.getMessage());
     }
 
     @Test

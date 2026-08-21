@@ -1,0 +1,35 @@
+import sys
+from pathlib import Path
+
+AI_REVIEW_DIR = Path(__file__).resolve().parents[1]
+if str(AI_REVIEW_DIR) not in sys.path:
+    sys.path.insert(0, str(AI_REVIEW_DIR))
+
+import model_pool
+
+
+def test_model_pool_isolation_and_order():
+    pool1 = model_pool.ModelPool(["model-a", "model-b", "model-c"])
+    pool2 = model_pool.ModelPool(["model-x", "model-y"])
+
+    pool1.demote("model-a")
+    assert pool1.get_candidates() == ["model-b", "model-c", "model-a"]
+
+    pool1.promote("model-c")
+    assert pool1.get_candidates() == ["model-c", "model-b", "model-a"]
+
+    assert pool2.get_candidates() == ["model-x", "model-y"]
+
+
+def test_default_gemini_models_tiered_order():
+    models = model_pool.DEFAULT_GEMINI_MODELS
+    assert models[0] == "gemini-3.7-flash"
+    assert "gemini-3.6-flash" in models
+    assert "gemini-3.5-flash-lite" in models
+    assert "gemini-3.1-flash-lite" in models
+    assert "gemini-2.0-flash" not in models
+    assert "gemini-1.5-flash" not in models
+    # 高額度 Lite 模型排在主要 Flash 模型之後做為防線
+    idx_37 = models.index("gemini-3.7-flash")
+    idx_35_lite = models.index("gemini-3.5-flash-lite")
+    assert idx_37 < idx_35_lite

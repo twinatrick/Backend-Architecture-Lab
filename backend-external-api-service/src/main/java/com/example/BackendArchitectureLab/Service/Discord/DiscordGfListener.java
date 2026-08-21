@@ -108,7 +108,8 @@ public class DiscordGfListener extends ListenerAdapter {
             sessionRepository.save(session);
             event.reply("已關閉你的女友對話模式").setEphemeral(true).queue();
         } else {
-            session.setGuildId(event.getGuild().getId());
+            String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
+            session.setGuildId(guildId);
             session.setChannelId(channelId);
             session.setUserId(userId);
             session.setActive(true);
@@ -121,10 +122,16 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void handleSetPrompt(SlashCommandInteractionEvent event, String channelId, String userId) {
-        String prompt = event.getOption("內容").getAsString();
+        var option = event.getOption("內容");
+        if (option == null) {
+            event.reply("❌ 請提供提示詞內容").setEphemeral(true).queue();
+            return;
+        }
+        String prompt = option.getAsString();
         DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
-        session.setGuildId(event.getGuild().getId());
+        String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
+        session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setPrompt(prompt);
@@ -136,7 +143,8 @@ public class DiscordGfListener extends ListenerAdapter {
     private void handleVoiceOn(SlashCommandInteractionEvent event, String channelId, String userId) {
         DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
-        session.setGuildId(event.getGuild().getId());
+        String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
+        session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setVoiceEnabled(true);
@@ -153,14 +161,20 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void handleSetLanguage(SlashCommandInteractionEvent event, String channelId, String userId) {
-        String lang = event.getOption("語言").getAsString().toLowerCase();
+        var option = event.getOption("語言");
+        if (option == null) {
+            event.reply("❌ 請提供語言").setEphemeral(true).queue();
+            return;
+        }
+        String lang = option.getAsString().toLowerCase();
         if (!List.of("zh", "ja", "en").contains(lang)) {
             event.reply("❌ 不支援的語言。僅支援: zh (繁中), ja (日文), en (英文)").setEphemeral(true).queue();
             return;
         }
         DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
-        session.setGuildId(event.getGuild().getId());
+        String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
+        session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setLanguage(lang);
@@ -169,8 +183,14 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void handleSetVoice(SlashCommandInteractionEvent event, String channelId, String userId) {
-        String text = event.getOption("台詞").getAsString();
-        Message.Attachment attachment = event.getOption("音檔").getAsAttachment();
+        var textOption = event.getOption("台詞");
+        var fileOption = event.getOption("音檔");
+        if (textOption == null || fileOption == null) {
+            event.reply("❌ 請提供台詞與音檔").setEphemeral(true).queue();
+            return;
+        }
+        String text = textOption.getAsString();
+        Message.Attachment attachment = fileOption.getAsAttachment();
 
         event.deferReply(true).queue();
 
@@ -188,7 +208,8 @@ public class DiscordGfListener extends ListenerAdapter {
 
                 DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
                         .orElse(new DiscordGfSession());
-                session.setGuildId(event.getGuild().getId());
+                String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
+                session.setGuildId(guildId);
                 session.setChannelId(channelId);
                 session.setUserId(userId);
                 session.setVoiceSampleKey(objectKey);
@@ -231,10 +252,16 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void handleSetGfName(SlashCommandInteractionEvent event, String channelId, String userId) {
-        String name = event.getOption("名稱").getAsString();
+        var option = event.getOption("名稱");
+        if (option == null) {
+            event.reply("❌ 請提供名稱").setEphemeral(true).queue();
+            return;
+        }
+        String name = option.getAsString();
         DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
-        session.setGuildId(event.getGuild().getId());
+        String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
+        session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setGfName(name);
@@ -243,10 +270,16 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void handleSetGfAvatar(SlashCommandInteractionEvent event, String channelId, String userId) {
-        String url = event.getOption("網址").getAsString();
+        var option = event.getOption("網址");
+        if (option == null) {
+            event.reply("❌ 請提供網址").setEphemeral(true).queue();
+            return;
+        }
+        String url = option.getAsString();
         DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
-        session.setGuildId(event.getGuild().getId());
+        String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
+        session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setGfAvatarUrl(url);
@@ -268,8 +301,9 @@ public class DiscordGfListener extends ListenerAdapter {
         String userName = event.getMember() != null ? event.getMember().getEffectiveName() : event.getAuthor().getName();
 
         // 1. 處理語音附件接收
-        if (!event.getMessage().getAttachments().isEmpty()) {
-            var attachment = event.getMessage().getAttachments().get(0);
+        List<Message.Attachment> attachments = event.getMessage().getAttachments();
+        if (attachments != null && !attachments.isEmpty()) {
+            Message.Attachment attachment = attachments.getFirst();
             String ct = attachment.getContentType();
             if (ct != null && ct.startsWith("audio/")) {
                 attachment.getProxy().download().thenAcceptAsync(inputStream -> {

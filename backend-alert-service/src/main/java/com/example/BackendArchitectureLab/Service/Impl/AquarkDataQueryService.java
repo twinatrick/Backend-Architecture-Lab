@@ -28,7 +28,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
 
     @Override
     public List<AquarkDataRaw> getAquarkData() {
-        return aquarkDataDataAccess.findAll().stream().map(aquarkDataMapper::toVo).collect(Collectors.toList());
+        return aquarkDataDataAccess.findAll().stream().map(aquarkDataMapper::toVo).toList();
     }
 
     @Override
@@ -99,7 +99,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
         if (fillterList.isEmpty()) {
             return getAquarkData();
         }
-        return aquarkDataDataAccess.findByCriteria(fillterList).stream().map(aquarkDataMapper::toVo).collect(Collectors.toList());
+        return aquarkDataDataAccess.findByCriteria(fillterList).stream().map(aquarkDataMapper::toVo).toList();
     }
 
     @Cacheable(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", sync = true)

@@ -950,7 +950,7 @@ sequenceDiagram
 | | `MINIO_ACCESS_KEY` / `SECRET_KEY` | `minioadmin` / `your_minio_password` | MinIO 存取密鑰。 |
 | **JWT 安全** | `JWT_SECRET_USE` | `change_to_your_jwt_secret` | JWT 簽名金鑰（至少 256 bits）。 |
 | | `JWT_EXPIRATION_MINUTES` | `1440` | JWT 有效期限（24 小時）。 |
-| **外部 AI 金鑰** | `GEMINI_API_KEY` | `""` | Google Gemini API 金鑰（預設模型 `gemini-2.0-flash`）。 |
+| **外部 AI 金鑰** | `GEMINI_API_KEY` | `""` | Google Gemini API 金鑰（預設模型 `gemini-3.7-flash`）。 |
 | | `DEEPSEEK_API_KEY` | `""` | DeepSeek API 金鑰 (`deepseek-v4-flash`)。 |
 | | `GROQ_API_KEY` | `""` | Groq API 金鑰 (`llama-3.3-70b-versatile`)。 |
 | | `GITHUB_MODELS_API_KEY` | `""` | GitHub Models API 金鑰 (`gpt-4o-mini`)。 |

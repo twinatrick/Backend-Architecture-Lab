@@ -46,13 +46,12 @@ public class ProjectSkillService implements IProjectSkillService {
     private final ISkillLevelDataAccess skillLevelDataAccess;
     private final ISkillDataAccess skillDataAccess;
     private final SecurityUtil securityUtil;
-
     @Lazy
-    private final ProjectSkillService self;
+    private final IProjectSkillService self;
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
-        return getProjectSkillsCache(projectId).getData();
+        return self.getProjectSkillsCache(projectId).getData();
     }
 
     @Override
@@ -84,7 +83,7 @@ public class ProjectSkillService implements IProjectSkillService {
                     vo.setLevelDescription(level.getDescription());
                 }
                 return vo;
-            }).collect(Collectors.toList());
+            }).toList();
             return new CacheListWrapper<>(list);
         });
     }

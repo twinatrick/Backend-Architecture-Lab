@@ -11,12 +11,12 @@ import org.springframework.stereotype.Component;
 import java.util.Objects;
 
 /**
- * IAM 本機權限驗證器：覆寫預設 Feign 呼叫，改以本機資料驗證，
+ * IAM 本機權限驗證器：改以本機資料驗證，
  * 避免 IAM 自我 Feign 呼叫自身的權限驗證端點。
  */
 @Component
 @RequiredArgsConstructor
-public class LocalPermissionValidatorImpl extends LocalPermissionValidator {
+public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
 
     private final IFunctionQueryService functionQueryService;
     private final IUserService userService;

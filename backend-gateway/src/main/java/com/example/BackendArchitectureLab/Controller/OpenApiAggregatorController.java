@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -76,7 +77,7 @@ public class OpenApiAggregatorController {
                             }
                             return spec;
                         }
-                        catch (Exception e) { throw new RuntimeException(e); }
+                        catch (Exception e) { throw Exceptions.propagate(e); }
                     })
                     .timeout(Duration.ofSeconds(10))
                     .doOnSuccess(spec -> log.info("Successfully fetched spec from {}", serviceName))

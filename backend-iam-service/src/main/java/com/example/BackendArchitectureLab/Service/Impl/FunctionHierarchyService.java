@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -36,7 +35,7 @@ public class FunctionHierarchyService implements IFunctionHierarchyService {
         }
         List<String> GrandParentId = function.stream().map(
                 FunctionVo::getGrandParentId
-        ).collect(Collectors.toList());
+        ).toList();
         List<Function> saveNext = (GrandParentId.isEmpty()) ? new ArrayList<>() : functionDataAccess.findAllByGrandParentId(GrandParentId);
         List<Function> saveFunction = new ArrayList<>();
         for (FunctionVo functionVo : function) {

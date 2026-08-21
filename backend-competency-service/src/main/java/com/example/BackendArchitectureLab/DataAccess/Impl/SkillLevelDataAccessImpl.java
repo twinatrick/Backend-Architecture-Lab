@@ -32,6 +32,11 @@ public class SkillLevelDataAccessImpl implements ISkillLevelDataAccess {
     }
 
     @Override
+    public List<SkillLevel> findAllById(List<UUID> ids) {
+        return skillLevelRepository.findAllById(ids);
+    }
+
+    @Override
     public List<SkillLevel> findBySkillIdOrderByLevelValueAsc(UUID skillId) {
         return skillLevelRepository.findBySkillIdOrderByLevelValueAsc(skillId);
     }

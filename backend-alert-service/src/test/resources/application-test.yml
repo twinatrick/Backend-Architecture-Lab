@@ -5,9 +5,10 @@ app:
 spring:
   autoconfigure:
     exclude: org.redisson.spring.starter.RedissonAutoConfigurationV2
-  redis:
-    host: localhost
-    port: 6379
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
   # 測試環境數據庫配置 - 使用內存 H2 數據庫
   datasource:

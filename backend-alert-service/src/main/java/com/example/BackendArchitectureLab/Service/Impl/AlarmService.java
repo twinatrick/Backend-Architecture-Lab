@@ -24,18 +24,9 @@ public class AlarmService implements IAlarmService {
             alarmPublisher.publish(alarmMessage);
         } catch (Exception e) {
             log.warn("告警消息發送失敗: {}", e.toString());
-            alarmMessage.get(0).setMessage("告警消息發送失敗：" + e.getMessage());
+            if (alarmMessage != null && !alarmMessage.isEmpty()) {
+                alarmMessage.getFirst().setMessage("告警消息發送失敗：" + e.getMessage());
+            }
         }
-
-    }
-
-    private void saveAlarm(AlarmMessage alarmMessage) {
-        // 實作：保存至資料庫
-//        System.out.println("保存告警：" + alarmMessage.getMessage());
-    }
-
-    private void logAlarm(AlarmMessage alarmMessage) {
-        // 實作：記錄到日誌系統
-        log.info("記錄告警：{}", alarmMessage.getMessage());
     }
 }
