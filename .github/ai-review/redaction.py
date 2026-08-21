@@ -35,13 +35,18 @@ YAML_SECRET_PATTERN = re.compile(
     r"(\s*(?:#.*)?)$"
 )
 PROP_ENV_SECRET_PATTERN = re.compile(
-    r"(?im)(^\s*(?:[a-zA-Z0-9_]+\.[a-zA-Z0-9_.-]*|[A-Z0-9_]{3,})"
+    r"(?im)(^\s*(?:export\s+|ENV\s+)?(?:[a-zA-Z0-9_]+\.[a-zA-Z0-9_.-]*|[A-Z0-9_]{3,})"
     r"(?:password|secret|token|credential|api[_-]?key|auth|private[_-]?key)"
     r"[a-zA-Z0-9_.-]*\s*=\s*)([^\"'\r\n#\s()]{3,})(\s*(?:#.*)?)$"
 )
+XML_SECRET_PATTERN = re.compile(
+    r"(?i)(<(?:\w+:)?(?:password|secret|token|apiKey|api_key|credential)[^>]*>)"
+    r"([^<>\r\n]{3,})"
+    r"(</(?:\w+:)?(?:password|secret|token|apiKey|api_key|credential)>)"
+)
 QUOTED_SECRET_PATTERN = re.compile(
-    r"(?i)([\"']?(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
-    r"password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*)([\"'])"
+    r"(?i)([\"']?(?:api[_-]?(?:key|token|secret)|secret[_-]?key|access[_-]?token|"
+    r"auth[_-]?token|password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*)([\"'])"
     r"([^\"'\r\n]{3,})"
     r"(\2)"
 )
@@ -112,9 +117,10 @@ def sanitize_diff(diff: str) -> str:
     sanitized = CONN_STRING_PATTERN.sub(r"\1:[REDACTED]@", sanitized)
     sanitized = URL_PARAM_PATTERN.sub(r"\1[REDACTED]", sanitized)
 
-    # 5. 遮蔽程式碼與設定檔 (YAML/Properties/.env) 中的各類敏感鍵值
+    # 5. 遮蔽程式碼與設定檔 (YAML/Properties/.env/XML) 中的各類敏感鍵值
     sanitized = YAML_SECRET_PATTERN.sub(r"\1[REDACTED]\3", sanitized)
     sanitized = PROP_ENV_SECRET_PATTERN.sub(r"\1[REDACTED]\3", sanitized)
+    sanitized = XML_SECRET_PATTERN.sub(r"\1[REDACTED]\3", sanitized)
     sanitized = QUOTED_SECRET_PATTERN.sub(r"\1\2[REDACTED]\4", sanitized)
 
     return sanitized

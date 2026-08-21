@@ -19,7 +19,7 @@ def test_static_checks_github_workflow_pull_request_target():
 +  build:
 +    runs-on: ubuntu-latest
 +    steps:
-+      - uses: actions/checkout@v4
++      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 +        with:
 +          ref: ${{ github.event.pull_request.head.sha }}
 +""",

@@ -88,6 +88,27 @@ def test_sanitize_diff_various_secret_patterns():
     sanitized_env = redaction.sanitize_diff(raw_env)
     assert "SPRING_SECURITY_PASSWORD=[REDACTED]" in sanitized_env
 
+    # 驗證 JSON, TOML, XML, Shell, Docker 格式脫敏
+    raw_json = '{"apiKey": "json_secret_token_123", "debug": true}'
+    sanitized_json = redaction.sanitize_diff(raw_json)
+    assert '"apiKey": "[REDACTED]"' in sanitized_json
+
+    raw_toml = 'api_token = "toml_secret_value_456"'
+    sanitized_toml = redaction.sanitize_diff(raw_toml)
+    assert 'api_token = "[REDACTED]"' in sanitized_toml
+
+    raw_xml = '<config><password>xml_secret_pass_789</password></config>'
+    sanitized_xml = redaction.sanitize_diff(raw_xml)
+    assert '<password>[REDACTED]</password>' in sanitized_xml
+
+    raw_shell = "export DB_PASSWORD=shell_secret_password_111"
+    sanitized_shell = redaction.sanitize_diff(raw_shell)
+    assert "export DB_PASSWORD=[REDACTED]" in sanitized_shell
+
+    raw_docker = "ENV APP_SECRET=docker_secret_value_222"
+    sanitized_docker = redaction.sanitize_diff(raw_docker)
+    assert "ENV APP_SECRET=[REDACTED]" in sanitized_docker
+
     # 驗證合法函數調用與變數引用不會被誤判遮蔽
     func_call = "api_key = build_runtime_api_key(config)"
     var_assign = "password = user_input_password"

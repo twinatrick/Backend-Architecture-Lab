@@ -78,15 +78,19 @@ def check_workflow_file(
                 "攻擊者可構造特殊 PR 標題或內容進行 Bash 命令注入",
                 "將 github.event 參數映射至 env 變數後於腳本使用",
             ))
-        if re.search(r"uses:\s+[\w\-\.\/]+@(main|master)\b", line):
-            findings.append(make_finding(
-                path, idx, "HIGH", "SECURITY",
-                "開發規範 §2 CI Action 版本鎖定規範",
-                "Action 使用未鎖定的浮動分支 (@main/@master)",
-                raw_line.strip(),
-                "浮動分支可能被上游篡改或遭遇供應鏈投毒攻擊",
-                "將 Action 鎖定為具體 commit SHA 或明確版本 tag (如 @v4)",
-            ))
+        uses_match = re.search(r"uses:\s+([\w\-\.\/]+)@([^\s#]+)", line)
+        if uses_match:
+            action_name, ref = uses_match.groups()
+            if not action_name.startswith("./") and not action_name.startswith("docker://"):
+                if not re.fullmatch(r"[0-9a-fA-F]{40}", ref):
+                    findings.append(make_finding(
+                        path, idx, "HIGH", "SECURITY",
+                        "開發規範 §2 CI Action 版本鎖定規範",
+                        "Action 未鎖定 40 位元 Commit SHA",
+                        raw_line.strip(),
+                        "可變版本標籤或分支可能遭遇供應鏈投毒攻擊",
+                        "將 Action 鎖定為 40 位元 commit SHA (如 @11bd719... # v4.2.2)",
+                    ))
         if "permissions: write-all" in line or re.search(r"permissions:\s*write-all", line):
             findings.append(make_finding(
                 path, idx, "MEDIUM", "SECURITY",
