@@ -35,6 +35,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * repository 的原子 UPDATE（markSent/markFailed/markDead，WHERE deliveryStatus = PROCESSING），
  * 不直接 save 陳舊 entity，避免覆蓋其他實例寫入的最新狀態。
  * 所有重試/退避政策皆可由組態調整（compensation.outbox.*）。
+ *
+ * <p>【投遞語意與等冪性規範 (Delivery Semantics & Idempotency)】</p>
+ * Outbox 保證「至少一次投遞 (At-Least-Once Delivery)」。在 Kafka ACK 逾時 (TimeoutException)
+ * 或 Worker 中斷取消時，訊息可能已被 Broker 接收但尚未確認；Worker 會標記 FAILED 排定重試。
+ * 重試期間 eventId 保持恆定，下游 Consumer 必須依據 eventId 實作等冪去重。
  */
 @Slf4j
 @Component
@@ -206,6 +211,10 @@ public class CompensationOutboxWorker {
                         CompensationOutboxDeliveryStatus.SENT,
                         CompensationOutboxDeliveryStatus.PROCESSING,
                         new Date());
+            } catch (TimeoutException e) {
+                log.warn("Outbox publish ACK timed out after {}s (delivery unconfirmed, scheduling At-Least-Once retry): id={}, eventId={}",
+                        ackTimeoutSeconds, fresh.getId(), fresh.getEventId());
+                handleDeliveryFailure(fresh.getId(), fresh.getEventId(), fresh.getAttemptCount(), ownerId, fencingVersion, e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.warn("Outbox publish task interrupted during event delivery: id={}, eventId={}",

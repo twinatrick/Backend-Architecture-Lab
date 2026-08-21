@@ -10,11 +10,17 @@ POLICY = load_policy()
 
 
 def test_high_high_blocks():
-    assert is_blocking({"severity": "HIGH", "confidence": "HIGH"}, POLICY)
+    assert is_blocking(
+        {"severity": "HIGH", "confidence": "HIGH", "category": "Security"},
+        POLICY,
+    )
 
 
 def test_critical_high_blocks():
-    assert is_blocking({"severity": "CRITICAL", "confidence": "HIGH"}, POLICY)
+    assert is_blocking(
+        {"severity": "CRITICAL", "confidence": "HIGH"},
+        POLICY,
+    )
 
 
 def test_high_low_does_not_block():

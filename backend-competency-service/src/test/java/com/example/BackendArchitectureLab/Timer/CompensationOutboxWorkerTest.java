@@ -44,6 +44,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -610,6 +611,69 @@ class CompensationOutboxWorkerTest {
                 eq(CompensationOutboxDeliveryStatus.SENT),
                 eq(CompensationOutboxDeliveryStatus.PROCESSING),
                 any(Date.class));
+    }
+
+    @Test
+    void flushPendingEvents_ShouldSupportAtLeastOnceDeliveryAndDeduplication_WhenDelayedAckFollowedBySuccessfulRetry() throws Exception {
+        ReflectionTestUtils.setField(compensationOutboxWorker, "publishParallelism", 1);
+        ReflectionTestUtils.setField(compensationOutboxWorker, "ackTimeoutSeconds", 1L);
+        compensationOutboxWorker.validateConfiguration();
+
+        CompensationOutboxEvent outbox = newOutboxEvent(CompensationStatus.COMMITTED);
+        CompensationOutboxEvent freshFirstAttempt = freshWithAttempt(outbox, 1);
+        freshFirstAttempt.setFencingVersion(1L);
+
+        // 模擬第一次執行：Kafka 發送延遲 ACK 導致逾時
+        when(outboxRepository.findPendingDue(anyList(), anyString(), any(Pageable.class)))
+                .thenReturn(List.of(outbox))
+                .thenReturn(List.of(outbox));
+        when(outboxRepository.claimEvent(any(UUID.class), anyList(), anyString(), anyString(), any(Date.class), any(Date.class)))
+                .thenReturn(1);
+        when(outboxRepository.findById(outbox.getId()))
+                .thenReturn(Optional.of(freshFirstAttempt));
+
+        CompletableFuture<Void> delayedFuture = new CompletableFuture<>();
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(delayedFuture);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        // 驗證第一次逾時被標記為 FAILED，並保留 eventId
+        verify(outboxRepository).markFailed(eq(outbox.getId()),
+                anyString(),
+                eq(1L),
+                eq(CompensationOutboxDeliveryStatus.FAILED),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                contains("TimeoutException"),
+                any(Date.class));
+
+        // 模擬第二次重試執行：相同 eventId 再次發佈並獲得成功 ACK
+        CompensationOutboxEvent freshSecondAttempt = freshWithAttempt(outbox, 2);
+        freshSecondAttempt.setFencingVersion(2L);
+        when(outboxRepository.findById(outbox.getId()))
+                .thenReturn(Optional.of(freshSecondAttempt));
+        when(compensationPublisher.publish(any(CompensationEvent.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(outboxRepository.markSent(any(UUID.class), anyString(), any(), anyString(), anyString(), any(Date.class)))
+                .thenReturn(1);
+
+        compensationOutboxWorker.flushPendingEvents();
+
+        // 驗證第二次重試成功標記 SENT
+        verify(outboxRepository).markSent(eq(outbox.getId()),
+                anyString(),
+                eq(2L),
+                eq(CompensationOutboxDeliveryStatus.SENT),
+                eq(CompensationOutboxDeliveryStatus.PROCESSING),
+                any(Date.class));
+
+        // 驗證兩次發布所發送的 CompensationEvent 均具有相同的 eventId，證明支援下游 Consumer 等冪去重 (Dedup)
+        ArgumentCaptor<CompensationEvent> eventCaptor = ArgumentCaptor.forClass(CompensationEvent.class);
+        verify(compensationPublisher, times(2)).publish(eventCaptor.capture());
+        List<CompensationEvent> capturedEvents = eventCaptor.getAllValues();
+        assertEquals(2, capturedEvents.size());
+        assertEquals(outbox.getEventId(), capturedEvents.get(0).getEventId());
+        assertEquals(outbox.getEventId(), capturedEvents.get(1).getEventId());
     }
 
     private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {

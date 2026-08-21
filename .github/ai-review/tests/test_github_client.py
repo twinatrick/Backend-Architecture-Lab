@@ -256,3 +256,19 @@ def test_resolve_review_target_dispatch_and_workflow_run():
     assert target_run["actor"] == "ci-bot"
     assert target_run["trigger_type"] == "workflow_run"
 
+
+def test_post_commit_status_success():
+    mock_post = MagicMock()
+    mock_post.return_value.status_code = 201
+    mock_post.return_value.json.return_value = {"id": 1001, "state": "success"}
+    with patch("requests.post", mock_post):
+        result = github_client.post_commit_status(
+            head_sha="commit_test_sha",
+            state="success",
+            description="Passed deterministic and AI checks",
+        )
+        assert result == {"id": 1001, "state": "success"}
+        called_url = mock_post.call_args[0][0]
+        assert "statuses/commit_test_sha" in called_url
+        assert mock_post.call_args[1]["json"]["context"] == "ai-review/architecture-gate"
+

@@ -162,6 +162,31 @@ def test_is_blocking_with_all_categories_and_severities():
     }
     assert engine.is_blocking(f_lower, policy) is True
 
+    # 驗證缺失或不在白名單的 category 不判定為 HIGH 阻擋，但 CRITICAL 仍阻擋
+    f_empty = {
+        "location": "src/App.java:1",
+        "category": "",
+        "severity": "HIGH",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_empty, policy) is False
+
+    f_style = {
+        "location": "src/App.java:1",
+        "category": "Style",
+        "severity": "HIGH",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_style, policy) is False
+
+    f_style_crit = {
+        "location": "src/App.java:1",
+        "category": "Style",
+        "severity": "CRITICAL",
+        "confidence": "HIGH",
+    }
+    assert engine.is_blocking(f_style_crit, policy) is True
+
     # 驗證 MEDIUM 與 LOW 違規不判定為阻擋
     f_med = {
         "location": "src/App.java:1",

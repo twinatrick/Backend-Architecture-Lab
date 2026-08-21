@@ -46,8 +46,7 @@ def is_blocking(finding: dict[str, Any], policy: dict[str, Any]) -> bool:
     cat = str(finding.get("category", "")).upper()
     cat_match = (
         not blocking_categories
-        or not cat
-        or cat in blocking_categories
+        or (bool(cat) and cat in blocking_categories)
         or sev == "CRITICAL"
     )
     return bool(sev in blocking_severities and conf in blocking_confidences and cat_match)
