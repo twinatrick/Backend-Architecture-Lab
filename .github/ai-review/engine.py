@@ -9,6 +9,23 @@ REQUIRED_FIELDS = {
 }
 ALLOWED_SEVERITY = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
 ALLOWED_CONFIDENCE = {"HIGH", "MEDIUM", "LOW"}
+ALLOWED_CATEGORIES = {
+    "ARCHITECTURE",
+    "SECURITY",
+    "COMPLIANCE",
+    "BUG",
+    "RELIABILITY",
+    "AUTHENTICATION",
+    "AUTHORIZATION",
+    "BOLA",
+    "IDOR",
+    "PERMISSION",
+    "MICROSERVICE BOUNDARY",
+    "CI SUPPLY CHAIN",
+    "SECRET EXPOSURE",
+    "FUNCTIONAL CORRECTNESS",
+    "DATA INTEGRITY",
+}
 
 HIGH_RISK_PATH_KEYWORDS = (
     ".github/workflows/",
@@ -64,6 +81,7 @@ def has_high_risk_scope(files: list[str]) -> bool:
 def validate_finding(
     finding: dict[str, Any],
     allowed_files: list[str] | None = None,
+    allowed_categories: set[str] | list[str] | None = None,
 ) -> bool:
     if not isinstance(finding, dict):
         return False
@@ -85,8 +103,14 @@ def validate_finding(
         return False
     if finding.get("confidence") not in ALLOWED_CONFIDENCE:
         return False
+    cat = str(finding.get("category", "")).strip().upper()
+    valid_categories = {
+        str(c).strip().upper() for c in (allowed_categories or ALLOWED_CATEGORIES)
+    }
+    if not cat or cat not in valid_categories:
+        return False
     for field in (
-        "category", "rule", "problem", "evidence", "risk", "recommendation"
+        "rule", "problem", "evidence", "risk", "recommendation"
     ):
         val = finding.get(field)
         if not isinstance(val, str) or not val.strip():

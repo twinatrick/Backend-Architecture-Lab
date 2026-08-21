@@ -2,6 +2,8 @@ import json
 import logging
 import re
 
+from engine import ALLOWED_CATEGORIES
+
 
 class ReviewResponseParser:
     """負責 LLM 審查回應的 JSON 提取與格式修復。"""
@@ -122,7 +124,7 @@ class ReviewResponseParser:
                 for f in findings:
                     if isinstance(f, dict):
                         cat = str(f.get("category", "")).strip().upper()
-                        if not cat:
+                        if not cat or cat not in ALLOWED_CATEGORIES:
                             rule_text = (
                                 str(f.get("rule", "")) + " " + str(f.get("problem", ""))
                             ).lower()

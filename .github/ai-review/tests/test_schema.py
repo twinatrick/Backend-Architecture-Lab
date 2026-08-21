@@ -14,25 +14,37 @@ REQUIRED = {
 
 def test_valid_finding_passes():
     finding = {key: "x" for key in REQUIRED}
-    finding.update(location="App.java:10", severity="HIGH", confidence="HIGH")
+    finding.update(
+        location="App.java:10",
+        severity="HIGH",
+        confidence="HIGH",
+        category="SECURITY",
+    )
     assert validate_finding(finding)
 
 
 def test_missing_required_field_fails():
     finding = {key: "x" for key in REQUIRED if key != "evidence"}
-    finding.update(severity="HIGH", confidence="HIGH")
+    finding.update(severity="HIGH", confidence="HIGH", category="SECURITY")
     assert not validate_finding(finding)
 
 
 def test_ai_blocking_field_is_rejected():
     finding = {key: "x" for key in REQUIRED}
-    finding.update(severity="HIGH", confidence="HIGH", blocking=False)
+    finding.update(
+        severity="HIGH", confidence="HIGH", category="SECURITY", blocking=False
+    )
     assert not validate_finding(finding)
 
 
 def test_ai_decision_field_is_rejected():
     finding = {key: "x" for key in REQUIRED}
-    finding.update(severity="HIGH", confidence="HIGH", decision="APPROVE")
+    finding.update(
+        severity="HIGH",
+        confidence="HIGH",
+        category="SECURITY",
+        decision="APPROVE",
+    )
     assert not validate_finding(finding)
 
 
@@ -44,7 +56,12 @@ def test_non_dict_finding_fails():
 
 def test_empty_or_whitespace_location_fails():
     finding = {key: "x" for key in REQUIRED}
-    finding.update(severity="HIGH", confidence="HIGH", location="   ")
+    finding.update(
+        severity="HIGH",
+        confidence="HIGH",
+        category="SECURITY",
+        location="   ",
+    )
     assert not validate_finding(finding)
 
     finding["location"] = ""
@@ -54,7 +71,7 @@ def test_empty_or_whitespace_location_fails():
 def test_non_string_or_empty_text_fields_fail():
     for field in ("rule", "problem", "evidence", "risk", "recommendation"):
         finding = {key: "x" for key in REQUIRED}
-        finding.update(severity="HIGH", confidence="HIGH")
+        finding.update(severity="HIGH", confidence="HIGH", category="SECURITY")
         finding[field] = ""
         assert not validate_finding(finding)
 
@@ -62,9 +79,25 @@ def test_non_string_or_empty_text_fields_fail():
         assert not validate_finding(finding)
 
 
+def test_invalid_category_fails():
+    finding = {key: "x" for key in REQUIRED}
+    finding.update(
+        location="App.java:10",
+        severity="HIGH",
+        confidence="HIGH",
+        category="INVALID_CAT",
+    )
+    assert not validate_finding(finding)
+
+
 def test_extra_unexpected_field_is_rejected():
     finding = {key: "x" for key in REQUIRED}
-    finding.update(severity="HIGH", confidence="HIGH", unexpected_extra_field="invalid")
+    finding.update(
+        severity="HIGH",
+        confidence="HIGH",
+        category="SECURITY",
+        unexpected_extra_field="invalid",
+    )
     assert not validate_finding(finding)
 
 

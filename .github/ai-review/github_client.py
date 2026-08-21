@@ -75,8 +75,8 @@ def validate_target_pr(
 
     if expected_head_sha:
         head_sha = pr_data.get("head", {}).get("sha", "")
-        if head_sha and head_sha != expected_head_sha:
-            return False, f"PR head_sha '{head_sha}' 與期望 SHA '{expected_head_sha}' 不一致"
+        if not head_sha or head_sha != expected_head_sha:
+            return False, f"PR head_sha '{head_sha}' 與期望 SHA '{expected_head_sha}' 不一致或缺失"
     return True, ""
 
 

@@ -6,25 +6,57 @@ from key_pool import get_gemini_api_keys, get_groq_api_keys
 
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
 
-# 預先編譯敏感特徵的正則表達式
-TOKEN_REGEX_PATTERNS = [
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
-    re.compile(r"-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----"),
-    re.compile(r"\bgsk_[0-9A-Za-z_]{20,}\b"),
-    re.compile(r"\bAIza[0-9A-Za-z\-_]{30,}\b"),
-    re.compile(r"\bgh[pousr]_[0-9A-Za-z]{20,}\b"),
-    re.compile(r"\bgithub_pat_[0-9A-Za-z_]{20,}\b"),
-    re.compile(r"\b(?:AKIA|ASIA|AROA|AIDA)[0-9A-Z]{16}\b"),
-    re.compile(r"\bxox[baprs]-[0-9A-Za-z\-]{10,}\b"),
-    re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
-    re.compile(
-        r"(?i)((?:https?|jdbc:[a-zA-Z0-9_\-]+|postgresql|postgres|mysql|oracle|"
-        r"redis|mongodb|amqp|grpc)://[^:\s/@]*):([^@\s/]+)@"
-    ),
-    re.compile(
-        r"(?i)([?&](?:token|key|secret|password|auth|access_token|api_key|credential)=)([^&\s]+)"
-    ),
-]
+# 預先編譯敏感特徵的正則表達式（單一真源）
+PRIVATE_KEY_PATTERN = re.compile(
+    r"-----BEGIN (?:[A-Z ]+)?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z ]+)?PRIVATE KEY-----"
+)
+CERTIFICATE_PATTERN = re.compile(
+    r"-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----"
+)
+GROQ_KEY_PATTERN = re.compile(r"\bgsk_[0-9A-Za-z_]{20,}\b")
+GEMINI_KEY_PATTERN = re.compile(r"\bAIza[0-9A-Za-z\-_]{30,}\b")
+GITHUB_TOKEN_PATTERN = re.compile(r"\bgh[pousr]_[0-9A-Za-z]{20,}\b")
+GITHUB_PAT_PATTERN = re.compile(r"\bgithub_pat_[0-9A-Za-z_]{20,}\b")
+AWS_KEY_PATTERN = re.compile(r"\b(?:AKIA|ASIA|AROA|AIDA)[0-9A-Z]{16}\b")
+SLACK_TOKEN_PATTERN = re.compile(r"\bxox[baprs]-[0-9A-Za-z\-]{10,}\b")
+JWT_PATTERN = re.compile(
+    r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"
+)
+CONN_STRING_PATTERN = re.compile(
+    r"(?i)((?:https?|jdbc:[a-zA-Z0-9_\-]+|postgresql|postgres|mysql|oracle|"
+    r"redis|mongodb|amqp|grpc)://[^:\s/@]*):([^@\s/]+)@"
+)
+URL_PARAM_PATTERN = re.compile(
+    r"(?i)([?&](?:token|key|secret|password|auth|access_token|api_key|credential)=)([^&\s]+)"
+)
+YAML_SECRET_PATTERN = re.compile(
+    r"(?im)(^\s*[a-zA-Z0-9_.-]*(?:password|secret|token|credential|"
+    r"api[_-]?key|auth|private[_-]?key)[a-zA-Z0-9_.-]*\s*:\s+)([^\"'\r\n#\s()]{3,})"
+    r"(\s*(?:#.*)?)$"
+)
+PROP_ENV_SECRET_PATTERN = re.compile(
+    r"(?im)(^\s*(?:[a-zA-Z0-9_]+\.[a-zA-Z0-9_.-]*|[A-Z0-9_]{3,})"
+    r"(?:password|secret|token|credential|api[_-]?key|auth|private[_-]?key)"
+    r"[a-zA-Z0-9_.-]*\s*=\s*)([^\"'\r\n#\s()]{3,})(\s*(?:#.*)?)$"
+)
+QUOTED_SECRET_PATTERN = re.compile(
+    r"(?i)([\"']?(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
+    r"password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*)([\"'])"
+    r"([^\"'\r\n]{3,})"
+    r"(\2)"
+)
+
+# 供靜態檢測使用之標準機密特徵清單
+STATIC_SECRET_REGEXES = (
+    re.compile(r"-----BEGIN (?:[A-Z ]+)?PRIVATE KEY-----"),
+    GROQ_KEY_PATTERN,
+    GEMINI_KEY_PATTERN,
+    GITHUB_TOKEN_PATTERN,
+    GITHUB_PAT_PATTERN,
+    AWS_KEY_PATTERN,
+    SLACK_TOKEN_PATTERN,
+    QUOTED_SECRET_PATTERN,
+)
 
 
 def get_gh_token() -> str:
@@ -59,16 +91,8 @@ def sanitize_diff(diff: str) -> str:
     sanitized = diff
 
     # 1. 遮蔽 Private Key 與 Certificate 區塊
-    sanitized = re.sub(
-        r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
-        "[REDACTED_PRIVATE_KEY]",
-        sanitized,
-    )
-    sanitized = re.sub(
-        r"-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----",
-        "[REDACTED_CERTIFICATE]",
-        sanitized,
-    )
+    sanitized = PRIVATE_KEY_PATTERN.sub("[REDACTED_PRIVATE_KEY]", sanitized)
+    sanitized = CERTIFICATE_PATTERN.sub("[REDACTED_CERTIFICATE]", sanitized)
 
     # 2. 遮蔽所有已知環境變數中的真實 Secret 值（長度降序排列以避免子字串替換干擾）
     known_secrets = _get_all_known_secrets()
@@ -76,53 +100,22 @@ def sanitize_diff(diff: str) -> str:
         sanitized = sanitized.replace(secret, "[REDACTED]")
 
     # 3. 遮蔽各類標準 Token Regex（Groq, Gemini, GitHub, AWS, Slack, JWT）
-    sanitized = re.sub(r"\bgsk_[0-9A-Za-z_]{20,}\b", "[REDACTED]", sanitized)
-    sanitized = re.sub(r"\bAIza[0-9A-Za-z\-_]{30,}\b", "[REDACTED]", sanitized)
-    sanitized = re.sub(r"\bgh[pousr]_[0-9A-Za-z]{20,}\b", "[REDACTED]", sanitized)
-    sanitized = re.sub(r"\bgithub_pat_[0-9A-Za-z_]{20,}\b", "[REDACTED]", sanitized)
-    sanitized = re.sub(r"\b(?:AKIA|ASIA|AROA|AIDA)[0-9A-Z]{16}\b", "[REDACTED]", sanitized)
-    sanitized = re.sub(r"\bxox[baprs]-[0-9A-Za-z\-]{10,}\b", "[REDACTED]", sanitized)
-    sanitized = re.sub(
-        r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b",
-        "[REDACTED_JWT]",
-        sanitized,
-    )
+    sanitized = GROQ_KEY_PATTERN.sub("[REDACTED]", sanitized)
+    sanitized = GEMINI_KEY_PATTERN.sub("[REDACTED]", sanitized)
+    sanitized = GITHUB_TOKEN_PATTERN.sub("[REDACTED]", sanitized)
+    sanitized = GITHUB_PAT_PATTERN.sub("[REDACTED]", sanitized)
+    sanitized = AWS_KEY_PATTERN.sub("[REDACTED]", sanitized)
+    sanitized = SLACK_TOKEN_PATTERN.sub("[REDACTED]", sanitized)
+    sanitized = JWT_PATTERN.sub("[REDACTED_JWT]", sanitized)
 
     # 4. 遮蔽各類連線字串 (HTTP/JDBC/Redis/Mongo/AMQP/gRPC) 與 URL Query Parameter 中的帳密/Token
-    sanitized = re.sub(
-        r"(?i)((?:https?|jdbc:[a-zA-Z0-9_\-]+|postgresql|postgres|mysql|oracle|"
-        r"redis|mongodb|amqp|grpc)://[^:\s/@]*):([^@\s/]+)@",
-        r"\1:[REDACTED]@",
-        sanitized,
-    )
-    sanitized = re.sub(
-        r"(?i)([?&](?:token|key|secret|password|auth|access_token|api_key|credential)=)([^&\s]+)",
-        r"\1[REDACTED]",
-        sanitized,
-    )
+    sanitized = CONN_STRING_PATTERN.sub(r"\1:[REDACTED]@", sanitized)
+    sanitized = URL_PARAM_PATTERN.sub(r"\1[REDACTED]", sanitized)
 
     # 5. 遮蔽程式碼與設定檔 (YAML/Properties/.env) 中的各類敏感鍵值
-    yaml_pattern = re.compile(
-        r"(?im)(^\s*[a-zA-Z0-9_.-]*(?:password|secret|token|credential|"
-        r"api[_-]?key|auth|private[_-]?key)[a-zA-Z0-9_.-]*\s*:\s+)([^\"'\r\n#\s()]{3,})"
-        r"(\s*(?:#.*)?)$"
-    )
-    sanitized = yaml_pattern.sub(r"\1[REDACTED]\3", sanitized)
-
-    prop_env_pattern = re.compile(
-        r"(?im)(^\s*(?:[a-zA-Z0-9_]+\.[a-zA-Z0-9_.-]*|[A-Z0-9_]{3,})"
-        r"(?:password|secret|token|credential|api[_-]?key|auth|private[_-]?key)"
-        r"[a-zA-Z0-9_.-]*\s*=\s*)([^\"'\r\n#\s()]{3,})(\s*(?:#.*)?)$"
-    )
-    sanitized = prop_env_pattern.sub(r"\1[REDACTED]\3", sanitized)
-
-    quoted_pattern = re.compile(
-        r"(?i)([\"']?(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|"
-        r"password|client[_-]?secret|private[_-]?key|bearer)[\"']?\s*[:=]\s*)([\"'])"
-        r"([^\"'\r\n]{3,})"
-        r"(\2)"
-    )
-    sanitized = quoted_pattern.sub(r"\1\2[REDACTED]\4", sanitized)
+    sanitized = YAML_SECRET_PATTERN.sub(r"\1[REDACTED]\3", sanitized)
+    sanitized = PROP_ENV_SECRET_PATTERN.sub(r"\1[REDACTED]\3", sanitized)
+    sanitized = QUOTED_SECRET_PATTERN.sub(r"\1\2[REDACTED]\4", sanitized)
 
     return sanitized
 
