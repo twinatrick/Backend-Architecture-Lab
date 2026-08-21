@@ -35,7 +35,28 @@ def test_check_python_function_level_import_detected():
     findings = static_checks.run_static_checks(files)
     rules = [finding_item["rule"] for finding_item in findings]
     assert any("Import 置頂規範" in rule_text for rule_text in rules)
-    assert any("禁止在函式或方法內部宣告 import" in finding_item["problem"] for finding_item in findings)
+    assert any(
+        "禁止在函式、類別、條件或迴圈等非頂層 scope 宣告 import" in finding_item["problem"]
+        for finding_item in findings
+    )
+
+
+def test_check_python_nested_import_in_if_condition_detected():
+    content = (
+        "def run_job(flag: bool) -> None:\n"
+        "    if flag:\n"
+        "        import sys\n"
+        "        sys.exit(0)\n"
+    )
+    patch = "@@ -1,4 +1,4 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
+    files = [{"filename": "scripts/job.py", "patch": patch, "full_content": content}]
+    findings = static_checks.run_static_checks(files)
+    rules = [finding_item["rule"] for finding_item in findings]
+    assert any("Import 置頂規範" in rule_text for rule_text in rules)
+    assert any(
+        "禁止在函式、類別、條件或迴圈等非頂層 scope 宣告 import" in finding_item["problem"]
+        for finding_item in findings
+    )
 
 
 def test_check_python_top_level_import_not_flagged():

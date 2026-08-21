@@ -20,11 +20,11 @@ ALLOWED_CATEGORIES = {
     "BOLA",
     "IDOR",
     "PERMISSION",
-    "MICROSERVICE BOUNDARY",
-    "CI SUPPLY CHAIN",
-    "SECRET EXPOSURE",
-    "FUNCTIONAL CORRECTNESS",
-    "DATA INTEGRITY",
+    "MICROSERVICE_BOUNDARY",
+    "CI_SUPPLY_CHAIN",
+    "SECRET_EXPOSURE",
+    "FUNCTIONAL_CORRECTNESS",
+    "DATA_INTEGRITY",
 }
 
 HIGH_RISK_PATH_KEYWORDS = (
@@ -58,11 +58,12 @@ def is_blocking(finding: dict[str, Any], policy: dict[str, Any]) -> bool:
         for confidence in policy.get("blocking_confidence", ["HIGH"])
     }
     blocking_categories = {
-        str(category).upper() for category in policy.get("blocking_categories", [])
+        str(category).upper().replace(" ", "_")
+        for category in policy.get("blocking_categories", [])
     }
     sev = str(finding.get("severity", "")).upper()
     conf = str(finding.get("confidence", "")).upper()
-    cat = str(finding.get("category", "")).upper()
+    cat = str(finding.get("category", "")).upper().replace(" ", "_")
     cat_match = (
         not blocking_categories
         or (bool(cat) and cat in blocking_categories)
@@ -107,9 +108,9 @@ def validate_finding(
         return False
     if finding.get("confidence") not in ALLOWED_CONFIDENCE:
         return False
-    cat = str(finding.get("category", "")).strip().upper()
+    cat = str(finding.get("category", "")).strip().upper().replace(" ", "_")
     valid_categories = {
-        str(category_item).strip().upper()
+        str(category_item).strip().upper().replace(" ", "_")
         for category_item in (allowed_categories or ALLOWED_CATEGORIES)
     }
     if not cat or cat not in valid_categories:
@@ -225,7 +226,12 @@ def evaluate(
         expected_files, active_policy
     )
 
-    decision = "REQUEST_CHANGES" if blocking_findings else "APPROVE"
+    if blocking_findings:
+        decision = "REQUEST_CHANGES"
+    elif requirements["requires_human_review"]:
+        decision = "HUMAN_REVIEW_REQUIRED"
+    else:
+        decision = "APPROVE"
 
     return {
         "decision": decision,

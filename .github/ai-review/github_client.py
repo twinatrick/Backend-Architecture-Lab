@@ -247,7 +247,9 @@ def publish_review(
         raise RuntimeError(f"無法在 PR #{pr_number} 提交正式 PR Review，觸發 Fail-Closed。")
     if commit_id:
         status_state = "success" if decision == "APPROVE" else "failure"
-        if decision == "APPROVE" and requires_human_review:
+        if decision == "HUMAN_REVIEW_REQUIRED":
+            description_text = "AI Review: Human Review Required (Architect Approval Needed)"
+        elif decision == "APPROVE" and requires_human_review:
             description_text = "AI Review: APPROVE (Human Review Required)"
         else:
             description_text = f"AI Review: {decision}"

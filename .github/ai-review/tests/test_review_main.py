@@ -98,7 +98,8 @@ def test_main_with_static_checks_fail_closed(monkeypatch, tmp_path):
     mock_pr_files = [
         {
             "filename": ".github/workflows/bad.yml",
-            "patch": """+on:
+            "patch": """@@ -0,0 +1,8 @@
++on:
 +  pull_request_target:
 +jobs:
 +  build:

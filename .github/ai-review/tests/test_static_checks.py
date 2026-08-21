@@ -282,7 +282,7 @@ def test_static_checks_self_compliance():
         file_payloads.append(
             {
                 "filename": f".github/ai-review/{py_file.name}",
-                "patch": "",
+                "status": "added",
                 "full_content": content,
             }
         )

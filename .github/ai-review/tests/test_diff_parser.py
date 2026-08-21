@@ -21,7 +21,6 @@ class TestDiffParser(unittest.TestCase):
             " context line\n"
         )
         changed = extract_changed_lines(patch)
-        self.assertIsNotNone(changed)
         self.assertEqual(changed, {11, 12})
 
     def test_extract_changed_lines_multiple_hunks(self) -> None:
@@ -37,19 +36,28 @@ class TestDiffParser(unittest.TestCase):
             " context line\n"
         )
         changed = extract_changed_lines(patch)
-        self.assertIsNotNone(changed)
         self.assertEqual(changed, {1, 21})
 
     def test_extract_changed_lines_empty_or_none(self) -> None:
-        """測試空 Patch 或 None 輸入回傳 None。"""
-        self.assertIsNone(extract_changed_lines(None))
-        self.assertIsNone(extract_changed_lines(""))
-        self.assertIsNone(extract_changed_lines("   "))
+        """測試空 Patch 或 None 輸入回傳空集合。"""
+        self.assertEqual(extract_changed_lines(None), set())
+        self.assertEqual(extract_changed_lines(""), set())
+        self.assertEqual(extract_changed_lines("   "), set())
 
-    def test_extract_changed_lines_no_hunk_header(self) -> None:
-        """測試無標準 Hunk 標頭的 Patch 回傳 None。"""
+    def test_extract_changed_lines_added_status(self) -> None:
+        """測試新增檔案狀態提取全檔行號。"""
+        changed = extract_changed_lines("", status="added", total_lines=5)
+        self.assertEqual(changed, {1, 2, 3, 4, 5})
+
+    def test_extract_changed_lines_without_hunk_header_with_plus(self) -> None:
+        """測試無標準 Hunk 標頭但有加號的新增片段正確解析行號。"""
         patch = "+added line without header"
-        self.assertIsNone(extract_changed_lines(patch))
+        self.assertEqual(extract_changed_lines(patch), {1})
+
+    def test_extract_changed_lines_plain_text_without_plus(self) -> None:
+        """測試無 Hunk 且無加號之普通文字回傳空集合。"""
+        patch = "plain context line without plus"
+        self.assertEqual(extract_changed_lines(patch), set())
 
 
 if __name__ == "__main__":

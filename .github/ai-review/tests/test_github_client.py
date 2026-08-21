@@ -287,14 +287,14 @@ def test_post_commit_status_success():
         assert mock_post.call_args[1]["json"]["context"] == "ai-review/architecture-gate"
 
 
-def test_publish_review_with_requires_human_review():
+def test_publish_review_with_human_review_required():
     with patch("github_client.post_issue_comment", return_value={"id": 1}), \
          patch("github_client.post_pr_review", return_value={"id": 2}), \
          patch("github_client.post_commit_status", return_value={"id": 3}) as mock_status:
         github_client.publish_review(
-            42, "body", "APPROVE", commit_id="sha123", requires_human_review=True,
+            42, "body", "HUMAN_REVIEW_REQUIRED", commit_id="sha123", requires_human_review=True,
         )
         mock_status.assert_called_once_with(
-            "sha123", "success", "AI Review: APPROVE (Human Review Required)",
+            "sha123", "failure", "AI Review: Human Review Required (Architect Approval Needed)",
         )
 

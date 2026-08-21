@@ -55,14 +55,14 @@ def test_evaluate_policy_severity_and_decision():
     assert res_low["decision"] == "APPROVE"
     assert len(res_low["blocking_findings"]) == 0
 
-    # 高風險核心範疇 (CI/安全/IAM/pom) 變更應放行 APPROVE 但要求人工簽核
+    # 高風險核心範疇 (CI/安全/IAM/pom) 變更應判定為 HUMAN_REVIEW_REQUIRED 安全閘門
     res_high_risk_ci = engine.evaluate(
         findings=[],
         expected_files=[".github/workflows/ci.yml"],
         reviewed_files=[".github/workflows/ci.yml"],
         policy=policy,
     )
-    assert res_high_risk_ci["decision"] == "APPROVE"
+    assert res_high_risk_ci["decision"] == "HUMAN_REVIEW_REQUIRED"
     assert res_high_risk_ci["requires_human_review"] is True
     assert ".github/workflows/ci.yml" in res_high_risk_ci["high_risk_files"]
 

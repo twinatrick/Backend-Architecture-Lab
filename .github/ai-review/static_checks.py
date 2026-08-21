@@ -1,6 +1,5 @@
 import ast
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Any
@@ -20,6 +19,24 @@ from check_rules import (
 )
 from check_workflow import check_workflow_file
 from diff_parser import extract_changed_lines
+
+
+def sanitize_source_content(raw_content: str) -> str:
+    """若傳入內容為 raw patch，過濾 diff 標頭與 + 前綴以還原純程式碼供 AST/YAML 解析。"""
+    if not raw_content:
+        return ""
+    lines = raw_content.splitlines()
+    if any(line.startswith("@@") for line in lines):
+        clean_lines = []
+        for line in lines:
+            if line.startswith("@@") or line.startswith("---") or line.startswith("+++"):
+                continue
+            if line.startswith("+"):
+                clean_lines.append(line[1:])
+            elif not line.startswith("-"):
+                clean_lines.append(line)
+        return "\n".join(clean_lines)
+    return raw_content
 
 
 def check_secrets(
@@ -107,6 +124,11 @@ def check_python_file(
     )
     try:
         tree = ast.parse(content)
+        top_import_ids = {
+            id(child_node) for child_node in tree.body
+            if isinstance(child_node, (ast.Import, ast.ImportFrom))
+        }
+
         for node in ast.walk(tree):
             lineno = getattr(node, "lineno", None)
             if lineno is None:
@@ -126,7 +148,21 @@ def check_python_file(
                         "記錄具體警告日誌 (logging.warning) 或拋出具體例外",
                     ))
 
-            # 2. AST: 函式定義（型別標註與內部 import 檢查）
+            # 2. AST: 巢狀 import 檢查（非 Module 頂層宣告之 import）
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                if id(node) not in top_import_ids:
+                    import_lineno = getattr(node, "lineno", lineno)
+                    if changed_lines is None or import_lineno in changed_lines:
+                        findings.append(make_finding(
+                            path, import_lineno, "LOW", "COMPLIANCE",
+                            RULE_PYTHON_IMPORT_TOP,
+                            "禁止在函式、類別、條件或迴圈等非頂層 scope 宣告 import",
+                            "發現非模組頂層之局部 import 宣告",
+                            "降低依賴可見性並增加執行期載入開銷",
+                            "將 import 宣告移至檔案最頂層",
+                        ))
+
+            # 3. AST: 函式定義（參數與回傳型別標註）
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 fn_start = node.lineno
                 fn_end = getattr(node, "end_lineno", fn_start)
@@ -170,20 +206,7 @@ def check_python_file(
                                 f"為參數補齊 Type Hint (例如 {arg_node.arg}: str)",
                             ))
 
-                for child in node.body:
-                    if isinstance(child, (ast.Import, ast.ImportFrom)):
-                        child_lineno = getattr(child, "lineno", lineno)
-                        if changed_lines is None or child_lineno in changed_lines:
-                            findings.append(make_finding(
-                                path, child_lineno, "LOW", "COMPLIANCE",
-                                RULE_PYTHON_IMPORT_TOP,
-                                "禁止在函式或方法內部宣告 import",
-                                "發現函式內部局部 import 宣告",
-                                "降低依賴可見性並增加執行期載入開銷",
-                                "將 import 宣告移至檔案最頂層",
-                            ))
-
-            # 3. AST: 禁止單字母變數 (除迴圈 i 與忽略變數 _ 外)
+            # 4. AST: 禁止單字母變數 (除迴圈 i 與忽略變數 _ 外)
             elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
                 var_name = node.id
                 if len(var_name) == 1 and var_name not in ("i", "_"):
@@ -222,11 +245,27 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for file_item in files:
         path = file_item.get("filename") or file_item.get("path") or ""
         patch = file_item.get("patch") or ""
+        status = file_item.get("status") or ""
         content = file_item.get("full_content") or file_item.get("content") or patch
-        if not path:
+        if not path or status in ("removed", "deleted"):
             continue
         norm_path = path.replace("\\", "/")
-        changed_lines = extract_changed_lines(patch)
+        lines_count = len(content.splitlines()) if content else 0
+
+        # 如果檔案有內容但無 patch 且狀態非新增，代表 patch 缺失無法界定變更範圍
+        if content and not patch and status not in ("added", "new") and lines_count > 0:
+            all_findings.append(make_finding(
+                path, 1, "HIGH", "COMPLIANCE",
+                RULE_PYTHON_MODULE_LOC,
+                f"檔案 {path} 缺少 Diff Patch，無法精確界定變更範圍",
+                "Patch unavailable for modified file in diff inspection",
+                "缺少 Patch 將導致行級靜態檢查與安全審查產生盲區",
+                "確保 PR 包含有效 Patch 資訊或重新觸發 CI 審查",
+            ))
+            continue
+
+        changed_lines = extract_changed_lines(patch, status=status, total_lines=lines_count)
+        clean_content = sanitize_source_content(content)
 
         if content:
             all_findings.extend(check_secrets(path, content, changed_lines=changed_lines))
@@ -235,24 +274,25 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
             norm_path.startswith(".github/workflows/")
             and (norm_path.endswith(".yml") or norm_path.endswith(".yaml"))
         ):
-            if content:
+            if clean_content:
                 all_findings.extend(
-                    check_workflow_file(path, content, changed_lines=changed_lines)
+                    check_workflow_file(path, clean_content, changed_lines=changed_lines)
                 )
         elif norm_path.endswith(".java"):
-            if content:
+            if clean_content:
                 all_findings.extend(
-                    check_java_file(path, content, changed_lines=changed_lines)
+                    check_java_file(path, clean_content, changed_lines=changed_lines)
                 )
         elif norm_path.endswith(".py"):
+            py_code = clean_content
             if not file_item.get("full_content") and Path(path).exists():
                 try:
-                    content = Path(path).read_text(encoding="utf-8")
+                    py_code = Path(path).read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError) as exc:
                     logging.warning("無法讀取本地 Python 檔案 %s：%s", path, exc)
-            if content:
+            if py_code:
                 all_findings.extend(
-                    check_python_file(path, content, changed_lines=changed_lines)
+                    check_python_file(path, py_code, changed_lines=changed_lines)
                 )
 
     return all_findings
