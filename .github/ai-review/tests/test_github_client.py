@@ -233,7 +233,7 @@ def test_publish_failure_report_generates_markdown_and_publishes():
             commit_id="commit789",
         )
         assert "# AI Architecture & Security Review" in body
-        assert "REQUEST_CHANGES" in body
+        assert "REVIEW_FAILED_INFRA" in body
         assert "Groq API 呼叫異常" in body
         assert "model-a" in body
         assert "model-b" in body
@@ -285,4 +285,16 @@ def test_post_commit_status_success():
         called_url = mock_post.call_args[0][0]
         assert "statuses/commit_test_sha" in called_url
         assert mock_post.call_args[1]["json"]["context"] == "ai-review/architecture-gate"
+
+
+def test_publish_review_with_requires_human_review():
+    with patch("github_client.post_issue_comment", return_value={"id": 1}), \
+         patch("github_client.post_pr_review", return_value={"id": 2}), \
+         patch("github_client.post_commit_status", return_value={"id": 3}) as mock_status:
+        github_client.publish_review(
+            42, "body", "APPROVE", commit_id="sha123", requires_human_review=True,
+        )
+        mock_status.assert_called_once_with(
+            "sha123", "success", "AI Review: APPROVE (Human Review Required)",
+        )
 

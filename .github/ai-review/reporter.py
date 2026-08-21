@@ -13,12 +13,11 @@ def format_markdown_report(
     blocking_findings: list[dict[str, Any]],
     passed_checks: list[str],
     audit_info: dict[str, Any] | None = None,
+    requires_human_review: bool = False,
+    high_risk_files: list[str] | None = None,
 ) -> str:
     """產出 Markdown 格式之 AI Review 報告全文。"""
-    has_mandatory_review = any(
-        finding_item.get("rule") == "Mandatory Human Architecture & Security Review"
-        for finding_item in blocking_findings
-    ) or has_high_risk_scope(changed_files)
+    is_human_required = requires_human_review or has_high_risk_scope(changed_files)
     report = [
         "# AI Code Review",
         "",
@@ -28,13 +27,18 @@ def format_markdown_report(
         f"共 {len(unique_findings)} 個 Finding，其中 {len(blocking_findings)} 個阻擋項目。",
         "",
     ]
-    if has_mandatory_review:
+    if is_human_required:
+        risk_list = high_risk_files or [
+            file_path for file_path in changed_files if has_high_risk_scope([file_path])
+        ]
+        sample_files = ", ".join(f"`{file_item}`" for file_item in risk_list[:3])
+        suffix_text = " 等" if len(risk_list) > 3 else ""
         report.extend([
-            "> ⚠️ **安全閘門策略提示 (Mandatory Human Review Gate)**：",
+            "> ⚠️ **安全閘門策略提示 (Mandatory Human Architecture & Security Review Required)**：",
             "> 本次 PR 變更涉及核心安全、微服務架構或全域配置範疇（如 GitHub Workflows、",
-            "> IAM 權限、AOP/Filter、Controller/Feign 或全域依賴 pom.xml）。",
-            "> 依安全策略要求，**禁止 AI 自動放行 APPROVE**，強制觸發 `REQUEST_CHANGES` ",
-            "> 提請資深架構師與安全專家進行人工審查與最終放行簽署。",
+            "> IAM 權限、AOP/Filter、Controller/Feign 或全域依賴 pom.xml 等）。",
+            f"> 涉及檔案：{sample_files}{suffix_text}。",
+            "> 依專案架構規範，**要求資深架構師或安全負責人進行最終人工審查與簽署**。",
             "",
         ])
     elif decision == "COMMENT":
@@ -99,6 +103,8 @@ def format_json_report(
     batch_count: int,
     changed_files: list[str],
     audit_info: dict[str, Any] | None = None,
+    requires_human_review: bool = False,
+    high_risk_files: list[str] | None = None,
 ) -> str:
     """產出 JSON 格式之審查元數據。"""
     sanitized_findings = []
@@ -119,6 +125,8 @@ def format_json_report(
         "blocking_findings": sanitized_blocking,
         "batches": batch_count,
         "files_reviewed": changed_files,
+        "requires_human_review": requires_human_review,
+        "high_risk_files": high_risk_files or [],
     }
     if audit_info:
         payload["audit"] = {

@@ -112,14 +112,31 @@ def test_format_reports_with_audit_info():
 
 def test_format_markdown_report_mandatory_human_review_notice():
     report = reporter.format_markdown_report(
-        decision="COMMENT",
+        decision="APPROVE",
         changed_files=[".github/workflows/ci.yml"],
         results=[{}],
         unique_findings=[],
         blocking_findings=[],
         passed_checks=[],
+        requires_human_review=True,
+        high_risk_files=[".github/workflows/ci.yml"],
     )
-    assert "## 審查結果\nCOMMENT" in report
-    assert "Mandatory Human Review" in report
-    assert "禁止 AI 自動放行 APPROVE" in report
+    assert "## 審查結果\nAPPROVE" in report
+    assert "Mandatory Human Architecture & Security Review Required" in report
+    assert "要求資深架構師或安全負責人進行最終人工審查與簽署" in report
+
+
+def test_format_json_report_with_human_review():
+    json_str = reporter.format_json_report(
+        decision="APPROVE",
+        unique_findings=[],
+        blocking_findings=[],
+        batch_count=1,
+        changed_files=[".github/workflows/ci.yml"],
+        requires_human_review=True,
+        high_risk_files=[".github/workflows/ci.yml"],
+    )
+    data = json.loads(json_str)
+    assert data["requires_human_review"] is True
+    assert data["high_risk_files"] == [".github/workflows/ci.yml"]
 

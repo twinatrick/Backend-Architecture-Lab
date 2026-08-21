@@ -127,6 +127,29 @@ def validate_coverage(expected: list[str], reviewed: list[str]) -> bool:
     return sorted(expected) == sorted(reviewed) and len(reviewed) == len(set(reviewed))
 
 
+def evaluate_coverage(
+    expected_files: list[str],
+    reviewed_files: list[str],
+) -> tuple[bool, dict[str, Any] | None]:
+    """驗證批次審查檔案清單之完整性，未達完全覆蓋時產生阻擋 Finding。"""
+    if validate_coverage(expected_files, reviewed_files):
+        return True, None
+
+    fallback_location = expected_files[0] if expected_files else "PR"
+    coverage_finding = {
+        "location": f"{fallback_location}:1",
+        "category": "COMPLIANCE",
+        "rule": "開發規範 §5 Review 完整性與可見度",
+        "problem": "審查檔案覆蓋範圍與預期檔案清單不一致，存在未覆蓋或多餘檔案。",
+        "evidence": f"預期: {expected_files}，審查回傳: {reviewed_files}",
+        "risk": "未經完整審查之程式碼可能暗藏架構缺陷或安全漏洞。",
+        "recommendation": "確保所有變更檔案均納入批次並完成覆蓋驗證。",
+        "severity": "HIGH",
+        "confidence": "HIGH",
+    }
+    return False, coverage_finding
+
+
 def deduplicate(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     seen: set[tuple[str | None, str | None, str | None]] = set()
@@ -138,62 +161,78 @@ def deduplicate(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def evaluate_findings(
+    findings: list[dict[str, Any]],
+    policy: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """評估程式碼 Findings 之去重與 Policy 阻擋條件（SRP：純粹關注程式碼瑕疵）。"""
+    unique_findings = deduplicate(findings)
+    blocking_findings = [
+        finding_item for finding_item in unique_findings
+        if is_blocking(finding_item, policy)
+    ]
+    return unique_findings, blocking_findings
+
+
+def evaluate_review_requirements(
+    expected_files: list[str],
+    policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """評估 PR 是否觸及高風險路徑並需額外人工架構/安全簽核（SRP：審查流程策略）。"""
+    active_policy = policy or load_policy()
+    requires_human_policy = bool(
+        active_policy.get("high_risk_requires_human_review", True)
+    )
+    high_risk_files = [
+        file_path for file_path in expected_files
+        if is_high_risk_path(file_path)
+    ]
+    is_high_risk = bool(high_risk_files)
+    return {
+        "requires_human_review": is_high_risk and requires_human_policy,
+        "high_risk_files": high_risk_files,
+    }
+
+
 def evaluate(
     findings: list[dict[str, Any]],
     expected_files: list[str],
     reviewed_files: list[str],
     policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """聚合覆蓋率、程式碼 Findings 與審查流程需求，產出最終決策字典。"""
     active_policy = policy or load_policy()
-    if not validate_coverage(expected_files, reviewed_files):
-        cov_finding = {
-            "location": f"{expected_files[0] if expected_files else 'PR'}:1",
-            "category": "COMPLIANCE",
-            "rule": "開發規範 §5 Review 完整性與可見度",
-            "problem": "審查檔案覆蓋範圍與預期檔案清單不一致，存在未覆蓋或多餘檔案。",
-            "evidence": f"預期: {expected_files}，審查回傳: {reviewed_files}",
-            "risk": "未經完整審查之程式碼可能暗藏架構缺陷或安全漏洞。",
-            "recommendation": "確保所有變更檔案均納入批次並完成覆蓋驗證。",
-            "severity": "HIGH",
-            "confidence": "HIGH",
-        }
+    coverage_valid, coverage_finding = evaluate_coverage(
+        expected_files, reviewed_files
+    )
+    if not coverage_valid and coverage_finding is not None:
         return {
             "decision": "REQUEST_CHANGES",
-            "blocking_findings": [cov_finding],
-            "findings": [cov_finding],
+            "blocking_findings": [coverage_finding],
+            "findings": [coverage_finding],
+            "requires_human_review": has_high_risk_scope(expected_files),
+            "high_risk_files": [
+                file_path for file_path in expected_files
+                if is_high_risk_path(file_path)
+            ],
+            "coverage_valid": False,
         }
-    unique = deduplicate(findings)
-    blocking = [finding for finding in unique if is_blocking(finding, active_policy)]
-    if has_high_risk_scope(expected_files):
-        # 高風險核心範疇變更禁止 LLM 自動放行，強制 REQUEST_CHANGES (Fail-Closed) 要求人工審核
-        high_risk_decision = str(
-            active_policy.get("high_risk_decision", "REQUEST_CHANGES")
-        ).upper()
-        high_risk_files = [
-            file_path for file_path in expected_files if is_high_risk_path(file_path)
-        ]
-        mandatory_finding = {
-            "location": f"{high_risk_files[0]}:1",
-            "category": "Security",
-            "rule": "Mandatory Human Architecture & Security Review",
-            "problem": "變更涉及核心安全或基礎架構高風險範疇，禁止由 AI 自動放行。",
-            "evidence": f"涉及高風險檔案: {', '.join(high_risk_files[:5])}",
-            "risk": "未經資深工程師或架構師人工審查可能引入特權繞過或架構缺陷。",
-            "recommendation": "請指派專案資深維護者進行人工審查並批准 PR。",
-            "severity": "HIGH",
-            "confidence": "HIGH",
-        }
-        unique.append(mandatory_finding)
-        if high_risk_decision == "REQUEST_CHANGES":
-            blocking.append(mandatory_finding)
-        decision = high_risk_decision
-    elif blocking:
-        decision = "REQUEST_CHANGES"
-    else:
-        decision = "APPROVE"
+
+    unique_findings, blocking_findings = evaluate_findings(
+        findings, active_policy
+    )
+    requirements = evaluate_review_requirements(
+        expected_files, active_policy
+    )
+
+    decision = "REQUEST_CHANGES" if blocking_findings else "APPROVE"
+
     return {
         "decision": decision,
-        "blocking_findings": blocking,
-        "findings": unique,
+        "blocking_findings": blocking_findings,
+        "findings": unique_findings,
+        "requires_human_review": requirements["requires_human_review"],
+        "high_risk_files": requirements["high_risk_files"],
+        "coverage_valid": True,
     }
 

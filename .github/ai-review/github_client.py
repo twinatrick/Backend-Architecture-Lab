@@ -101,8 +101,8 @@ def resolve_pr_number(event: dict) -> int:
 
     if len(pull_requests) > 1:
         matching = [
-            pull_request_item for pull_request_item in pull_requests
-            if head_sha and pull_request_item.get("head", {}).get("sha") == head_sha
+            item for item in pull_requests
+            if head_sha and item.get("head", {}).get("sha") == head_sha
         ]
         if len(matching) == 1 and matching[0].get("number"):
             return int(matching[0]["number"])
@@ -125,10 +125,7 @@ def resolve_pr_number(event: dict) -> int:
             if len(associated) == 1 and associated[0].get("number"):
                 return int(associated[0]["number"])
             if len(associated) > 1:
-                open_pulls = [
-                    pull_item for pull_item in associated
-                    if pull_item.get("state") == "open"
-                ]
+                open_pulls = [item for item in associated if item.get("state") == "open"]
                 if len(open_pulls) == 1 and open_pulls[0].get("number"):
                     return int(open_pulls[0]["number"])
                 raise SystemExit(f"Commit SHA {head_sha} 關聯多個候選 PR，無法唯一確定。")
@@ -173,13 +170,9 @@ def post_issue_comment(pr_number: int, body: str) -> dict | None:
         existing = gh_get(url, params={"per_page": 100})
         for comment_item in existing:
             if REVIEW_MARKER in comment_item.get("body", ""):
-                target_comment_id = comment_item["id"]
-                comment_url = (
-                    f"https://api.github.com/repos/{repo}/issues/comments/{target_comment_id}"
-                )
+                c_url = f"https://api.github.com/repos/{repo}/issues/comments/{comment_item['id']}"
                 res = requests.patch(
-                    comment_url, headers=get_github_headers(),
-                    json={"body": marked_body}, timeout=30,
+                    c_url, headers=get_github_headers(), json={"body": marked_body}, timeout=30,
                 )
                 res.raise_for_status()
                 return res.json()
@@ -242,6 +235,7 @@ def publish_review(
     body: str,
     decision: str = "COMMENT",
     commit_id: str | None = None,
+    requires_human_review: bool = False,
 ) -> bool:
     post_issue_comment(pr_number, body)
     review_event = decision if decision in ("APPROVE", "REQUEST_CHANGES") else "COMMENT"
@@ -253,7 +247,11 @@ def publish_review(
         raise RuntimeError(f"無法在 PR #{pr_number} 提交正式 PR Review，觸發 Fail-Closed。")
     if commit_id:
         status_state = "success" if decision == "APPROVE" else "failure"
-        status_res = post_commit_status(commit_id, status_state, f"AI Review: {decision}")
+        if decision == "APPROVE" and requires_human_review:
+            description_text = "AI Review: APPROVE (Human Review Required)"
+        else:
+            description_text = f"AI Review: {decision}"
+        status_res = post_commit_status(commit_id, status_state, description_text)
         if status_res is None:
             err = f"無法為 Commit {commit_id} 發布 Commit Status ({status_state})，觸發 Fail-Closed。"
             raise RuntimeError(err)
@@ -266,10 +264,11 @@ def publish_failure_report(
     reason: str,
     details: Any = None,
     commit_id: str | None = None,
+    status_type: str = "REVIEW_FAILED_INFRA",
 ) -> str:
     report = [
         "# AI Architecture & Security Review\n",
-        "## 審查結果\nREQUEST_CHANGES\n",
+        f"## 審查結果\n{status_type}\n",
         f"## 🔴 {redact_secrets(str(title))}",
         f"**原因**：{redact_secrets(str(reason))}\n",
     ]

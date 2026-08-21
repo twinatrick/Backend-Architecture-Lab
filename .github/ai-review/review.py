@@ -11,8 +11,7 @@ from batching import build_batches
 from engine import evaluate, load_policy, validate_coverage, validate_finding
 from github_client import (
     REPO, get_event_path, get_repo, gh_get, normalize_paths,
-    publish_failure_report, publish_review, resolve_pr_number,
-    resolve_review_target, validate_target_pr,
+    publish_failure_report, publish_review, resolve_review_target, validate_target_pr,
 )
 from key_pool import get_gemini_api_keys, get_groq_api_keys
 from orchestrator import chat_completion
@@ -39,15 +38,10 @@ def _fetch_all_pr_files(repo_name: str, pr_number: int) -> list[dict]:
     return files
 
 
-def _fetch_file_content_fallback(
-    repo_name: str,
-    path: str,
-    ref: str | None = None,
-) -> str | None:
+def _fetch_file_content_fallback(repo_name: str, path: str, ref: str | None = None) -> str | None:
     try:
         url = f"https://api.github.com/repos/{repo_name}/contents/{path}"
-        params = {"ref": ref} if ref else None
-        data = gh_get(url, params=params)
+        data = gh_get(url, params={"ref": ref} if ref else None)
         if isinstance(data, dict) and data.get("encoding") == "base64" and data.get("content"):
             return base64.b64decode(data["content"]).decode("utf-8", errors="replace")
     except (requests.RequestException, UnicodeDecodeError, ValueError) as exc:
@@ -95,7 +89,6 @@ def _process_batch(
                         "recommendation": "手動檢查該檔案變更內容，確認符合架構與安全規範",
                     })
                     raw_patch = f"[Patch unavailable; status={file_item.get('status', 'unknown')}]"
-
             diff_parts.append(f"diff -- {fname}\n{sanitize_diff(raw_patch or '[Empty diff]')}")
 
     diff = sanitize_diff("\n\n".join(diff_parts))
@@ -110,7 +103,8 @@ def _process_batch(
             details = str(exc)
         publish_failure_report(
             pr_number, "AI Provider 呼叫失敗",
-            "所有已配置的 AI 模型/金鑰（Google Gemini / Groq）均無法取得有效回應。", details,
+            "所有已配置的 AI 模型/金鑰均無法取得有效回應。",
+            details, commit_id=head_sha, status_type="REVIEW_FAILED_INFRA",
         )
         raise SystemExit(f"AI Provider 無法使用：{details}")
 
@@ -119,18 +113,20 @@ def _process_batch(
     except json.JSONDecodeError as exc:
         publish_failure_report(
             pr_number, "AI 模型輸出非合法 JSON",
-            f"批次 {scope}-{index} 模型輸出解析失敗：{exc}", text_output[:500],
+            f"批次 {scope}-{index} 模型輸出解析失敗：{exc}",
+            text_output[:500], commit_id=head_sha, status_type="REVIEW_FAILED_INFRA",
         )
         raise SystemExit(f"批次 {scope}-{index} JSON 解析失敗：{exc}")
 
-    norm_exp, norm_rev = normalize_paths(paths), normalize_paths(batch_data.get("files_reviewed"))
-    is_cov_valid = (
-        str(batch_data.get("coverage", "")).strip().upper() == "COMPLETE"
-        and validate_coverage(norm_exp, norm_rev)
-    )
-    if not is_cov_valid:
+    norm_exp = normalize_paths(paths)
+    norm_rev = normalize_paths(batch_data.get("files_reviewed"))
+    is_cov_complete = str(batch_data.get("coverage", "")).strip().upper() == "COMPLETE"
+    if not is_cov_complete or not validate_coverage(norm_exp, norm_rev):
         cov_err = f"批次覆蓋範圍驗證失敗：{scope}-{index}\n預期：{paths}\n模型回傳：{norm_rev}"
-        publish_failure_report(pr_number, "批次覆蓋範圍不符", cov_err)
+        publish_failure_report(
+            pr_number, "批次覆蓋範圍不符", cov_err,
+            commit_id=head_sha, status_type="REVIEW_FAILED_INFRA",
+        )
         raise SystemExit(cov_err)
 
     if missing_findings:
@@ -139,7 +135,10 @@ def _process_batch(
     for finding in batch_data.get("findings", []):
         if not validate_finding(finding, allowed_files=paths):
             schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式或範圍驗證。"
-            publish_failure_report(pr_number, "Finding 格式驗證失敗", schema_err, finding)
+            publish_failure_report(
+                pr_number, "Finding 格式驗證失敗", schema_err,
+                finding, commit_id=head_sha, status_type="REVIEW_FAILED_INFRA",
+            )
             raise SystemExit(schema_err)
 
     return batch_data
@@ -147,9 +146,7 @@ def _process_batch(
 
 def main() -> None:
     if not get_gh_token() or (not get_groq_api_keys() and not get_gemini_api_keys()):
-        raise SystemExit(
-            "未配置必要的信任密鑰（GH_TOKEN 與至少一組 AI Provider 密鑰）。"
-        )
+        raise SystemExit("未配置必要的信任密鑰（GH_TOKEN 與至少一組 AI Provider 密鑰）。")
 
     event_path_str = get_event_path()
     if not event_path_str or not Path(event_path_str).exists():
@@ -167,10 +164,7 @@ def main() -> None:
         publish_failure_report(pr_number, "無法取得 PR 資訊", str(exc))
         raise SystemExit(f"無法取得 PR 資訊：{exc}")
 
-    is_valid, validation_err = validate_target_pr(
-        pull_request_data,
-        expected_head_sha=expected_sha,
-    )
+    is_valid, validation_err = validate_target_pr(pull_request_data, expected_head_sha=expected_sha)
     if not is_valid:
         err_msg = f"PR #{pr_number} 未通過目標校驗（{validation_err}），中止審查。"
         publish_failure_report(pr_number, "目標 PR 校驗未通過", err_msg)
@@ -187,8 +181,7 @@ def main() -> None:
         print(f"PR #{pr_number} 未包含任何變更檔案。")
         return
 
-    rules_path = ROOT / "開發規範.md"
-    contract_path = ROOT / ".github/AI_REVIEW.md"
+    rules_path, contract_path = ROOT / "開發規範.md", ROOT / ".github/AI_REVIEW.md"
     rules_text = rules_path.read_text(encoding="utf-8") if rules_path.exists() else ""
     contract_text = contract_path.read_text(encoding="utf-8") if contract_path.exists() else ""
     policy = load_policy()
@@ -241,7 +234,6 @@ def main() -> None:
         for check_item in result_dict.get("passed_checks", [])
     ]
 
-    # 執行確定性靜態規則檢查
     static_findings = run_static_checks(files)
     all_findings = llm_findings + static_findings
 
@@ -249,25 +241,28 @@ def main() -> None:
     decision = eval_result["decision"]
     unique_findings = eval_result["findings"]
     blocking_findings = eval_result["blocking_findings"]
+    requires_human_review = eval_result.get("requires_human_review", False)
+    high_risk_files = eval_result.get("high_risk_files", [])
 
-    # 發布前二次驗證 head_sha，阻斷 TOCTOU 競態衝突
     try:
         latest_pr = gh_get(f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}")
         latest_head_sha = latest_pr.get("head", {}).get("sha", "")
-        if not latest_head_sha:
-            toctou_err = f"無法取得 PR #{pr_number} 最新 head SHA，拒絕發布過期 Review。"
-            publish_failure_report(pr_number, "無法驗證最新 PR head SHA", toctou_err)
-            raise SystemExit(toctou_err)
-        if latest_head_sha != head_sha:
+        if not latest_head_sha or latest_head_sha != head_sha:
             toctou_err = (
-                f"TOCTOU 衝突：PR #{pr_number} head SHA 於審查期間已變更 "
-                f"({head_sha[:8]} -> {latest_head_sha[:8]})，中止本次過期審查。"
+                f"TOCTOU 衝突：PR #{pr_number} head SHA 於審查期間變更或缺失 "
+                f"({head_sha[:8]} -> {str(latest_head_sha)[:8]})，中止審查。"
             )
-            publish_failure_report(pr_number, "審查目標過期 (TOCTOU)", toctou_err)
+            publish_failure_report(
+                pr_number, "審查目標過期 (TOCTOU)", toctou_err,
+                commit_id=head_sha, status_type="REVIEW_FAILED_INFRA",
+            )
             raise SystemExit(toctou_err)
     except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
         err_msg = f"發布前二次 PR 校驗失敗：{exc}"
-        publish_failure_report(pr_number, "發布前二次 PR 校驗失敗", err_msg)
+        publish_failure_report(
+            pr_number, "發布前二次 PR 校驗失敗", err_msg,
+            commit_id=head_sha, status_type="REVIEW_FAILED_INFRA",
+        )
         raise SystemExit(err_msg)
 
     audit_info = {
@@ -278,12 +273,19 @@ def main() -> None:
     body = format_markdown_report(
         decision, changed_files, results, unique_findings, blocking_findings,
         passed_checks, audit_info=audit_info,
+        requires_human_review=requires_human_review,
+        high_risk_files=high_risk_files,
     )
-    publish_review(pr_number, body, decision, commit_id=head_sha)
+    publish_review(
+        pr_number, body, decision, commit_id=head_sha,
+        requires_human_review=requires_human_review,
+    )
     Path("review.md").write_text(body + "\n", encoding="utf-8")
     json_report = format_json_report(
         decision, unique_findings, blocking_findings, len(results),
         changed_files, audit_info=audit_info,
+        requires_human_review=requires_human_review,
+        high_risk_files=high_risk_files,
     )
     Path("ai-review.json").write_text(json_report, encoding="utf-8")
     print(body)

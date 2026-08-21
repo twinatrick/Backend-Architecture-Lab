@@ -7,6 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,10 +15,13 @@ import java.util.UUID;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class SecurityUtil {
 
-    private final UserServiceFeignClient userServiceFeignClient;
+    private final Optional<UserServiceFeignClient> userServiceFeignClient;
 
     public SecurityUtil(Optional<UserServiceFeignClient> userServiceFeignClientOptional) {
-        this.userServiceFeignClient = userServiceFeignClientOptional.orElse(null);
+        this.userServiceFeignClient = Objects.requireNonNullElseGet(
+                userServiceFeignClientOptional,
+                Optional::empty
+        );
     }
 
     public UUID requireCurrentUserId() {
@@ -29,11 +33,11 @@ public class SecurityUtil {
         if (email == null || email.isBlank()) {
             throw new IllegalStateException("Current user not found - no email in authentication");
         }
-        if (userServiceFeignClient == null) {
-            throw new IllegalStateException(
-                    "Current user not found - UserServiceFeignClient is not available in this service");
-        }
-        UserVo userVo = userServiceFeignClient.getUserByEmail(email);
+        UserServiceFeignClient feignClient = userServiceFeignClient.orElseThrow(() ->
+                new IllegalStateException(
+                        "Current user not found - UserServiceFeignClient is not available in this service")
+        );
+        UserVo userVo = feignClient.getUserByEmail(email);
         if (userVo == null || userVo.getId() == null) {
             throw new IllegalStateException("Current user not found - user lookup failed");
         }

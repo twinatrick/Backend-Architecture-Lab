@@ -55,15 +55,16 @@ def test_evaluate_policy_severity_and_decision():
     assert res_low["decision"] == "APPROVE"
     assert len(res_low["blocking_findings"]) == 0
 
-    # 高風險核心範疇 (CI/安全/IAM/pom) 變更應觸發 Fail-Closed REQUEST_CHANGES
+    # 高風險核心範疇 (CI/安全/IAM/pom) 變更應放行 APPROVE 但要求人工簽核
     res_high_risk_ci = engine.evaluate(
         findings=[],
         expected_files=[".github/workflows/ci.yml"],
         reviewed_files=[".github/workflows/ci.yml"],
         policy=policy,
     )
-    assert res_high_risk_ci["decision"] == "REQUEST_CHANGES"
-    assert len(res_high_risk_ci["blocking_findings"]) >= 1
+    assert res_high_risk_ci["decision"] == "APPROVE"
+    assert res_high_risk_ci["requires_human_review"] is True
+    assert ".github/workflows/ci.yml" in res_high_risk_ci["high_risk_files"]
 
     # 覆蓋率未達標時應回傳 REQUEST_CHANGES 決策且包含 blocking findings
     res_cov_fail = engine.evaluate(
@@ -244,3 +245,20 @@ def test_evaluate_with_architecture_and_compliance_findings_triggers_request_cha
     )
     assert res["decision"] == "REQUEST_CHANGES"
     assert len(res["blocking_findings"]) == 2
+
+
+def test_evaluate_helpers_separation_of_concerns():
+    policy = {"blocking_severities": ["HIGH"], "blocking_confidence": ["HIGH"]}
+    is_cov_valid, cov_finding = engine.evaluate_coverage(["a.py"], [])
+    assert is_cov_valid is False
+    assert cov_finding is not None
+    assert cov_finding["severity"] == "HIGH"
+
+    unique_f, block_f = engine.evaluate_findings([], policy)
+    assert unique_f == [] and block_f == []
+
+    req_dict = engine.evaluate_review_requirements(
+        [".github/workflows/ci.yml"], policy,
+    )
+    assert req_dict["requires_human_review"] is True
+    assert ".github/workflows/ci.yml" in req_dict["high_risk_files"]
