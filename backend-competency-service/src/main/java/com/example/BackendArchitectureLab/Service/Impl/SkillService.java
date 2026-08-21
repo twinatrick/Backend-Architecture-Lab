@@ -74,7 +74,7 @@ public class SkillService implements ISkillService {
     private final IUserGateway userGateway;
 
     @Lazy
-    private final SkillService self;
+    private final ISkillService self;
 
     @Override
     public SkillVo addSkill(SkillVo skillVo) {

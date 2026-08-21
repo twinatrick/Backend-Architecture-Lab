@@ -207,14 +207,22 @@ def post_issue_comment(pr_number: int, body: str) -> dict | None:
         return None
 
 
-def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT") -> dict | None:
+def post_pr_review(
+    pr_number: int,
+    body: str,
+    event_type: str = "COMMENT",
+    commit_id: str | None = None,
+) -> dict | None:
     repo_name = get_repo()
     review_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
+    payload = {"body": body, "event": event_type}
+    if commit_id:
+        payload["commit_id"] = commit_id
     try:
         response = requests.post(
             review_url,
             headers=get_github_headers(),
-            json={"body": body, "event": event_type},
+            json=payload,
             timeout=30,
         )
         if response.status_code == 422:
@@ -231,11 +239,16 @@ def post_pr_review(pr_number: int, body: str, event_type: str = "COMMENT") -> di
         return None
 
 
-def publish_review(pr_number: int, body: str, decision: str = "COMMENT") -> bool:
+def publish_review(
+    pr_number: int,
+    body: str,
+    decision: str = "COMMENT",
+    commit_id: str | None = None,
+) -> bool:
     """發布審查意見至 PR Issue 留言與 PR Review。若發布失敗則拋出例外落實 Fail-Closed。"""
     comment_res = post_issue_comment(pr_number, body)
     review_event = decision if decision in ("APPROVE", "REQUEST_CHANGES") else "COMMENT"
-    review_res = post_pr_review(pr_number, body, review_event)
+    review_res = post_pr_review(pr_number, body, review_event, commit_id=commit_id)
 
     if review_res is None:
         raise RuntimeError(
@@ -250,6 +263,7 @@ def publish_failure_report(
     title: str,
     reason: str,
     details: Any = None,
+    commit_id: str | None = None,
 ) -> str:
     report = [
         "# AI Architecture & Security Review\n",
@@ -259,21 +273,19 @@ def publish_failure_report(
     ]
     if details:
         logging.error(
-            "AI Review 失敗詳細診斷資訊 (保留於 CI 日誌)：%s",
+            "AI Review 失敗詳細診斷資訊：%s",
             redact_secrets(str(details))[:2000],
         )
         report.append("**摘要資訊**：")
         if isinstance(details, list):
             for item in details:
                 if isinstance(item, (tuple, list)) and len(item) == 2:
-                    tag = str(item[0])
                     msg = str(item[1]).split("\n")[0][:120]
-                    report.append(f"- `{redact_secrets(tag)}`：{redact_secrets(msg)}")
+                    report.append(f"- `{redact_secrets(str(item[0]))}`：{redact_secrets(msg)}")
                 else:
                     report.append(f"- {redact_secrets(str(item)[:120])}")
         else:
-            short_detail = str(details).split("\n")[0][:200]
-            report.append(f"```\n{redact_secrets(short_detail)}\n```")
+            report.append(f"```\n{redact_secrets(str(details).splitlines()[0][:200])}\n```")
         report.append("")
     report.extend([
         "這是 fail-closed 行為：AI Review 遭遇錯誤或未完成時不得產生 APPROVE。",
@@ -282,11 +294,7 @@ def publish_failure_report(
     body = "\n".join(report)
     if pr_number:
         try:
-            publish_review(pr_number, body, "REQUEST_CHANGES")
+            publish_review(pr_number, body, "REQUEST_CHANGES", commit_id=commit_id)
         except (RuntimeError, requests.RequestException) as exc:
-            logging.error(
-                "發布失敗報告至 PR #%s 失敗: %s",
-                pr_number,
-                redact_secrets(str(exc)),
-            )
+            logging.error("發布失敗報告至 PR #%s 失敗: %s", pr_number, redact_secrets(str(exc)))
     return body

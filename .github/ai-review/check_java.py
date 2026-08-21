@@ -15,18 +15,36 @@ SERVICE_MODULES = (
 
 FOREIGN_ENTITIES = {
     "backend-iam-service": (
-        "SkillEntity", "ProjectEntity", "JobPostingEntity", "Competency",
-        "SkillRepository", "ProjectRepository", "CompensationOutbox",
-        "AlertRuleEntity", "AlarmHistoryEntity", "ExternalApiConfigEntity",
+        "SkillEntity", "ProjectEntity", "JobPostingEntity", "JobApplicationEntity",
+        "CompetencyEntity", "CompensationOutbox", "AlertRuleEntity", "AlarmHistoryEntity",
+        "ExternalApiConfigEntity", "BotConfigEntity", "SkillRepository", "ProjectRepository",
+        "CompetencyRepository", "JobPostingRepository", "AlertRuleRepository",
+        "AlarmHistoryRepository",
     ),
     "backend-competency-service": (
-        "UserEntity", "RoleEntity", "PermissionEntity", "SystemUserEntity",
-        "UserRepository", "RoleRepository", "PermissionRepository",
-        "JobPostingEntity", "AlertRuleEntity",
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SystemUserEntity",
+        "JobPostingEntity", "JobApplicationEntity", "AlertRuleEntity", "AlarmHistoryEntity",
+        "ExternalApiConfigEntity", "BotConfigEntity", "UserRepository", "RoleRepository",
+        "PermissionRepository", "JobPostingRepository", "AlertRuleRepository",
     ),
     "backend-job-service": (
-        "UserEntity", "RoleEntity", "SkillEntity", "ProjectEntity",
-        "UserRepository", "SkillRepository",
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SystemUserEntity",
+        "SkillEntity", "ProjectEntity", "CompensationOutbox", "AlertRuleEntity",
+        "AlarmHistoryEntity", "ExternalApiConfigEntity", "UserRepository", "SkillRepository",
+        "ProjectRepository", "AlertRuleRepository",
+    ),
+    "backend-alert-service": (
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SkillEntity",
+        "ProjectEntity", "JobPostingEntity", "CompensationOutbox", "ExternalApiConfigEntity",
+        "UserRepository", "SkillRepository", "JobPostingRepository",
+    ),
+    "backend-external-api-service": (
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SkillEntity",
+        "ProjectEntity", "JobPostingEntity", "CompensationOutbox", "AlertRuleEntity",
+        "UserRepository", "SkillRepository", "ProjectRepository",
+    ),
+    "backend-gateway": (
+        "Entity", "Repository",
     ),
 }
 

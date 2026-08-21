@@ -46,25 +46,29 @@ def check_workflow_file(
     content: str,
     changed_lines: set[int] | None = None,
 ) -> list[dict[str, Any]]:
-    """針對 GitHub Actions Workflow 檔案進行確定性安全檢查。"""
+    """針對 GitHub Actions Workflow 檔案進行權限、觸發與安全表達式檢查。"""
     findings: list[dict[str, Any]] = []
-    if "pull_request_target" in content:
-        has_checkout = "actions/checkout" in content
-        has_dyn = re.search(r"ref:\s*['\"]?\$\{\{\s*github\.event\.pull_request\.head", content)
-        if has_checkout and has_dyn:
-            findings.append(make_finding(
-                path, 1, "HIGH", "SECURITY",
-                "開發規範 §2 CI 信任邊界防護",
-                "pull_request_target 搭配檢出不信任 PR 程式碼存在 RCE 風險",
-                "發現 pull_request_target 搭配動態 ref checkout",
-                "攻擊者可透過 PR 注入惡意程式碼並讀取 Repository Secrets",
-                "改用 workflow_run 機制或移除動態 untrusted ref checkout",
-            ))
+    lines = content.splitlines()
 
-    for idx, raw_line in enumerate(content.splitlines(), start=1):
+    for idx, raw_line in enumerate(lines, start=1):
         if changed_lines is not None and idx not in changed_lines:
             continue
         line = raw_line.lstrip("+- ")
+        if "pull_request_target" in line:
+            has_checkout = "actions/checkout" in content
+            has_dyn = re.search(
+                r"ref:\s*['\"]?\$\{\{\s*github\.event\.pull_request\.head",
+                content,
+            )
+            if has_checkout and has_dyn:
+                findings.append(make_finding(
+                    path, idx, "HIGH", "SECURITY",
+                    "開發規範 §2 CI 信任邊界防護",
+                    "pull_request_target 搭配檢出不信任 PR 程式碼存在 RCE 風險",
+                    raw_line.strip(),
+                    "攻擊者可透過 PR 注入惡意程式碼並讀取 Repository Secrets",
+                    "改用 workflow_run 機制或移除動態 untrusted ref checkout",
+                ))
         if re.search(r"\$\{\{\s*github\.event\.(?:issue|pull_request|comment)\.", line):
             findings.append(make_finding(
                 path, idx, "HIGH", "SECURITY",
@@ -83,16 +87,16 @@ def check_workflow_file(
                 "浮動分支可能被上游篡改或遭遇供應鏈投毒攻擊",
                 "將 Action 鎖定為具體 commit SHA 或明確版本 tag (如 @v4)",
             ))
+        if "permissions: write-all" in line or re.search(r"permissions:\s*write-all", line):
+            findings.append(make_finding(
+                path, idx, "MEDIUM", "SECURITY",
+                "開發規範 §2 CI 最小權限原則",
+                "Workflow 宣告 permissions: write-all",
+                raw_line.strip(),
+                "授予 Workflow 過多非必要權限，增加 Token 洩漏風險",
+                "依據 Job 實際需求宣告最小必要權限",
+            ))
 
-    if "permissions: write-all" in content:
-        findings.append(make_finding(
-            path, 1, "MEDIUM", "SECURITY",
-            "開發規範 §2 CI 最小權限原則",
-            "Workflow 宣告 permissions: write-all",
-            "permissions: write-all",
-            "授予 Workflow 過多非必要權限，增加 Token 洩漏風險",
-            "依據 Job 實際需求宣告最小必要權限",
-        ))
     return findings
 
 

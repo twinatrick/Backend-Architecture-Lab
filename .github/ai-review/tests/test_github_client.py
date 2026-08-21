@@ -197,6 +197,18 @@ def test_post_pr_review_handles_422_gracefully():
         assert result is None
 
 
+def test_post_pr_review_includes_commit_id():
+    mock_post = MagicMock()
+    mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {"id": 999}
+    with patch("requests.post", mock_post):
+        result = github_client.post_pr_review(
+            42, "Review Body", "APPROVE", commit_id="commit123"
+        )
+        assert result == {"id": 999}
+        assert mock_post.call_args[1]["json"]["commit_id"] == "commit123"
+
+
 def test_publish_failure_report_generates_markdown_and_publishes():
     with patch("github_client.publish_review") as mock_publish:
         body = github_client.publish_failure_report(
@@ -204,13 +216,16 @@ def test_publish_failure_report_generates_markdown_and_publishes():
             title="Groq API 呼叫異常",
             reason="所有模型均回傳 503",
             details=[("model-a", "503 Service Unavailable"), ("model-b", "Rate limited")],
+            commit_id="commit789",
         )
         assert "# AI Architecture & Security Review" in body
         assert "REQUEST_CHANGES" in body
         assert "Groq API 呼叫異常" in body
         assert "model-a" in body
         assert "model-b" in body
-        mock_publish.assert_called_once_with(42, body, "REQUEST_CHANGES")
+        mock_publish.assert_called_once_with(
+            42, body, "REQUEST_CHANGES", commit_id="commit789"
+        )
 
 
 def test_resolve_review_target_dispatch_and_workflow_run():

@@ -277,7 +277,7 @@ def main() -> None:
         decision, changed_files, results, unique_findings, blocking_findings,
         passed_checks, audit_info=audit_info,
     )
-    publish_review(pr_number, body, decision)
+    publish_review(pr_number, body, decision, commit_id=head_sha)
     Path("review.md").write_text(body + "\n", encoding="utf-8")
     json_report = format_json_report(
         decision, unique_findings, blocking_findings, len(results),
