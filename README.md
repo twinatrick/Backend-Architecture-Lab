@@ -908,7 +908,8 @@ sequenceDiagram
 # 九、 品質保證 (Quality)、CI/CD 與 500 併發壓力測試
 
 ### 1. GitHub Actions CI 雙軌驗證
-- **Java CI**：JDK 21 + `./mvnw test jacoco:check`，強制要求 **BUNDLE 覆蓋率 $\ge 80\%$**。
+- **Java CI (Unit & Coverage)**：JDK 21 + `./mvnw test jacoco:check`，強制要求 **BUNDLE 覆蓋率 $\ge 80\%$**。
+- **Testcontainers E2E CI**：使用 `./mvnw verify -Pintegration-test` 於乾淨容器環境（PostgreSQL 16, Kafka KRaft 7.6, Redis 7.2）自動執行分散式 SAGA 補償、快取指標流與 Redisson 併發鎖整合測試。
 - **Python CI**：Python 3.11 + `ruff check` + `ruff format --check` + `pytest backend-ai-py`（28+ 測試）。
 - **AI Code Review**：獨立之 `ai-review-trigger.yml` 與 `ai-review-trusted.yml` 提供自動化 PR 程式碼審查。
 - **映像檔建置**：Docker Buildx 多架構建置與 Docker Hub 自動推送。
@@ -1042,9 +1043,9 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 
 ### Quality & Benchmark
 - [x] Unit Test + JaCoCo Coverage Check (BUNDLE $\ge 80\%$)
+- [x] Testcontainers 端到端整合測試 (PostgreSQL 16, Kafka KRaft, Redis 7 共享容器)
 - [x] JMeter 500 併發壓力測試套件與 SQL 數據生成器 (`stress-test/`)
 - [x] GitHub Actions 雙軌 CI + AI Code Review
-- [ ] Testcontainers 端到端整合測試
 
 ### AI Integration
 - [x] Faster-Whisper / SenseVoice 雙引擎語音辨識 (STT)

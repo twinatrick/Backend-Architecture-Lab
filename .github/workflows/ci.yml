@@ -45,6 +45,35 @@ jobs:
           path: target/surefire-reports/
 
   # ============================================
+  # Job 1.2：Testcontainers 端到端整合測試
+  # ============================================
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Make mvnw executable
+        run: chmod +x mvnw
+
+      - name: Run Testcontainers Integration Tests
+        run: ./mvnw verify -Pintegration-test -DskipUnitTests
+
+      - name: Upload Integration Test Results
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: integration-test-results
+          path: "**/target/failsafe-reports/"
+
+  # ============================================
   # Job 1.5：Python 服務驗證 (Ruff & Pytest)
   # ============================================
   python-verify:
@@ -79,7 +108,7 @@ jobs:
   # ============================================
   docker:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    needs: [build, python-verify]
+    needs: [build, integration-test, python-verify]
     runs-on: ubuntu-latest
 
     steps:
