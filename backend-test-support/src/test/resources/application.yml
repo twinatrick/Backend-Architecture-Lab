@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: test-support-service
+  threads:
+    virtual:
+      enabled: true
+  cache:
+    type: redis
+
+jwt:
+  secret:
+    use: qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=
+  issuer: BackendArchitectureLab
+  audience: BackendArchitectureLab
+  expiration-minutes: 60

@@ -147,7 +147,7 @@ public class CompensationSagaEndToEndIT extends BaseTestcontainersIntegrationTes
                     List<CompensationEventLog> logs = eventLogRepository.findAll();
                     boolean processed = logs.stream().anyMatch(log ->
                             transactionId.equals(log.getTransactionId()) &&
-                                    log.getStatus() == CompensationEventLogStatus.PROCESSED
+                                    CompensationEventLogStatus.PROCESSED.equals(log.getStatus())
                     );
                     assertEquals(true, processed, "Kafka 消費端應完成補償並記錄 PROCESSED 狀態");
                 });
