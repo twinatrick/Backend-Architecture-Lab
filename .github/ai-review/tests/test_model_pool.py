@@ -33,3 +33,22 @@ def test_default_gemini_models_tiered_order():
     idx_37 = models.index("gemini-3.7-flash")
     idx_35_lite = models.index("gemini-3.5-flash-lite")
     assert idx_37 < idx_35_lite
+
+
+def test_default_groq_models_priority_order():
+    models = model_pool.DEFAULT_MODEL_CANDIDATES
+    assert models == [
+        "openai/gpt-oss-120b",
+        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-20b",
+    ]
+    assert model_pool.get_groq_candidate_models() == models
+
+
+def test_groq_models_env_override(monkeypatch):
+    monkeypatch.setenv("GROQ_MODELS", "custom-model-1, custom-model-2")
+    assert model_pool.GLOBAL_MODEL_POOL_GROQ.get_candidates() == [
+        "custom-model-1",
+        "custom-model-2",
+    ]
+

@@ -13,10 +13,8 @@ DEFAULT_GEMINI_MODELS = [
 ACTIVE_GEMINI_MODELS = list(DEFAULT_GEMINI_MODELS)
 
 DEFAULT_MODEL_CANDIDATES = [
-    "llama-3.1-8b-instant",
-    "llama-3.3-70b-versatile",
     "openai/gpt-oss-120b",
-    "qwen/qwen3.6-27b",
+    "llama-3.3-70b-versatile",
     "openai/gpt-oss-20b",
 ]
 ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
@@ -56,8 +54,13 @@ class ModelPool:
             self.active_models.append(model_name)
 
 
-GLOBAL_MODEL_POOL_GROQ = ModelPool(DEFAULT_MODEL_CANDIDATES)
+GLOBAL_MODEL_POOL_GROQ = ModelPool(DEFAULT_MODEL_CANDIDATES, "GROQ_MODELS")
 GLOBAL_MODEL_POOL_GEMINI = ModelPool(DEFAULT_GEMINI_MODELS, "GEMINI_MODELS")
+
+
+def get_groq_candidate_models() -> list[str]:
+    """取得 Groq 候選模型清單。"""
+    return GLOBAL_MODEL_POOL_GROQ.get_candidates()
 
 
 def get_gemini_candidate_models() -> list[str]:
