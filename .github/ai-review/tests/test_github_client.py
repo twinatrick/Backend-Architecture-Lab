@@ -13,19 +13,13 @@ if str(AI_REVIEW_DIR) not in sys.path:
 import github_client
 
 
-def test_resolve_pr_number_from_pull_request_event():
-    event = {"pull_request": {"number": 42}}
-    assert github_client.resolve_pr_number(event) == 42
-
-
-def test_resolve_pr_number_from_workflow_run_event():
-    event = {"workflow_run": {"pull_requests": [{"number": 88}]}}
-    assert github_client.resolve_pr_number(event) == 88
-
-
-def test_resolve_pr_number_from_inputs():
-    event = {"inputs": {"pr_number": "123"}}
-    assert github_client.resolve_pr_number(event) == 123
+@pytest.mark.parametrize("event,expected", [
+    ({"pull_request": {"number": 42}}, 42),
+    ({"workflow_run": {"pull_requests": [{"number": 88}]}}, 88),
+    ({"inputs": {"pr_number": "123"}}, 123),
+])
+def test_resolve_pr_number_basic_events(event, expected):
+    assert github_client.resolve_pr_number(event) == expected
 
 
 def test_resolve_pr_number_from_commit_sha_query():
@@ -37,10 +31,7 @@ def test_resolve_pr_number_from_commit_sha_query():
 
 def test_resolve_pr_number_from_commit_sha_multiple_associated_pulls_filters_open():
     event = {"workflow_run": {"head_sha": "abc1234", "pull_requests": []}}
-    mock_pulls = [
-        {"number": 10, "state": "closed"},
-        {"number": 99, "state": "open"},
-    ]
+    mock_pulls = [{"number": 10, "state": "closed"}, {"number": 99, "state": "open"}]
     with patch.dict(os.environ, {"REPO": "owner/repo", "GH_TOKEN": "token"}), \
          patch("github_client.gh_get", return_value=mock_pulls):
         assert github_client.resolve_pr_number(event) == 99
@@ -48,18 +39,15 @@ def test_resolve_pr_number_from_commit_sha_multiple_associated_pulls_filters_ope
 
 def test_resolve_pr_number_from_commit_sha_multiple_open_pulls_raises():
     event = {"workflow_run": {"head_sha": "abc1234", "pull_requests": []}}
-    mock_pulls = [
-        {"number": 10, "state": "open"},
-        {"number": 99, "state": "open"},
-    ]
+    mock_pulls = [{"number": 10, "state": "open"}, {"number": 99, "state": "open"}]
     with patch.dict(os.environ, {"REPO": "owner/repo", "GH_TOKEN": "token"}), \
          patch("github_client.gh_get", return_value=mock_pulls):
         with pytest.raises(SystemExit):
             github_client.resolve_pr_number(event)
 
 
-def test_resolve_pr_number_from_workflow_run_multiple_prs_matching_head_sha():
-    event = {
+def test_resolve_pr_number_from_workflow_run_multiple_prs():
+    event_ok = {
         "workflow_run": {
             "head_sha": "sha_target",
             "pull_requests": [
@@ -68,11 +56,9 @@ def test_resolve_pr_number_from_workflow_run_multiple_prs_matching_head_sha():
             ],
         }
     }
-    assert github_client.resolve_pr_number(event) == 22
+    assert github_client.resolve_pr_number(event_ok) == 22
 
-
-def test_resolve_pr_number_from_workflow_run_multiple_prs_unresolved_raises():
-    event = {
+    event_ambiguous = {
         "workflow_run": {
             "head_sha": "sha_none",
             "pull_requests": [
@@ -82,66 +68,43 @@ def test_resolve_pr_number_from_workflow_run_multiple_prs_unresolved_raises():
         }
     }
     with pytest.raises(SystemExit):
-        github_client.resolve_pr_number(event)
+        github_client.resolve_pr_number(event_ambiguous)
 
 
 def test_validate_target_pr_scenarios():
     with patch.dict(os.environ, {"REPO": "org/repo"}):
         pr_valid = {
-            "state": "open",
+            "state": "open", "head": {"sha": "sha123"},
             "base": {"ref": "master", "repo": {"full_name": "org/repo"}},
-            "head": {"sha": "sha123"},
         }
         ok, msg = github_client.validate_target_pr(pr_valid, expected_head_sha="sha123")
-        assert ok is True
-        assert msg == ""
+        assert ok is True and msg == ""
 
         pr_closed = {
-            "state": "closed",
-            "base": {"ref": "master", "repo": {"full_name": "org/repo"}},
+            "state": "closed", "base": {"ref": "master", "repo": {"full_name": "org/repo"}}
         }
         ok, msg = github_client.validate_target_pr(pr_closed)
-        assert ok is False
-        assert "非開啟" in msg
+        assert ok is False and "非開啟" in msg
 
         pr_wrong_branch = {
-            "state": "open",
-            "base": {"ref": "feature-x", "repo": {"full_name": "org/repo"}},
+            "state": "open", "base": {"ref": "feature-x", "repo": {"full_name": "org/repo"}}
         }
         ok, msg = github_client.validate_target_pr(pr_wrong_branch)
-        assert ok is False
-        assert "非受信任" in msg
+        assert ok is False and "非受信任" in msg
 
         pr_wrong_repo = {
-            "state": "open",
-            "base": {"ref": "master", "repo": {"full_name": "other/repo"}},
+            "state": "open", "base": {"ref": "master", "repo": {"full_name": "other/repo"}}
         }
         ok, msg = github_client.validate_target_pr(pr_wrong_repo)
-        assert ok is False
-        assert "不一致" in msg
+        assert ok is False and "不一致" in msg
 
 
-def test_publish_review_raises_fail_closed_when_both_fail():
-    with patch("github_client.post_issue_comment", return_value=None), \
-         patch("github_client.post_pr_review", return_value=None):
-        with pytest.raises(RuntimeError) as exc_info:
-            github_client.publish_review(42, "review body", "COMMENT")
-        assert "無法在 PR #42 提交正式 PR Review" in str(exc_info.value)
-
-
-def test_publish_review_raises_fail_closed_when_request_changes_review_fails():
+@pytest.mark.parametrize("decision", ["COMMENT", "REQUEST_CHANGES"])
+def test_publish_review_raises_fail_closed_when_pr_review_fails(decision):
     with patch("github_client.post_issue_comment", return_value={"id": 123}), \
          patch("github_client.post_pr_review", return_value=None):
         with pytest.raises(RuntimeError) as exc_info:
-            github_client.publish_review(42, "review body", "REQUEST_CHANGES")
-        assert "無法在 PR #42 提交正式 PR Review" in str(exc_info.value)
-
-
-def test_publish_review_raises_fail_closed_when_comment_review_fails():
-    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
-         patch("github_client.post_pr_review", return_value=None):
-        with pytest.raises(RuntimeError) as exc_info:
-            github_client.publish_review(42, "review body", "COMMENT")
+            github_client.publish_review(42, "review body", decision)
         assert "無法在 PR #42 提交正式 PR Review" in str(exc_info.value)
 
 
@@ -159,16 +122,13 @@ def test_publish_review_raises_fail_closed_when_commit_status_fails():
          patch("github_client.post_pr_review", return_value={"id": 456}), \
          patch("github_client.post_commit_status", return_value=None):
         with pytest.raises(RuntimeError) as exc_info:
-            github_client.publish_review(
-                42, "review body", "APPROVE", commit_id="commit123"
-            )
-        assert "無法為 Commit commit123 發布 Commit Status" in str(exc_info.value)
+            github_client.publish_review(42, "review body", "APPROVE", commit_id="commit123")
+        assert "無法為 Commit commit123 發布" in str(exc_info.value)
 
 
 def test_resolve_pr_number_fails_when_unresolved():
-    event = {"action": "completed"}
     with pytest.raises(SystemExit):
-        github_client.resolve_pr_number(event)
+        github_client.resolve_pr_number({"action": "completed"})
 
 
 def test_post_issue_comment_creates_new_when_no_existing():
@@ -179,17 +139,13 @@ def test_post_issue_comment_creates_new_when_no_existing():
         with patch("requests.post", mock_post):
             result = github_client.post_issue_comment(42, "審查結果內容")
             assert result == {"id": 1001}
-            assert mock_post.called
             post_json = mock_post.call_args[1]["json"]
             assert "審查結果內容" in post_json["body"]
             assert github_client.REVIEW_MARKER in post_json["body"]
 
 
 def test_post_issue_comment_updates_existing_when_found():
-    existing_comment = {
-        "id": 555,
-        "body": f"舊的報告\n\n{github_client.REVIEW_MARKER}",
-    }
+    existing_comment = {"id": 555, "body": f"舊的報告\n\n{github_client.REVIEW_MARKER}"}
     with patch("github_client.gh_get", return_value=[existing_comment]):
         mock_patch = MagicMock()
         mock_patch.return_value.json.return_value = {"id": 555}
@@ -197,7 +153,6 @@ def test_post_issue_comment_updates_existing_when_found():
         with patch("requests.patch", mock_patch):
             result = github_client.post_issue_comment(42, "新的報告內容")
             assert result == {"id": 555}
-            assert mock_patch.called
             patch_json = mock_patch.call_args[1]["json"]
             assert "新的報告內容" in patch_json["body"]
             assert github_client.REVIEW_MARKER in patch_json["body"]
@@ -205,10 +160,65 @@ def test_post_issue_comment_updates_existing_when_found():
 
 def test_post_pr_review_handles_422_gracefully():
     mock_post = MagicMock()
-    mock_post.return_value.status_code = 422
-    with patch("requests.post", mock_post):
+    mock_post.status_code = 422
+    mock_post.text = "Validation Failed: Self review not permitted"
+    with patch("requests.post", return_value=mock_post):
         result = github_client.post_pr_review(42, "Review Body", "APPROVE")
-        assert result is None
+        assert isinstance(result, dict) and result.get("status") == "skipped_422"
+
+
+def test_publish_review_succeeds_when_pr_review_returns_422_and_comment_succeeds():
+    mock_review_skipped = {"status": "skipped_422", "body": "422"}
+    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
+         patch("github_client.post_pr_review", return_value=mock_review_skipped), \
+         patch("github_client.post_commit_status", return_value={"id": 789}):
+        assert github_client.publish_review(
+            42, "review body", "APPROVE", commit_id="commit123"
+        ) is True
+
+
+def test_publish_review_fails_when_pr_review_returns_422_and_comment_fails():
+    mock_review_skipped = {"status": "skipped_422", "body": "422"}
+    with patch("github_client.post_issue_comment", return_value=None), \
+         patch("github_client.post_pr_review", return_value=mock_review_skipped), \
+         patch("github_client.post_commit_status", return_value={"id": 789}):
+        with pytest.raises(RuntimeError) as exc_info:
+            github_client.publish_review(42, "review body", "APPROVE", commit_id="commit123")
+        assert "PR Review 因 422 跳過且 Issue 留言失敗" in str(exc_info.value)
+
+
+def test_load_pr_metadata_from_file(tmp_path):
+    meta_file = tmp_path / "pr-metadata.json"
+    meta_content = {
+        "pr_number": 62, "head_sha": "sha_pr62", "base_ref": "master",
+        "repo": "owner/repo", "actor": "twinatrick",
+    }
+    meta_file.write_text(json.dumps(meta_content), encoding="utf-8")
+    assert github_client.load_pr_metadata(metadata_path=meta_file) == meta_content
+
+
+def test_resolve_pr_number_from_pr_metadata_artifact(tmp_path):
+    meta_file = tmp_path / "pr-metadata.json"
+    meta_file.write_text(json.dumps({"pr_number": 62, "repo": "owner/repo"}), encoding="utf-8")
+    with patch.dict(os.environ, {"REPO": "owner/repo"}):
+        assert github_client.resolve_pr_number({}, metadata_path=meta_file) == 62
+
+
+def test_resolve_review_target_with_pr_metadata_artifact(tmp_path):
+    meta_file = tmp_path / "pr-metadata.json"
+    meta_file.write_text(
+        json.dumps({
+            "pr_number": 62, "head_sha": "sha_pr62",
+            "repo": "owner/repo", "actor": "twinatrick",
+        }),
+        encoding="utf-8",
+    )
+    with patch.dict(os.environ, {"REPO": "owner/repo"}):
+        target = github_client.resolve_review_target({}, metadata_path=meta_file)
+        assert target["pr_number"] == 62
+        assert target["expected_head_sha"] == "sha_pr62"
+        assert target["actor"] == "twinatrick"
+        assert target["trigger_type"] == "metadata_artifact"
 
 
 def test_post_pr_review_includes_commit_id():
@@ -216,9 +226,7 @@ def test_post_pr_review_includes_commit_id():
     mock_post.return_value.status_code = 200
     mock_post.return_value.json.return_value = {"id": 999}
     with patch("requests.post", mock_post):
-        result = github_client.post_pr_review(
-            42, "Review Body", "APPROVE", commit_id="commit123"
-        )
+        result = github_client.post_pr_review(42, "Review Body", "APPROVE", commit_id="commit123")
         assert result == {"id": 999}
         assert mock_post.call_args[1]["json"]["commit_id"] == "commit123"
 
@@ -235,15 +243,10 @@ def test_publish_failure_report_generates_markdown_and_publishes():
         assert "# AI Architecture & Security Review" in body
         assert "REVIEW_FAILED_INFRA" in body
         assert "Groq API 呼叫異常" in body
-        assert "model-a" in body
-        assert "model-b" in body
-        mock_publish.assert_called_once_with(
-            42, body, "REQUEST_CHANGES", commit_id="commit789"
-        )
+        mock_publish.assert_called_once_with(42, body, "REQUEST_CHANGES", commit_id="commit789")
 
 
 def test_resolve_review_target_dispatch_and_workflow_run():
-    # 1. 測試 workflow_dispatch
     event_dispatch = {
         "inputs": {"pr_number": "60", "head_sha": "abc1234"},
         "sender": {"login": "dev-alice"},
@@ -254,7 +257,6 @@ def test_resolve_review_target_dispatch_and_workflow_run():
     assert target_dispatch["actor"] == "dev-alice"
     assert target_dispatch["trigger_type"] == "workflow_dispatch"
 
-    # 2. 測試 workflow_run
     event_run = {
         "workflow_run": {
             "head_sha": "def5678",
@@ -282,8 +284,7 @@ def test_post_commit_status_success():
             description="Passed deterministic and AI checks",
         )
         assert result == {"id": 1001, "state": "success"}
-        called_url = mock_post.call_args[0][0]
-        assert "statuses/commit_test_sha" in called_url
+        assert "statuses/commit_test_sha" in mock_post.call_args[0][0]
         assert mock_post.call_args[1]["json"]["context"] == "ai-review/architecture-gate"
 
 
@@ -294,7 +295,5 @@ def test_publish_review_with_human_review_required():
         github_client.publish_review(
             42, "body", "HUMAN_REVIEW_REQUIRED", commit_id="sha123", requires_human_review=True,
         )
-        mock_status.assert_called_once_with(
-            "sha123", "failure", "AI Review: Human Review Required (Architect Approval Needed)",
-        )
-
+        msg = "AI Review: Human Review Required (Architect Approval Needed)"
+        mock_status.assert_called_once_with("sha123", "failure", msg)

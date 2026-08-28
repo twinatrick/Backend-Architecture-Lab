@@ -20,3 +20,34 @@ jobs:
         env:
           PR_NUM: ${{ github.event.pull_request.number }}
         run: echo "AI review requested for PR ${PR_NUM:-manual run}"
+
+      - name: Save PR metadata
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          mkdir -p .ai-review-meta
+          cat <<EOF > .ai-review-meta/pr-metadata.json
+          {
+            "pr_number": ${PR_NUMBER:-null},
+            "head_sha": "${HEAD_SHA}",
+            "base_ref": "${BASE_REF}",
+            "repo": "${REPO}",
+            "actor": "${ACTOR}",
+            "event_name": "${EVENT_NAME}"
+          }
+          EOF
+
+      - name: Upload PR metadata artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr-metadata
+          path: .ai-review-meta/pr-metadata.json
+          retention-days: 1
+
