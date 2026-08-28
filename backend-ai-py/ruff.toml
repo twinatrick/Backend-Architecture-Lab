@@ -20,3 +20,7 @@ ignore = [
 known-first-party = ["config", "routers", "services", "utils", "models"]
 force-single-line = true
 order-by-type = true
+
+[lint.per-file-ignores]
+# 測試目錄允許配合 sys.modules Mock 進行局部 import (E402) 以及 Mock 第三方套件非標準命名 (N802)
+"tests/*" = ["E402", "N802"]

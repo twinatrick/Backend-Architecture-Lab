@@ -10,7 +10,7 @@
   2. 第三方套件（`import numpy`、`from fastapi import APIRouter`）
   3. 本專案模組（`from config import settings`、`from utils.mock_detection import _is_mock`）
 - 同類別內依字母順序排列。
-- 例外情況：測試檔案（`tests/`）中為配合 `sys.modules` Mock 機制的局部 import，可放置於檔案後段，但需加 `# noqa: E402` 註解說明。
+- 集中規則管理：嚴禁在程式碼中逐行撰寫 `# noqa` 抑制註解。若特定目錄（如 `tests/`）為配合 Mock 或特殊需求需排除特定規則（如 `E402`、`N802`），必須統一於 `ruff.toml` 之 `per-file-ignores` 中集中宣告，維持原始碼純淨無污染。
 
 ## 2. 命名慣例
 

@@ -1,0 +1,14 @@
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "SIM105",
+    "SIM115",
+]
+
+[lint.per-file-ignores]
+# 測試目錄允許在 sys.path 調整後進行 import (E402)
+".github/ai-review/tests/*" = ["E402"]
+"backend-ai-py/tests/*" = ["E402", "N802"]
