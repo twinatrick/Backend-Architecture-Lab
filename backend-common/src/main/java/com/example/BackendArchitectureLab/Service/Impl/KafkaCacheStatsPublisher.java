@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
-@ConditionalOnBean({CachePenetrationProtectionCacheManager.class, KafkaTemplate.class})
+@ConditionalOnBean(name = "cacheStatsKafkaTemplate")
 public class KafkaCacheStatsPublisher implements CacheStatsPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaCacheStatsPublisher.class);

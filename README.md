@@ -21,7 +21,7 @@
   - **Java 整合中心**：LINE Bot 串流端點、Discord Bot 動態 Webhook 偽裝、多模型瀑布級聯降級（Gemini 2.0 Flash → Groq → DeepSeek → GitHub Models）。
 - 📊 **可觀測性與指標**：全微服務標準繼承 Micrometer + Prometheus (`/actuator/prometheus`) 與 Grafana。
 - 🧪 **極致品質保證**：
-  - GitHub Actions 雙軌自動化 CI（Java 嚴格要求 BUNDLE 覆蓋率 $\ge 80\%$ + Python Ruff/Pytest + 獨立 AI Code Review）。
+  - GitHub Actions 雙軌自動化 CI（Java 嚴格要求 BUNDLE 覆蓋率 >= 80% + Python Ruff/Pytest + 獨立 AI Code Review）。
   - 完整 JMeter 500 併發壓力測試套件（含 10 個 SQL 大量測試數據生成腳本與效能報告）。
   - 嚴格代碼規範：全面建構子注入（`@RequiredArgsConstructor` + `private final`）、Mapper 僅限 Service Impl、Controller 嚴禁出現 Entity、禁止完全限定名稱 (FQN)。
 
@@ -908,21 +908,23 @@ sequenceDiagram
 # 九、 品質保證 (Quality)、CI/CD 與 500 併發壓力測試
 
 ### 1. GitHub Actions CI 雙軌驗證
-- **Java CI (Unit & Coverage)**：JDK 21 + `./mvnw test jacoco:check`，強制要求 **BUNDLE 覆蓋率 $\ge 80\%$**。
+- **Java CI (Unit & Coverage)**：JDK 21 + `./mvnw test jacoco:check`，強制要求 **BUNDLE 覆蓋率 >= 80%**。
 - **Testcontainers E2E CI**：使用 `./mvnw verify -Pintegration-test` 於乾淨容器環境（PostgreSQL 16, Kafka KRaft 7.6, Redis 7.2）自動執行分散式 SAGA 補償、快取指標流與 Redisson 併發鎖整合測試。
 - **Python CI**：Python 3.11 + `ruff check` + `ruff format --check` + `pytest backend-ai-py`（28+ 測試）。
 - **AI Code Review**：獨立之 `ai-review-trigger.yml` 與 `ai-review-trusted.yml` 提供自動化 PR 程式碼審查。
 - **映像檔建置**：Docker Buildx 多架構建置與 Docker Hub 自動推送。
 
-### 2. JMeter 500 併發壓力測試套件 (`stress-test/`)
+### 2. 壓力測試套件 (`stress-test/`)：Grafana k6 (本機推薦) + Apache JMeter
+- **CI/CD 與壓測邊界明確隔離**：CI 專注於單元測試與 Testcontainers 整合測試，極限高併發壓力測試則由本機腳本（`stress-test/`）手動觸發執行。
+- **Grafana k6 超輕量零失真本機壓測（推薦）**：基於 Go 協程非同步架構（`stress-test/k6/`），500 併發僅需 ~25MB 記憶體，完全消除同機壓測時客戶端與 Spring Boot / 資料庫之間的 CPU/RAM 資源爭奪與假性延遲毛刺。支援一鍵執行腳本 `run-k6-stress.ps1`。
 - **資料庫一鍵初始化**：`init-dbs.sql` 一鍵建立 5 大獨立資料庫。
 - **10 個 SQL 大量測試數據生成腳本**：包含 50,003 筆使用者、50,000 個專案、200,000 筆水質時序數據（具備 `ON CONFLICT` 冪等防重特性）。
-- **4 大壓測場景 (`.jmx`)**：
-  - `test-iam.jmx`：500 併發，高頻讀取（Login / Users Search / Role / Function）。
-  - `test-competency.jmx`：500 併發，80% 讀取 + 20% 寫入（Skill Search / Project Search / Personal Skill Add）。
-  - `test-job.jmx`：500 併發，80% 讀取 + 20% 寫入（Company Search / Job Search / Company Add）。
-  - `test-alert.jmx`：200 併發，水情時序數據查詢。
-- **自動化執行腳本**：`run-with-cache.ps1` 與 `run-without-cache.ps1`，自動統計 P50/P90/P95/P99 延遲並產出報告。
+- **4 大壓測場景 (`.jmx` 與 `.js`)**：
+  - `test-iam`：高頻讀取（Login / Users Search / Role / Function）。
+  - `test-competency`：80% 讀取 + 20% 寫入（Skill Search / Project Search / Personal Skill Add）。
+  - `test-job`：80% 讀取 + 20% 寫入（Company Search / Job Search / Company Add）。
+  - `test-alert`：水情時序數據與即時快取統計。
+- **四象限階梯式執行腳本**：`run-k6-stress.ps1`、`run-with-cache.ps1` 與 `run-without-cache.ps1`，支援 **50（單機標準負載）/ 200（平臺執行緒飽和門檻）/ 500（極限過載壓測）** 併發階梯與 **Java 21 虛擬執行緒 vs 平臺執行緒** 交叉對比，自動統計 P50/P90/P95/P99 延遲並產出評估報告（詳見 `stress-test/壓力測試結果.md`）。
 
 ### 3. 程式碼規範 (Architecture Conventions)
 - **建構子注入**：全面採用 Lombok `@RequiredArgsConstructor` + `private final`，生產程式碼嚴禁 `@Autowired` 欄位注入。
@@ -962,7 +964,8 @@ sequenceDiagram
 | | `WHISPER_DEVICE` | `cuda` (無 GPU 可設 `cpu`) | Whisper 推論裝置。 |
 | | `GPT_SOVIT_URL` | `http://127.0.0.1:9880/tts` | GPT-SoVITS 語音合成端點。 |
 | | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama LLM 服務端點（模型 `gemma4:31b-cloud`）。 |
-| **壓力測試** | `JMETER_BIN` | `C:\path\to\jmeter\bin\jmeter.bat` | Apache JMeter 執行檔路徑。 |
+| **壓力測試** | `K6_BIN` | `k6` | Grafana k6 執行檔路徑（本機推薦壓測工具）。 |
+| | `JMETER_BIN` | `C:\path\to\jmeter\bin\jmeter.bat` | Apache JMeter 執行檔路徑。 |
 
 ---
 
@@ -1042,9 +1045,9 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 - [x] Event-Driven Architecture (Kafka 4 大主題)
 
 ### Quality & Benchmark
-- [x] Unit Test + JaCoCo Coverage Check (BUNDLE $\ge 80\%$)
+- [x] Unit Test + JaCoCo Coverage Check (BUNDLE >= 80%)
 - [x] Testcontainers 端到端整合測試 (PostgreSQL 16, Kafka KRaft, Redis 7 共享容器)
-- [x] JMeter 500 併發壓力測試套件與 SQL 數據生成器 (`stress-test/`)
+- [x] Grafana k6 + JMeter 50/200/500 階梯式高併發壓力測試與四象限效能對照 (快取開關 × 虛擬執行緒開關)
 - [x] GitHub Actions 雙軌 CI + AI Code Review
 
 ### AI Integration
