@@ -2,7 +2,6 @@ package com.example.BackendArchitectureLab.Entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,8 +34,7 @@ public class ExternalSyncCommand extends BaseEntity {
     @Column(name = "delivery_status", nullable = false, length = 20)
     private String deliveryStatus;
 
-    @Lob
-    @Column(name = "payload", nullable = false)
+    @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
     private String payload;
 
     @Column(name = "processing_at")

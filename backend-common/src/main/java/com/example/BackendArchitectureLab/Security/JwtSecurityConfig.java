@@ -65,8 +65,8 @@ public class JwtSecurityConfig {
     @Bean
     public JwtAuthenticationToken jwtAuthenticationToken(
             @Value("${jwt.secret.use}") String jwtSecret,
-            @Value("${jwt.issuer}") String jwtIssuer,
-            @Value("${jwt.audience}") String jwtAudience,
+            @Value("${jwt.issuer:BackendArchitectureLab}") String jwtIssuer,
+            @Value("${jwt.audience:BackendArchitectureLab}") String jwtAudience,
             @Value("${jwt.expiration-minutes:60}") long expirationMinutes) {
         return new JwtAuthenticationToken(jwtSecret, jwtIssuer, jwtAudience, expirationMinutes);
     }

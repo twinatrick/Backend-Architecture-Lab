@@ -5,8 +5,14 @@
     [int]$Threads = 500,
     [int]$AlertThreads = 200,
     [int]$Duration = 60,
-    [string]$ResultCsv = "stress-test-result-with-cache.csv"
+    [string]$ResultCsv = "",
+    [string]$ThreadModel = "VirtualThreads" # VirtualThreads or PlatformThreads
 )
+
+# 若未指定 CSV 檔名，自動根據執行緒模型與併發量產生對應名稱
+if ([string]::IsNullOrWhiteSpace($ResultCsv)) {
+    $ResultCsv = "stress-test-result-with-cache-${ThreadModel}-${Threads}threads.csv"
+}
 
 # 嘗試由 .env 讀取 JMETER_BIN
 if ([string]::IsNullOrWhiteSpace($JmeterBin)) {
@@ -34,15 +40,20 @@ if (Test-Path $RawDir) {
 }
 New-Item -ItemType Directory -Path $RawDir -Force | Out-Null
 
+$actualAlertThreads = [math]::Min($AlertThreads, $Threads)
+
 $scripts = @(
     @{Name="iam"; File="stress-test\test-iam.jmx"; Threads=$Threads},
     @{Name="project-skill"; File="stress-test\test-project-skill.jmx"; Threads=$Threads},
     @{Name="job"; File="stress-test\test-job.jmx"; Threads=$Threads},
-    @{Name="alert"; File="stress-test\test-alert.jmx"; Threads=$AlertThreads}
+    @{Name="alert"; File="stress-test\test-alert.jmx"; Threads=$actualAlertThreads}
 )
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  Round 1: 有快取模式壓力測試" -ForegroundColor Cyan
+Write-Host "  執行緒架構: $ThreadModel" -ForegroundColor Magenta
+Write-Host "  壓測併發量: $Threads 併發 (Alert: $actualAlertThreads)" -ForegroundColor Magenta
+Write-Host "  目標輸出檔: $ResultCsv" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 
 foreach ($s in $scripts) {
@@ -116,9 +127,10 @@ Write-Host "結果已儲存至: $ResultCsv" -ForegroundColor Green
 
 # ===== 自動分析結論 =====
 $conclusions = @()
-$conclusions += "# 壓力測試結論（有快取模式）"
+$conclusions += "# 壓力測試結論（有快取模式 - $ThreadModel）"
 $conclusions += "# 測試時間: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-$conclusions += "# 測試參數: ${Threads} 併發 (IAM/Project-Skill/Job), ${AlertThreads} (Alert), ${Duration}秒持續"
+$conclusions += "# 測試參數: ${Threads} 併發 (IAM/Project-Skill/Job), ${actualAlertThreads} (Alert), ${Duration}秒持續"
+$conclusions += "# 執行緒模型: $ThreadModel"
 $conclusions += ""
 
 $totalSamples = ($allResults | Measure-Object Samples -Sum).Sum

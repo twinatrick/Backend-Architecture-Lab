@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: test-support-service
+  threads:
+    virtual:
+      enabled: true
+  cache:
+    type: redis
+
+jwt:
+  secret:
+    use: ${JWT_SECRET_USE:test-jwt-secret-placeholder-for-testcontainers-32b!}
+  issuer: BackendArchitectureLab
+  audience: BackendArchitectureLab
+  expiration-minutes: 60

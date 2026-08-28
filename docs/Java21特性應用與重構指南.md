@@ -306,6 +306,27 @@ public class CompensationOutboxThreadPoolConfig {
 }
 ```
 
+3. **高併發 (50 / 200 / 500) 與快取開關下之效能實測分析與物理排程機制**：
+   - **實測對比矩陣**（詳見 `stress-test/壓力測試結果.md`）：
+     - **50 併發（一般負載）**：無論啟用與否，Tomcat 預設 200 Worker 執行緒皆能容納，虛擬執行緒平均延遲縮減約 1~2ms，主要體現為記憶體 Footprint 更輕量。
+     - **200 併發（臨界飽和點）**：平臺執行緒開始出現 CPU 核心 Context Switch 抖動，無快取下 P99 延遲攀升至 700ms+；而虛擬執行緒於 I/O 阻塞時主動 Unmount Carrier Thread，P99 穩定在 380ms 內，無排隊堆疊。
+     - **500 併發（過載壓測）**：平臺執行緒池（200 上限）完全打滿，300 個請求在 OS 層級排隊導致尾端延遲惡化至 2,100ms+ 甚至觸發連線超時；啟用虛擬執行緒後，JVM 瞬間調度 500 個輕量 Fiber，整體吞吐量維持在 5,300+ req/s，P99 壓制在 310ms（有快取）與 820ms（無快取），錯誤率保持 0%。
+   - **底層物理機制**：
+     - 當請求執行 HTTP 呼叫、PostgreSQL JDBC 查詢、Redis 或 Kafka 網路 I/O 時，JVM 透過 Continuation 機制將 Virtual Thread 自動 **Unmount** 卸載，讓出底層 Carrier Thread (ForkJoinPool worker) 服務其他連線；待 Socket 資料抵達後再透過 epoll/kqueue 事件通知重新 **Mount** 執行。
+     - 因而消除了傳統多執行緒在 200+ 併發下龐大的 1MB/Thread Stack 記憶體開銷與 Kernel Mode 核心態切換懲罰。
+
+---
+
+## 壓力測試與 CI/CD 邊界劃分 (CI Boundary Isolation)
+
+專案嚴格區分**自動化持續整合測試**與**本機高負載壓力測試**：
+1. **GitHub Actions CI (`.github/workflows/ci.yml`)**：
+   - **Stage 1 (Unit Test)**：執行 `./mvnw test`（基於 H2 In-Memory DB，涵蓋 1,000+ 測試，100% 確定性快速回饋，強制 BUNDLE 覆蓋率 >= 80%）。
+   - **Stage 2 (Testcontainers E2E IT)**：執行 `./mvnw verify -Pintegration-test`（啟動真實 PostgreSQL, Kafka, Redis 單例容器驗證分散式鎖、SAGA 補償與即時告警邏輯）。
+   - **明確排除 JMeter 壓測**：避免公用 CI 虛擬機 CPU/RAM 資源波動導致效能數據失真與 CI 執行時間膨脹。
+2. **本機壓力測試 (`stress-test/`)**：
+   - 使用者透過本地專案提供的腳本（`run-with-cache.ps1`、`run-without-cache.ps1`）在獨立環境下執行 50/200/500 併發與虛擬執行緒對比實驗，量化架構極限。
+
 ---
 
 ## 建置與測試相容性規範
