@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 # 確保 backend-ai-py 目錄在 Python 搜尋路徑中
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from config import settings
 from main import app
 
 
@@ -39,6 +40,4 @@ def test_health():
 
 
 def test_settings():
-    from config import settings
-
     assert settings.service_name == "ai-py-service"
