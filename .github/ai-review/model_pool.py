@@ -1,4 +1,5 @@
 import os
+import threading
 
 DEFAULT_GEMINI_MODELS = [
     "gemini-3.7-flash",
@@ -21,7 +22,7 @@ ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
 
 
 class ModelPool:
-    """管理模型候選清單，支援動態提升 (Promotion) 與降級 (Demotion)。"""
+    """管理模型候選清單，支援動態提升 (Promotion) 與降級 (Demotion) 以及多執行緒安全。"""
 
     def __init__(
         self,
@@ -31,6 +32,7 @@ class ModelPool:
         self.default_models = list(default_models)
         self.env_override_var = env_override_var
         self.active_models: list[str] = list(default_models)
+        self._lock = threading.Lock()
 
     def get_candidates(self) -> list[str]:
         if self.env_override_var:
@@ -41,17 +43,24 @@ class ModelPool:
                     for item in custom_models.split(",")
                     if item.strip()
                 ]
-        return list(self.active_models)
+        with self._lock:
+            return list(self.active_models)
 
     def promote(self, model_name: str) -> None:
-        if model_name in self.active_models:
-            self.active_models.remove(model_name)
-            self.active_models.insert(0, model_name)
+        with self._lock:
+            if model_name in self.active_models:
+                self.active_models.remove(model_name)
+                self.active_models.insert(0, model_name)
 
     def demote(self, model_name: str) -> None:
-        if model_name in self.active_models:
-            self.active_models.remove(model_name)
-            self.active_models.append(model_name)
+        with self._lock:
+            if model_name in self.active_models:
+                self.active_models.remove(model_name)
+                self.active_models.append(model_name)
+
+    def reset(self) -> None:
+        with self._lock:
+            self.active_models = list(self.default_models)
 
 
 GLOBAL_MODEL_POOL_GROQ = ModelPool(DEFAULT_MODEL_CANDIDATES, "GROQ_MODELS")
