@@ -197,16 +197,27 @@ $authToken = ""
 if (Wait-ForPort -Port 8002 -TimeoutSec 45) {
     Start-Sleep -Seconds 3
     try {
-        & curl.exe -s -X POST "http://localhost:8002/auth/superuser" -H "Content-Type: application/json" -d '{\"key\":\"super_secret_key_change_in_production\",\"email\":\"admin@tsmc.com\"}' | Out-Null
-        $rawLogin = & curl.exe -s -X POST "http://localhost:8002/auth/login" -H "Content-Type: application/json" -d '{\"email\":\"admin@tsmc.com\",\"password\":\"admin\"}'
-        if ($rawLogin) {
-            $loginJson = $rawLogin | ConvertFrom-Json
-            if ($loginJson.data -and $loginJson.data.accessToken) {
-                $authToken = $loginJson.data.accessToken
-            } elseif ($loginJson.accessToken) {
-                $authToken = $loginJson.accessToken
+        $superKey = if ($env:SUPERUSER_KEY) { $env:SUPERUSER_KEY } else { "super_secret_key_change_in_production" }
+        $adminEmail = if ($env:ADMIN_EMAIL) { $env:ADMIN_EMAIL } else { "admin@tsmc.com" }
+        $adminPass = if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "admin" }
+
+        $superBody = @{ key = $superKey; email = $adminEmail } | ConvertTo-Json
+        $loginBody = @{ email = $adminEmail; password = $adminPass } | ConvertTo-Json
+
+        try {
+            Invoke-RestMethod -Uri "http://localhost:8002/auth/superuser" -Method Post -ContentType "application/json" -Body $superBody -TimeoutSec 10 | Out-Null
+        } catch {}
+
+        try {
+            $loginRes = Invoke-RestMethod -Uri "http://localhost:8002/auth/login" -Method Post -ContentType "application/json" -Body $loginBody -TimeoutSec 10
+            if ($loginRes) {
+                if ($loginRes.data -and $loginRes.data.accessToken) {
+                    $authToken = $loginRes.data.accessToken
+                } elseif ($loginRes.accessToken) {
+                    $authToken = $loginRes.accessToken
+                }
             }
-        }
+        } catch {}
     } catch {}
     Stop-JavaProcess -ProcessObj $initIamProcess -Name "IAM 初始化行程"
 } else {

@@ -43,7 +43,7 @@ export function getAuthToken(baseUrl = DEFAULT_BASE_URL, email = ADMIN_EMAIL, pa
     // 嘗試建立 superuser
     try {
         const superPayload = JSON.stringify({
-            key: 'super_secret_key_change_in_production',
+            key: __ENV.SUPERUSER_KEY || 'super_secret_key_change_in_production',
             email: email
         });
         http.post(`${baseUrl}/api/auth/superuser`, superPayload, {
@@ -52,7 +52,7 @@ export function getAuthToken(baseUrl = DEFAULT_BASE_URL, email = ADMIN_EMAIL, pa
         });
 
         // 再次嘗試登入
-        const retryRes = http.post(`${baseUrl}/api/auth/login`, JSON.stringify({ email, password: 'admin' }), {
+        const retryRes = http.post(`${baseUrl}/api/auth/login`, JSON.stringify({ email, password }), {
             headers: { 'Content-Type': 'application/json' },
             timeout: '10s'
         });
@@ -65,7 +65,7 @@ export function getAuthToken(baseUrl = DEFAULT_BASE_URL, email = ADMIN_EMAIL, pa
 
     // 嘗試註冊
     try {
-        const signupRes = http.post(`${baseUrl}/api/auth/signup`, JSON.stringify({ email, password: 'admin' }), {
+        const signupRes = http.post(`${baseUrl}/api/auth/signup`, JSON.stringify({ email, password }), {
             headers: { 'Content-Type': 'application/json' },
             timeout: '10s'
         });

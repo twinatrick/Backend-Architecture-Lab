@@ -1,7 +1,9 @@
 package com.example.BackendArchitectureLab.TestSupport;
 
 import org.junit.jupiter.api.AfterEach;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -9,13 +11,18 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * Testcontainers 整合測試基底抽象類別
  */
-public abstract class BaseTestcontainersIntegrationTest {
+public abstract class BaseTestcontainersIntegrationTest implements ApplicationContextAware {
 
-    @Autowired(required = false)
-    protected DatabaseCleaner databaseCleaner;
+    private ApplicationContext applicationContext;
 
-    @Autowired(required = false)
-    protected StringRedisTemplate stringRedisTemplate;
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
+    }
+
+    protected ApplicationContext getApplicationContext() {
+        return applicationContext;
+    }
 
     @DynamicPropertySource
     static void configureSharedProperties(DynamicPropertyRegistry registry) {
@@ -39,12 +46,18 @@ public abstract class BaseTestcontainersIntegrationTest {
 
     @AfterEach
     void tearDownSharedState() {
-        if (databaseCleaner != null) {
-            databaseCleaner.clean();
-        }
-        if (stringRedisTemplate != null && stringRedisTemplate.getConnectionFactory() != null) {
+        if (applicationContext != null) {
             try {
-                stringRedisTemplate.getConnectionFactory().getConnection().serverCommands().flushDb();
+                DatabaseCleaner databaseCleaner = applicationContext.getBean(DatabaseCleaner.class);
+                databaseCleaner.clean();
+            } catch (BeansException ignored) {
+            }
+
+            try {
+                StringRedisTemplate stringRedisTemplate = applicationContext.getBean(StringRedisTemplate.class);
+                if (stringRedisTemplate.getConnectionFactory() != null) {
+                    stringRedisTemplate.getConnectionFactory().getConnection().serverCommands().flushDb();
+                }
             } catch (Exception ignored) {
             }
         }

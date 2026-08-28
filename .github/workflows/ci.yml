@@ -48,6 +48,8 @@ jobs:
   # Job 1.2：Testcontainers 端到端整合測試
   # ============================================
   integration-test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
 
     steps:

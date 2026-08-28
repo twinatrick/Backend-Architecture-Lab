@@ -19,11 +19,11 @@
           </elementProp>
           <elementProp name="ADMIN_EMAIL" elementType="Argument">
             <stringProp name="Argument.name">ADMIN_EMAIL</stringProp>
-            <stringProp name="Argument.value">admin@tsmc.com</stringProp>
+            <stringProp name="Argument.value">${__P(ADMIN_EMAIL,admin@tsmc.com)}</stringProp>
           </elementProp>
           <elementProp name="ADMIN_PASSWORD" elementType="Argument">
             <stringProp name="Argument.name">ADMIN_PASSWORD</stringProp>
-            <stringProp name="Argument.value">password</stringProp>
+            <stringProp name="Argument.value">${__P(ADMIN_PASSWORD,password)}</stringProp>
           </elementProp>
           <elementProp name="THREADS" elementType="Argument">
             <stringProp name="Argument.name">THREADS</stringProp>
@@ -89,7 +89,7 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
-                <stringProp name="Argument.value">{"email":"${ADMIN_EMAIL}","password":"${ADMIN_PASSWORD}"}</stringProp>
+                <stringProp name="Argument.value">{&quot;email&quot;:&quot;${ADMIN_EMAIL}&quot;,&quot;password&quot;:&quot;${ADMIN_PASSWORD}&quot;}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>

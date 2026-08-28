@@ -9,7 +9,7 @@ spring:
 
 jwt:
   secret:
-    use: qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=
+    use: ${JWT_SECRET_USE:test-jwt-secret-placeholder-for-testcontainers-32b!}
   issuer: BackendArchitectureLab
   audience: BackendArchitectureLab
   expiration-minutes: 60

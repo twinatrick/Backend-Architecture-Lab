@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 預設權限驗證器：當服務未提供 LocalPermissionValidatorImpl（例如非 IAM 服務）時使用，
- * 透過 Feign 呼叫 IAM 進行權限驗證。若為 superuser (admin) 則快速放行。
+ * 透過 Feign 呼叫 IAM 進行權限驗證。
  */
 @RequiredArgsConstructor
 public class DefaultPermissionValidator implements LocalPermissionValidator {
@@ -14,8 +14,8 @@ public class DefaultPermissionValidator implements LocalPermissionValidator {
 
     @Override
     public boolean validate(String email, String one, String two, String three) {
-        if (email != null && ("admin@tsmc.com".equalsIgnoreCase(email) || "admin".equalsIgnoreCase(email))) {
-            return true;
+        if (email == null || email.isBlank()) {
+            return false;
         }
         return permissionCheckFeignClient.validatePermission(email, one, two, three);
     }

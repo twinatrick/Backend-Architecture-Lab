@@ -27,11 +27,6 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
             return false;
         }
 
-        // admin / superuser 具備最高管理權限直接通過
-        if ("admin@tsmc.com".equalsIgnoreCase(email) || "admin".equalsIgnoreCase(email)) {
-            return true;
-        }
-
         UserVo user = userService.getOnlyUserByEmail(email);
         if (user == null) {
             return false;
