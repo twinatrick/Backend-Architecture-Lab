@@ -43,3 +43,15 @@ _Avoid_: SHA check, Race lock.
 **Fail-Closed (閉合失敗)**:
 當審查基礎設施或校驗遭遇任何異常時，強制阻擋或發布 REQUEST_CHANGES，絕不放行（APPROVE）。
 _Avoid_: Error stop, Fail safe.
+
+**Integration Test (端到端整合測試)**:
+在真實運行的外部相依服務（如 Docker 容器化之 PostgreSQL、Kafka、Redis）中驗證微服務跨邊界業務閉環、分佈式鎖定與交易補償邏輯的自動化測試套件。
+_Avoid_: End-to-end mock test, Fake-driven test.
+
+**Singleton Container Lifecycle (單例容器生命週期)**:
+在整個 JVM 測試執行期間僅啟動一次的共用容器管理機制，透過靜態單例持有容器實例，避免每個測試類別重複啟動與銷毀帶來的資源浪費與測試卡頓。
+_Avoid_: Per-class container, Transient container.
+
+**Dynamic Property Source (動態屬性來源)**:
+在 Spring Boot 測試環境啟動時，動態將 Testcontainers 映射出的隨機連接埠與連線資訊注入 Spring ApplicationContext 的屬性配置機制。
+_Avoid_: Static test property, Hardcoded port config.

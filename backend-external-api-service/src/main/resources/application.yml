@@ -14,6 +14,12 @@ spring:
     username: postgres
     password: verYs3cret
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
   jpa:
     hibernate:
       ddl-auto: update

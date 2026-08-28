@@ -10,11 +10,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface CompensationOutboxEventRepository extends JpaRepository<CompensationOutboxEvent, UUID> {
 
     boolean existsByEventId(UUID eventId);
+
+    List<CompensationOutboxEvent> findByTransactionId(UUID transactionId);
+
+    Optional<CompensationOutboxEvent> findByEventId(UUID eventId);
 
     /**
      * 依傳遞狀態查詢最近更新的事件（供監控告警掃描滯留的 DEAD 事件），

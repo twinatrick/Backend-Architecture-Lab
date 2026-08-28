@@ -23,17 +23,21 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
 
     @Override
     public boolean validate(String email, String one, String two, String three) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+
+        UserVo user = userService.getOnlyUserByEmail(email);
+        if (user == null) {
+            return false;
+        }
+
         FunctionVo func3 = functionQueryService.getFunctionByPath(one, two, three);
         if (func3 == null) {
             return false;
         }
 
         String requiredFunctionId = func3.getId();
-
-        UserVo user = userService.getOnlyUserByEmail(email);
-        if (user == null) {
-            return false;
-        }
 
         return user.getPermissions() != null && user.getPermissions().stream()
                 .map(FunctionVo::getId)
