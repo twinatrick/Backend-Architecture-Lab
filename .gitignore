@@ -72,3 +72,6 @@ __pycache__/
 
 # 非原始碼文件（不提交）
 代辦清單.md
+review.md
+ai-review.json
+.ai-review-meta/

@@ -17,5 +17,29 @@ _Avoid_: Message queue log, Outgoing queue, Transaction log.
 _Avoid_: Retry queue, Error channel.
 
 **Dead State (DEAD 終態)**:
-不論是發送端 Outbox 還是消費端日誌，當暫時性錯誤（如網路超時）重試次數到達上限（5 次）後，事件被標記的最終狀態，代表該事件已遭隔離，必須靜待人工介入。
+當本地發送端 Outbox 或消費端日誌遭遇暫時性錯誤重試上限（5 次）後被標記的最終狀態，代表該事件已遭隔離，必須靜待人工介入。
 _Avoid_: Error status, Failed state, Quarantined state.
+
+**Trust Boundary (信任邊界)**:
+隔離不可信 PR 程式碼與可信金鑰環境的分隔機制。
+_Avoid_: Security perimeter, Auth zone.
+
+**Trigger Workflow (觸發工作流程)**:
+於 PR 生命週期被動觸發、無 Secret、不檢出代碼的輕量工作流程（`ai-review-trigger.yml`）。
+_Avoid_: PR runner, Event hook.
+
+**Trusted Review Workflow (受信任審查工作流程)**:
+僅自預設分支（`master`）檢出受信任程式碼、受環境保護（`apikey`）並持有效 API 金鑰的審查工作流程（`ai-review-trusted.yml`）。
+_Avoid_: Background reviewer, Secret workflow.
+
+**Target Resolution (審查目標解析)**:
+自 GitHub Actions 事件（`workflow_run` / `workflow_dispatch`）與傳遞 Artifact 中多重來源解析出唯一 PR 編號與 Head SHA 的機制。
+_Avoid_: PR discovery, Target finding.
+
+**TOCTOU Guard (審查時間競態守衛)**:
+確保審查起始與結果發布時的 Head SHA 絕對一致的二次校驗防護。
+_Avoid_: SHA check, Race lock.
+
+**Fail-Closed (閉合失敗)**:
+當審查基礎設施或校驗遭遇任何異常時，強制阻擋或發布 REQUEST_CHANGES，絕不放行（APPROVE）。
+_Avoid_: Error stop, Fail safe.
