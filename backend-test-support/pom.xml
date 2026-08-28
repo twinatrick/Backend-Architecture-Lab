@@ -13,6 +13,10 @@
     <name>backend-test-support</name>
     <description>Shared Testcontainers and E2E Test Support Infrastructure</description>
 
+    <properties>
+        <jacoco.skip>true</jacoco.skip>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.example</groupId>

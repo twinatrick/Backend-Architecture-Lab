@@ -64,7 +64,7 @@ jobs:
         run: chmod +x mvnw
 
       - name: Run Testcontainers Integration Tests
-        run: ./mvnw verify -Pintegration-test -DskipUnitTests
+        run: ./mvnw verify -Pintegration-test -Dsurefire.skip=true
 
       - name: Upload Integration Test Results
         if: always()

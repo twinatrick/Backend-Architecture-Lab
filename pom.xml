@@ -410,6 +410,7 @@
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/GroqService.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Impl/CacheStatsConsumer.class</exclude>
                             <exclude>com/example/BackendArchitectureLab/Service/Discord/**</exclude>
+                            <exclude>com/example/BackendArchitectureLab/TestSupport/**</exclude>
                             <exclude>**/*Application.class</exclude>
                         </excludes>
                         <rules>
