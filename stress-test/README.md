@@ -140,8 +140,14 @@ docker run --net=host -i grafana/k6 run - < stress-test/k6/test-suite.js
 專為本地資源保護設計，**依序啟動單一微服務 -> 執行 50/200/500 階梯壓測 -> 立即銷毀釋放資源**，徹底杜絕多個服務背景常駐佔用 CPU 與執行緒：
 
 ```powershell
-# 執行全量 5 大微服務隨選生命週期階梯壓測 (50, 200, 500 VUs)
+# 1. 預設執行全量 5 大微服務黃金組合階梯壓測 (50, 200, 500 VUs)
 .\stress-test\run-ondemand-benchmarks.ps1 -ConcurrencyLevels 50, 200, 500 -Duration 10
+
+# 2. 執行全量四象限 (無快取x平台、無快取x虛擬、有快取x平台、有快取x虛擬) 交叉對比
+.\stress-test\run-ondemand-benchmarks.ps1 -Quadrants all -ConcurrencyLevels 50, 200, 500 -Duration 10
+
+# 3. 指定測試特定象限（例如象限 D 黃金組合 vs 象限 A 全關基準）
+.\stress-test\run-ondemand-benchmarks.ps1 -Quadrants D, A -Service competency -ConcurrencyLevels 50, 200, 500
 ```
 
 ### 4. 一鍵常駐全自動矩陣壓測：Master 批次腳本 (`run-all-benchmarks.ps1`)

@@ -1,7 +1,9 @@
 ﻿param(
     [object]$ConcurrencyLevels = @(50, 200, 500),
     [int]$Duration = 10,
-    [string]$ReportDir = "target\k6-reports"
+    [string]$ReportDir = "target\k6-reports",
+    [string]$Quadrant = "all",
+    [string]$Service = "all"
 )
 
 $ErrorActionPreference = "Continue"
@@ -52,11 +54,84 @@ $k6Dir = Join-Path $PSScriptRoot "k6"
 $durationStr = "${Duration}s"
 $baseUrl = "http://localhost:8000"
 
+# 定義 4 象限測試配置矩陣
+$allQuadrants = @(
+    @{
+        Key           = "D"
+        Name          = "象限 D: 有快取 + 虛擬執行緒 (黃金組合)"
+        CacheEnabled  = $true
+        VirtualEnabled= $true
+        CacheTypeArg  = "redis"
+        VtArg         = "true"
+        CacheLabel    = "有快取 (Redis+Redisson)"
+        ThreadLabel   = "虛擬執行緒 (Virtual)"
+    },
+    @{
+        Key           = "B"
+        Name          = "象限 B: 無快取 + 虛擬執行緒 (純資料庫高併發 I/O)"
+        CacheEnabled  = $false
+        VirtualEnabled= $true
+        CacheTypeArg  = "none"
+        VtArg         = "true"
+        CacheLabel    = "無快取 (NoOp/DirectDB)"
+        ThreadLabel   = "虛擬執行緒 (Virtual)"
+    },
+    @{
+        Key           = "C"
+        Name          = "象限 C: 有快取 + 平台執行緒 (傳統執行緒池快取加速)"
+        CacheEnabled  = $true
+        VirtualEnabled= $false
+        CacheTypeArg  = "redis"
+        VtArg         = "false"
+        CacheLabel    = "有快取 (Redis+Redisson)"
+        ThreadLabel   = "平台執行緒 (Platform)"
+    },
+    @{
+        Key           = "A"
+        Name          = "象限 A: 無快取 + 平台執行緒 (基準對照組 / 傳統架構)"
+        CacheEnabled  = $false
+        VirtualEnabled= $false
+        CacheTypeArg  = "none"
+        VtArg         = "false"
+        CacheLabel    = "無快取 (NoOp/DirectDB)"
+        ThreadLabel   = "平台執行緒 (Platform)"
+    }
+)
+
+# 依使用者輸入篩選執行象限
+$selectedQuadrants = @()
+switch -Regex ($Quadrant.ToUpper()) {
+    "^D$" { $selectedQuadrants = @($allQuadrants | Where-Object { $_.Key -eq "D" }) }
+    "^B$" { $selectedQuadrants = @($allQuadrants | Where-Object { $_.Key -eq "B" }) }
+    "^C$" { $selectedQuadrants = @($allQuadrants | Where-Object { $_.Key -eq "C" }) }
+    "^A$" { $selectedQuadrants = @($allQuadrants | Where-Object { $_.Key -eq "A" }) }
+    default { $selectedQuadrants = $allQuadrants }
+}
+
+# 定義微服務受測清單
+$allServices = @(
+    @{ Key = "iam"; Name = "iam"; Port = 8002; Display = "IAM 認證授權"; Jar = "..\backend-iam-service\target\backend-iam-service-0.0.1-SNAPSHOT.jar"; Script = "test-iam.js" },
+    @{ Key = "competency"; Name = "competency"; Port = 8004; Display = "Competency 職能專案"; Jar = "..\backend-competency-service\target\backend-competency-service-0.0.1-SNAPSHOT.jar"; Script = "test-competency.js" },
+    @{ Key = "job"; Name = "job"; Port = 8006; Display = "Job 職缺企業"; Jar = "..\backend-job-service\target\backend-job-service-0.0.1-SNAPSHOT.jar"; Script = "test-job.js" },
+    @{ Key = "alert"; Name = "alert"; Port = 8008; Display = "Alert 告警感測"; Jar = "..\backend-alert-service\target\backend-alert-service-0.0.1-SNAPSHOT.jar"; Script = "test-alert.js" },
+    @{ Key = "external"; Name = "external"; Port = 8007; Display = "External 外部整合"; Jar = "..\backend-external-api-service\target\backend-external-api-service-0.0.1-SNAPSHOT.jar"; Script = "test-external.js" }
+)
+
+$selectedServices = @()
+if ($Service -ieq "all") {
+    $selectedServices = $allServices
+} else {
+    $selectedServices = @($allServices | Where-Object { $_.Key -ieq $Service })
+    if ($selectedServices.Count -eq 0) { $selectedServices = $allServices }
+}
+
 Write-Host "=================================================================" -ForegroundColor Cyan
-Write-Host "     微服務隨選生命週期壓力測試 (On-Demand Benchmark Runner)" -ForegroundColor Cyan
+Write-Host "  微服務四象限隨選生命週期壓力測試 (4-Quadrant On-Demand Benchmark)" -ForegroundColor Cyan
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host "  併發階梯     : $($vusList -join ', ') VUs" -ForegroundColor Magenta
 Write-Host "  單輪測試時長 : $durationStr" -ForegroundColor Magenta
+Write-Host "  受測象限     : $(($selectedQuadrants | ForEach-Object { $_.Key }) -join ', ')" -ForegroundColor Magenta
+Write-Host "  受測服務     : $(($selectedServices | ForEach-Object { $_.Key }) -join ', ')" -ForegroundColor Magenta
 Write-Host "  目標閘道位址 : $baseUrl" -ForegroundColor Magenta
 Write-Host "  執行原則     : 依序啟動單一微服務 -> 壓測 -> 立即終止釋放資源" -ForegroundColor Yellow
 Write-Host "=================================================================" -ForegroundColor Cyan
@@ -102,7 +177,7 @@ function Get-MetricValue($metricsObj, [string]$metricName, [string]$field) {
 }
 
 # 1. 啟動 Gateway (Port 8000)
-Write-Host "`n[1/6] 啟動 API Gateway (Port 8000)..." -ForegroundColor Green
+Write-Host "`n[準備] 啟動 API Gateway (Port 8000)..." -ForegroundColor Green
 $gwJar = Join-Path $PSScriptRoot "..\backend-gateway\target\backend-gateway-0.0.1-SNAPSHOT.jar"
 $gwProcess = Start-Process -FilePath $javaCmd -ArgumentList "-Xms256m", "-Xmx384m", "-jar", "`"$gwJar`"" -PassThru -WindowStyle Hidden
 
@@ -113,35 +188,31 @@ if (-not (Wait-ForPort -Port 8000 -TimeoutSec 40)) {
 }
 Write-Host "  -> Gateway 已就緒於 Port 8000" -ForegroundColor Green
 
-# 2. 啟動 IAM Service (Port 8002) 作為認證與權限驗證中心
-Write-Host "`n[2/6] 啟動 IAM 服務 (Port 8002，提供全域認證與權限驗證)..." -ForegroundColor Green
+# 2. 啟動一次 IAM 以取得全域 Superuser JWT Token
+Write-Host "`n[準備] 啟動 IAM 服務生成全域認證憑證 (JWT)..." -ForegroundColor Green
 $iamJar = Join-Path $PSScriptRoot "..\backend-iam-service\target\backend-iam-service-0.0.1-SNAPSHOT.jar"
-$iamProcess = Start-Process -FilePath $javaCmd -ArgumentList "-Xms256m", "-Xmx512m", "-jar", "`"$iamJar`"" -PassThru -WindowStyle Hidden
+$initIamProcess = Start-Process -FilePath $javaCmd -ArgumentList "-Xms256m", "-Xmx512m", "-jar", "`"$iamJar`"" -PassThru -WindowStyle Hidden
 
-if (-not (Wait-ForPort -Port 8002 -TimeoutSec 45)) {
-    Write-Host "  [錯誤] IAM 服務啟動超時！" -ForegroundColor Red
-    Stop-JavaProcess -ProcessObj $iamProcess -Name "IAM"
-    Stop-JavaProcess -ProcessObj $gwProcess -Name "Gateway"
-    exit 1
-}
-Write-Host "  -> IAM 服務已就緒於 Port 8002" -ForegroundColor Green
-
-$allResults = @()
 $authToken = ""
-
-# 直接向 IAM 服務進行 superuser 建立與登入以取得全域 JWT
-try {
-    & curl.exe -s -X POST "http://localhost:8002/auth/superuser" -H "Content-Type: application/json" -d '{\"key\":\"super_secret_key_change_in_production\",\"email\":\"admin@tsmc.com\"}' | Out-Null
-    $rawLogin = & curl.exe -s -X POST "http://localhost:8002/auth/login" -H "Content-Type: application/json" -d '{\"email\":\"admin@tsmc.com\",\"password\":\"admin\"}'
-    if ($rawLogin) {
-        $loginJson = $rawLogin | ConvertFrom-Json
-        if ($loginJson.data -and $loginJson.data.accessToken) {
-            $authToken = $loginJson.data.accessToken
-        } elseif ($loginJson.accessToken) {
-            $authToken = $loginJson.accessToken
+if (Wait-ForPort -Port 8002 -TimeoutSec 45) {
+    Start-Sleep -Seconds 3
+    try {
+        & curl.exe -s -X POST "http://localhost:8002/auth/superuser" -H "Content-Type: application/json" -d '{\"key\":\"super_secret_key_change_in_production\",\"email\":\"admin@tsmc.com\"}' | Out-Null
+        $rawLogin = & curl.exe -s -X POST "http://localhost:8002/auth/login" -H "Content-Type: application/json" -d '{\"email\":\"admin@tsmc.com\",\"password\":\"admin\"}'
+        if ($rawLogin) {
+            $loginJson = $rawLogin | ConvertFrom-Json
+            if ($loginJson.data -and $loginJson.data.accessToken) {
+                $authToken = $loginJson.data.accessToken
+            } elseif ($loginJson.accessToken) {
+                $authToken = $loginJson.accessToken
+            }
         }
-    }
-} catch {}
+    } catch {}
+    Stop-JavaProcess -ProcessObj $initIamProcess -Name "IAM 初始化行程"
+} else {
+    Write-Host "  [警告] IAM 初始化超時，停止行程" -ForegroundColor DarkGray
+    Stop-JavaProcess -ProcessObj $initIamProcess -Name "IAM 初始化行程"
+}
 
 if ($authToken) {
     Write-Host "  -> 成功獲取全域 JWT 認證憑證！" -ForegroundColor Cyan
@@ -149,191 +220,135 @@ if ($authToken) {
     Write-Host "  [警告] 預登入失敗，將由 k6 腳本自動嘗試。" -ForegroundColor DarkGray
 }
 
-# 等候 Gateway 與 Nacos 路由快取同步 (5秒)
-Start-Sleep -Seconds 5
+$allResults = @()
+$quadrantIndex = 0
 
-# 壓測 IAM 服務
-Write-Host "`n  [壓測] 開始執行 IAM 認證授權服務階梯壓測..." -ForegroundColor Yellow
-$iamScript = Join-Path $k6Dir "test-iam.js"
-foreach ($vus in $vusList) {
-    $summaryFile = Join-Path $targetReportDir "summary-iam-$vus-vus.json"
-    Write-Host "  -> IAM 併發 [$vus VUs], 持續 [$durationStr]..." -ForegroundColor White
+foreach ($q in $selectedQuadrants) {
+    $quadrantIndex++
+    $qKey = $q.Key
+    $qName = $q.Name
+    $qCacheEnabled = $q.CacheEnabled
+    $qVirtualEnabled = $q.VirtualEnabled
+    $qCacheType = $q.CacheTypeArg
+    $qVtArg = $q.VtArg
 
-    $envArgs = @(
-        "run",
-        "-e", "BASE_URL=$baseUrl",
-        "-e", "VUS=$vus",
-        "-e", "DURATION=$durationStr",
-        "-e", "AUTH_TOKEN=$authToken",
-        "-e", "WITH_CACHE=true",
-        "-e", "VIRTUAL_THREADS=true",
-        "--summary-trend-stats=min,avg,med,max,p(90),p(95),p(99)",
-        "--summary-export=$summaryFile",
-        $iamScript
-    )
+    Write-Host "`n#################################################################" -ForegroundColor Yellow
+    Write-Host "  [象限 $quadrantIndex/$($selectedQuadrants.Count)] $qName" -ForegroundColor Yellow
+    Write-Host "  參數: --spring.cache.type=$qCacheType --spring.threads.virtual.enabled=$qVtArg" -ForegroundColor Yellow
+    Write-Host "#################################################################" -ForegroundColor Yellow
 
-    & k6 $envArgs | Out-Null
+    $svcStep = 0
+    foreach ($svc in $selectedServices) {
+        $svcStep++
+        $svcKey = $svc.Key
+        $svcName = $svc.Name
+        $svcDisplay = $svc.Display
+        $svcPort = $svc.Port
+        $jarPath = Join-Path $PSScriptRoot $svc.Jar
+        $scriptPath = Join-Path $k6Dir $svc.Script
 
-    if (Test-Path $summaryFile) {
-        try {
-            $json = Get-Content $summaryFile -Raw | ConvertFrom-Json
-            $metrics = $json.metrics
-
-            $rpsVal = Get-MetricValue $metrics "http_reqs" "rate"
-            $rps = if ($rpsVal) { [math]::Round([double]$rpsVal, 1) } else { 0.0 }
-
-            $p50Val = Get-MetricValue $metrics "http_req_duration" "p(50)"
-            if ($null -eq $p50Val) { $p50Val = Get-MetricValue $metrics "http_req_duration" "med" }
-            $p50 = if ($p50Val) { [math]::Round([double]$p50Val, 2) } else { 0.0 }
-
-            $p90Val = Get-MetricValue $metrics "http_req_duration" "p(90)"
-            $p90 = if ($p90Val) { [math]::Round([double]$p90Val, 2) } else { 0.0 }
-
-            $p95Val = Get-MetricValue $metrics "http_req_duration" "p(95)"
-            $p95 = if ($p95Val) { [math]::Round([double]$p95Val, 2) } else { 0.0 }
-
-            $p99Val = Get-MetricValue $metrics "http_req_duration" "p(99)"
-            $p99 = if ($p99Val) { [math]::Round([double]$p99Val, 2) } else { 0.0 }
-
-            $avgVal = Get-MetricValue $metrics "http_req_duration" "avg"
-            $avg = if ($avgVal) { [math]::Round([double]$avgVal, 2) } else { 0.0 }
-
-            $failVal = Get-MetricValue $metrics "http_req_failed" "value"
-            if ($null -eq $failVal) { $failVal = Get-MetricValue $metrics "http_req_failed" "rate" }
-            $failRate = if ($failVal) { [math]::Round([double]$failVal * 100, 2) } else { 0.0 }
-
-            $totalReqsVal = Get-MetricValue $metrics "http_reqs" "count"
-            $totalReqs = if ($totalReqsVal) { [int]$totalReqsVal } else { 0 }
-
-            $allResults += [PSCustomObject]@{
-                Service       = "IAM 認證授權"
-                VUs           = $vus
-                RPS           = $rps
-                P50_ms        = $p50
-                P90_ms        = $p90
-                P95_ms        = $p95
-                P99_ms        = $p99
-                Avg_ms        = $avg
-                ErrorRate_pct = "$failRate%"
-                TotalRequests = $totalReqs
-            }
-            Write-Host "     [結果] RPS: $rps req/s | P50: $p50 ms | P95: $p95 ms | P99: $p99 ms | 錯誤率: $failRate%" -ForegroundColor Green
-        } catch {
-            Write-Host "     [錯誤] 解析 JSON 報告失敗: $($_.Exception.Message)" -ForegroundColor Red
-        }
-    }
-}
-
-# 壓測 IAM 服務完畢後，立即終止 IAM 服務釋放執行緒與記憶體
-Stop-JavaProcess -ProcessObj $iamProcess -Name "IAM 認證授權服務"
-Start-Sleep -Seconds 2
-
-# 3. 定義其餘隨選受測服務清單
-$domainServices = @(
-    @{ Name = "competency"; Port = 8004; Display = "Competency 職能專案"; Jar = "..\backend-competency-service\target\backend-competency-service-0.0.1-SNAPSHOT.jar"; Script = "test-competency.js" },
-    @{ Name = "job"; Port = 8006; Display = "Job 職缺企業"; Jar = "..\backend-job-service\target\backend-job-service-0.0.1-SNAPSHOT.jar"; Script = "test-job.js" },
-    @{ Name = "alert"; Port = 8008; Display = "Alert 告警感測"; Jar = "..\backend-alert-service\target\backend-alert-service-0.0.1-SNAPSHOT.jar"; Script = "test-alert.js" },
-    @{ Name = "external"; Port = 8007; Display = "External 外部整合"; Jar = "..\backend-external-api-service\target\backend-external-api-service-0.0.1-SNAPSHOT.jar"; Script = "test-external.js" }
-)
-
-$step = 2
-foreach ($svc in $domainServices) {
-    $step++
-    $svcName = $svc.Name
-    $svcDisplay = $svc.Display
-    $svcPort = $svc.Port
-    $jarPath = Join-Path $PSScriptRoot $svc.Jar
-    $scriptPath = Join-Path $k6Dir $svc.Script
-
-    Write-Host "`n[$step/6] 隨選啟動服務: $svcDisplay (Port: $svcPort)..." -ForegroundColor Yellow
-    $svcProcess = Start-Process -FilePath $javaCmd -ArgumentList "-Xms256m", "-Xmx512m", "-jar", "`"$jarPath`"" -PassThru -WindowStyle Hidden
-
-    if (-not (Wait-ForPort -Port $svcPort -TimeoutSec 45)) {
-        Write-Host "  [警告] $svcDisplay 啟動超時，跳過此服務測試。" -ForegroundColor Red
-        Stop-JavaProcess -ProcessObj $svcProcess -Name $svcDisplay
-        continue
-    }
-
-    # 等候 5 秒確保 Nacos 註冊與 Gateway 路由更新完成
-    Start-Sleep -Seconds 5
-    Write-Host "  -> $svcDisplay 啟動成功並已完成註冊！" -ForegroundColor Green
-
-    # 執行 50, 200, 500 VUs 階梯壓測
-    foreach ($vus in $vusList) {
-        $summaryFile = Join-Path $targetReportDir "summary-$svcName-$vus-vus.json"
-        Write-Host "  -> 正在執行階梯壓測: 併發 [$vus VUs], 持續 [$durationStr]..." -ForegroundColor White
-
-        $envArgs = @(
-            "run",
-            "-e", "BASE_URL=$baseUrl",
-            "-e", "VUS=$vus",
-            "-e", "DURATION=$durationStr",
-            "-e", "AUTH_TOKEN=$authToken",
-            "-e", "WITH_CACHE=true",
-            "-e", "VIRTUAL_THREADS=true",
-            "--summary-trend-stats=min,avg,med,max,p(90),p(95),p(99)",
-            "--summary-export=$summaryFile",
-            $scriptPath
+        Write-Host "`n  [$svcStep/$($selectedServices.Count)] 隨選啟動服務: $svcDisplay (Port: $svcPort)..." -ForegroundColor Cyan
+        
+        $bootArgs = @(
+            "-Xms256m",
+            "-Xmx512m",
+            "-jar",
+            "`"$jarPath`"",
+            "--spring.cache.type=$qCacheType",
+            "--spring.threads.virtual.enabled=$qVtArg"
         )
+        $svcProcess = Start-Process -FilePath $javaCmd -ArgumentList $bootArgs -PassThru -WindowStyle Hidden
 
-        & k6 $envArgs | Out-Null
+        if (-not (Wait-ForPort -Port $svcPort -TimeoutSec 45)) {
+            Write-Host "    [警告] $svcDisplay 啟動超時，跳過此服務測試。" -ForegroundColor Red
+            Stop-JavaProcess -ProcessObj $svcProcess -Name $svcDisplay
+            continue
+        }
 
-        # 解析報告
-        if (Test-Path $summaryFile) {
-            try {
-                $json = Get-Content $summaryFile -Raw | ConvertFrom-Json
-                $metrics = $json.metrics
+        # 等候 5 秒確保 Nacos 註冊與 Gateway 路由更新完成
+        Start-Sleep -Seconds 5
+        Write-Host "    -> $svcDisplay 啟動成功並已完成註冊！" -ForegroundColor Green
 
-                $rpsVal = Get-MetricValue $metrics "http_reqs" "rate"
-                $rps = if ($rpsVal) { [math]::Round([double]$rpsVal, 1) } else { 0.0 }
+        # 執行 50, 200, 500 VUs 階梯壓測
+        foreach ($vus in $vusList) {
+            $summaryFile = Join-Path $targetReportDir "summary-$qKey-$svcName-$vus-vus.json"
+            Write-Host "    -> 執行階梯壓測: 象限 [$qKey] | 服務 [$svcKey] | 併發 [$vus VUs], 持續 [$durationStr]..." -ForegroundColor White
 
-                $p50Val = Get-MetricValue $metrics "http_req_duration" "p(50)"
-                if ($null -eq $p50Val) { $p50Val = Get-MetricValue $metrics "http_req_duration" "med" }
-                $p50 = if ($p50Val) { [math]::Round([double]$p50Val, 2) } else { 0.0 }
+            $envArgs = @(
+                "run",
+                "-e", "BASE_URL=$baseUrl",
+                "-e", "VUS=$vus",
+                "-e", "DURATION=$durationStr",
+                "-e", "AUTH_TOKEN=$authToken",
+                "-e", "WITH_CACHE=$($qCacheEnabled.ToString().ToLower())",
+                "-e", "VIRTUAL_THREADS=$($qVirtualEnabled.ToString().ToLower())",
+                "--summary-trend-stats=min,avg,med,max,p(90),p(95),p(99)",
+                "--summary-export=$summaryFile",
+                $scriptPath
+            )
 
-                $p90Val = Get-MetricValue $metrics "http_req_duration" "p(90)"
-                $p90 = if ($p90Val) { [math]::Round([double]$p90Val, 2) } else { 0.0 }
+            & k6 $envArgs | Out-Null
 
-                $p95Val = Get-MetricValue $metrics "http_req_duration" "p(95)"
-                $p95 = if ($p95Val) { [math]::Round([double]$p95Val, 2) } else { 0.0 }
+            # 解析報告
+            if (Test-Path $summaryFile) {
+                try {
+                    $json = Get-Content $summaryFile -Raw | ConvertFrom-Json
+                    $metrics = $json.metrics
 
-                $p99Val = Get-MetricValue $metrics "http_req_duration" "p(99)"
-                $p99 = if ($p99Val) { [math]::Round([double]$p99Val, 2) } else { 0.0 }
+                    $rpsVal = Get-MetricValue $metrics "http_reqs" "rate"
+                    $rps = if ($rpsVal) { [math]::Round([double]$rpsVal, 1) } else { 0.0 }
 
-                $avgVal = Get-MetricValue $metrics "http_req_duration" "avg"
-                $avg = if ($avgVal) { [math]::Round([double]$avgVal, 2) } else { 0.0 }
+                    $p50Val = Get-MetricValue $metrics "http_req_duration" "p(50)"
+                    if ($null -eq $p50Val) { $p50Val = Get-MetricValue $metrics "http_req_duration" "med" }
+                    $p50 = if ($p50Val) { [math]::Round([double]$p50Val, 2) } else { 0.0 }
 
-                $failVal = Get-MetricValue $metrics "http_req_failed" "value"
-                if ($null -eq $failVal) { $failVal = Get-MetricValue $metrics "http_req_failed" "rate" }
-                $failRate = if ($failVal) { [math]::Round([double]$failVal * 100, 2) } else { 0.0 }
+                    $p90Val = Get-MetricValue $metrics "http_req_duration" "p(90)"
+                    $p90 = if ($p90Val) { [math]::Round([double]$p90Val, 2) } else { 0.0 }
 
-                $totalReqsVal = Get-MetricValue $metrics "http_reqs" "count"
-                $totalReqs = if ($totalReqsVal) { [int]$totalReqsVal } else { 0 }
+                    $p95Val = Get-MetricValue $metrics "http_req_duration" "p(95)"
+                    $p95 = if ($p95Val) { [math]::Round([double]$p95Val, 2) } else { 0.0 }
 
-                $record = [PSCustomObject]@{
-                    Service       = $svcDisplay
-                    VUs           = $vus
-                    RPS           = $rps
-                    P50_ms        = $p50
-                    P90_ms        = $p90
-                    P95_ms        = $p95
-                    P99_ms        = $p99
-                    Avg_ms        = $avg
-                    ErrorRate_pct = "$failRate%"
-                    TotalRequests = $totalReqs
+                    $p99Val = Get-MetricValue $metrics "http_req_duration" "p(99)"
+                    $p99 = if ($p99Val) { [math]::Round([double]$p99Val, 2) } else { 0.0 }
+
+                    $avgVal = Get-MetricValue $metrics "http_req_duration" "avg"
+                    $avg = if ($avgVal) { [math]::Round([double]$avgVal, 2) } else { 0.0 }
+
+                    $failVal = Get-MetricValue $metrics "http_req_failed" "value"
+                    if ($null -eq $failVal) { $failVal = Get-MetricValue $metrics "http_req_failed" "rate" }
+                    $failRate = if ($failVal) { [math]::Round([double]$failVal * 100, 2) } else { 0.0 }
+
+                    $totalReqsVal = Get-MetricValue $metrics "http_reqs" "count"
+                    $totalReqs = if ($totalReqsVal) { [int]$totalReqsVal } else { 0 }
+
+                    $record = [PSCustomObject]@{
+                        Quadrant      = $qKey
+                        CacheMode     = $q.CacheLabel
+                        ThreadModel   = $q.ThreadLabel
+                        Service       = $svcDisplay
+                        VUs           = $vus
+                        RPS           = $rps
+                        P50_ms        = $p50
+                        P90_ms        = $p90
+                        P95_ms        = $p95
+                        P99_ms        = $p99
+                        Avg_ms        = $avg
+                        ErrorRate_pct = "$failRate%"
+                        TotalRequests = $totalReqs
+                    }
+                    $allResults += $record
+
+                    Write-Host "       [結果] RPS: $rps req/s | P50: $p50 ms | P95: $p95 ms | P99: $p99 ms | 錯誤率: $failRate%" -ForegroundColor Green
+                } catch {
+                    Write-Host "       [錯誤] 解析 JSON 報告失敗: $($_.Exception.Message)" -ForegroundColor Red
                 }
-                $allResults += $record
-
-                Write-Host "     [結果] RPS: $rps req/s | P50: $p50 ms | P95: $p95 ms | P99: $p99 ms | 錯誤率: $failRate%" -ForegroundColor Green
-            } catch {
-                Write-Host "     [錯誤] 解析 JSON 報告失敗: $($_.Exception.Message)" -ForegroundColor Red
             }
         }
-    }
 
-    # 立即終止當前微服務，釋放執行緒與記憶體
-    Stop-JavaProcess -ProcessObj $svcProcess -Name $svcDisplay
-    Start-Sleep -Seconds 2
+        # 立即終止當前微服務，釋放執行緒與記憶體
+        Stop-JavaProcess -ProcessObj $svcProcess -Name $svcDisplay
+        Start-Sleep -Seconds 2
+    }
 }
 
 # 關閉 Gateway 釋放所有測試資源
@@ -341,29 +356,29 @@ Stop-JavaProcess -ProcessObj $gwProcess -Name "Gateway"
 
 # 輸出彙總報表
 Write-Host "`n=========================================================================================================================" -ForegroundColor Cyan
-Write-Host "                                   微服務隨選生命週期壓力測試基準結果彙總" -ForegroundColor Cyan
+Write-Host "                             微服務四象限隨選生命週期壓力測試基準結果彙總" -ForegroundColor Cyan
 Write-Host "=========================================================================================================================" -ForegroundColor Cyan
 
 if ($allResults.Count -gt 0) {
-    $allResults | Format-Table -Property Service, VUs, RPS, P50_ms, P90_ms, P95_ms, P99_ms, Avg_ms, ErrorRate_pct, TotalRequests -AutoSize
+    $allResults | Format-Table -Property Quadrant, Service, VUs, RPS, P50_ms, P90_ms, P95_ms, P99_ms, Avg_ms, ErrorRate_pct, TotalRequests -AutoSize
 
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $mdReportPath = Join-Path $targetReportDir "ondemand-benchmark-$timestamp.md"
-    $csvReportPath = Join-Path $targetReportDir "ondemand-benchmark-$timestamp.csv"
+    $mdReportPath = Join-Path $targetReportDir "four-quadrants-benchmark-$timestamp.md"
+    $csvReportPath = Join-Path $targetReportDir "four-quadrants-benchmark-$timestamp.csv"
 
     $mdContent = @()
-    $mdContent += "# 微服務隨選生命週期壓力測試基準報告"
+    $mdContent += "# 微服務四象限壓力測試基準報告 (4-Quadrant Benchmark Matrix)"
     $mdContent += ""
     $mdContent += "- **測試時間**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
     $mdContent += "- **測試模式**: 單一服務隨選啟動 / 壓測後即刻銷毀 (On-Demand Zero-Waste Lifecycle)"
-    $mdContent += "- **執行緒架構**: Java 21 Virtual Threads (`spring.threads.virtual.enabled: true`)"
+    $mdContent += "- **四象限維度**: 快取開/關 (Redis vs None) × 執行緒模型 (Virtual Threads vs Platform Threads)"
     $mdContent += "- **併發階梯**: $($vusList -join ', ') VUs"
     $mdContent += ""
-    $mdContent += "| 微服務模組 | 併發 (VUs) | RPS (req/s) | P50 延遲 (ms) | P90 延遲 (ms) | P95 延遲 (ms) | P99 延遲 (ms) | 平均延遲 (ms) | 錯誤率 | 總請求數 |"
-    $mdContent += "|:---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+    $mdContent += "| 象限 | 快取配置 | 執行緒架構 | 微服務模組 | 併發 (VUs) | RPS (req/s) | P50 延遲 (ms) | P90 延遲 (ms) | P95 延遲 (ms) | P99 延遲 (ms) | 平均延遲 (ms) | 錯誤率 | 總請求數 |"
+    $mdContent += "|:---:|:---|:---|:---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|"
 
     foreach ($r in $allResults) {
-        $mdContent += "| $($r.Service) | $($r.VUs) | $($r.RPS) | $($r.P50_ms) | $($r.P90_ms) | $($r.P95_ms) | $($r.P99_ms) | $($r.Avg_ms) | $($r.ErrorRate_pct) | $($r.TotalRequests) |"
+        $mdContent += "| $($r.Quadrant) | $($r.CacheMode) | $($r.ThreadModel) | $($r.Service) | $($r.VUs) | $($r.RPS) | $($r.P50_ms) | $($r.P90_ms) | $($r.P95_ms) | $($r.P99_ms) | $($r.Avg_ms) | $($r.ErrorRate_pct) | $($r.TotalRequests) |"
     }
 
     $mdContent += ""
