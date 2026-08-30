@@ -18,12 +18,12 @@ sys.modules["faster_whisper"] = MagicMock()
 sys.modules["minio"] = MagicMock()
 sys.modules["minio.error"] = MagicMock(MinioError=_FakeMinioError)
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 # 確保 backend-ai-py 目錄在 Python 搜尋路徑中
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from main import app  # noqa: E402
+from main import app
 
 
 def _make_client():

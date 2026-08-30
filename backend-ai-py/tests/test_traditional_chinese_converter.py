@@ -33,7 +33,7 @@ def test_convert_applies_opencc_conversion():
             return "台灣繁體"
 
     class _FakeOpenCC:
-        def OpenCC(self, config: str) -> _FakeConverter:  # noqa: N802
+        def OpenCC(self, config: str) -> _FakeConverter:
             return _FakeConverter()
 
     converter = TraditionalChineseConverter()
@@ -56,7 +56,7 @@ def test_convert_gracefully_handles_runtime_and_os_errors():
             raise RuntimeError("native bindings missing")
 
     class _FailingOpenCC:
-        def OpenCC(self, config: str) -> _FailingConverter:  # noqa: N802
+        def OpenCC(self, config: str) -> _FailingConverter:
             return _FailingConverter()
 
     converter = TraditionalChineseConverter()
@@ -68,7 +68,7 @@ def test_convert_gracefully_handles_runtime_and_os_errors():
             raise OSError("config file not found")
 
     class _OSFailingOpenCC:
-        def OpenCC(self, config: str) -> _OSFailingConverter:  # noqa: N802
+        def OpenCC(self, config: str) -> _OSFailingConverter:
             return _OSFailingConverter()
 
     converter2 = TraditionalChineseConverter()

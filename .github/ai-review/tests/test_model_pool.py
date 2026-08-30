@@ -1,3 +1,4 @@
+import concurrent.futures
 import sys
 from pathlib import Path
 
@@ -51,4 +52,31 @@ def test_groq_models_env_override(monkeypatch):
         "custom-model-1",
         "custom-model-2",
     ]
+
+
+def test_model_pool_reset():
+    pool = model_pool.ModelPool(["m1", "m2", "m3"])
+    pool.demote("m1")
+    assert pool.get_candidates() == ["m2", "m3", "m1"]
+    pool.reset()
+    assert pool.get_candidates() == ["m1", "m2", "m3"]
+
+
+def test_model_pool_thread_safety():
+    pool = model_pool.ModelPool(["m1", "m2", "m3", "m4", "m5"])
+
+    def _worker(worker_idx: int) -> None:
+        if worker_idx % 2 == 0:
+            pool.demote("m1")
+        else:
+            pool.promote("m5")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(_worker, idx) for idx in range(40)]
+        for future in futures:
+            future.result()
+
+    candidates = pool.get_candidates()
+    assert len(candidates) == 5
+    assert set(candidates) == {"m1", "m2", "m3", "m4", "m5"}
 

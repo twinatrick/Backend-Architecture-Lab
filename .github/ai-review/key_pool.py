@@ -1,8 +1,11 @@
+from contextlib import contextmanager
 import hashlib
 import os
 import random
 import re
+import threading
 import time
+from typing import Generator
 
 KEY_COOLDOWN_MAP: dict[str, float] = {}
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
@@ -72,7 +75,7 @@ def get_groq_api_key() -> str:
 
 
 class KeyPool:
-    """管理 API 金鑰集與各金鑰的冷卻狀態。支援實例隔離與共享冷卻字典。"""
+    """管理 API 金鑰集與各金鑰的冷卻狀態。支援實例隔離、共享冷卻字典與多執行緒並發租借。"""
 
     def __init__(
         self,
@@ -85,6 +88,8 @@ class KeyPool:
         self.cooldown_map: dict[str, float] = (
             cooldown_map if cooldown_map is not None else {}
         )
+        self._lock = threading.RLock()
+        self._in_use_keys: set[str] = set()
 
     def get_all_keys(self) -> list[tuple[str, str]]:
         if not self.prefix:
@@ -97,31 +102,39 @@ class KeyPool:
         return keys
 
     def reset_cooldowns(self) -> None:
-        self.cooldown_map.clear()
+        with self._lock:
+            self.cooldown_map.clear()
+            self._in_use_keys.clear()
 
     def mark_cooldown(self, api_key: str, cooldown_seconds: float) -> None:
         if not api_key:
             return
-        self.cooldown_map[api_key] = time.time() + max(1.0, float(cooldown_seconds))
+        with self._lock:
+            self.cooldown_map[api_key] = time.time() + max(1.0, float(cooldown_seconds))
 
     def is_in_cooldown(self, api_key: str) -> bool:
-        if not api_key or api_key not in self.cooldown_map:
+        if not api_key:
             return False
-        if time.time() >= self.cooldown_map[api_key]:
-            self.cooldown_map.pop(api_key, None)
-            return False
-        return True
+        with self._lock:
+            if api_key not in self.cooldown_map:
+                return False
+            if time.time() >= self.cooldown_map[api_key]:
+                self.cooldown_map.pop(api_key, None)
+                return False
+            return True
 
     def get_cooldown_remaining(self, api_key: str) -> float:
-        if not self.is_in_cooldown(api_key):
-            return 0.0
-        return max(0.0, self.cooldown_map.get(api_key, 0.0) - time.time())
+        with self._lock:
+            if not self.is_in_cooldown(api_key):
+                return 0.0
+            return max(0.0, self.cooldown_map.get(api_key, 0.0) - time.time())
 
     def get_active_keys(
         self, keys: list[tuple[str, str]] | None = None
     ) -> list[tuple[str, str]]:
         target_keys = keys if keys is not None else self.get_all_keys()
-        return [item for item in target_keys if not self.is_in_cooldown(item[1])]
+        with self._lock:
+            return [item for item in target_keys if not self.is_in_cooldown(item[1])]
 
     def pick_random_active_key(
         self,
@@ -130,14 +143,69 @@ class KeyPool:
     ) -> tuple[str, str] | None:
         target_keys = keys if keys is not None else self.get_all_keys()
         excluded = excluded_keys or set()
-        active_pool = [
-            item
-            for item in target_keys
-            if item[1] not in excluded and not self.is_in_cooldown(item[1])
-        ]
-        if not active_pool:
-            return None
-        return random.choice(active_pool)
+        with self._lock:
+            active_pool = [
+                item
+                for item in target_keys
+                if item[1] not in excluded and not self.is_in_cooldown(item[1])
+            ]
+            if not active_pool:
+                return None
+            return random.choice(active_pool)
+
+    def acquire_key(
+        self,
+        keys: list[tuple[str, str]] | None = None,
+        excluded_keys: set[str] | None = None,
+    ) -> tuple[str, str] | None:
+        """
+        在多執行緒環境中租借一把金鑰。
+        優先挑選當前未被其他執行緒使用 (in-use) 且非冷卻中的金鑰；
+        若皆在使用中，則退而隨機挑選非冷卻金鑰。
+        """
+        target_keys = keys if keys is not None else self.get_all_keys()
+        excluded = excluded_keys or set()
+        with self._lock:
+            available_pool = [
+                item
+                for item in target_keys
+                if item[1] not in excluded and not self.is_in_cooldown(item[1])
+            ]
+            if not available_pool:
+                return None
+
+            idle_pool = [
+                item for item in available_pool if item[1] not in self._in_use_keys
+            ]
+            picked = random.choice(idle_pool) if idle_pool else random.choice(available_pool)
+            self._in_use_keys.add(picked[1])
+            return picked
+
+    def release_key(self, api_key: str | None) -> None:
+        """歸還租借的金鑰，解除使用中標記。"""
+        if not api_key:
+            return
+        with self._lock:
+            self._in_use_keys.discard(api_key)
+
+    def is_key_in_use(self, api_key: str) -> bool:
+        """檢查指定金鑰目前是否正處於使用中狀態。"""
+        with self._lock:
+            return api_key in self._in_use_keys
+
+    @contextmanager
+    def lease_key(
+        self,
+        keys: list[tuple[str, str]] | None = None,
+        excluded_keys: set[str] | None = None,
+    ) -> Generator[tuple[str, str] | None, None, None]:
+        """Context manager: 自動租借並於區塊結束後安全釋放金鑰。"""
+        picked = self.acquire_key(keys=keys, excluded_keys=excluded_keys)
+        try:
+            yield picked
+        finally:
+            if picked:
+                self.release_key(picked[1])
 
 
 GLOBAL_KEY_POOL_GROQ = KeyPool("GROQ_API_KEY", "GROQ_API_KEY", KEY_COOLDOWN_MAP)
@@ -176,3 +244,16 @@ def pick_random_active_key(
 ) -> tuple[str, str] | None:
     """自候選金鑰清單中，排除冷卻中與本輪已嘗試過之金鑰，隨機抽取一把。"""
     return _DEFAULT_KEY_POOL.pick_random_active_key(keys, excluded_keys=excluded_keys)
+
+
+def acquire_key(
+    keys: list[tuple[str, str]],
+    excluded_keys: set[str] | None = None,
+) -> tuple[str, str] | None:
+    """自候選金鑰清單中租借一把金鑰。"""
+    return _DEFAULT_KEY_POOL.acquire_key(keys, excluded_keys=excluded_keys)
+
+
+def release_key(api_key: str | None) -> None:
+    """歸還租借的金鑰。"""
+    _DEFAULT_KEY_POOL.release_key(api_key)

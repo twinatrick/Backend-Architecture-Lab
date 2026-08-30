@@ -24,12 +24,12 @@ sys.modules["minio.error"] = MagicMock(MinioError=_FakeMinioError)
 # 確保 backend-ai-py 目錄在 Python 搜尋路徑中
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from services.gpt_sovits_client import GptSovitsClient  # noqa: E402
-from services.stt_service import SttService  # noqa: E402
-from services.tts_exceptions import GptSovitsError  # noqa: E402
-from services.tts_exceptions import TtsTimeoutError  # noqa: E402
-from services.tts_service import TtsService  # noqa: E402
-from services.voice_sample_provider import VoiceSampleProvider  # noqa: E402
+from services.gpt_sovits_client import GptSovitsClient
+from services.stt_service import SttService
+from services.tts_exceptions import GptSovitsError
+from services.tts_exceptions import TtsTimeoutError
+from services.tts_service import TtsService
+from services.voice_sample_provider import VoiceSampleProvider
 
 
 def test_gpt_sovits_success_returns_bytes():

@@ -1,3 +1,4 @@
+import concurrent.futures
 import os
 import sys
 import time
@@ -154,3 +155,57 @@ def test_key_pool_isolation():
 
     pool1.reset_cooldowns()
     assert pool1.is_in_cooldown("key_a") is False
+
+
+def test_key_pool_acquire_and_release_in_use():
+    pool = key_pool.KeyPool("TEST_PREFIX")
+    keys = [("K1", "val_1"), ("K2", "val_2")]
+
+    acquired1 = pool.acquire_key(keys)
+    assert acquired1 in keys
+    assert pool.is_key_in_use(acquired1[1]) is True
+
+    # 取得第二把
+    acquired2 = pool.acquire_key(keys)
+    assert acquired2 in keys
+    assert acquired2 != acquired1
+
+    # 第三次取得因無閒置金鑰，回退隨機取得可用金鑰
+    fallback = pool.acquire_key(keys)
+    assert fallback in keys
+
+    pool.release_key(acquired1[1])
+    assert pool.is_key_in_use(acquired1[1]) is False
+    pool.release_key(acquired2[1])
+    assert pool.is_key_in_use(acquired2[1]) is False
+
+
+def test_key_pool_lease_key_context_manager():
+    pool = key_pool.KeyPool("TEST_LEASE")
+    keys = [("K1", "val_1")]
+
+    with pool.lease_key(keys) as (var_name, key_val):
+        assert var_name == "K1"
+        assert key_val == "val_1"
+        assert pool.is_key_in_use("val_1") is True
+
+    assert pool.is_key_in_use("val_1") is False
+
+
+def test_key_pool_concurrent_thread_safety():
+    pool = key_pool.KeyPool("TEST_CONCURRENT")
+    keys = [(f"K_{idx}", f"val_{idx}") for idx in range(5)]
+
+    def _worker(worker_id: int) -> str:
+        with pool.lease_key(keys) as (_, key_val):
+            time.sleep(0.01)
+            return key_val
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_worker, idx) for idx in range(20)]
+        results = [fut.result() for fut in futures]
+
+    assert len(results) == 20
+    assert all(res in [f"val_{idx}" for idx in range(5)] for res in results)
+    for idx in range(5):
+        assert pool.is_key_in_use(f"val_{idx}") is False
