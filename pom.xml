@@ -53,6 +53,29 @@
         <minio.version>8.5.17</minio.version>
         <jda.version>5.2.1</jda.version>
         <line-bot.version>6.0.0</line-bot.version>
+
+        <!-- SonarQube Scanner Configuration -->
+        <sonar.version>5.0.0.4389</sonar.version>
+        <sonar.host.url>http://localhost:9000</sonar.host.url>
+        <sonar.projectKey>BackendArchitectureLab</sonar.projectKey>
+        <sonar.projectName>BackendArchitectureLab</sonar.projectName>
+        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/../target/site/jacoco/jacoco.xml,${project.basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.coverage.exclusions>
+            **/Entity/**,
+            **/Mapper/**,
+            **/Vo/**,
+            **/Config/**,
+            **/Annotation/**,
+            **/Security/**,
+            **/TestSupport/**,
+            **/*Application.java
+        </sonar.coverage.exclusions>
+        <sonar.exclusions>
+            **/Entity/**,
+            **/Mapper/**,
+            **/Vo/**
+        </sonar.exclusions>
     </properties>
     <dependencies>
         <dependency>
@@ -438,9 +461,18 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
