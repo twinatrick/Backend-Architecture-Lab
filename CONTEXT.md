@@ -55,3 +55,23 @@ _Avoid_: Per-class container, Transient container.
 **Dynamic Property Source (動態屬性來源)**:
 在 Spring Boot 測試環境啟動時，動態將 Testcontainers 映射出的隨機連接埠與連線資訊注入 Spring ApplicationContext 的屬性配置機制。
 _Avoid_: Static test property, Hardcoded port config.
+
+**Diff-Scope Pentest (差異範疇滲透測試)**:
+在 PR 審查階段僅針對 Git 變更檔案進行增量式 SAST 與動態沙箱 PoC 驗證的安全測試機制。
+_Avoid_: Full repository scan, Static linting, Delta audit.
+
+**Security Gate (安全門禁)**:
+當自動化安全審查工具發現具備已驗證 Exploit PoC 且嚴重度達 High/Critical 時，強制阻擋 PR 合併的保護機制。
+_Avoid_: Build failure, Error barrier, Quality check.
+
+**API Spec Target Pairing (API 規格靶機配對)**:
+將 OpenAPI/Swagger 規格定義與動態服務端點同時提供給 AI 滲透代理，以全面覆蓋隱藏路由與非公開端點的測試模式。
+_Avoid_: URL guessing, Blind crawling.
+
+**Quality Gate (品質門禁)**:
+在 CI/CD 與本地建置流程中，針對程式碼壞味道、安全弱點（Vulnerabilities & Hotspots）以及未達標之測試覆蓋率（Line Coverage < 80%）進行強制性閾值阻擋的靜態品質防線。
+_Avoid_: Code check, Static filter, Lint pass.
+
+**Coverage Report Binding (覆蓋率報告綁定)**:
+在多模組 Maven 架構中，將各子模組產生的 JaCoCo XML 測試覆蓋率資料路徑顯式綁定並注入 SonarQube Scanner，以確保排除模組與覆蓋率計算之精確性的機制。
+_Avoid_: Manual report upload, Raw metric import.

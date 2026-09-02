@@ -55,6 +55,9 @@ public class LineGfService implements ILineGfService {
     @Value("${OUT_URL:}")
     private String outUrl;
 
+    @Value("${line.gf.voice-enabled:false}")
+    private boolean voiceEnabledGlobal;
+
     @Override
     public void handleText(String replyToken, String text, String userId) {
         if (userId == null || userId.isBlank()) {
@@ -254,8 +257,7 @@ public class LineGfService implements ILineGfService {
         }
         sessionDataAccess.save(session);
 
-        // boolean voiceEnable = Boolean.TRUE.equals(session.getVoiceEnabled());
-        boolean voiceEnable = false; // 暫時全面關閉 LINE 語音回復（TTS 發送），避開免費版 ngrok 攔截警告。未來只需將此行改回即可一秒還原。
+        boolean voiceEnable = voiceEnabledGlobal && Boolean.TRUE.equals(session.getVoiceEnabled());
 
         if (voiceEnable) {
             try {
@@ -292,7 +294,7 @@ public class LineGfService implements ILineGfService {
                         new AudioMessage(URI.create(presignedUrl), duration)
                 ))).join();
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error("LINE 女友語音合成失敗", e);
                 messagingClient.replyMessage(new ReplyMessage(replyToken, new TextMessage(reply + "\n（語音合成失敗）"))).join();
             }
         } else {
@@ -323,8 +325,12 @@ public class LineGfService implements ILineGfService {
 
             // 直接呼叫 handleText，啟動 AI 思考與語音回覆！
             handleText(replyToken, text, userId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("LINE 女友聽取語音中斷", e);
+            replyText(replyToken, "聽取語音中斷：" + e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("LINE 女友聽取語音失敗", e);
             replyText(replyToken, "聽取語音失敗：" + e.getMessage());
         }
     }

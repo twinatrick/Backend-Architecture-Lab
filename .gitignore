@@ -69,6 +69,10 @@ __pycache__/
 
 # Tool cache
 .understand-anything/
+.strix/
+strix_runs/
+gitleaks.json
+semgrep*.json
 
 # 非原始碼文件（不提交）
 代辦清單.md

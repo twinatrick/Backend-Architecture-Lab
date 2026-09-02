@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -198,6 +199,31 @@ class ExternalSyncWorkerTest {
         ReflectionTestUtils.setField(externalSyncWorker, "operationTimeoutSeconds", 10L);
 
         assertThrows(IllegalStateException.class, externalSyncWorker::validateConfiguration);
+    }
+
+    @Test
+    void handleExecutionFailure_shouldHandleNullAndEmptyException() {
+        ExternalSyncCommand command = newCommand(5);
+        UUID txId = UUID.randomUUID();
+        String ownerId = "owner-1";
+
+        // 1. attempt >= maxAttempts with null exception
+        ReflectionTestUtils.invokeMethod(externalSyncWorker, "handleExecutionFailure", command, txId, Map.of(), ownerId, 1L, null);
+        verify(externalSyncCommandService).markDeadAndEnqueueCompensation(eq(command.getId()), eq(ownerId), eq(1L), eq(txId), anyMap(), isNull());
+
+        // 2. attempt < maxAttempts with null message
+        command.setAttemptCount(1);
+        when(commandRepository.markFailed(eq(command.getId()), eq(ownerId), eq(1L), any(), any(), any(), any())).thenReturn(1);
+        ReflectionTestUtils.invokeMethod(externalSyncWorker, "handleExecutionFailure", command, txId, Map.of(), ownerId, 1L, new RuntimeException((String) null));
+        verify(commandRepository).markFailed(eq(command.getId()), eq(ownerId), eq(1L), eq(CompensationOutboxDeliveryStatus.FAILED), eq(CompensationOutboxDeliveryStatus.PROCESSING), isNull(), any(Date.class));
+
+        // 3. resolveBackoffSeconds boundary checks
+        Long backoff0 = ReflectionTestUtils.invokeMethod(externalSyncWorker, "resolveBackoffSeconds", 0);
+        Long backoff1 = ReflectionTestUtils.invokeMethod(externalSyncWorker, "resolveBackoffSeconds", 1);
+        Long backoff10 = ReflectionTestUtils.invokeMethod(externalSyncWorker, "resolveBackoffSeconds", 10);
+        assertEquals(5L, backoff0);
+        assertEquals(5L, backoff1);
+        assertEquals(300L, backoff10);
     }
 
     private ExternalSyncCommand newCommand(int attemptCount) {

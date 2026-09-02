@@ -31,11 +31,7 @@ public class IgnoreUrlsProvider implements InitializingBean {
             HandlerMethod handlerMethod = entry.getValue();
             if (handlerMethod.hasMethodAnnotation(Ignore.class)) {
                 RequestMappingInfo mappingInfo = entry.getKey();
-                if (mappingInfo.getPatternValues() != null) {
-                    ignoredUrls.addAll(mappingInfo.getPatternValues());
-                } else if (mappingInfo.getPathPatternsCondition() != null) {
-                    mappingInfo.getPathPatternsCondition().getPatternValues().forEach(ignoredUrls::add);
-                }
+                ignoredUrls.addAll(mappingInfo.getPatternValues());
             }
         }
 

@@ -256,7 +256,7 @@ public class CompensationOutboxWorker {
                             errorMessage);
             if (affected > 0) {
                 log.error("Outbox 事件已達最大重試次數，轉為 DEAD: eventId={}, attempt={}, ownerId={}, fencingVersion={}, cause={}",
-                        eventId, attempt, ownerId, fencingVersion, e.toString());
+                        eventId, attempt, ownerId, fencingVersion, e != null ? e.toString() : "null");
             } else {
                 log.warn("Outbox 事件達最大重試次數但租約已被接管，略過 markDead: eventId={}, ownerId={}, fencingVersion={}",
                         eventId, ownerId, fencingVersion);
@@ -279,7 +279,7 @@ public class CompensationOutboxWorker {
                             new Date(System.currentTimeMillis() + backoff * 1000L));
             if (affected > 0) {
                 log.warn("Outbox 事件發佈失敗，排定重試: eventId={}, attempt={}, ownerId={}, fencingVersion={}, nextAttemptIn={}s, cause={}",
-                        eventId, attempt, ownerId, fencingVersion, backoff, e.toString());
+                        eventId, attempt, ownerId, fencingVersion, backoff, e != null ? e.toString() : "null");
             } else {
                 log.warn("Outbox 事件發佈失敗但租約已被接管，略過 markFailed: eventId={}, ownerId={}, fencingVersion={}",
                         eventId, ownerId, fencingVersion);
@@ -292,7 +292,8 @@ public class CompensationOutboxWorker {
                 ? List.of(DEFAULT_BACKOFF_SECONDS[0], DEFAULT_BACKOFF_SECONDS[1], DEFAULT_BACKOFF_SECONDS[2],
                 DEFAULT_BACKOFF_SECONDS[3], DEFAULT_BACKOFF_SECONDS[4])
                 : backoffSeconds;
-        return backoffs.get(Math.clamp(attempt - 1, 0, backoffs.size() - 1));
+        int index = Math.max(0, Math.min(attempt - 1, backoffs.size() - 1));
+        return backoffs.get(index);
     }
 
     private String truncate(String message) {

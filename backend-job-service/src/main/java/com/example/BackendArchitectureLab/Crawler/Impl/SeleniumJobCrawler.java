@@ -41,24 +41,25 @@ public class SeleniumJobCrawler implements IJobCrawler {
         RuntimeException lastException = null;
 
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            if (attempt > 0) {
+                log.warn("Retrying Selenium crawl (attempt {}/{}): {}", attempt + 1, MAX_RETRIES + 1, url);
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Crawling interrupted for URL: " + url, ie);
+                }
+            }
+
             WebDriver driver = null;
             try {
-                if (attempt > 0) {
-                    log.warn("Retrying Selenium crawl (attempt {}/{}): {}", attempt + 1, MAX_RETRIES + 1, url);
-                    Thread.sleep(RETRY_DELAY_MS);
-                }
-
                 driver = new ChromeDriver(chromeOptions);
                 driver.manage().timeouts().pageLoadTimeout(Duration.ofMillis(PAGE_LOAD_TIMEOUT_MS));
 
                 log.info("Crawling URL with Selenium: {}", url);
                 driver.get(url);
 
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                sleepQuietly(3000);
 
                 return driver.getPageSource();
             } catch (Exception e) {
@@ -75,6 +76,17 @@ public class SeleniumJobCrawler implements IJobCrawler {
             }
         }
 
-        throw lastException;
+        if (lastException != null) {
+            throw lastException;
+        }
+        throw new IllegalStateException("Failed to crawl URL with Selenium: " + url);
+    }
+
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
