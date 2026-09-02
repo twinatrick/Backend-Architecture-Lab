@@ -2,7 +2,6 @@ import json
 import time
 
 import requests
-
 from key_pool import KeyPool, mask_api_key
 from model_pool import ModelPool
 from parser import ReviewResponseParser
@@ -36,7 +35,7 @@ def execute_groq_loop(
         model_unsupported = False
         while True:
             picked = groq_key_pool.acquire_key(
-                groq_keys, excluded_keys=tried_keys
+                groq_keys, excluded_keys=tried_keys, model=model_name
             )
             if picked is None:
                 break
@@ -57,8 +56,7 @@ def execute_groq_loop(
                             try:
                                 parser.extract_json_payload(raw_content)
                                 print(
-                                    f"使用 Groq 模型：{model_name}"
-                                    f"（金鑰：{var_name} {masked_key}）"
+                                    f"使用 Groq 模型：{model_name}（金鑰：{var_name} {masked_key}）"
                                 )
                                 groq_model_pool.promote(model_name)
                                 return raw_content
@@ -94,22 +92,29 @@ def execute_groq_loop(
                                 or "daily limit" in resp_text.lower()
                                 or "quota" in resp_text.lower()
                                 or "tokens per day" in resp_text.lower()
+                                or "tpm" in resp_text.lower()
                             )
                             cooldown_seconds = max(raw_retry_after, 3600.0 if is_tpd else 30.0)
-                            groq_key_pool.mark_cooldown(api_key, cooldown_seconds)
+                            groq_key_pool.mark_cooldown(api_key, cooldown_seconds, model=model_name)
 
-                            active_keys = groq_key_pool.get_active_keys(groq_keys)
+                            active_keys = groq_key_pool.get_active_keys(groq_keys, model=model_name)
                             if is_tpd:
                                 print(
                                     f"Groq 金鑰 {var_name} ({masked_key}) "
-                                    f"當日配額耗盡 (TPD 429)，已冷卻 {cooldown_seconds:.0f} 秒。"
+                                    f"在模型 {model_name} 配額/速率耗盡 (429)，"
+                                    f"已冷卻該模型 {cooldown_seconds:.0f} 秒。"
                                 )
                                 if not active_keys:
                                     print(
-                                        "Groq 所有可用金鑰配額均已耗盡，立即交棒由備援 Provider 接管。"
+                                        f"Groq 模型 {model_name} 所有可用金鑰配額均已耗盡，"
+                                        "降級切換下一候選模型..."
                                     )
-                                    return None
-                                print(f"切換下一把可用 Groq 金鑰（剩餘 {len(active_keys)} 把）...")
+                                    model_unsupported = True
+                                    break
+                                print(
+                                    f"切換下一把可用 Groq 金鑰"
+                                    f"（模型 {model_name} 剩餘 {len(active_keys)} 把可用）..."
+                                )
                                 time.sleep(1.0)
                                 break
 
@@ -143,11 +148,11 @@ def execute_groq_loop(
                             model_unsupported = True
                             break
 
-                        if status_code == 403:
-                            groq_key_pool.mark_cooldown(api_key, 3600.0)
+                        if status_code in (401, 403):
+                            groq_key_pool.mark_cooldown(api_key, 86400.0)
                             print(
-                                f"Groq 金鑰 {var_name} ({masked_key}) 授權失敗 (403)，"
-                                "已放入冷卻清單，隨機切換下一把可用金鑰..."
+                                f"Groq 金鑰 {var_name} ({masked_key}) 授權失敗 ({status_code})，"
+                                "已全域停用並放入冷卻清單，隨機切換下一把可用金鑰..."
                             )
                             time.sleep(1.0)
                             break

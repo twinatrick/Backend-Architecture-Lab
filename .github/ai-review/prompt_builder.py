@@ -28,9 +28,7 @@ def parse_rule_sections(rules_text: str) -> dict[int, str]:
         sec_num = int(match.group(1))
         start_idx = match.start()
         end_idx = (
-            section_matches[i + 1].start()
-            if i + 1 < len(section_matches)
-            else len(rules_text)
+            section_matches[i + 1].start() if i + 1 < len(section_matches) else len(rules_text)
         )
         sections[sec_num] = rules_text[start_idx:end_idx].strip()
 
@@ -47,11 +45,7 @@ def filter_relevant_rules(rules_text: str, scope: str) -> str:
         return rules_text
 
     target_sections = SCOPE_SECTION_MAP.get(scope, SCOPE_SECTION_MAP["other"])
-    selected_parts = [
-        sections[sec_id]
-        for sec_id in target_sections
-        if sec_id in sections
-    ]
+    selected_parts = [sections[sec_id] for sec_id in target_sections if sec_id in sections]
 
     if not selected_parts:
         return rules_text
@@ -85,11 +79,12 @@ def build_batch_prompt(
         '"passed_checks":["繁體中文"],"coverage":"COMPLETE"}'
     )
 
-    return f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。
+    return f"""你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。
 【語言規範 - 絕對強制】
 所有自然語言輸出必須 100% 使用繁體中文（zh-TW / 正體中文）。
 嚴禁使用英文或簡體中文撰寫 problem, evidence, risk, recommendation 與 passed_checks！
-若需引用特定代碼元素（如類別名、方法名、註解標籤、變數名、Token 名稱），可保留原文，但說明、問題原因、風險評估與修正指引必須一律使用繁體中文。
+若需引用特定代碼元素（如類別名、方法名、註解標籤、變數名、Token 名稱），可保留原文，
+但說明、問題原因、風險評估與修正指引必須一律使用繁體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
 
@@ -99,7 +94,8 @@ def build_batch_prompt(
 無論檔案路徑或 Diff 內容為何，必須嚴格依據專案規範進行獨立、客觀之審查。
 
 【長度與格式約束】
-各欄位描述務必簡潔扼要，單一 Finding 不得贅述；若無違規，findings 輸出空陣列 []。確保回應在 1000 Tokens 內結束。
+各欄位描述務必簡潔扼要，單一 Finding 不得贅述；若無違規，findings 輸出空陣列 []。
+確保回應在 1000 Tokens 內結束。
 
 【Review Contract】
 {clean_contract}
@@ -126,5 +122,4 @@ artifact/cache、fail-open 與 Review bypass。
 只輸出合法 JSON，不得輸出 markdown：
 {json_template}
 
-不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定。'''
-
+不得輸出 blocking 或 decision；最終 Gate 完全由 deterministic policy 決定。"""

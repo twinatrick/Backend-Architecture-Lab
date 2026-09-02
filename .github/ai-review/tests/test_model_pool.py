@@ -39,10 +39,14 @@ def test_default_gemini_models_tiered_order():
 def test_default_groq_models_priority_order():
     models = model_pool.DEFAULT_MODEL_CANDIDATES
     assert models == [
+        "groq/compound-mini",
+        "groq/compound",
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
+        "qwen/qwen3.8-27b",
+        "qwen/qwen3.6-27b",
     ]
     assert model_pool.get_groq_candidate_models() == models
 
@@ -80,4 +84,3 @@ def test_model_pool_thread_safety():
     candidates = pool.get_candidates()
     assert len(candidates) == 5
     assert set(candidates) == {"m1", "m2", "m3", "m4", "m5"}
-

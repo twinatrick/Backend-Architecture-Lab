@@ -1,14 +1,21 @@
-from contextlib import contextmanager
 import hashlib
 import os
 import random
 import re
 import threading
 import time
-from typing import Generator
+from collections.abc import Generator
+from contextlib import contextmanager
 
 KEY_COOLDOWN_MAP: dict[str, float] = {}
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+
+def _make_cooldown_key(api_key: str, model: str | None = None) -> str:
+    """構建模型感知冷卻鍵。若未指定模型則回傳純金鑰字串。"""
+    if model and str(model).strip():
+        return f"{str(model).strip()}::{api_key}"
+    return api_key
 
 
 def mask_api_key(key: str) -> str:
@@ -23,11 +30,7 @@ def mask_api_key(key: str) -> str:
 
 
 def get_provider_api_keys(prefix: str) -> list[tuple[str, str]]:
-    """
-    探索環境變數中特定 Provider 的所有 API Keys。
-    支援 {PREFIX} 與 {PREFIX}_1, {PREFIX}_2 等格式。
-    回傳 [(var_name, key_value), ...] 依自然排序排列，過濾空值與重複金鑰。
-    """
+    """探索環境變數中特定 Provider 的所有 API Keys。"""
     raw_keys = {}
     pattern = re.compile(rf"^{prefix}(?:_\d+)?$", re.IGNORECASE)
     for var_name, var_val in os.environ.items():
@@ -44,14 +47,12 @@ def get_provider_api_keys(prefix: str) -> list[tuple[str, str]]:
         return (2, 0, name)
 
     sorted_items = sorted(raw_keys.items(), key=sort_key)
-
     seen_values = set()
     unique_keys = []
     for var_name, var_val in sorted_items:
         if var_val not in seen_values:
             seen_values.add(var_val)
             unique_keys.append((var_name, var_val))
-
     return unique_keys
 
 
@@ -85,9 +86,7 @@ class KeyPool:
     ) -> None:
         self.prefix = prefix
         self.fallback_env_var = fallback_env_var
-        self.cooldown_map: dict[str, float] = (
-            cooldown_map if cooldown_map is not None else {}
-        )
+        self.cooldown_map: dict[str, float] = cooldown_map if cooldown_map is not None else {}
         self._lock = threading.RLock()
         self._in_use_keys: set[str] = set()
 
@@ -106,40 +105,63 @@ class KeyPool:
             self.cooldown_map.clear()
             self._in_use_keys.clear()
 
-    def mark_cooldown(self, api_key: str, cooldown_seconds: float) -> None:
+    def mark_cooldown(
+        self,
+        api_key: str,
+        cooldown_seconds: float,
+        model: str | None = None,
+    ) -> None:
         if not api_key:
             return
+        c_key = _make_cooldown_key(api_key, model)
         with self._lock:
-            self.cooldown_map[api_key] = time.time() + max(1.0, float(cooldown_seconds))
+            self.cooldown_map[c_key] = time.time() + max(1.0, float(cooldown_seconds))
 
-    def is_in_cooldown(self, api_key: str) -> bool:
+    def is_in_cooldown(self, api_key: str, model: str | None = None) -> bool:
         if not api_key:
             return False
         with self._lock:
-            if api_key not in self.cooldown_map:
-                return False
-            if time.time() >= self.cooldown_map[api_key]:
-                self.cooldown_map.pop(api_key, None)
-                return False
-            return True
+            now = time.time()
+            if api_key in self.cooldown_map:
+                if now >= self.cooldown_map[api_key]:
+                    self.cooldown_map.pop(api_key, None)
+                else:
+                    return True
 
-    def get_cooldown_remaining(self, api_key: str) -> float:
+            if model and str(model).strip():
+                c_key = _make_cooldown_key(api_key, model)
+                if c_key in self.cooldown_map:
+                    if now >= self.cooldown_map[c_key]:
+                        self.cooldown_map.pop(c_key, None)
+                        return False
+                    return True
+            return False
+
+    def get_cooldown_remaining(self, api_key: str, model: str | None = None) -> float:
         with self._lock:
-            if not self.is_in_cooldown(api_key):
+            if not self.is_in_cooldown(api_key, model=model):
                 return 0.0
-            return max(0.0, self.cooldown_map.get(api_key, 0.0) - time.time())
+            now = time.time()
+            rem = max(0.0, self.cooldown_map.get(api_key, 0.0) - now)
+            if model and str(model).strip():
+                c_key = _make_cooldown_key(api_key, model)
+                rem = max(rem, self.cooldown_map.get(c_key, 0.0) - now)
+            return rem
 
     def get_active_keys(
-        self, keys: list[tuple[str, str]] | None = None
+        self,
+        keys: list[tuple[str, str]] | None = None,
+        model: str | None = None,
     ) -> list[tuple[str, str]]:
         target_keys = keys if keys is not None else self.get_all_keys()
         with self._lock:
-            return [item for item in target_keys if not self.is_in_cooldown(item[1])]
+            return [item for item in target_keys if not self.is_in_cooldown(item[1], model=model)]
 
     def pick_random_active_key(
         self,
         keys: list[tuple[str, str]] | None = None,
         excluded_keys: set[str] | None = None,
+        model: str | None = None,
     ) -> tuple[str, str] | None:
         target_keys = keys if keys is not None else self.get_all_keys()
         excluded = excluded_keys or set()
@@ -147,7 +169,7 @@ class KeyPool:
             active_pool = [
                 item
                 for item in target_keys
-                if item[1] not in excluded and not self.is_in_cooldown(item[1])
+                if item[1] not in excluded and not self.is_in_cooldown(item[1], model=model)
             ]
             if not active_pool:
                 return None
@@ -157,6 +179,7 @@ class KeyPool:
         self,
         keys: list[tuple[str, str]] | None = None,
         excluded_keys: set[str] | None = None,
+        model: str | None = None,
     ) -> tuple[str, str] | None:
         """
         在多執行緒環境中租借一把金鑰。
@@ -169,14 +192,12 @@ class KeyPool:
             available_pool = [
                 item
                 for item in target_keys
-                if item[1] not in excluded and not self.is_in_cooldown(item[1])
+                if item[1] not in excluded and not self.is_in_cooldown(item[1], model=model)
             ]
             if not available_pool:
                 return None
 
-            idle_pool = [
-                item for item in available_pool if item[1] not in self._in_use_keys
-            ]
+            idle_pool = [item for item in available_pool if item[1] not in self._in_use_keys]
             picked = random.choice(idle_pool) if idle_pool else random.choice(available_pool)
             self._in_use_keys.add(picked[1])
             return picked
@@ -198,9 +219,9 @@ class KeyPool:
         self,
         keys: list[tuple[str, str]] | None = None,
         excluded_keys: set[str] | None = None,
+        model: str | None = None,
     ) -> Generator[tuple[str, str] | None, None, None]:
-        """Context manager: 自動租借並於區塊結束後安全釋放金鑰。"""
-        picked = self.acquire_key(keys=keys, excluded_keys=excluded_keys)
+        picked = self.acquire_key(keys=keys, excluded_keys=excluded_keys, model=model)
         try:
             yield picked
         finally:
@@ -214,46 +235,40 @@ _DEFAULT_KEY_POOL = KeyPool(cooldown_map=KEY_COOLDOWN_MAP)
 
 
 def reset_key_cooldowns() -> None:
-    """清空所有金鑰的冷卻狀態（供測試與初始化使用）。"""
     _DEFAULT_KEY_POOL.reset_cooldowns()
 
 
-def mark_key_cooldown(api_key: str, cooldown_seconds: float) -> None:
-    """將特定金鑰標記進入冷卻清單，設定解除冷卻的時間戳記。"""
-    _DEFAULT_KEY_POOL.mark_cooldown(api_key, cooldown_seconds)
+def mark_key_cooldown(api_key: str, cooldown_seconds: float, model: str | None = None) -> None:
+    _DEFAULT_KEY_POOL.mark_cooldown(api_key, cooldown_seconds, model=model)
 
 
-def is_key_in_cooldown(api_key: str) -> bool:
-    """檢查金鑰是否仍處於冷卻期。若冷卻時間已過，自動解除並回傳 False。"""
-    return _DEFAULT_KEY_POOL.is_in_cooldown(api_key)
+def is_key_in_cooldown(api_key: str, model: str | None = None) -> bool:
+    return _DEFAULT_KEY_POOL.is_in_cooldown(api_key, model=model)
 
 
-def get_key_cooldown_remaining(api_key: str) -> float:
-    """取得金鑰剩餘冷卻秒數，若未處於冷卻中則回傳 0.0。"""
-    return _DEFAULT_KEY_POOL.get_cooldown_remaining(api_key)
+def get_key_cooldown_remaining(api_key: str, model: str | None = None) -> float:
+    return _DEFAULT_KEY_POOL.get_cooldown_remaining(api_key, model=model)
 
 
-def get_active_keys(keys: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """過濾出當前未處於冷卻清單中的可用金鑰清單。"""
-    return _DEFAULT_KEY_POOL.get_active_keys(keys)
+def get_active_keys(keys: list[tuple[str, str]], model: str | None = None) -> list[tuple[str, str]]:
+    return _DEFAULT_KEY_POOL.get_active_keys(keys, model=model)
 
 
 def pick_random_active_key(
     keys: list[tuple[str, str]],
     excluded_keys: set[str] | None = None,
+    model: str | None = None,
 ) -> tuple[str, str] | None:
-    """自候選金鑰清單中，排除冷卻中與本輪已嘗試過之金鑰，隨機抽取一把。"""
-    return _DEFAULT_KEY_POOL.pick_random_active_key(keys, excluded_keys=excluded_keys)
+    return _DEFAULT_KEY_POOL.pick_random_active_key(keys, excluded_keys=excluded_keys, model=model)
 
 
 def acquire_key(
     keys: list[tuple[str, str]],
     excluded_keys: set[str] | None = None,
+    model: str | None = None,
 ) -> tuple[str, str] | None:
-    """自候選金鑰清單中租借一把金鑰。"""
-    return _DEFAULT_KEY_POOL.acquire_key(keys, excluded_keys=excluded_keys)
+    return _DEFAULT_KEY_POOL.acquire_key(keys, excluded_keys=excluded_keys, model=model)
 
 
 def release_key(api_key: str | None) -> None:
-    """歸還租借的金鑰。"""
     _DEFAULT_KEY_POOL.release_key(api_key)
