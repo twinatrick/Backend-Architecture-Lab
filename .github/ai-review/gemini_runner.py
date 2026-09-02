@@ -2,7 +2,6 @@ import json
 import time
 
 import requests
-
 from key_pool import KeyPool, mask_api_key
 from model_pool import ModelPool
 from parser import ReviewResponseParser
@@ -36,7 +35,7 @@ def execute_gemini_loop(
         model_unsupported = False
         while True:
             picked = gemini_key_pool.acquire_key(
-                gemini_keys, excluded_keys=tried_keys
+                gemini_keys, excluded_keys=tried_keys, model=model_name
             )
             if picked is None:
                 break
@@ -90,18 +89,30 @@ def execute_gemini_loop(
                                 or raw_retry_after > 60.0
                             )
                             cooldown_seconds = max(raw_retry_after, 3600.0 if is_quota else 30.0)
-                            gemini_key_pool.mark_cooldown(api_key, cooldown_seconds)
+                            gemini_key_pool.mark_cooldown(
+                                api_key, cooldown_seconds, model=model_name
+                            )
 
-                            active_keys = gemini_key_pool.get_active_keys(gemini_keys)
+                            active_keys = gemini_key_pool.get_active_keys(
+                                gemini_keys, model=model_name
+                            )
                             if is_quota:
                                 print(
-                                    f"Gemini 金鑰 {var_name} ({masked_key}) 配額耗盡 (429)，"
-                                    f"已冷卻 {cooldown_seconds:.0f} 秒。"
+                                    f"Gemini 金鑰 {var_name} ({masked_key}) "
+                                    f"在模型 {model_name} 配額耗盡 (429)，"
+                                    f"已冷卻該模型 {cooldown_seconds:.0f} 秒。"
                                 )
                                 if not active_keys:
-                                    print("Gemini 所有可用金鑰配額均已耗盡。")
-                                    return None
-                                print(f"切換下一把可用 Gemini 金鑰（剩餘 {len(active_keys)} 把）...")
+                                    print(
+                                        f"Gemini 模型 {model_name} 所有可用金鑰配額均已耗盡，"
+                                        "降級切換下一候選模型..."
+                                    )
+                                    model_unsupported = True
+                                    break
+                                print(
+                                    f"切換下一把可用 Gemini 金鑰"
+                                    f"（模型 {model_name} 剩餘 {len(active_keys)} 把可用）..."
+                                )
                                 time.sleep(1.0)
                                 break
 
@@ -135,17 +146,19 @@ def execute_gemini_loop(
                             model_unsupported = True
                             break
 
-                        if status_code == 403:
-                            gemini_key_pool.mark_cooldown(api_key, 3600.0)
+                        if status_code in (401, 403):
+                            gemini_key_pool.mark_cooldown(api_key, 86400.0)
                             print(
-                                f"Gemini 金鑰 {var_name} ({masked_key}) 授權失敗或額度無效 (403)，"
-                                "已放入冷卻清單，隨機切換下一把可用金鑰..."
+                                f"Gemini 金鑰 {var_name} ({masked_key}) 授權失敗 ({status_code})，"
+                                "已全域停用並放入冷卻清單，隨機切換下一把可用金鑰..."
                             )
                             time.sleep(1.0)
                             break
 
                         if status_code == 413:
-                            print(f"Gemini 模型 {model_name} 請求負載過大 (413)，切換下一候選模型...")
+                            print(
+                                f"Gemini 模型 {model_name} 請求負載過大 (413)，切換下一候選模型..."
+                            )
                             gemini_model_pool.demote(model_name)
                             time.sleep(1.0)
                             model_unsupported = True

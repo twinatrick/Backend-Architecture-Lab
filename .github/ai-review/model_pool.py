@@ -14,9 +14,14 @@ DEFAULT_GEMINI_MODELS = [
 ACTIVE_GEMINI_MODELS = list(DEFAULT_GEMINI_MODELS)
 
 DEFAULT_MODEL_CANDIDATES = [
-    "openai/gpt-oss-120b",
+    "groq/compound-mini",
+    "groq/compound",
     "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+    "qwen/qwen3.6-27b",
 ]
 ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
 
@@ -38,11 +43,7 @@ class ModelPool:
         if self.env_override_var:
             custom_models = os.environ.get(self.env_override_var, "").strip()
             if custom_models:
-                return [
-                    item.strip()
-                    for item in custom_models.split(",")
-                    if item.strip()
-                ]
+                return [item.strip() for item in custom_models.split(",") if item.strip()]
         with self._lock:
             return list(self.active_models)
 

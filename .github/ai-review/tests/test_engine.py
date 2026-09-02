@@ -90,6 +90,10 @@ def test_validate_finding_schema_and_defaults():
         "confidence": "HIGH",
     }
     assert engine.validate_finding(raw_finding) is True
+    range_finding = dict(raw_finding, location="src/main/App.java:10-25")
+    assert engine.validate_finding(range_finding) is True
+    invalid_range = dict(raw_finding, location="src/main/App.java:25-10")
+    assert engine.validate_finding(invalid_range) is False
 
 
 def test_validate_finding_invalid_or_missing_fields():

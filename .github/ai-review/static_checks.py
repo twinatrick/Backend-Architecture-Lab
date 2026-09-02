@@ -23,20 +23,14 @@ from diff_parser import extract_changed_lines
 
 def sanitize_source_content(raw_content: str) -> str:
     """若傳入內容為 raw patch，過濾 diff 標頭與 + 前綴以還原純程式碼供 AST/YAML 解析。"""
-    if not raw_content:
-        return ""
-    lines = raw_content.splitlines()
-    if any(line.startswith("@@") for line in lines):
-        clean_lines = []
-        for line in lines:
-            if line.startswith("@@") or line.startswith("---") or line.startswith("+++"):
-                continue
-            if line.startswith("+"):
-                clean_lines.append(line[1:])
-            elif not line.startswith("-"):
-                clean_lines.append(line)
-        return "\n".join(clean_lines)
-    return raw_content
+    if not raw_content or not any(line.startswith("@@") for line in raw_content.splitlines()):
+        return raw_content or ""
+    clean_lines = []
+    for line in raw_content.splitlines():
+        if line.startswith(("@@", "---", "+++", "-")):
+            continue
+        clean_lines.append(line[1:] if line.startswith("+") else line)
+    return "\n".join(clean_lines)
 
 
 def check_secrets(
@@ -270,29 +264,33 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if content:
             all_findings.extend(check_secrets(path, content, changed_lines=changed_lines))
 
-        if (
-            norm_path.startswith(".github/workflows/")
-            and (norm_path.endswith(".yml") or norm_path.endswith(".yaml"))
-        ):
-            if clean_content:
+        is_workflow = norm_path.startswith(".github/workflows/") and norm_path.endswith(
+            (".yml", ".yaml")
+        )
+        if is_workflow:
+            wf_code = _read_local_content(path, file_item, clean_content)
+            if wf_code:
                 all_findings.extend(
-                    check_workflow_file(path, clean_content, changed_lines=changed_lines)
+                    check_workflow_file(path, wf_code, changed_lines=changed_lines)
                 )
-        elif norm_path.endswith(".java"):
-            if clean_content:
-                all_findings.extend(
-                    check_java_file(path, clean_content, changed_lines=changed_lines)
-                )
+        elif norm_path.endswith(".java") and clean_content:
+            all_findings.extend(
+                check_java_file(path, clean_content, changed_lines=changed_lines)
+            )
         elif norm_path.endswith(".py"):
-            py_code = clean_content
-            if not file_item.get("full_content") and Path(path).exists():
-                try:
-                    py_code = Path(path).read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError) as exc:
-                    logging.warning("無法讀取本地 Python 檔案 %s：%s", path, exc)
+            py_code = _read_local_content(path, file_item, clean_content)
             if py_code:
                 all_findings.extend(
                     check_python_file(path, py_code, changed_lines=changed_lines)
                 )
 
     return all_findings
+
+
+def _read_local_content(path: str, item: dict[str, Any], fallback: str) -> str:
+    if not item.get("full_content") and Path(path).exists():
+        try:
+            return Path(path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            logging.warning("無法讀取檔案 %s: %s", path, exc)
+    return fallback
