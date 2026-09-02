@@ -85,7 +85,7 @@ if (-not $env:LLM_API_KEY) {
     if ($env:GEMINI_API_KEY) {
         $env:LLM_API_KEY = $env:GEMINI_API_KEY
         if (-not $env:STRIX_LLM) {
-            $env:STRIX_LLM = "gemini/gemini-2.5-pro"
+            $env:STRIX_LLM = "gemini/gemini-3.6-flash"
         }
     } elseif ($env:OPENAI_API_KEY) {
         $env:LLM_API_KEY = $env:OPENAI_API_KEY
@@ -95,7 +95,7 @@ if (-not $env:LLM_API_KEY) {
     } elseif ($env:GROQ_API_KEY) {
         $env:LLM_API_KEY = $env:GROQ_API_KEY
         if (-not $env:STRIX_LLM) {
-            $env:STRIX_LLM = "groq/llama-3.3-70b-versatile"
+            $env:STRIX_LLM = "groq/compound-mini"
         }
     }
 }

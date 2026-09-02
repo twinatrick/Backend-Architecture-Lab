@@ -60,7 +60,7 @@ jobs:
 
       - name: Run Strix Security Scan
         env:
-          STRIX_LLM: ${{ secrets.STRIX_LLM || 'gemini/gemini-2.5-pro' }}
+          STRIX_LLM: ${{ secrets.STRIX_LLM || 'gemini/gemini-3.6-flash' }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.GEMINI_API_KEY || secrets.GEMINI_API_KEY_1 }}
           SCAN_TYPE: ${{ inputs.scan_type || 'white-box' }}
           SCAN_MODE: ${{ inputs.scan_mode || 'quick' }}
