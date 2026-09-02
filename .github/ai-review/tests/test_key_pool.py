@@ -209,3 +209,31 @@ def test_key_pool_concurrent_thread_safety():
     assert all(res in [f"val_{idx}" for idx in range(5)] for res in results)
     for idx in range(5):
         assert pool.is_key_in_use(f"val_{idx}") is False
+
+
+def test_model_aware_cooldown_isolation():
+    pool = key_pool.KeyPool("TEST_MODEL_AWARE")
+    keys = [("K1", "val_1"), ("K2", "val_2")]
+
+    # 1. 僅標記 val_1 在 model-a 冷卻
+    pool.mark_cooldown("val_1", 60.0, model="model-a")
+
+    # model-a 應判定為冷卻中
+    assert pool.is_in_cooldown("val_1", model="model-a") is True
+    # model-b 應依然可用（未受影響）
+    assert pool.is_in_cooldown("val_1", model="model-b") is False
+    assert pool.is_in_cooldown("val_1") is False
+
+    # 在 model-a 獲取可用金鑰只有 val_2
+    active_a = pool.get_active_keys(keys, model="model-a")
+    assert active_a == [("K2", "val_2")]
+
+    # 在 model-b 獲取可用金鑰包含 val_1 與 val_2
+    active_b = pool.get_active_keys(keys, model="model-b")
+    assert active_b == [("K1", "val_1"), ("K2", "val_2")]
+
+    # 2. 若全域冷卻 val_2（如 401/403 授權失敗），所有模型皆判定為冷卻中
+    pool.mark_cooldown("val_2", 60.0)
+    assert pool.is_in_cooldown("val_2", model="model-a") is True
+    assert pool.is_in_cooldown("val_2", model="model-b") is True
+    assert pool.is_in_cooldown("val_2") is True
