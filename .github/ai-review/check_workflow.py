@@ -126,7 +126,10 @@ def check_workflow_file(
     try:
         data = yaml.safe_load(content)
     except yaml.YAMLError as exc:
-        if any(line.strip().startswith("jobs:") or line.strip().startswith("name:") for line in lines):
+        is_full_workflow = any(
+            line.strip().startswith(("jobs:", "name:")) for line in lines
+        )
+        if is_full_workflow:
             findings.append(make_finding(
                 path, 1, "HIGH", "COMPLIANCE",
                 RULE_CI_LEAST_PRIVILEGE,

@@ -96,7 +96,19 @@ def validate_finding(
     if ":" not in location:
         return False
     path, line_str = location.rsplit(":", 1)
-    if not path.strip() or not line_str.isdigit() or int(line_str) < 1:
+    line_part = line_str.strip()
+    if not path.strip():
+        return False
+    if "-" in line_part:
+        start_part, _, end_part = line_part.partition("-")
+        if (
+            not start_part.isdigit()
+            or not end_part.isdigit()
+            or int(start_part) < 1
+            or int(end_part) < int(start_part)
+        ):
+            return False
+    elif not line_part.isdigit() or int(line_part) < 1:
         return False
     if allowed_files is not None:
         norm_allowed = {

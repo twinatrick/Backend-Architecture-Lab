@@ -33,8 +33,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
 
 jobs:
   strix-scan:
@@ -62,7 +60,7 @@ jobs:
 
       - name: Run Strix Security Scan
         env:
-          STRIX_LLM: ${{ secrets.STRIX_LLM || 'gemini/gemini-2.5-pro' }}
+          STRIX_LLM: ${{ secrets.STRIX_LLM || 'gemini/gemini-1.5-pro' }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.GEMINI_API_KEY || secrets.GEMINI_API_KEY_1 }}
           SCAN_TYPE: ${{ inputs.scan_type || 'white-box' }}
           SCAN_MODE: ${{ inputs.scan_mode || 'quick' }}

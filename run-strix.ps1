@@ -85,7 +85,7 @@ if (-not $env:LLM_API_KEY) {
     if ($env:GEMINI_API_KEY) {
         $env:LLM_API_KEY = $env:GEMINI_API_KEY
         if (-not $env:STRIX_LLM) {
-            $env:STRIX_LLM = "gemini/gemini-2.5-pro"
+            $env:STRIX_LLM = "gemini/gemini-1.5-pro"
         }
     } elseif ($env:OPENAI_API_KEY) {
         $env:LLM_API_KEY = $env:OPENAI_API_KEY
