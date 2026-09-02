@@ -39,8 +39,9 @@ def test_default_gemini_models_tiered_order():
 def test_default_groq_models_priority_order():
     models = model_pool.DEFAULT_MODEL_CANDIDATES
     assert models == [
-        "openai/gpt-oss-120b",
         "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
     ]
     assert model_pool.get_groq_candidate_models() == models

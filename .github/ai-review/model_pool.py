@@ -14,8 +14,9 @@ DEFAULT_GEMINI_MODELS = [
 ACTIVE_GEMINI_MODELS = list(DEFAULT_GEMINI_MODELS)
 
 DEFAULT_MODEL_CANDIDATES = [
-    "openai/gpt-oss-120b",
     "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
 ]
 ACTIVE_MODEL_CANDIDATES = list(DEFAULT_MODEL_CANDIDATES)
