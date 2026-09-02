@@ -128,7 +128,14 @@ if ($sonarToken) {
     $sonarArgs += "-Dsonar.login=$sonarToken"
 }
 
-Write-Host "   Running: ./mvnw $($sonarArgs -join ' ')" -ForegroundColor Gray
+$displayArgs = $sonarArgs | ForEach-Object {
+    if ($_ -like "-Dsonar.token=*" -or $_ -like "-Dsonar.login=*") {
+        ($_.Split("=")[0]) + "=******"
+    } else {
+        $_
+    }
+}
+Write-Host "   Running: ./mvnw $($displayArgs -join ' ')" -ForegroundColor Gray
 & ./mvnw @sonarArgs
 
 if ($LASTEXITCODE -eq 0) {

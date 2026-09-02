@@ -122,18 +122,20 @@ def check_workflow_file(
     findings: list[dict[str, Any]] = []
     lines = content.splitlines()
 
+    data = None
     try:
         data = yaml.safe_load(content)
     except yaml.YAMLError as exc:
-        findings.append(make_finding(
-            path, 1, "HIGH", "COMPLIANCE",
-            RULE_CI_LEAST_PRIVILEGE,
-            f"GitHub Actions Workflow YAML 語法解析失敗: {exc}",
-            "YAML safe_load failed",
-            "語法錯誤導致 CI Workflow 無法正常執行或產生安全盲點",
-            "修正 Workflow YAML 語法格式",
-        ))
-        return findings
+        if any(line.strip().startswith("jobs:") or line.strip().startswith("name:") for line in lines):
+            findings.append(make_finding(
+                path, 1, "HIGH", "COMPLIANCE",
+                RULE_CI_LEAST_PRIVILEGE,
+                f"GitHub Actions Workflow YAML 語法解析失敗: {exc}",
+                "YAML safe_load failed",
+                "語法錯誤導致 CI Workflow 無法正常執行或產生安全盲點",
+                "修正 Workflow YAML 語法格式",
+            ))
+            return findings
 
     has_pr_target = False
     if isinstance(data, dict):
@@ -147,5 +149,29 @@ def check_workflow_file(
     elif "pull_request_target" in content:
         has_pr_target = True
 
-    _inspect_node(data, lines, path, has_pr_target, changed_lines, findings)
+    if data is not None and isinstance(data, (dict, list)):
+        _inspect_node(data, lines, path, has_pr_target, changed_lines, findings)
+    else:
+        for lineno, raw_line in enumerate(lines, start=1):
+            if not _is_line_changed(lineno, changed_lines):
+                continue
+            if "permissions: write-all" in raw_line:
+                findings.append(make_finding(
+                    path, lineno, "MEDIUM", "SECURITY",
+                    RULE_CI_LEAST_PRIVILEGE,
+                    "Workflow 或 Job 宣告 permissions: write-all",
+                    raw_line.strip(),
+                    "授予 Workflow 過多非必要權限，增加 Token 洩漏與越權風險",
+                    "依據實際需求宣告最小必要權限 (Least Privilege)",
+                ))
+            if INJECTION_REGEX.search(raw_line):
+                findings.append(make_finding(
+                    path, lineno, "HIGH", "SECURITY",
+                    RULE_CI_EXPRESSION_INJECTION,
+                    "在 run 腳本中直接內嵌上下文表達式存在命令注入風險",
+                    raw_line.strip(),
+                    "攻擊者可構造特殊 PR 標題或內容進行 Bash 命令注入",
+                    "將參數映射至 step.env 變數後於腳本中使用環境變數",
+                ))
+
     return findings

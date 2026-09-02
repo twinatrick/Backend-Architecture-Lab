@@ -196,7 +196,14 @@ if ($Instruction) {
 
 # 4. Launch Strix
 Write-Host "[4/4] Launching Strix Security Scanner..." -ForegroundColor Cyan
-Write-Host "   Command: strix $($strixArgs -join ' ')" -ForegroundColor Gray
+$displayArgs = $strixArgs | ForEach-Object {
+    if ($_ -like "*eyJ*" -or $_ -like "*Bearer*") {
+        "******"
+    } else {
+        $_
+    }
+}
+Write-Host "   Command: strix $($displayArgs -join ' ')" -ForegroundColor Gray
 Write-Host "==========================================================" -ForegroundColor DarkGray
 
 & strix @strixArgs

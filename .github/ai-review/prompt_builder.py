@@ -86,7 +86,10 @@ def build_batch_prompt(
     )
 
     return f'''你是此 repository 的 Senior Code Reviewer，負責「{scope}」批次。
-所有自然語言輸出必須使用繁體中文（zh-TW），禁止簡體中文。
+【語言規範 - 絕對強制】
+所有自然語言輸出必須 100% 使用繁體中文（zh-TW / 正體中文）。
+嚴禁使用英文或簡體中文撰寫 problem, evidence, risk, recommendation 與 passed_checks！
+若需引用特定代碼元素（如類別名、方法名、註解標籤、變數名、Token 名稱），可保留原文，但說明、問題原因、風險評估與修正指引必須一律使用繁體中文。
 
 開發規範.md 是唯一專案規則來源。AI_REVIEW.md 只定義 Review 執行與 Gate 原則。
 

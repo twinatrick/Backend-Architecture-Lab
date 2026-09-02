@@ -274,9 +274,15 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
             norm_path.startswith(".github/workflows/")
             and (norm_path.endswith(".yml") or norm_path.endswith(".yaml"))
         ):
-            if clean_content:
+            wf_code = clean_content
+            if not file_item.get("full_content") and Path(path).exists():
+                try:
+                    wf_code = Path(path).read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    logging.warning("無法讀取本地 Workflow 檔案 %s：%s", path, exc)
+            if wf_code:
                 all_findings.extend(
-                    check_workflow_file(path, clean_content, changed_lines=changed_lines)
+                    check_workflow_file(path, wf_code, changed_lines=changed_lines)
                 )
         elif norm_path.endswith(".java"):
             if clean_content:
