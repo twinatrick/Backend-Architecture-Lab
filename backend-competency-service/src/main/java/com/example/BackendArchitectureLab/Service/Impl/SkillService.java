@@ -301,7 +301,9 @@ public class SkillService implements ISkillService {
         if (skillUuid == null) {
             throw new IllegalArgumentException("Skill key must not be null");
         }
-        skillDataAccess.findById(skillUuid).orElseThrow(() -> new IllegalArgumentException("Skill not found"));
+        if (skillDataAccess.findById(skillUuid).isEmpty()) {
+            throw new IllegalArgumentException("Skill not found");
+        }
         List<SkillLevelVo> list = skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(skillUuid)
                 .stream()
                 .map(this::mapSkillLevelVo)
@@ -530,7 +532,9 @@ public class SkillService implements ISkillService {
             throw new IllegalArgumentException("Key must not be null");
         }
         UUID skillId = skill.getId();
-        skillDataAccess.findById(skillId).orElseThrow(() -> new IllegalArgumentException("Skill not found"));
+        if (skillDataAccess.findById(skillId).isEmpty()) {
+            throw new IllegalArgumentException("Skill not found");
+        }
 
         projectSkillDataAccess.deleteBySkillId(skillId);
         userSkillDataAccess.deleteBySkillId(skillId);

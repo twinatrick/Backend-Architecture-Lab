@@ -676,6 +676,31 @@ class CompensationOutboxWorkerTest {
         assertEquals(outbox.getEventId(), capturedEvents.get(1).getEventId());
     }
 
+    @Test
+    void handleDeliveryFailure_shouldHandleNullAndEmptyException() {
+        UUID id = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        String ownerId = "owner-1";
+
+        // 1. attempt >= maxAttempts with null exception
+        when(outboxRepository.markDead(eq(id), eq(ownerId), eq(1L), any(), any(), any())).thenReturn(1);
+        ReflectionTestUtils.invokeMethod(compensationOutboxWorker, "handleDeliveryFailure", id, eventId, 5, ownerId, 1L, null);
+        verify(outboxRepository).markDead(eq(id), eq(ownerId), eq(1L), eq(CompensationOutboxDeliveryStatus.DEAD), eq(CompensationOutboxDeliveryStatus.PROCESSING), eq("Unknown error"));
+
+        // 2. attempt < maxAttempts with null message exception
+        when(outboxRepository.markFailed(eq(id), eq(ownerId), eq(1L), any(), any(), any(), any())).thenReturn(1);
+        ReflectionTestUtils.invokeMethod(compensationOutboxWorker, "handleDeliveryFailure", id, eventId, 1, ownerId, 1L, new RuntimeException((String) null));
+        verify(outboxRepository).markFailed(eq(id), eq(ownerId), eq(1L), eq(CompensationOutboxDeliveryStatus.FAILED), eq(CompensationOutboxDeliveryStatus.PROCESSING), eq("RuntimeException"), any(Date.class));
+
+        // 3. resolveBackoffSeconds boundary checks
+        Long backoff0 = ReflectionTestUtils.invokeMethod(compensationOutboxWorker, "resolveBackoffSeconds", 0);
+        Long backoff1 = ReflectionTestUtils.invokeMethod(compensationOutboxWorker, "resolveBackoffSeconds", 1);
+        Long backoff10 = ReflectionTestUtils.invokeMethod(compensationOutboxWorker, "resolveBackoffSeconds", 10);
+        assertEquals(5L, backoff0);
+        assertEquals(5L, backoff1);
+        assertEquals(300L, backoff10);
+    }
+
     private CompensationOutboxEvent freshWithAttempt(CompensationOutboxEvent outbox, int attemptCount) {
         CompensationOutboxEvent fresh = new CompensationOutboxEvent();
         fresh.setId(outbox.getId());

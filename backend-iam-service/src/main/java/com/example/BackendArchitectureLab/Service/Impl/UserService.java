@@ -148,8 +148,9 @@ public class UserService implements IUserService {
             throw new IllegalArgumentException("Role list is required");
         }
 
-        userDataAccess.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (userDataAccess.findById(userId).isEmpty()) {
+            throw new IllegalArgumentException("User not found");
+        }
 
         roleService.userBindRole(userId.toString(), roleIds);
     }

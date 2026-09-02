@@ -27,7 +27,7 @@ public class DiscordDiaryListener extends ListenerAdapter {
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
         if (event.getAuthor().isBot()) return;
-        if (event.getGuild() == null) return;
+        if (!event.isFromGuild()) return;
 
         String content = event.getMessage().getContentRaw();
         String guildId = event.getGuild().getId();

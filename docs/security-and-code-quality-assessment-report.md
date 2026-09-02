@@ -18,8 +18,8 @@
 | :--- | :--- | :--- | :--- |
 | **SonarQube Quality Gate** | **PASSED (OK)** | 🟢 達標通過 | 專案符合預設品質閘門門檻 |
 | **安全性評級 (Security)** | **Grade A (0.0)** | 🟢 優良 | 0 個已知安全漏洞 (Vulnerabilities) |
-| **維護性評級 (Maintainability)** | **Grade A (1.0)** | 🟢 優良 | 技術債務：4 天 6 小時，Code Smells：682 個 |
-| **可靠性評級 (Reliability)** | **Grade D (4.0)** | 🔴 需優先修復 | 發現 **23 個 Bug**（包含 1 個 Critical、19 個 Major、3 個 Minor） |
+| **維護性評級 (Maintainability)** | **Grade A (1.0)** | 🟢 優良 | 技術債務：4 天 4 小時，Code Smells：682 個 |
+| **可靠性評級 (Reliability)** | **Grade A (1.0)** | 🟢 優良 (已完全修復) | 原始 23 個 Bug 已全數修復歸零（Grade D 晉升至 Grade A） |
 | **單元測試覆蓋率 (Coverage)** | **54.5%** | 🟡 待補強 | 核心業務邏輯仍有部分分支未覆蓋（排除 Entity/Vo/Mapper） |
 | **代碼重複率 (Duplications)** | **1.9%** | 🟢 優良 | 重複代碼塊僅佔整體 1.9%，模組抽取良好 |
 | **Git 機敏資訊洩漏 (Gitleaks)** | **0 Leaks** | 🟢 安全 | Git Commit 歷史與當前工作區無 Secret/Token 外洩 |
@@ -27,22 +27,22 @@
 
 ---
 
-## 2. SonarQube 靜態代碼分析與 23 個 Bug 深入剖析
+## 2. SonarQube 靜態代碼分析與 23 個 Bug 修復總結 (已全數修復)
 
 SonarQube 本地實例運行於 `http://localhost:9000` (帳號: `admin` / 密碼: `admin`)。  
-掃描顯示專案整體的架構設計良好、無直接注入類別之安全性漏洞，但在**多執行緒控制**與**邊界空值防護**上存在 23 個可靠性缺陷，分類詳解如下：
+掃描顯示專案整體的架構設計良好、無直接注入類別之安全性漏洞。原始檢測發現的 23 個可靠性缺陷已於本次任務中全數修復並通過 SonarQube 重新分析驗證（Active Bugs: 0, Grade A）：
 
-### 2.1 Bug 分類與問題統計
+### 2.1 Bug 分類與修復狀態統計
 
 ```text
-Bug 分類統計：
-├─ java:S2142 (8 處, Major)    : 攔截 InterruptedException 後未重設執行緒中斷狀態
-├─ java:S2259 (5 處, Major)    : 潛在 NullPointerException (NPE) 未防護
-├─ java:S2201 (3 處, Major)    : 方法回傳值被忽略 (如 File.mkdirs())
-├─ java:S2583 (3 處, Major)    : 條件表達式恆為 true 或 false
-├─ java:S2184 (2 處, Major)    : 整數算術乘法溢位 (Integer Overflow)
-├─ java:S2222 (1 處, Critical) : Lock 未在 finally 區塊中釋放
-└─ java:S3599 (1 處, Minor)    : 使用雙括號初始化 (Double Brace Initialization)
+Bug 分類與修復成果：
+├─ java:S2142 (8 處, Major)    : 攔截 InterruptedException 後重設中斷狀態 [已全部修復 ✅]
+├─ java:S2259 (5 處, Major)    : 潛在 NullPointerException (NPE) 空指標防護 [已全部修復 ✅]
+├─ java:S2201 (3 處, Major)    : 補強 orElseThrow 與方法回傳值判斷 [已全部修復 ✅]
+├─ java:S2583 (3 處, Major)    : 移除恆真/恆假條件式並改為動態注入設定 [已全部修復 ✅]
+├─ java:S2184 (2 處, Major)    : 整數算術溢位改用安全索引邊界限制 [已全部修復 ✅]
+├─ java:S2222 (1 處, Critical) : Lock 保證在 finally 區塊正確釋放 [已修復 ✅]
+└─ java:S3599 (1 處, Minor)    : 消除雙括號初始化 (Double Brace Init) [已修復 ✅]
 ```
 
 ---
@@ -150,11 +150,12 @@ SonarQube 標記了 10 處需進行人工架構審查的安全熱點：
 ## 6. 修復建議與後續改善路線圖 (Remediation Roadmap)
 
 ```text
-修復優先級與路線圖：
-├── [P0] 立即修復 (Reliability): 
-│   ├── 修復 1 個 Lock 釋放機制 (避免 Deadlock)
-│   ├── 修復 8 個 InterruptedException 執行緒中斷標誌恢復
-│   └── 補強 5 個 NPE 空指標防護與 3 個 mkdirs 回傳值判斷
+修復成果與後續建議路線圖：
+├── [P0] 核心可靠性修復 (Reliability): [已全數完成 ✅]
+│   ├── ✅ 1 個 Lock 釋放機制 (避免 Deadlock)
+│   ├── ✅ 8 個 InterruptedException 執行緒中斷標誌恢復
+│   ├── ✅ 5 個 NPE 空指標防護與 3 個回傳值判斷修復
+│   └── ✅ 2 個算術溢位與雙括號初始化修復
 ├── [P1] 安全熱點強化 (Security Hotspots):
 │   ├── 將 4 個 Service 中的 e.printStackTrace() 替換為 Slf4j 結構化日誌
 │   └── 檢視 InnerEndpointBlockFilter 正規表達式，防範潛在 ReDoS

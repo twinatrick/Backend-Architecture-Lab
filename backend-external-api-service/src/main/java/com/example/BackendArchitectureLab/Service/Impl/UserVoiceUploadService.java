@@ -110,8 +110,9 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
 
         // 2. 清除該語音對應的翻譯清單快取
         try {
-            if (cacheManager.getCache("voiceTranslations") != null) {
-                cacheManager.getCache("voiceTranslations").evict("byupload:" + vo.getVoiceUploadId());
+            var cache = cacheManager.getCache("voiceTranslations");
+            if (cache != null) {
+                cache.evict("byupload:" + vo.getVoiceUploadId());
             }
         } catch (Exception e) {
             // 快取清除容錯，不干擾核心業務

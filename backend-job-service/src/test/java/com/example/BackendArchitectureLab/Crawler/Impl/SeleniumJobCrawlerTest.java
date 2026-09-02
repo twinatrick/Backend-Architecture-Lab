@@ -144,6 +144,35 @@ class SeleniumJobCrawlerTest {
         }
     }
 
+    @Test
+    @DisplayName("Should handle sleepQuietly and restore interrupted flag when thread is interrupted")
+    void sleepQuietly_whenInterrupted_shouldRestoreInterruptFlag() {
+        Thread.currentThread().interrupt();
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(seleniumJobCrawler, "sleepQuietly", 100L);
+        assertTrue(Thread.interrupted(), "Interrupted status should be preserved");
+    }
+
+    @Test
+    @DisplayName("Should handle driver.quit exception gracefully in finally block")
+    void crawl_whenDriverQuitThrowsException_shouldIgnoreAndContinue() {
+        String url = "https://example.com/jobs";
+
+        try (MockedConstruction<ChromeDriver> mocked = mockConstruction(ChromeDriver.class,
+                (mock, context) -> {
+                    WebDriver.Options options = mock(WebDriver.Options.class);
+                    WebDriver.Timeouts timeouts = mock(WebDriver.Timeouts.class);
+                    when(mock.manage()).thenReturn(options);
+                    when(options.timeouts()).thenReturn(timeouts);
+                    when(mock.getPageSource()).thenReturn("<html>content</html>");
+                    doThrow(new RuntimeException("Quit failed")).when(mock).quit();
+                })) {
+
+            String result = seleniumJobCrawler.crawl(url);
+            assertEquals("<html>content</html>", result);
+            assertEquals(1, mocked.constructed().size());
+        }
+    }
+
     private static WebDriver.Timeouts timeoutsFrom(ChromeDriver driver) {
         return driver.manage().timeouts();
     }

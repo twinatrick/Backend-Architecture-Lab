@@ -245,6 +245,32 @@ class UserVoiceUploadServiceTest {
     }
 
     @Test
+    @DisplayName("saveTranslation 當快取為 null 時應能容錯正常儲存")
+    void shouldSaveTranslation_whenCacheIsNull_shouldNotThrow() {
+        UUID uploadId = UUID.randomUUID();
+        UserVoiceUpload upload = new UserVoiceUpload();
+        upload.setId(uploadId);
+
+        VoiceTranslationVo vo = new VoiceTranslationVo();
+        vo.setVoiceUploadId(uploadId);
+        vo.setTargetLanguage("en");
+        vo.setTranslatedText("Hello");
+
+        VoiceTranslation savedTranslation = new VoiceTranslation();
+        savedTranslation.setId(UUID.randomUUID());
+        savedTranslation.setVoiceUpload(upload);
+
+        when(userVoiceUploadDataAccess.findById(uploadId)).thenReturn(Optional.of(upload));
+        when(voiceTranslationDataAccess.save(any(VoiceTranslation.class))).thenReturn(savedTranslation);
+        when(cacheManager.getCache("voiceTranslations")).thenReturn(null);
+
+        VoiceTranslationVo result = uploadService.saveTranslation(vo);
+
+        assertNotNull(result);
+        verify(voiceTranslationDataAccess, times(1)).save(any(VoiceTranslation.class));
+    }
+
+    @Test
     @DisplayName("getTranslationsByUploadIdCache 應能正確回傳快取列表")
     void shouldGetTranslationsByUploadIdCache() {
         UUID uploadId = UUID.randomUUID();
