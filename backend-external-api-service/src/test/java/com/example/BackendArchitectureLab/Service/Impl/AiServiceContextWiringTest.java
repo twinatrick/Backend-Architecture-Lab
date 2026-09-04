@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.client.RestTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "github.models.api.url=https://models.inference.ai.azure.com/chat/completions",
         "github.models.api.model=gpt-4o-mini"
 })
+@ActiveProfiles("test")
 @DisplayName("AI Service Spring Context Wiring 裝配測試")
 class AiServiceContextWiringTest {
 

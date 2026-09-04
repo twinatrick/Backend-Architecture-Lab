@@ -182,6 +182,39 @@ services:
     networks:
       - my_network
 
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:3.0.0}
+    container_name: ${LOKI_CONTAINER_NAME:-gary-backend-loki}
+    restart: ${RESTART_POLICY:-always}
+    mem_limit: 512m
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - my_network
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:11.0.0}
+    container_name: ${GRAFANA_CONTAINER_NAME:-gary-backend-grafana}
+    restart: ${RESTART_POLICY:-always}
+    mem_limit: 512m
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - loki
+    networks:
+      - my_network
+
 #  attu:
 #    image: ${ATTU_IMAGE:-zilliz/attu:latest}
 #    container_name: ${ATTU_CONTAINER_NAME:-gary-backend-attu}
@@ -204,6 +237,8 @@ volumes:
 #  milvus_data:
   etcd_data:
   minio_data:
+  loki_data:
+  grafana_data:
 
 networks:
   my_network:

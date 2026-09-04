@@ -1,4 +1,3 @@
-# backend-common is a library module, no specific config needed
 management:
   endpoints:
     web:
@@ -7,3 +6,13 @@ management:
   metrics:
     tags:
       application: ${spring.application.name} # 👈 這行極度重要！它會自動抓該服務在 Nacos 的名稱
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: W3C
+
+logging:
+  loki:
+    url: ${LOKI_URL:http://localhost:3100/loki/api/v1/push}
+    enabled: ${LOKI_ENABLED:true}

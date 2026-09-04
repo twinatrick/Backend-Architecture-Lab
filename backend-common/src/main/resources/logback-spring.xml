@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="backend-service"/>
+    <springProperty scope="context" name="ENV" source="spring.profiles.active" defaultValue="local"/>
+    <springProperty scope="context" name="LOKI_URL" source="logging.loki.url" defaultValue="http://localhost:3100/loki/api/v1/push"/>
+
+    <conversionRule conversionWord="mask" converterClass="com.example.BackendArchitectureLab.Util.LogMaskingConverter" />
+    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter" />
+    <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter" />
+    <conversionRule conversionWord="wEx" converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter" />
+
+    <!-- Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %clr([traceId=%X{traceId:-},spanId=%X{spanId:-}]){magenta} %mask(%m%n%wEx)</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Loki Non-blocking Appender (Active in non-test profiles) -->
+    <springProfile name="!test">
+        <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+            <http>
+                <url>${LOKI_URL}</url>
+                <connectionTimeoutMs>3000</connectionTimeoutMs>
+                <requestTimeoutMs>5000</requestTimeoutMs>
+            </http>
+            <format>
+                <label>
+                    <pattern>app=${APP_NAME},env=${ENV},level=%level</pattern>
+                </label>
+                <message class="com.github.loki4j.logback.JsonLayout" />
+            </format>
+            <batchMaxItems>100</batchMaxItems>
+            <batchTimeoutMs>1000</batchTimeoutMs>
+            <sendQueueMaxBytes>4194304</sendQueueMaxBytes>
+            <dropRateLimitedBatches>true</dropRateLimitedBatches>
+            <drainOnStop>true</drainOnStop>
+            <metricsEnabled>false</metricsEnabled>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="LOKI" />
+        </root>
+    </springProfile>
+
+    <!-- Test Profile: Console only to avoid Loki connection retries during tests -->
+    <springProfile name="test">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+        </root>
+    </springProfile>
+
+</configuration>
