@@ -55,8 +55,11 @@ public abstract class BaseTestcontainersIntegrationTest implements ApplicationCo
 
             try {
                 StringRedisTemplate stringRedisTemplate = applicationContext.getBean(StringRedisTemplate.class);
-                if (stringRedisTemplate.getConnectionFactory() != null) {
-                    stringRedisTemplate.getConnectionFactory().getConnection().serverCommands().flushDb();
+                var connectionFactory = stringRedisTemplate.getConnectionFactory();
+                if (connectionFactory != null) {
+                    try (var connection = connectionFactory.getConnection()) {
+                        connection.serverCommands().flushDb();
+                    }
                 }
             } catch (Exception ignored) {
             }

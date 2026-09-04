@@ -50,6 +50,9 @@ public class LineDiaryService implements ILineDiaryService {
                 return;
             }
             msgClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("語音內容：" + text))).join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            msgClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("辨識中斷：" + e.getMessage()))).join();
         } catch (Exception e) {
             msgClient.replyMessage(new ReplyMessage(replyToken, new TextMessage("辨識失敗：" + e.getMessage()))).join();
         }

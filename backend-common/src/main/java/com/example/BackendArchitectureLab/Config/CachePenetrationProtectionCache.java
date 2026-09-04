@@ -182,6 +182,10 @@ public class CachePenetrationProtectionCache implements Cache {
             ValueWrapper cached;
             try {
                 cached = future.get(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("獲取合併快取中斷: {}", e.toString());
+                cached = null;
             } catch (Exception e) {
                 log.warn("獲取合併快取異常: {}", e.toString());
                 cached = null;
@@ -236,6 +240,9 @@ public class CachePenetrationProtectionCache implements Cache {
                     ValueWrapper doubleCheckDist;
                     try {
                         doubleCheckDist = checkFuture.get(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        doubleCheckDist = null;
                     } catch (Exception e) {
                         doubleCheckDist = null;
                     }
@@ -254,19 +261,16 @@ public class CachePenetrationProtectionCache implements Cache {
                     put(key, value);
                     return value;
                 } catch (Exception e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     log.warn("快取 [{}] key [{}] 載入資料庫異常: {}", name, key, e.toString());
-                    if (e instanceof RuntimeException) {
-                        throw (RuntimeException) e;
+                    if (e instanceof RuntimeException runtimeException) {
+                        throw runtimeException;
                     }
                     throw new RuntimeException(e);
                 } finally {
-                    try {
-                        if (lock.isHeldByCurrentThread()) {
-                            lock.unlock();
-                        }
-                    } catch (Exception e) {
-                        log.warn("解鎖異常 [{}] key [{}]: {}", name, key, e.toString());
-                    }
+                    lock.unlock();
                 }
             }
 
@@ -306,6 +310,9 @@ public class CachePenetrationProtectionCache implements Cache {
                     ValueWrapper fallbackCheck;
                     try {
                         fallbackCheck = pollFuture.get(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        fallbackCheck = null;
                     } catch (Exception e) {
                         fallbackCheck = null;
                     }
@@ -322,6 +329,9 @@ public class CachePenetrationProtectionCache implements Cache {
 
                 log.warn("快取 [{}] key [{}] 輪詢超時 ({}ms)，系統繁忙，避免併發雪崩拒絕直接穿透載入資料庫", name, key, pollTimeoutMillis);
                 throw new RuntimeException("系統繁忙，請稍候再試");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("快取輪詢執行緒中斷", e);
             } catch (Exception e) {
                 if (e instanceof RuntimeException && "系統繁忙，請稍候再試".equals(e.getMessage())) {
                     throw (RuntimeException) e;

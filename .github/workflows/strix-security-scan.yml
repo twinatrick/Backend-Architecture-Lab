@@ -1,0 +1,100 @@
+name: Strix AI Security Assessment
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: "測試模式 (white-box / black-box / gray-box)"
+        required: true
+        default: "white-box"
+        type: choice
+        options:
+          - white-box
+          - black-box
+          - gray-box
+      scan_mode:
+        description: "掃描深度 (quick / standard / deep)"
+        required: true
+        default: "quick"
+        type: choice
+        options:
+          - quick
+          - standard
+          - deep
+      target_url:
+        description: "黑盒/灰盒測試目標 URL (例如 http://staging.example.com)"
+        required: false
+        default: ""
+      auth_token:
+        description: "灰盒測試用 Token (例如 Bearer eyJhbGciOi...)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  strix-scan:
+    name: Autonomous Pentest & Vulnerability Validation
+    runs-on: ubuntu-latest
+    environment: apikey
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Strix CLI (Pinned Release)
+        run: |
+          python -m pip install --upgrade pip
+          pip install strix-agent==1.5.3
+
+      - name: Pre-pull Strix Sandbox Docker Image
+        run: docker pull ghcr.io/usestrix/strix-sandbox:1.3.0
+
+      - name: Run Strix Security Assessment via Key Pool Runner
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+          GEMINI_API_KEY_6: ${{ secrets.GEMINI_API_KEY_6 }}
+          GEMINI_API_KEY_7: ${{ secrets.GEMINI_API_KEY_7 }}
+          GEMINI_API_KEY_8: ${{ secrets.GEMINI_API_KEY_8 }}
+          GEMINI_API_KEY_9: ${{ secrets.GEMINI_API_KEY_9 }}
+          GEMINI_API_KEY_10: ${{ secrets.GEMINI_API_KEY_10 }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_1: ${{ secrets.GROQ_API_KEY_1 }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4: ${{ secrets.GROQ_API_KEY_4 }}
+          GROQ_API_KEY_5: ${{ secrets.GROQ_API_KEY_5 }}
+          GROQ_API_KEY_6: ${{ secrets.GROQ_API_KEY_6 }}
+          GROQ_API_KEY_7: ${{ secrets.GROQ_API_KEY_7 }}
+          GROQ_API_KEY_8: ${{ secrets.GROQ_API_KEY_8 }}
+          GROQ_API_KEY_9: ${{ secrets.GROQ_API_KEY_9 }}
+          GROQ_API_KEY_10: ${{ secrets.GROQ_API_KEY_10 }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SCAN_TYPE: ${{ inputs.scan_type || 'white-box' }}
+          SCAN_MODE: ${{ inputs.scan_mode || 'quick' }}
+          TARGET_URL: ${{ inputs.target_url || '' }}
+          AUTH_TOKEN: ${{ inputs.auth_token || '' }}
+          DIFF_BASE: ${{ github.base_ref || 'origin/master' }}
+        run: python3 .github/scripts/strix_key_runner.py
+
+      - name: Upload Strix Findings & Reports
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: strix-findings
+          path: strix_runs/
+          if-no-files-found: ignore

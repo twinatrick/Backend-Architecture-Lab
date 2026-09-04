@@ -48,10 +48,10 @@ public class InitAndCheckService implements IInitAndCheckService {
             roleService.addRole(role);
         }
         var user = userService.getUserByEmail("admin").stream().findFirst().orElseGet(() -> {
-            userService.createUser(new UserVo() {{
-                setEmail("admin");
-                setPassword("admin");
-            }});
+            UserVo newUser = new UserVo();
+            newUser.setEmail("admin");
+            newUser.setPassword("admin");
+            userService.createUser(newUser);
             return userService.getUserByEmail("admin").getFirst();
         });
         role = roleService.getRoleByName("admin");

@@ -53,6 +53,62 @@
         <minio.version>8.5.17</minio.version>
         <jda.version>5.2.1</jda.version>
         <line-bot.version>6.0.0</line-bot.version>
+
+        <!-- SonarQube Scanner Configuration -->
+        <sonar.version>5.0.0.4389</sonar.version>
+        <sonar.host.url>http://localhost:9000</sonar.host.url>
+        <sonar.projectKey>BackendArchitectureLab</sonar.projectKey>
+        <sonar.projectName>BackendArchitectureLab</sonar.projectName>
+        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/../target/site/jacoco/jacoco.xml,${project.basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.coverage.exclusions>
+            **/Controller/**,
+            **/Entity/**,
+            **/Mapper/**,
+            **/Vo/**,
+            **/DataAccess/specification/**,
+            **/Config/**,
+            **/Aop/**,
+            **/Filter/**,
+            **/WebSocket/**,
+            **/Timer/**,
+            **/Exception/**,
+            **/Repository/**,
+            **/DataAccess/I*.java,
+            **/Service/I*.java,
+            **/Crawler/**,
+            **/Security/**,
+            **/Annotation/**,
+            **/Util/*Mapper.java,
+            **/Service/Impl/BaseOpenAiService.java,
+            **/Service/Impl/GeminiService.java,
+            **/Service/Impl/ChatService.java,
+            **/Service/Impl/TtsService.java,
+            **/Service/Impl/SttService.java,
+            **/Service/Impl/UsageTrackService.java,
+            **/Service/Impl/TtsRefAudioService.java,
+            **/Service/Impl/LineGfService.java,
+            **/Service/Impl/LineGfRichMenuService.java,
+            **/Service/Impl/LineWebhookService.java,
+            **/Service/Impl/LineDiaryService.java,
+            **/Service/Impl/BotConfigService.java,
+            **/Service/Impl/VoiceDiaryService.java,
+            **/Service/Impl/ApiUsageLogService.java,
+            **/Service/Impl/GitHubModelsService.java,
+            **/Service/Impl/CompositeAiService.java,
+            **/Service/Impl/LearnService.java,
+            **/Service/Impl/DeepSeekService.java,
+            **/Service/Impl/GroqService.java,
+            **/Service/Impl/CacheStatsConsumer.java,
+            **/Service/Discord/**,
+            **/TestSupport/**,
+            **/*Application.java
+        </sonar.coverage.exclusions>
+        <sonar.exclusions>
+            **/Entity/**,
+            **/Mapper/**,
+            **/Vo/**
+        </sonar.exclusions>
     </properties>
     <dependencies>
         <dependency>
@@ -438,9 +494,18 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>

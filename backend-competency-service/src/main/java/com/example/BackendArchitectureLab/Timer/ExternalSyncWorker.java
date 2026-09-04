@@ -149,13 +149,13 @@ public class ExternalSyncWorker {
     private void handleExecutionFailure(ExternalSyncCommand command, UUID transactionId,
                                         Map<String, Object> beforeState, String ownerId,
                                         Long fencingVersion, Exception e) {
-        String errorMessage = truncate(e.getMessage());
+        String errorMessage = truncate(e != null ? e.getMessage() : null);
         int attempt = command.getAttemptCount();
         if (attempt >= maxAttempts) {
             externalSyncCommandService.markDeadAndEnqueueCompensation(
                     command.getId(), ownerId, fencingVersion, transactionId, beforeState, errorMessage);
             log.error("外部同步已達最大重試次數，轉為 DEAD 並觸發補償: commandId={}, transactionId={}, attempt={}, ownerId={}, fencingVersion={}, cause={}",
-                    command.getId(), transactionId, attempt, ownerId, fencingVersion, e.toString());
+                    command.getId(), transactionId, attempt, ownerId, fencingVersion, e != null ? e.toString() : "null");
         } else {
             long backoff = resolveBackoffSeconds(attempt);
             int affected = commandRepository.markFailed(command.getId(),
@@ -167,7 +167,7 @@ public class ExternalSyncWorker {
                     new Date(System.currentTimeMillis() + backoff * 1000L));
             if (affected > 0) {
                 log.warn("外部同步失敗，排定重試: commandId={}, transactionId={}, attempt={}, ownerId={}, fencingVersion={}, nextAttemptIn={}s, cause={}",
-                        command.getId(), transactionId, attempt, ownerId, fencingVersion, backoff, e.toString());
+                        command.getId(), transactionId, attempt, ownerId, fencingVersion, backoff, e != null ? e.toString() : "null");
             } else {
                 log.warn("外部同步失敗但租約已被接管，略過 markFailed: commandId={}, transactionId={}, ownerId={}, fencingVersion={}",
                         command.getId(), transactionId, ownerId, fencingVersion);
@@ -180,7 +180,8 @@ public class ExternalSyncWorker {
                 ? List.of(DEFAULT_BACKOFF_SECONDS[0], DEFAULT_BACKOFF_SECONDS[1], DEFAULT_BACKOFF_SECONDS[2],
                 DEFAULT_BACKOFF_SECONDS[3], DEFAULT_BACKOFF_SECONDS[4])
                 : backoffSeconds;
-        return backoffs.get(Math.clamp(attempt - 1, 0, backoffs.size() - 1));
+        int index = Math.max(0, Math.min(attempt - 1, backoffs.size() - 1));
+        return backoffs.get(index);
     }
 
     private String truncate(String message) {
