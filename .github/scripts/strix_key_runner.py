@@ -8,7 +8,6 @@ Strix Key Pool & Automated Security Scan Dispatcher
 - Invokes Strix CLI with safe subprocess array execution and multi-key fallback
 """
 
-import json
 import os
 import re
 import subprocess
@@ -16,9 +15,11 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-SAFE_URL_PATTERN = re.compile(r"^https?://[a-zA-Z0-9.\-_:]+(/[a-zA-Z0-9.\-_~:/?#[\]@!$&'()*+,;=]*)?$")
+SAFE_URL_PATTERN = re.compile(
+    r"^https?://[a-zA-Z0-9.\-_:]+(/[a-zA-Z0-9.\-_~:/?#[\]@!$&'()*+,;=]*)?$"
+)
 SAFE_REF_PATTERN = re.compile(r"^[a-zA-Z0-9.\-_/]+$")
 
 
@@ -36,17 +37,17 @@ def load_env_file(repo_root: Path) -> Dict[str, str]:
         return env_vars
 
     try:
-        with open(env_file, "r", encoding="utf-8") as f:
-            for line in f:
+        with open(env_file, "r", encoding="utf-8") as file_handle:
+            for line in file_handle:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip("'\"")
-                    if k:
-                        env_vars[k] = v
-    except Exception as e:
-        print(f"[WARN] Failed to read .env file: {e}", file=sys.stderr)
+                    key_part, val_part = line.split("=", 1)
+                    key_part = key_part.strip()
+                    val_part = val_part.strip().strip("'\"")
+                    if key_part:
+                        env_vars[key_part] = val_part
+    except (OSError, UnicodeDecodeError) as err:
+        print(f"[WARN] Failed to read .env file: {err}", file=sys.stderr)
     return env_vars
 
 
@@ -66,16 +67,16 @@ def collect_api_keys(local_env: Dict[str, str]) -> List[Tuple[str, str, str]]:
             gemini_keys.append(val)
             seen.add(val)
 
-    for i in range(1, 11):
-        var = f"GEMINI_API_KEY_{i}"
+    for idx in range(1, 11):
+        var = f"GEMINI_API_KEY_{idx}"
         val = os.environ.get(var) or local_env.get(var)
         if val and val not in seen:
             gemini_keys.append(val)
             seen.add(val)
 
-    for k in gemini_keys:
-        mask_secret(k)
-        keys.append(("gemini", "gemini/gemini-3.6-flash", k))
+    for key_item in gemini_keys:
+        mask_secret(key_item)
+        keys.append(("gemini", "gemini/gemini-3.6-flash", key_item))
 
     # 2. Groq Keys (Fallback provider)
     groq_keys: List[str] = []
@@ -85,16 +86,16 @@ def collect_api_keys(local_env: Dict[str, str]) -> List[Tuple[str, str, str]]:
             groq_keys.append(val)
             seen.add(val)
 
-    for i in range(1, 11):
-        var = f"GROQ_API_KEY_{i}"
+    for idx in range(1, 11):
+        var = f"GROQ_API_KEY_{idx}"
         val = os.environ.get(var) or local_env.get(var)
         if val and val not in seen:
             groq_keys.append(val)
             seen.add(val)
 
-    for k in groq_keys:
-        mask_secret(k)
-        keys.append(("groq", "groq/llama-3.3-70b-versatile", k))
+    for key_item in groq_keys:
+        mask_secret(key_item)
+        keys.append(("groq", "groq/llama-3.3-70b-versatile", key_item))
 
     # 3. OpenAI Keys
     openai_key = os.environ.get("OPENAI_API_KEY") or local_env.get("OPENAI_API_KEY")
@@ -114,15 +115,15 @@ def probe_key(provider: str, api_key: str) -> bool:
             req = urllib.request.Request(url, headers={"User-Agent": "StrixKeyRunner/1.0"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 return resp.status == 200
-        except urllib.error.HTTPError as e:
+        except urllib.error.HTTPError as err:
             # 403 indicates leaked or suspended key
-            if e.code == 403:
+            if err.code == 403:
                 return False
             # 429 indicates rate limited, key is still fundamentally valid
-            if e.code == 429:
+            if err.code == 429:
                 return True
             return False
-        except Exception:
+        except (urllib.error.URLError, TimeoutError, OSError):
             return False
     elif provider == "groq":
         url = "https://api.groq.com/openai/v1/models"
@@ -133,7 +134,7 @@ def probe_key(provider: str, api_key: str) -> bool:
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
                 return resp.status == 200
-        except Exception:
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
             return False
     return True
 
@@ -190,12 +191,11 @@ def build_strix_command(inputs: Dict[str, str]) -> List[str]:
         if auth_token:
             cmd.extend(["--auth-token", auth_token])
         else:
-            cmd.extend(
-                [
-                    "--instruction",
-                    "Probe authenticated API endpoints, IDOR and role escalation using test credentials",
-                ]
+            instruction_text = (
+                "Probe authenticated API endpoints, IDOR and role escalation "
+                "using test credentials"
             )
+            cmd.extend(["--instruction", instruction_text])
     else:  # white-box
         cmd.extend(["-t", "./"])
         if inputs["scan_mode"] == "quick":
@@ -212,7 +212,10 @@ def main() -> int:
     candidates = collect_api_keys(local_env)
 
     if not candidates:
-        print("[ERROR] No API keys (Gemini, Groq, or OpenAI) found in environment or .env!", file=sys.stderr)
+        print(
+            "[ERROR] No API keys (Gemini, Groq, or OpenAI) found in environment or .env!",
+            file=sys.stderr,
+        )
         return 1
 
     print(f"[INFO] Discovered {len(candidates)} candidate API key(s). Probing active keys...")
@@ -227,7 +230,10 @@ def main() -> int:
             print(f"   [SKIP] Key suspended or unauthorized: provider={provider}")
 
     if not valid_candidates:
-        print("[WARN] All probed keys failed validation. Attempting first configured key as fallback...", file=sys.stderr)
+        print(
+            "[WARN] All probed keys failed validation. Attempting first key as fallback...",
+            file=sys.stderr,
+        )
         valid_candidates = [candidates[0]]
 
     if len(sys.argv) > 1:
@@ -250,9 +256,12 @@ def main() -> int:
             if last_returncode == 0:
                 print(f"[SUCCESS] Strix scan completed successfully with {model}.")
                 return 0
-            print(f"[WARN] Strix exited with code {last_returncode}. Rotating to next key in pool...")
-        except Exception as e:
-            print(f"[ERROR] Failed to execute Strix: {e}", file=sys.stderr)
+            print(
+                f"[WARN] Strix exited with code {last_returncode}. "
+                "Rotating to next key in pool..."
+            )
+        except (subprocess.SubprocessError, OSError) as err:
+            print(f"[ERROR] Failed to execute Strix: {err}", file=sys.stderr)
 
     return last_returncode
 
