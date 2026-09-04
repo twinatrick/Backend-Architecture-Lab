@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -110,7 +111,9 @@ def collect_api_keys(local_env: Dict[str, str]) -> List[Tuple[str, str, str]]:
 def probe_key(provider: str, api_key: str) -> bool:
     """Perform lightweight HTTP health-check to verify if key is valid and not suspended."""
     if provider == "gemini":
-        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        base_endpoint = "https://generativelanguage.googleapis.com/v1beta/models"
+        query_params = urllib.parse.urlencode({"key": api_key})
+        url = f"{base_endpoint}?{query_params}"
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "StrixKeyRunner/1.0"})
             with urllib.request.urlopen(req, timeout=5) as resp:
