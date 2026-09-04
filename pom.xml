@@ -53,6 +53,7 @@
         <minio.version>8.5.17</minio.version>
         <jda.version>5.2.1</jda.version>
         <line-bot.version>6.0.0</line-bot.version>
+        <loki4j.version>1.5.2</loki4j.version>
 
         <!-- SonarQube Scanner Configuration -->
         <sonar.version>5.0.0.4389</sonar.version>
@@ -157,7 +158,7 @@
         </dependency>
         -->
         <!-- ========================================== -->
-        <!-- 🎯 新增微服務集體監控必備依賴 (Actuator + Prometheus) -->
+        <!-- 🎯 新增微服務集體監控與鏈路追蹤依賴 (Actuator + Prometheus + Tracing) -->
         <!-- ========================================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -166,6 +167,10 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
         </dependency>
 
         <dependency>
@@ -242,6 +247,11 @@
                 <scope>test</scope>
             </dependency>
 
+            <dependency>
+                <groupId>com.github.loki4j</groupId>
+                <artifactId>loki-logback-appender</artifactId>
+                <version>${loki4j.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.postgresql</groupId>
                 <artifactId>postgresql</artifactId>
@@ -393,7 +403,7 @@
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>3.2.5</version>
                     <configuration>
-                        <argLine>@{argLine} -XX:+EnableDynamicAgentLoading</argLine>
+                        <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Dspring.profiles.active=test</argLine>
                         <forkCount>1</forkCount>
                         <reuseForks>true</reuseForks>
                     </configuration>
@@ -403,7 +413,7 @@
                     <artifactId>maven-failsafe-plugin</artifactId>
                     <version>3.2.5</version>
                     <configuration>
-                        <argLine>@{argLine} -XX:+EnableDynamicAgentLoading</argLine>
+                        <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Dspring.profiles.active=test</argLine>
                         <forkCount>1</forkCount>
                         <reuseForks>true</reuseForks>
                         <includes>
