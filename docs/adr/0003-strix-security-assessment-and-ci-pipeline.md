@@ -15,10 +15,10 @@
 1. **本地工具鏈與隔離沙箱**：
    - 本地開發環境採用 `uv tool install strix-agent` 進行獨立虛擬環境隔離安裝，便於維護與版本升級。
    - 預載官方 Docker 沙箱映像檔 `ghcr.io/usestrix/strix-sandbox:1.3.0`，所有漏洞驗證與 PoC 執行均在隔離沙箱中完成。
-2. **CI/CD 受信任安全工作流程 (`.github/workflows/strix-security-scan.yml`)**：
-   - 建立獨立之安全審查工作流程，受 GitHub Environment（`apikey`）保護，確保 `LLM_API_KEY` 與 `STRIX_LLM` 等機密金鑰不被不可信 PR 竊取。
-   - 於 Pull Request 觸發時預設啟用 `Diff-Scope Pentest`（`--scope-mode diff --scan-mode quick`），僅針對本次 PR 變更檔案進行安全分析，節省 Token 與執行時間。
-   - 實施安全門禁（Security Gate）：當發現具備已驗證 Exploit PoC 且嚴重度達 `HIGH` 或 `CRITICAL` 時，強制阻擋 PR 合併（Fail-Closed）。
+2. **CI/CD 受信任安全工作流程與金鑰池調度 (`.github/workflows/strix-security-scan.yml`)**：
+   - 建立獨立之安全審查工作流程，受 GitHub Environment（`apikey`）保護，並嚴格遵循受信任邊界（Trust Boundary）原則：僅允許 `push: branches: [master, main]`（合併後基線掃描）與 `workflow_dispatch`（手動指定目標調度），避免在不可信 PR 生命週期中暴露金鑰。
+   - 引入金鑰池調度器（`.github/scripts/strix_key_runner.py`），自動探索環境中的多把 Gemini / Groq API 金鑰並進行輕量健康檢查（探測是否遭 Google 標記洩漏或暫停），動態挑選可用金鑰並在 CI 日誌中遮蔽（`::add-mask::`），同時以全陣列參數（`shell=False`）呼叫 Strix 執行檔以徹底杜絕指令注入。
+   - 實施安全門禁（Security Gate）：當發現具備已驗證 Exploit PoC 且嚴重度達 `HIGH` 或 `CRITICAL` 時，發出告警並阻擋流程。
 3. **黑盒、白盒與灰盒三模式支援與本地一鍵腳本 (`run-strix.ps1`)**：
    - **白盒 (White-Box)**：直接針對本地或倉庫原始碼進行靜態與動態結合分析。
    - **黑盒 (Black-Box)**：指向本地運行的後端服務（`http://localhost:8000`），並搭配 OpenAPI 聚合規格（`/v3/api-docs`）進行精準路由測試。

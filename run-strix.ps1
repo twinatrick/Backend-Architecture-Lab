@@ -194,8 +194,8 @@ if ($Instruction) {
     $strixArgs += $Instruction
 }
 
-# 4. Launch Strix
-Write-Host "[4/4] Launching Strix Security Scanner..." -ForegroundColor Cyan
+# 4. Launch Strix via Multi-Key Pool Runner
+Write-Host "[4/4] Launching Strix Security Scanner via Key Pool Runner..." -ForegroundColor Cyan
 $displayArgs = $strixArgs | ForEach-Object {
     if ($_ -like "*eyJ*" -or $_ -like "*Bearer*") {
         "******"
@@ -203,7 +203,12 @@ $displayArgs = $strixArgs | ForEach-Object {
         $_
     }
 }
-Write-Host "   Command: strix $($displayArgs -join ' ')" -ForegroundColor Gray
+Write-Host "   Command: python .github/scripts/strix_key_runner.py $($displayArgs -join ' ')" -ForegroundColor Gray
 Write-Host "==========================================================" -ForegroundColor DarkGray
 
-& strix @strixArgs
+$runnerScript = Join-Path $PSScriptRoot ".github\scripts\strix_key_runner.py"
+if (Test-Path $runnerScript) {
+    python $runnerScript @strixArgs
+} else {
+    & strix @strixArgs
+}
