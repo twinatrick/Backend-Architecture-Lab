@@ -18,10 +18,10 @@
 - 📡 **即時通訊廣播**：Jakarta WebSocket (`/ws/alarm`) 搭配 Kafka Fan-out 跨節點廣播推送。
 - 🤖 **AI 深度整合**：
   - **Python 側車 (`backend-ai-py`)**：Faster-Whisper (CUDA 12 DLLs 動態加載) + Sherpa-ONNX SenseVoice 雙引擎 STT、PyAnnote 語者分離 Conda 獨立子進程隔離、GPT-SoVITS + Sherpa-ONNX 雙引擎 TTS、Ollama 本地 LLM SSE 串流。
-  - **Java 整合中心**：LINE Bot 串流端點、Discord Bot 動態 Webhook 偽裝、多模型瀑布級聯降級（Gemini 2.0 Flash → Groq → DeepSeek → GitHub Models）。
-- 📊 **可觀測性與指標**：全微服務標準繼承 Micrometer + Prometheus (`/actuator/prometheus`) 與 Grafana。
+  - **Java 整合中心**：LINE Bot 串流端點、Discord Bot 動態 Webhook 偽裝、多模型瀑布級聯降級（Gemini 3.8/3.7 Flash → Groq → DeepSeek → GitHub Models）。
+- 📊 **可觀測性、鏈路追蹤與集中日誌**：全微服務標準整合 **Micrometer Tracing (W3C `traceparent` 分散式鏈路追蹤)** + **Grafana Loki 3.0 集中式日誌聚合** + **LogMaskingConverter 敏感資料脫敏保護** + **Prometheus (`/actuator/prometheus`) 指標監控** 與 **Grafana 統一可視化看板**。
 - 🧪 **極致品質保證**：
-  - GitHub Actions 雙軌自動化 CI（Java 嚴格要求 BUNDLE 覆蓋率 >= 80% + Python Ruff/Pytest + 獨立 AI Code Review）。
+  - GitHub Actions 雙軌自動化 CI（Java 嚴格要求 BUNDLE 覆蓋率 >= 80% + Python Ruff/Pytest + 整合 Gemini 3.8 Flash 最高優先級模型池之 AI Code Review + SonarQube / Strix 安全掃描）。
   - 完整 JMeter 500 併發壓力測試套件（含 10 個 SQL 大量測試數據生成腳本與效能報告）。
   - 嚴格代碼規範：全面建構子注入（`@RequiredArgsConstructor` + `private final`）、Mapper 僅限 Service Impl、Controller 嚴禁出現 Entity、禁止完全限定名稱 (FQN)。
 
@@ -66,25 +66,29 @@ graph TB
         RD[("Redis 7<br/>快取與布隆過濾器")]
         KF[("Kafka 集群<br/>Port: 9092")]
         MINIO[("MinIO S3<br/>Port: 9000/9001")]
+        LOKI[("Grafana Loki 3.0<br/>Port: 3100")]
+        GF[("Grafana 看板<br/>Port: 3000")]
     end
 
     IAM & COMP & JOB & EXT & ALT --> PG
     IAM & COMP & JOB & EXT & ALT --> RD
     IAM & COMP & JOB & EXT & ALT --> KF
     EXT & AIPY -.-> MINIO
+    GW & IAM & COMP & JOB & EXT & ALT -->|Loki4j 非同步 HTTP 推送| LOKI
+    LOKI -.->|LogQL / TraceID 關聯| GF
 ```
 
 ### 微服務清單與職責劃分
 
 | 微服務模組 | 基礎埠號 | 資料庫名稱 | 核心職責與技術要點 |
 |---|:---:|:---:|---|
-| **`backend-gateway`** | `8000` | - | 系統統一對外入口，負責動態路由轉發、路徑前綴剝除 (`StripPrefix=1`)、內部端點隔離 (`InnerEndpointBlockFilter` 攔截 `/inner/`)、跨域 CORS 與 OpenAPI 規格動態聚合 (`/v3/api-docs-merged`)。 |
+| **`backend-gateway`** | `8000` | - | 系統統一對外入口，負責動態路由轉發、路徑前綴剝除 (`StripPrefix=1`)、內部端點隔離 (`InnerEndpointBlockFilter` 攔截 `/inner/`)、跨域 CORS、OpenAPI 規格動態聚合 (`/v3/api-docs-merged`) 與 WebFlux 鏈路追蹤自動上下文傳播。 |
 | **`backend-iam-service`** | `8002` | `iam_service` | 身分識別與存取管理。提供 JWT 簽發驗證、超級使用者初始化、動態權限字典維護，以及防止自我 Feign 調用的本地權限校驗器 (`LocalPermissionValidatorImpl`)。 |
 | **`backend-competency-service`** | `8004` | `competency_service` | 職能與專案管理。涵蓋技能庫、技能等級、專案綁定，以及包含 Transactional Outbox、租約鎖定、Fencing Token 與 SAGA 回滾在內的全套分散式事務補償引擎。 |
 | **`backend-job-service`** | `8006` | `job_service` | 企業與職缺媒合服務。提供企業資訊、職缺發布、個人職缺收藏，並整合 Jsoup/Selenium 爬蟲抓取與 AI 職缺結構化分析。 |
 | **`backend-external-api-service`** | `8007` | `external_api_service` | 外部整合與 AI 代理中心。提供 LINE/Discord 雙平台機器人（女友對話、語音日記）、MinIO 語音儲存串流端點、Bot 動態配置與 API 用量成本審計。 |
 | **`backend-alert-service`** | `8008` | `alert_service` | 即時水情監控與告警服務。提供感測器數據分析、告警閥值比對、Kafka 事件消費、WebSocket 跨節點推播，以及跨服務快取指標統計聚合 (`/cache-stats`)。 |
-| **`backend-common`** | - | - | 基礎共用模組。提供 `BaseEntity` 審計實體、Feign Clients 定義、JWT 安全過濾器、三層權限切面 (`PermissionCheck`)、六層快取防穿透管理器與全域例外處理。 |
+| **`backend-common`** | - | - | 基礎共用模組。提供 `BaseEntity` 審計實體、Feign Clients 定義、JWT 安全過濾器、三層權限切面 (`PermissionCheck`)、六層快取防穿透管理器、`LogMaskingConverter` 敏感資料脫敏轉換器、`AsyncTraceContextConfig` 非同步與響應式鏈路傳播器、`logback-spring.xml` 集中日誌配置與全域例外處理。 |
 | **`backend-ai-py`** | `5001` | - | Python FastAPI AI 側車。提供 Faster-Whisper / SenseVoice 語音辨識、GPT-SoVITS / Sherpa-ONNX 語音合成、PyAnnote 語者分離 Conda 子進程隔離與 Ollama SSE 串流推論。 |
 
 ---
@@ -905,13 +909,84 @@ sequenceDiagram
 
 ---
 
-# 九、 品質保證 (Quality)、CI/CD 與 500 併發壓力測試
+# 九、 集中式日誌與分散式追蹤架構 (Centralized Logging & Distributed Tracing)
+
+本專案全面整合 **Micrometer Tracing (W3C Trace Context 規範)** 與 **Grafana Loki 3.0** 輕量級分散式日誌聚合平台，並在共用模組 `backend-common` 實作非同步環形緩衝日誌推送與敏感資料自動脫敏保護，兼顧排障效率、效能保護與機密安全：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as "客戶端 HTTP"
+    participant GW as "Gateway (WebFlux)<br/>Port: 8000"
+    participant TraceHook as "Reactor Context 傳播<br/>Hooks.enableAutomaticContextPropagation()"
+    participant Feign as "OpenFeign 跨服務請求"
+    participant Service as "業務微服務 (Spring MVC)<br/>Port: 8002-8008"
+    participant AsyncPool as "ThreadPoolTaskExecutor<br/>ContextSnapshot TaskDecorator"
+    participant Masker as "LogMaskingConverter<br/>(密碼/Token/卡號脫敏)"
+    participant LokiAppender as "Loki4j Ring Buffer<br/>(4MB 非同步隊列)"
+    participant Loki as "Grafana Loki 3.0<br/>Port: 3100"
+    participant Grafana as "Grafana Explore<br/>Port: 3000"
+
+    Client ->> GW: 1. 發送請求 (無 Trace 標頭或自訂標頭)
+    GW ->> TraceHook: 2. 初始化 W3C traceparent (TraceId=4bf92f3577b34da6, SpanId=00f067aa0ba902b7)
+    GW ->> Feign: 3. 轉發請求，注入 HTTP Header: traceparent
+    Feign ->> Service: 4. 微服務接收請求，MDC 自動載入 traceId 與 spanId
+    
+    opt 非同步或排程任務 (@Async)
+        Service ->> AsyncPool: 5. 提交 Runnable 任務
+        AsyncPool ->> AsyncPool: 6. ContextSnapshot.captureAll().wrap() 跨執行緒拷貝 MDC
+    end
+
+    Service ->> Masker: 7. 印出包含敏感參數或例外之業務日誌
+    Masker ->> Masker: 8. 正則脫敏 (password/token/Bearer/卡號轉為 ******)
+    Masker ->> LokiAppender: 9. 傳送脫敏格式化日誌事件
+    LokiAppender ->> LokiAppender: 10. 寫入 In-Memory 批次隊列 (100 筆 / 1000ms)
+    
+    critical 非阻塞非同步傳輸 (Non-blocking)
+        LokiAppender -->> Loki: 11. 背景 HTTP 批次推送至 /loki/api/v1/push
+    option Loki 伺服器離線或佇列滿載 (4MB)
+        LokiAppender -->> LokiAppender: 12. 啟用 dropRateLimitedBatches 丟棄過載批次，降級保護 Console 輸出
+    end
+
+    Grafana ->> Loki: 13. LogQL 查詢日誌 (例: {app="backend-gateway"} |= "error")
+    Grafana ->> Grafana: 14. 透過 DerivedFields 支援 TraceID 跨微服務全鏈路穿透跳轉
+```
+
+### 1. W3C 分散式鏈路追蹤 (Distributed Tracing with Micrometer & OTel Bridge)
+- **W3C Trace Context 規範**：遵循 RFC 標準 `traceparent: 00-{traceId}-{spanId}-{flags}` 格式進行跨服務透傳，統一 Gateway、Feign Client 與微服務內部之全鏈路標識。
+- **響應式 WebFlux 上下文傳播**：在 `backend-common` 的 `com.example.BackendArchitectureLab.Config.AsyncTraceContextConfig` 中於啟動階段透過 `reactor.core.publisher.Hooks.enableAutomaticContextPropagation()` 啟用 Reactor 與 ThreadLocal 自動雙向綁定，徹底解決 Spring Cloud Gateway 非阻塞調度時 TraceId 遺失之痛點。
+- **非同步執行緒池上下文透傳 (`TaskDecorator`)**：針對 `@Async` 與自訂 `ThreadPoolTaskExecutor`，透過 `io.micrometer.context.ContextSnapshot.captureAll().wrap(runnable)` 在任務投遞瞬間快照父執行緒之 MDC 上下文，確保非同步背景執行緒與定時排程日誌維持相同的 `traceId` 與父子關聯 `spanId`。
+
+### 2. Grafana Loki 3.0 集中式日誌聚合與低基數串流控制
+- **輕量低資源消耗**：捨棄傳統 Elasticsearch / OpenSearch 龐大的全文倒排索引，Loki 採用 TSDB v13 儲存格式僅針對日誌元數據（Labels）建立微型索引，日誌本體壓縮存儲於檔案系統（或物件儲存），大幅降低 90% 以上之 CPU 與記憶體負擔。
+- **嚴格限制低基數串流標籤 (Low-Cardinality Stream Labels)**：
+  - **日誌串流標籤 (Stream Labels)**：嚴格限制為 `app=${APP_NAME},env=${ENV},level=%level`，避免高基數維度（如 user_id、ip 或 traceId）作為標籤壓垮 Loki 索引。
+  - **訊息本體結構 (Message Payload)**：在日誌本體嵌入富文本維度，格式為 `traceId=%X{traceId:-} spanId=%X{spanId:-} logger=%logger thread=%thread %mask(%msg) %wEx`，兼顧 LogQL 高效過濾與全維度排障能力。
+
+### 3. 敏感資料自動脫敏防禦 (Sensitive Data Masking)
+- **全路徑自動脫敏 (`LogMaskingConverter`)**：繼承 Logback `CompositeConverter<ILoggingEvent>`，並註冊為 `%mask` 轉換規則，由 `com.example.BackendArchitectureLab.Util.LogMaskingConverter` 在日誌格式化輸出前動態執行預編譯正則過濾：
+  - **JSON 憑證欄位**：`"password": "..."`、`"token": "..."`、`"secret": "..."`、`"apiKey": "..."` 自動替換為 `******`。
+  - **URL 查詢與表單參數**：`password=...`、`accessToken=...` 等鍵值參數自動遮蔽。
+  - **RFC 6750 Bearer Token**：支援標準與 URL-Safe Base64 特殊符號（包含 `+`、`/`、`=`、`-`、`_`），全自動替換為 `Bearer ******`。
+  - **16 位銀行信用卡號**：符合 Luhn 演算法之 16 位純數字或帶分隔符卡號，自動遮蔽並保留末 4 碼（`****-****-****-XXXX`）。
+- **控制台與集中儲存庫雙重加固 (CWE-532 防護)**：在 `logback-spring.xml` 中，Console 控制台與 Loki HTTP Appender 均全面包裹 `%mask(...)`，杜絕任何敏感機密在本地日誌或遠端 Loki 集中儲存庫產生明文洩漏風險。
+
+### 4. 記憶體環形緩衝與防雪崩降級 (Buffer & Degradation Fallback)
+- **非阻塞式非同步隊列 (Loki4j)**：
+  - 緩衝區大小上限設定為 `sendQueueMaxBytes: 4194304` (4MB)。
+  - 批次發送閥值為 `batchMaxItems: 100` 或逾時 `batchTimeoutMs: 1000`。
+- **過載主動丟棄防崩潰 (`dropRateLimitedBatches`)**：當 Loki 服務端因網路中斷、維護或突發日誌洪峰造成 HTTP 推送超時時，Loki4j 會主動丟棄溢出之日誌批次，**保證主業務執行緒絕對不會被日誌 I/O 阻塞**，避免應用程式級聯式內存溢出 (OOM) 崩潰，並靜默回退由標準 Console 控制台輸出。
+- **測試環境靜音保護**：`logback-spring.xml` 配置 `<springProfile name="!test">` 僅於非測試環境掛載 Loki Appender，而在 `<springProfile name="test">` 僅保留 Console 輸出，確保本地與 CI 單元測試執行時零外部網路連線重試開銷。
+
+---
+
+# 十、 品質保證 (Quality)、CI/CD 與 500 併發壓力測試
 
 ### 1. GitHub Actions CI 雙軌驗證
 - **Java CI (Unit & Coverage)**：JDK 21 + `./mvnw test jacoco:check`，強制要求 **BUNDLE 覆蓋率 >= 80%**。
 - **Testcontainers E2E CI**：使用 `./mvnw verify -Pintegration-test` 於乾淨容器環境（PostgreSQL 16, Kafka KRaft 7.6, Redis 7.2）自動執行分散式 SAGA 補償、快取指標流與 Redisson 併發鎖整合測試。
 - **Python CI**：Python 3.11 + `ruff check` + `ruff format --check` + `pytest backend-ai-py`（28+ 測試）。
-- **AI Code Review**：獨立之 `ai-review-trigger.yml` 與 `ai-review-trusted.yml` 提供自動化 PR 程式碼審查。
+- **AI Code Review**：獨立之 `ai-review-trigger.yml` 與 `ai-review-trusted.yml` 提供自動化 PR 程式碼審查（支援 Gemini 3.8 Flash 最高優先級模型池、多層級降級防線與二維金鑰冷卻機制）。
 - **映像檔建置**：Docker Buildx 多架構建置與 Docker Hub 自動推送。
 
 ### 2. 壓力測試套件 (`stress-test/`)：Grafana k6 (本機推薦) + Apache JMeter
@@ -933,7 +1008,7 @@ sequenceDiagram
 
 ---
 
-# 十、 重要設定與環境變數對照表 (.env.example)
+# 十一、 重要設定與環境變數對照表 (.env.example)
 
 根目錄 `.env.example` 涵蓋全系統所需之關鍵環境變數：
 
@@ -951,9 +1026,14 @@ sequenceDiagram
 | **MinIO** | `MINIO_API_PORT` / `CONSOLE_PORT` | `9000` / `9001` | S3 API 與 Web 控制台埠號。 |
 | | `MINIO_URL` | `http://localhost:9000` | 後端連線 MinIO 端點。 |
 | | `MINIO_ACCESS_KEY` / `SECRET_KEY` | `minioadmin` / `your_minio_password` | MinIO 存取密鑰。 |
+| **集中式日誌** | `LOKI_PORT` | `3100` | Grafana Loki HTTP 接收與查詢埠號（綁定 127.0.0.1 避免未授權曝露）。 |
+| | `LOKI_URL` | `http://localhost:3100/loki/api/v1/push` | 微服務推送日誌至 Loki 之 API 端點。 |
+| **可觀測性看板** | `GRAFANA_PORT` | `3000` | Grafana 視覺化看板 Web 介面埠號。 |
+| | `GRAFANA_ADMIN_USER` | `admin` | Grafana 管理員登入帳號。 |
+| | `GRAFANA_ADMIN_PASSWORD` | `change_this_grafana_password` | Grafana 管理員登入密碼（強制約束非預設安全密碼）。 |
 | **JWT 安全** | `JWT_SECRET_USE` | `change_to_your_jwt_secret` | JWT 簽名金鑰（至少 256 bits）。 |
 | | `JWT_EXPIRATION_MINUTES` | `1440` | JWT 有效期限（24 小時）。 |
-| **外部 AI 金鑰** | `GEMINI_API_KEY` | `""` | Google Gemini API 金鑰（預設模型 `gemini-3.7-flash`）。 |
+| **外部 AI 金鑰** | `GEMINI_API_KEY` | `""` | Google Gemini API 金鑰（最高優先級模型 `gemini-3.8-flash`）。 |
 | | `DEEPSEEK_API_KEY` | `""` | DeepSeek API 金鑰 (`deepseek-v4-flash`)。 |
 | | `GROQ_API_KEY` | `""` | Groq API 金鑰 (`llama-3.3-70b-versatile`)。 |
 | | `GITHUB_MODELS_API_KEY` | `""` | GitHub Models API 金鑰 (`gpt-4o-mini`)。 |
@@ -969,7 +1049,7 @@ sequenceDiagram
 
 ---
 
-# 十一、 快速啟動指南 (Quick Start)
+# 十二、 快速啟動指南 (Quick Start)
 
 ### 步驟 0：環境變數設定
 ```bash
@@ -981,7 +1061,7 @@ cp .env.example .env
 ```bash
 docker compose -f compose.yaml up -d
 ```
-> 初始化會自動執行 `init-dbs.sql`，建立 5 個微服務獨立資料庫。
+> 初始化會自動執行 `init-dbs.sql` 建立 5 個微服務獨立資料庫，並同步啟動 Redis、Kafka、MinIO 以及 Grafana Loki (Port 3100) 與 Grafana (Port 3000)。
 
 ### 步驟 2：啟動 Python AI 側車服務
 ```bash
@@ -1005,9 +1085,14 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 - **Swagger UI**：`http://localhost:8000/swagger-ui/index.html`
 - **OpenAPI 聚合 JSON**：`http://localhost:8000/v3/api-docs-merged`
 
+### 步驟 5：存取 Grafana 集中日誌與指標看板
+開啟瀏覽器訪問 Grafana 控制台（預設帳號與密碼依 `.env` 設定）：
+- **Grafana Web 介面**：`http://localhost:3000`
+- **Loki 日誌檢索 (Explore)**：系統已透過 Docker Provisioning 自動掛載 Loki 與 Prometheus 資料來源。可在 Explore 介面直接輸入 LogQL 查詢（如 `{app="backend-gateway"}` 或 `{level="ERROR"}`），並支援點擊日誌中自動解析出的 `TraceID` 直接跳轉關聯所有微服務的跨節點呼叫鏈路。
+
 ---
 
-# 十二、 常見問題排除 (Troubleshooting)
+# 十三、 常見問題排除 (Troubleshooting)
 
 ### 1. Kafka 連線失敗 (`Connection could not be established`)
 - **本機執行**：確認 `.env` 設定 `KAFKA_ADVERTISED_HOST=localhost`。
@@ -1027,15 +1112,21 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 - 若透過反向代理，請確保 Nginx 配置了 `Upgrade` 與 `Connection "upgrade"` 標頭。
 - 確認 `backend-alert-service` 正常運作且 Kafka Broker 可達。
 
+### 5. Loki 集中日誌連線超時或 Grafana 找不到日誌
+- **日誌推送逾時**：若未啟動 Docker Compose 中的 Loki 服務（`port 3100`），微服務內部之 Loki4j 環形緩衝區將自動啟用 `dropRateLimitedBatches` 丟棄溢出日誌，並靜默回退至 Console 控制台輸出，保證絕不阻塞業務線程。可透過 `docker compose ps` 確認 Loki 容器運作狀態。
+- **Grafana 數據來源檢驗**：進入 Grafana `Connections -> Data sources -> Loki`，點擊 `Save & test` 確認顯示 `Data source is working`。
+
 ---
 
-# 十三、 開發藍圖與驗證狀態 (Roadmap & Status)
+# 十四、 開發藍圖與驗證狀態 (Roadmap & Status)
 
 ### Infrastructure & Operations
 - [x] Prometheus Metrics (`/actuator/prometheus` 全微服務標準整合)
-- [x] Grafana 儀表板整合支援
-- [x] Docker Compose 一鍵啟動環境
-- [ ] Centralized Logging (ELK / Loki Stack)
+- [x] Grafana 儀表板整合支援 (預置 Provisioning 資料來源)
+- [x] Docker Compose 一鍵啟動環境 (PostgreSQL, Redis, Kafka, MinIO, Loki, Grafana)
+- [x] Centralized Logging (Grafana Loki 3.0 + Loki4j Async Ring Buffer)
+- [x] Distributed Tracing (Micrometer Tracing + OpenTelemetry Bridge + W3C Trace Context)
+- [x] Log Sensitive Data Masking (LogMaskingConverter 敏感資料脫敏防護)
 
 ### Architecture & Distributed Patterns
 - [x] Transactional Outbox Pattern (`compensation_outbox_event`)
@@ -1054,6 +1145,7 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 - [x] Faster-Whisper / SenseVoice 雙引擎語音辨識 (STT)
 - [x] GPT-SoVITS / Sherpa-ONNX 雙引擎語音合成 (TTS)
 - [x] PyAnnote 語者分離 Conda 獨立子進程隔離
-- [x] 多模型瀑布級聯降級 (Gemini 2.0 Flash → Groq → DeepSeek → GitHub Models)
+- [x] 多模型瀑布級聯降級 (Gemini 3.8/3.7 Flash → Groq → DeepSeek → GitHub Models)
 - [x] LINE / Discord 雙平台智慧助理與語音串流
+- [x] 整合二維金鑰冷卻機制與 Gemini 3.8 Flash 最高優先級模型池
 - [ ] Milvus 向量檢索與 RAG 知識庫整合
