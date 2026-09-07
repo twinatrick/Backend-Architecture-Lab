@@ -32,6 +32,13 @@ def test_call_gemini_api_constructs_proper_request():
 
 
 def test_gemini_build_generation_config_sampling_parameters_by_model():
+    cfg_38 = providers.GeminiClient.build_generation_config("gemini-3.8-flash")
+    assert "temperature" not in cfg_38
+    assert "top_p" not in cfg_38
+    assert "top_k" not in cfg_38
+    assert cfg_38["responseMimeType"] == "application/json"
+    assert cfg_38["maxOutputTokens"] == 4096
+
     cfg_37 = providers.GeminiClient.build_generation_config("gemini-3.7-flash")
     assert "temperature" not in cfg_37
     assert "top_p" not in cfg_37
