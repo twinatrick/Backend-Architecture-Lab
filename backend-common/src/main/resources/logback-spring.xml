@@ -30,7 +30,9 @@
                 <label>
                     <pattern>app=${APP_NAME},env=${ENV},level=%level</pattern>
                 </label>
-                <message class="com.github.loki4j.logback.JsonLayout" />
+                <message>
+                    <pattern>traceId=%X{traceId:-} spanId=%X{spanId:-} logger=%logger thread=%thread %mask(%msg) %wEx</pattern>
+                </message>
             </format>
             <batchMaxItems>100</batchMaxItems>
             <batchTimeoutMs>1000</batchTimeoutMs>

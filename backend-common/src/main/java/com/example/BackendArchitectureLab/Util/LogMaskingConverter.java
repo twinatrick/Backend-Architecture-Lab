@@ -2,23 +2,41 @@ package com.example.BackendArchitectureLab.Util;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.pattern.CompositeConverter;
-import java.util.regex.Matcher;
+import java.util.List;
 import java.util.regex.Pattern;
 
 public class LogMaskingConverter extends CompositeConverter<ILoggingEvent> {
 
-    private static final Pattern[] MASK_PATTERNS = new Pattern[] {
-        // JSON password, token, apiKey, secret
-        Pattern.compile("(\"(?:password|pwd|secret|accessToken|refreshToken|apiKey|token)\"\\s*:\\s*\")([^\"]+)(\")", Pattern.CASE_INSENSITIVE),
-        // Key-value / Query / Form parameters: password=... or secret=...
-        Pattern.compile("((?:password|pwd|secret|accessToken|refreshToken|apiKey|token)\\s*=\\s*)([^&\\s,\";]+)", Pattern.CASE_INSENSITIVE),
-        // Bearer Token: Bearer ...
-        Pattern.compile("(Bearer\\s+)([A-Za-z0-9-_]+(?:\\.[A-Za-z0-9-_]+)*)", Pattern.CASE_INSENSITIVE),
-        // Credit card numbers (16 digits)
-        Pattern.compile("\\b(\\d{4}[-\\s]?\\d{4}[-\\s]?\\d{4}[-\\s]?)(\\d{4})\\b")
-    };
+    private record MaskRule(Pattern pattern, String replacement) {
+        String apply(String input) {
+            return pattern.matcher(input).replaceAll(replacement);
+        }
+    }
 
     private static final String MASK_REPLACEMENT = "******";
+
+    private static final List<MaskRule> RULES = List.of(
+        // JSON: "password": "...", "token": "..."
+        new MaskRule(
+            Pattern.compile("(\"(?:password|pwd|secret|accessToken|refreshToken|apiKey|token)\"\\s*:\\s*\")([^\"]+)(\")", Pattern.CASE_INSENSITIVE),
+            "$1" + MASK_REPLACEMENT + "$3"
+        ),
+        // Key-value / Query / Form parameters: password=... or secret=...
+        new MaskRule(
+            Pattern.compile("((?:password|pwd|secret|accessToken|refreshToken|apiKey|token)\\s*=\\s*)([^&\\s,\";]+)", Pattern.CASE_INSENSITIVE),
+            "$1" + MASK_REPLACEMENT
+        ),
+        // Bearer Token: Bearer ... (supports all base64 variants including +, /, =, -, _)
+        new MaskRule(
+            Pattern.compile("(Bearer\\s+)([^\"'\\s,;]+)", Pattern.CASE_INSENSITIVE),
+            "$1" + MASK_REPLACEMENT
+        ),
+        // Credit card numbers (16 digits with or without delimiters)
+        new MaskRule(
+            Pattern.compile("\\b(\\d{4}[-\\s]?\\d{4}[-\\s]?\\d{4}[-\\s]?)(\\d{4})\\b"),
+            "****-****-****-$2"
+        )
+    );
 
     @Override
     protected String transform(ILoggingEvent event, String in) {
@@ -31,19 +49,8 @@ public class LogMaskingConverter extends CompositeConverter<ILoggingEvent> {
         }
 
         String masked = message;
-        for (Pattern pattern : MASK_PATTERNS) {
-            Matcher matcher = pattern.matcher(masked);
-            if (matcher.find()) {
-                if (pattern.pattern().contains("Bearer")) {
-                    masked = matcher.replaceAll("$1" + MASK_REPLACEMENT);
-                } else if (pattern.pattern().contains("\\b(\\d{4}")) {
-                    masked = matcher.replaceAll("****-****-****-$2");
-                } else if (pattern.pattern().startsWith("(\"")) {
-                    masked = matcher.replaceAll("$1" + MASK_REPLACEMENT + "$3");
-                } else {
-                    masked = matcher.replaceAll("$1" + MASK_REPLACEMENT);
-                }
-            }
+        for (MaskRule rule : RULES) {
+            masked = rule.apply(masked);
         }
         return masked;
     }

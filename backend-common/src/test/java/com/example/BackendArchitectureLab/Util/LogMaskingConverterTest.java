@@ -1,10 +1,15 @@
 package com.example.BackendArchitectureLab.Util;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.PatternLayout;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.LoggingEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,11 +54,16 @@ class LogMaskingConverterTest {
     }
 
     @Test
-    void mask_shouldMaskBearerToken() {
-        String log = "Headers: Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
-        String masked = LogMaskingConverter.mask(log);
+    void mask_shouldMaskBearerTokenWithStandardAndUrlSafeBase64() {
+        // Standard base64 with +, /, =
+        String log1 = "Headers: Authorization: Bearer eyJhbGciOi+JIUzI1Ni/IsInR5cCI6IkpXVCJ9==";
+        String masked1 = LogMaskingConverter.mask(log1);
+        assertEquals("Headers: Authorization: Bearer ******", masked1);
 
-        assertEquals("Headers: Authorization: Bearer ******", masked);
+        // Bearer token inside JSON quotes
+        String log2 = "{\"auth\": \"Bearer token+with/slash==\"}";
+        String masked2 = LogMaskingConverter.mask(log2);
+        assertEquals("{\"auth\": \"Bearer ******\"}", masked2);
     }
 
     @Test
@@ -73,5 +83,32 @@ class LogMaskingConverterTest {
         String result = converter.transform(loggingEvent, log);
 
         assertEquals("{\"secret\": \"******\"}", result);
+    }
+
+    @Test
+    void lokiPatternLayout_shouldApplyMaskingToFormattedMessage() {
+        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        PatternLayout layout = new PatternLayout();
+        layout.setContext(lc);
+        layout.getInstanceConverterMap().put("mask", LogMaskingConverter::new);
+        layout.setPattern("logger=%logger %mask(%msg)");
+        layout.start();
+
+        LoggingEvent event = new LoggingEvent(
+            "com.example.TestLogger",
+            lc.getLogger("com.example.TestLogger"),
+            Level.INFO,
+            "User login attempted with password=plain-secret-pass and Bearer secret-token-xyz",
+            null,
+            null
+        );
+
+        String formatted = layout.doLayout(event);
+        assertTrue(formatted.contains("password=******"));
+        assertTrue(formatted.contains("Bearer ******"));
+        assertFalse(formatted.contains("plain-secret-pass"));
+        assertFalse(formatted.contains("secret-token-xyz"));
+
+        layout.stop();
     }
 }

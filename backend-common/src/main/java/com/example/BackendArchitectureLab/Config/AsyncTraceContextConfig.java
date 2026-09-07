@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
 import org.springframework.util.ClassUtils;
+import reactor.core.publisher.Hooks;
 
 @Configuration
 public class AsyncTraceContextConfig {
@@ -14,7 +15,7 @@ public class AsyncTraceContextConfig {
     @PostConstruct
     public void initContextPropagation() {
         if (ClassUtils.isPresent("reactor.core.publisher.Hooks", getClass().getClassLoader())) {
-            reactor.core.publisher.Hooks.enableAutomaticContextPropagation();
+            Hooks.enableAutomaticContextPropagation();
         }
     }
 
