@@ -16,17 +16,17 @@ public class LogMaskingConverter extends CompositeConverter<ILoggingEvent> {
     private static final String MASK_REPLACEMENT = "******";
 
     private static final List<MaskRule> RULES = List.of(
-        // JSON: "password": "...", "token": "..."
+        // JSON credentials masking rule (password, token, secret, apiKey)
         new MaskRule(
             Pattern.compile("(\"(?:password|pwd|secret|accessToken|refreshToken|apiKey|token)\"\\s*:\\s*\")([^\"]+)(\")", Pattern.CASE_INSENSITIVE),
             "$1" + MASK_REPLACEMENT + "$3"
         ),
-        // Key-value / Query / Form parameters: password=... or secret=...
+        // Key-value, query, or form parameters masking rule
         new MaskRule(
             Pattern.compile("((?:password|pwd|secret|accessToken|refreshToken|apiKey|token)\\s*=\\s*)([^&\\s,\";]+)", Pattern.CASE_INSENSITIVE),
             "$1" + MASK_REPLACEMENT
         ),
-        // Bearer Token: Bearer ... (supports all base64 variants including +, /, =, -, _)
+        // Bearer Token masking rule (supports all base64 variants including +, /, =, -, _)
         new MaskRule(
             Pattern.compile("(Bearer\\s+)([^\"'\\s,;]+)", Pattern.CASE_INSENSITIVE),
             "$1" + MASK_REPLACEMENT
