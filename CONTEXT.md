@@ -75,3 +75,20 @@ _Avoid_: Code check, Static filter, Lint pass.
 **Coverage Report Binding (覆蓋率報告綁定)**:
 在多模組 Maven 架構中，將各子模組產生的 JaCoCo XML 測試覆蓋率資料路徑顯式綁定並注入 SonarQube Scanner，以確保排除模組與覆蓋率計算之精確性的機制。
 _Avoid_: Manual report upload, Raw metric import.
+
+**Trace Correlation (鏈路日誌關聯)**:
+在分散式微服務架構中，以唯一的鏈路識別碼貫穿 HTTP 請求、遠端呼叫與非同步任務日誌的端到端追蹤機制。
+_Avoid_: Log linking, Request tagging, Span tracker.
+
+**Log Stream Label (日誌串流標籤)**:
+日誌儲存引擎中用於建立倒排索引的低基數維度標籤，用以區隔不同服務與環境的日誌流，避免索引維度爆炸。
+_Avoid_: High-cardinality index, Message tag, Payload field.
+
+**Log Masking (日誌脫敏防護)**:
+日誌在輸出至儲存端或控制台前，自動對金鑰、密碼及憑證等敏感字串進行模式比對與遮蔽的合規防線。
+_Avoid_: Code redaction, Filter drop, Manual sanitize.
+
+**Async Log Buffering (非同步日誌緩衝降級)**:
+日誌輸出端採用的非阻塞記憶體環狀緩衝機制，當日誌伺服器斷線或超時時自動丟棄或降級輸出，確保主業務執行緒永不被阻塞。
+_Avoid_: Sync logging, Blocking queue, Hard-fail logging.
+

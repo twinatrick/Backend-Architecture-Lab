@@ -78,6 +78,10 @@
             <artifactId>spring-kafka</artifactId>
             <optional>true</optional>
         </dependency>
+        <dependency>
+            <groupId>com.github.loki4j</groupId>
+            <artifactId>loki-logback-appender</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
