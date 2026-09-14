@@ -4,6 +4,8 @@ from typing import Any
 
 from check_rules import (
     BANNED_PERMISSIONS,
+    FOREIGN_ENTITIES,
+    RULE_CONSTRUCTOR_INJECTION,
     RULE_CONTROLLER_DATA_ISOLATION,
     RULE_CONTROLLER_DEPENDENCY,
     RULE_DEPENDENCY_INJECTION,
@@ -12,54 +14,12 @@ from check_rules import (
     RULE_MICROSERVICE_ISOLATION,
     RULE_OPENAPI_ANNOTATION,
     RULE_PERMISSION_DICTIONARY,
+    RULE_PROHIBIT_FQN,
     RULE_PROHIBIT_SELF_FEIGN,
     RULE_SERVICE_ENTITY_MANAGER,
+    SERVICE_MODULES,
     make_finding,
 )
-
-SERVICE_MODULES = (
-    "backend-iam-service",
-    "backend-competency-service",
-    "backend-job-service",
-    "backend-alert-service",
-    "backend-external-api-service",
-    "backend-gateway",
-)
-
-FOREIGN_ENTITIES = {
-    "backend-iam-service": (
-        "SkillEntity", "ProjectEntity", "JobPostingEntity", "JobApplicationEntity",
-        "CompetencyEntity", "CompensationOutbox", "AlertRuleEntity", "AlarmHistoryEntity",
-        "ExternalApiConfigEntity", "BotConfigEntity", "SkillRepository", "ProjectRepository",
-        "CompetencyRepository", "JobPostingRepository", "AlertRuleRepository",
-        "AlarmHistoryRepository",
-    ),
-    "backend-competency-service": (
-        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SystemUserEntity",
-        "JobPostingEntity", "JobApplicationEntity", "AlertRuleEntity", "AlarmHistoryEntity",
-        "ExternalApiConfigEntity", "BotConfigEntity", "UserRepository", "RoleRepository",
-        "PermissionRepository", "JobPostingRepository", "AlertRuleRepository",
-    ),
-    "backend-job-service": (
-        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SystemUserEntity",
-        "SkillEntity", "ProjectEntity", "CompensationOutbox", "AlertRuleEntity",
-        "AlarmHistoryEntity", "ExternalApiConfigEntity", "UserRepository", "SkillRepository",
-        "ProjectRepository", "AlertRuleRepository",
-    ),
-    "backend-alert-service": (
-        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SkillEntity",
-        "ProjectEntity", "JobPostingEntity", "CompensationOutbox", "ExternalApiConfigEntity",
-        "UserRepository", "SkillRepository", "JobPostingRepository",
-    ),
-    "backend-external-api-service": (
-        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SkillEntity",
-        "ProjectEntity", "JobPostingEntity", "CompensationOutbox", "AlertRuleEntity",
-        "UserRepository", "SkillRepository", "ProjectRepository",
-    ),
-    "backend-gateway": (
-        "Entity", "Repository",
-    ),
-}
 
 
 def _detect_module(path: str) -> str:
@@ -163,6 +123,8 @@ def check_java_file(
     is_controller = "Controller" in filename or "@RestController" in content
     is_service_impl = "ServiceImpl" in filename or "/Service/Impl/" in path.replace("\\", "/")
     current_module = _detect_module(path)
+    class_match = re.search(r"\bclass\s+([A-Z]\w+)\b", content)
+    class_name = class_match.group(1) if class_match else ""
 
     # 檢查自我 Feign（支援跨多行註解）
     findings.extend(_check_self_feign_block(path, content, current_module, changed_lines))
@@ -194,27 +156,68 @@ def check_java_file(
                     "依據《開發規範.md》§2 權限字典替換為標準權限命名",
                 ))
 
-        # 4. 生產環境 @Autowired 檢查
-        if not is_test and re.search(r"@Autowired\b", line):
-            findings.append(make_finding(
-                path, idx, "HIGH", "COMPLIANCE",
-                RULE_DEPENDENCY_INJECTION,
-                "生產程式碼中嚴禁使用 @Autowired 進行欄位注入",
-                raw_line.strip(),
-                "欄位注入隱藏依賴且不利於單元測試",
-                "採用 Lombok @RequiredArgsConstructor 搭配 private final",
-            ))
+        # 4. 生產環境 @Autowired 與手寫建構子檢查
+        if not is_test:
+            if re.search(r"@Autowired\b", line) and not re.search(
+                r"@Autowired\s*\(\s*required\s*=\s*false\s*\)", line
+            ):
+                findings.append(make_finding(
+                    path, idx, "HIGH", "COMPLIANCE",
+                    RULE_DEPENDENCY_INJECTION,
+                    "生產程式碼中嚴禁使用 @Autowired 進行欄位注入",
+                    raw_line.strip(),
+                    "欄位注入隱藏依賴且不利於單元測試",
+                    "採用 Lombok @RequiredArgsConstructor 搭配 private final",
+                ))
+
+            # 檢查手寫多載建構子 (this(...)) 或 Controller/ServiceImpl 手寫建構子
+            exemptions = (
+                "Entity", "Vo", "Exception", "Wrapper", "DTO", "Dto",
+                "Config", "Configuration", "Filter",
+            )
+            if not any(ex in filename for ex in exemptions):
+                if re.search(r"^\s*this\s*\(", line):
+                    findings.append(make_finding(
+                        path, idx, "HIGH", "COMPLIANCE",
+                        RULE_CONSTRUCTOR_INJECTION,
+                        "類別內部手寫多載建構子 (this(...))，違反專案依賴注入規範",
+                        raw_line.strip(),
+                        "手寫多載建構子破壞依賴注入單一來源原則並增加維護複雜度",
+                        "統一採用 Lombok @RequiredArgsConstructor，多載組裝移至 @Configuration",
+                    ))
+                elif (
+                    class_name
+                    and (is_controller or is_service_impl)
+                    and re.search(rf"^\s*(?:public|protected)\s+{class_name}\s*\(", line)
+                ):
+                    findings.append(make_finding(
+                        path, idx, "HIGH", "COMPLIANCE",
+                        RULE_CONSTRUCTOR_INJECTION,
+                        f"{'Controller' if is_controller else 'ServiceImpl'} 嚴禁手寫建構子進行注入",
+                        raw_line.strip(),
+                        "違反專案全建構子注入規範",
+                        "移除手寫建構子，統一標註 @RequiredArgsConstructor 搭配 private final",
+                    ))
 
         # 5. Controller 分層與 OpenAPI 規範檢查
         if is_controller:
-            if re.search(r"@Operation\(", line):
+            if line.strip().startswith("import io.swagger.v3.oas.annotations"):
+                findings.append(make_finding(
+                    path, idx, "HIGH", "COMPLIANCE",
+                    RULE_OPENAPI_ANNOTATION,
+                    "Controller 嚴禁直接引用原生 io.swagger.v3.oas.annotations 套件",
+                    raw_line.strip(),
+                    "引入原生 Swagger 註解破壞專案統一之 API 規格與錯誤碼封裝",
+                    "改用專案封裝之 OpenApi 註解 (@ApiControllerTag, @ApiOperationOk)",
+                ))
+            elif re.search(r"@(Tag|Operation|ApiResponse|Parameters|Parameter)\b", line):
                 findings.append(make_finding(
                     path, idx, "MEDIUM", "COMPLIANCE",
                     RULE_OPENAPI_ANNOTATION,
-                    "Controller 應使用專案封裝之 OpenApi 註解取代原生 @Operation",
+                    "Controller 應使用專案封裝之 OpenApi 註解取代原生 Swagger 註解",
                     raw_line.strip(),
                     "缺少統一的 API 響應結構與錯誤碼說明",
-                    "使用 @OpenApiCommonResponse 或專案標準註解封裝",
+                    "使用 @ApiControllerTag / @ApiOperationOk 等專案標準註解封裝",
                 ))
             if re.search(r"private\s+final\s+.*EntityManager\b", line):
                 findings.append(make_finding(
@@ -254,5 +257,28 @@ def check_java_file(
                 "違反資料存取抽象化規範",
                 "將資料庫操作封裝至 DataAccess 或 Repository",
             ))
+
+        # 7. 禁寫完全限定名稱 (FQN) 檢查 (§5.12)
+        if not is_test:
+            trimmed = line.strip()
+            is_import_or_pkg = trimmed.startswith(
+                ("import ", "package ", "//", "*", "/*", "@Mapping")
+            )
+            if not is_import_or_pkg:
+                fqn_prefix = (
+                    r"com\.example\.BackendArchitectureLab\."
+                    r"(?:Repository|Entity|Service|Exception)"
+                )
+                fqn_pattern = rf"\b(java\.(?:util|time|sql|io)|{fqn_prefix})\.[A-Z]\w+\b"
+                fqn_match = re.search(fqn_pattern, line)
+                if fqn_match:
+                    findings.append(make_finding(
+                        path, idx, "HIGH", "COMPLIANCE",
+                        RULE_PROHIBIT_FQN,
+                        f"程式碼中禁止直接使用完全限定名稱 (FQN): {fqn_match.group(0)}",
+                        raw_line.strip(),
+                        "違反《開發規範.md》§5.12，降低程式碼可讀性與一致性",
+                        "檔案頂部顯式宣告 import，程式碼中僅使用簡潔類別名稱",
+                    ))
 
     return findings

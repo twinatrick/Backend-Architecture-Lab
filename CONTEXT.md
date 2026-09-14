@@ -120,3 +120,12 @@ _Avoid_: Lock steal, Force override, Dead lock break.
 在整合測試生命週期中，透過 TCP 代理層動態插入網路延遲（Latency Toxic）與頻寬中斷（Bandwidth/Down Toxic）的確定性模擬管線。
 _Avoid_: Network interceptor, Fake port, Mock socket.
 
+**Pre-commit Compliance Gate (提交前規範通行閘門)**:
+在版本控制提交變更前，由本地端確定性稽核引擎執行的強制性守門防線，以阻絕任何違反微服務架構邊界或安全規範的程式碼進入儲存庫。
+_Avoid_: Commit linter, Git check, Format hook.
+
+**Local Deterministic Audit (本機確定性規範稽核)**:
+在開發端本機環境中執行的離線、零相依、高效率靜態規則掃描機制，與 CI 遠端稽核規則 100% 鏡像對齊，確保提交即合規。
+_Avoid_: Remote linting, Cloud audit, Manual checklist.
+
+

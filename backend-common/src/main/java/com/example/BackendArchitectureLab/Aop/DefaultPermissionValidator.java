@@ -2,62 +2,25 @@ package com.example.BackendArchitectureLab.Aop;
 
 import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.time.Duration;
 
 /**
  * 預設權限驗證器：當服務未提供 LocalPermissionValidatorImpl（例如非 IAM 服務）時使用，
  * 透過 Caffeine 本地快取與 Resilience4j 斷路器保護 Feign 呼叫 IAM 進行權限驗證。
  * 遵循 Fail-Closed 原則，於熔斷或不可用時快速失敗。
  */
+@RequiredArgsConstructor
 public class DefaultPermissionValidator implements LocalPermissionValidator {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultPermissionValidator.class);
-    private static final long DEFAULT_MAX_SIZE = 10_000L;
-    private static final Duration DEFAULT_TTL = Duration.ofSeconds(30);
 
     private final PermissionCheckFeignClient permissionCheckFeignClient;
     private final CircuitBreaker circuitBreaker;
     private final Cache<String, Boolean> permissionCache;
-
-    public DefaultPermissionValidator(PermissionCheckFeignClient permissionCheckFeignClient) {
-        this(permissionCheckFeignClient, (CircuitBreakerRegistry) null);
-    }
-
-    public DefaultPermissionValidator(PermissionCheckFeignClient permissionCheckFeignClient,
-                                      CircuitBreakerRegistry circuitBreakerRegistry) {
-        this(permissionCheckFeignClient,
-                circuitBreakerRegistry != null
-                        ? circuitBreakerRegistry.circuitBreaker("permissionCheck")
-                        : CircuitBreaker.ofDefaults("permissionCheck"),
-                Caffeine.newBuilder()
-                        .maximumSize(DEFAULT_MAX_SIZE)
-                        .expireAfterWrite(DEFAULT_TTL)
-                        .recordStats()
-                        .build());
-    }
-
-    public DefaultPermissionValidator(PermissionCheckFeignClient permissionCheckFeignClient,
-                                      CircuitBreaker circuitBreaker,
-                                      Cache<String, Boolean> permissionCache) {
-        this.permissionCheckFeignClient = permissionCheckFeignClient;
-        this.circuitBreaker = circuitBreaker != null
-                ? circuitBreaker
-                : CircuitBreaker.ofDefaults("permissionCheck");
-        this.permissionCache = permissionCache != null
-                ? permissionCache
-                : Caffeine.newBuilder()
-                        .maximumSize(DEFAULT_MAX_SIZE)
-                        .expireAfterWrite(DEFAULT_TTL)
-                        .recordStats()
-                        .build();
-    }
 
     @Override
     public boolean validate(String email, String one, String two, String three) {

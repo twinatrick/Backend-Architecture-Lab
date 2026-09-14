@@ -11,6 +11,7 @@ RULE_CONTROLLER_DEPENDENCY = "開發規範 §1.3 Controller 依賴規範"
 RULE_ENTITY_USAGE = "開發規範 §1.3 Entity 使用規範"
 RULE_SERVICE_ENTITY_MANAGER = "開發規範 §1.3 Service 禁止操作 EntityManager"
 RULE_DEPENDENCY_INJECTION = "開發規範 §1.4 依賴注入規範"
+RULE_CONSTRUCTOR_INJECTION = "開發規範 §1.4/§5.7 依賴注入與建構子規範"
 RULE_PERMISSION_DICTIONARY = "開發規範 §2 權限字典與禁用字串規範"
 RULE_SECRET_PROTECTION = "開發規範 §2 敏感資訊與金鑰保護規範"
 RULE_CI_TRUST_BOUNDARY = "開發規範 §2 CI 信任邊界防護"
@@ -25,6 +26,7 @@ RULE_PYTHON_MODULE_LOC = "開發規範 §4.3 單一職責與單檔行數限制"
 RULE_PYTHON_TYPE_HINTS = "開發規範 §4.3 型別標註規範"
 RULE_PYTHON_SPECIFIC_EXCEPTION = "開發規範 §4.4 具體例外處理規範"
 RULE_PYTHON_ERROR_HANDLING = "開發規範 §4.4 錯誤處理與安全規範"
+RULE_PROHIBIT_FQN = "開發規範 §5.12 禁寫完全限定名稱規範"
 
 BANNED_PERMISSIONS = (
     "PersonalEdit",
@@ -40,6 +42,50 @@ BANNED_PERMISSIONS = (
 )
 
 SECRET_REGEXES = STATIC_SECRET_REGEXES
+
+SERVICE_MODULES = (
+    "backend-iam-service",
+    "backend-competency-service",
+    "backend-job-service",
+    "backend-alert-service",
+    "backend-external-api-service",
+    "backend-gateway",
+)
+
+FOREIGN_ENTITIES = {
+    "backend-iam-service": (
+        "SkillEntity", "ProjectEntity", "JobPostingEntity", "JobApplicationEntity",
+        "CompetencyEntity", "CompensationOutbox", "AlertRuleEntity", "AlarmHistoryEntity",
+        "ExternalApiConfigEntity", "BotConfigEntity", "SkillRepository", "ProjectRepository",
+        "CompetencyRepository", "JobPostingRepository", "AlertRuleRepository",
+        "AlarmHistoryRepository",
+    ),
+    "backend-competency-service": (
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SystemUserEntity",
+        "JobPostingEntity", "JobApplicationEntity", "AlertRuleEntity", "AlarmHistoryEntity",
+        "ExternalApiConfigEntity", "BotConfigEntity", "UserRepository", "RoleRepository",
+        "PermissionRepository", "JobPostingRepository", "AlertRuleRepository",
+    ),
+    "backend-job-service": (
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SystemUserEntity",
+        "SkillEntity", "ProjectEntity", "CompensationOutbox", "AlertRuleEntity",
+        "AlarmHistoryEntity", "ExternalApiConfigEntity", "UserRepository", "SkillRepository",
+        "ProjectRepository", "AlertRuleRepository",
+    ),
+    "backend-alert-service": (
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SkillEntity",
+        "ProjectEntity", "JobPostingEntity", "CompensationOutbox", "ExternalApiConfigEntity",
+        "UserRepository", "SkillRepository", "JobPostingRepository",
+    ),
+    "backend-external-api-service": (
+        "UserEntity", "RoleEntity", "PermissionEntity", "GroupEntity", "SkillEntity",
+        "ProjectEntity", "JobPostingEntity", "CompensationOutbox", "AlertRuleEntity",
+        "UserRepository", "SkillRepository", "ProjectRepository",
+    ),
+    "backend-gateway": (
+        "Entity", "Repository",
+    ),
+}
 
 
 def make_finding(

@@ -54,6 +54,10 @@
 
 ## Git & Version Control (嚴格規定)
 - **絕對禁止擅自 Commit/Push (CRITICAL)**：在任何情況下，Agent **絕對不可以**在未經使用者明確指示或同意的情況下，自動執行 `git commit`、`git push` 或任何修改 Git 歷史紀錄的操作。
+- **Pre-commit 規範檢查強制通行 (CRITICAL)**：
+  在執行 `git commit` 前，**必須先執行本地規範檢查**：`python .github/ai-review/check_local.py`。
+  必須確認檢查結果為 0 阻擋違規（Failures: 0，Exit Code: 0）才能執行 commit。
+  若有 HIGH 或 MEDIUM 等級違規，**嚴禁 commit**，必須依照《開發規範.md》修正完畢後再次執行並通過，才能進行提交。
 - **敏感檔案保護**：執行任何 Git 相關操作前，必須檢查並確保 `.env` 等包含機密/本地設定的檔案已正確列入 `.gitignore`，嚴禁將其加入版本控制。
 - **禁止提交日誌與暫存檔案 (Pre-commit 優先檢查)**：
   在每次執行 `git commit` 前，**必須優先檢查**工作目錄中是否包含 `*.log`、`*.err` 等日誌/錯誤檔案，

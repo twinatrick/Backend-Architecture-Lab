@@ -1,9 +1,9 @@
 package com.example.BackendArchitectureLab.Controller;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
@@ -16,13 +16,13 @@ import reactor.core.publisher.Mono;
 
 import java.util.concurrent.TimeoutException;
 
-@Tag(name = "Gateway Fallback", description = "微服務降級與熔斷統一回退端點")
+@ApiControllerTag(name = "Gateway Fallback", description = "微服務降級與熔斷統一回退端點")
 @RestController
 public class GatewayFallbackController {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayFallbackController.class);
 
-    @Operation(summary = "熔斷降級回退端點", description = "下游微服務不可用或超時被熔斷時的統一回退處理")
+    @ApiOperationOk(summary = "熔斷降級回退端點", description = "下游微服務不可用或超時被熔斷時的統一回退處理")
     @RequestMapping("/fallback")
     public Mono<ResponseEntity<ResponseType<Void>>> fallback(ServerWebExchange exchange) {
         Throwable exception = exchange.getAttribute(ServerWebExchangeUtils.CIRCUITBREAKER_EXECUTION_EXCEPTION_ATTR);

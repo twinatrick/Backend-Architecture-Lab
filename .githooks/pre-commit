@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+# ==============================================================================
+# Backend Architecture Lab - Pre-commit Compliance Gate
+# 執行本機 Python 確定性規範稽核，阻擋任何架構分層、OpenAPI 或安全違規。
+# ==============================================================================
+
+PYTHON_BIN=""
+for candidate in python python3 py; do
+    if $candidate -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" >/dev/null 2>&1; then
+        PYTHON_BIN="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+    echo "[ERROR] 未在 PATH 中找到 Python 執行檔，無法執行 Pre-commit 規範檢查！"
+    echo "請安裝 Python 3 或確認環境變數 PATH 設定。"
+    exit 1
+fi
+
+echo "[PRE-COMMIT] 啟動本地端規範通行檢查 (check_local.py)..."
+"$PYTHON_BIN" .github/ai-review/check_local.py
+
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "[ABORT] Git Commit 遭中斷：請修正上述違規後重試。"
+    echo "（若為極端緊急狀況，可使用 'git commit --no-verify' 繞過檢查）"
+    exit $EXIT_CODE
+fi
+
+exit 0
