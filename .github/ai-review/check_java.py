@@ -190,10 +190,11 @@ def check_java_file(
                     and (is_controller or is_service_impl)
                     and re.search(rf"^\s*(?:public|protected)\s+{class_name}\s*\(", line)
                 ):
+                    target_role = "Controller" if is_controller else "ServiceImpl"
                     findings.append(make_finding(
                         path, idx, "HIGH", "COMPLIANCE",
                         RULE_CONSTRUCTOR_INJECTION,
-                        f"{'Controller' if is_controller else 'ServiceImpl'} 嚴禁手寫建構子進行注入",
+                        f"{target_role} 嚴禁手寫建構子進行注入",
                         raw_line.strip(),
                         "違反專案全建構子注入規範",
                         "移除手寫建構子，統一標註 @RequiredArgsConstructor 搭配 private final",

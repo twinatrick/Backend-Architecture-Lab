@@ -16,7 +16,7 @@ AI_REVIEW_DIR = Path(__file__).resolve().parent
 if str(AI_REVIEW_DIR) not in sys.path:
     sys.path.insert(0, str(AI_REVIEW_DIR))
 
-import static_checks  # noqa: E402
+import static_checks
 
 
 def run_git_cmd(cmd: list[str]) -> str:
