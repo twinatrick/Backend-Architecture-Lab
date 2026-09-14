@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Aop;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import feign.FeignException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -90,7 +91,13 @@ public class PermissionCheck {
             matched = localPermissionValidator.validate(email, module, layer, action);
         } catch (Exception e) {
             Throwable cause = e instanceof InvocationTargetException ? e.getCause() : e;
-            if (cause instanceof FeignException fe) {
+            if (cause instanceof CallNotPermittedException cb) {
+                log.error("Permission check CircuitBreaker OPEN for user={}, path={}/{}/{}: {}",
+                        email, module, layer, action, cb.getMessage());
+                setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+                return ResponseType.Fail("CIRCUIT_BREAKER_OPEN",
+                        "Permission service unavailable: circuit breaker open", 503);
+            } else if (cause instanceof FeignException fe) {
                 log.error("Permission check Feign call failed for user={}, path={}/{}/{}: status={}, message={}",
                         email, module, layer, action, fe.status(), fe.getMessage());
                 setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
