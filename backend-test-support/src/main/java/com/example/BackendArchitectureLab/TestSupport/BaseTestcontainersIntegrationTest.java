@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.TestSupport;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -11,6 +12,7 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * Testcontainers 整合測試基底抽象類別
  */
+@Timeout(60)
 public abstract class BaseTestcontainersIntegrationTest implements ApplicationContextAware {
 
     private ApplicationContext applicationContext;
@@ -46,6 +48,9 @@ public abstract class BaseTestcontainersIntegrationTest implements ApplicationCo
 
     @AfterEach
     void tearDownSharedState() {
+        // 重設所有 Toxiproxy 故障注入狀態，確保後續清理與下個測試網路正常
+        SharedContainers.resetAllToxics();
+
         if (applicationContext != null) {
             try {
                 DatabaseCleaner databaseCleaner = applicationContext.getBean(DatabaseCleaner.class);

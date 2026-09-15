@@ -6,7 +6,7 @@ import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Repository.CompensationOutboxEventRepository;
 import com.example.BackendArchitectureLab.Service.ICompensationPublisher;
 import com.example.BackendArchitectureLab.TestSupport.BaseChaosIntegrationTest;
-import com.example.BackendArchitectureLab.TestSupport.SharedChaosContainers;
+import com.example.BackendArchitectureLab.TestSupport.SharedContainers;
 import com.example.BackendArchitectureLab.Timer.CompensationOutboxWorker;
 import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
 import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.*;
 
 @ActiveProfiles("test")
 @SpringBootTest(classes = CompetencyApplication.class)
+@Timeout(30)
 public class CompensationChaosIT extends BaseChaosIntegrationTest {
 
     @Autowired
@@ -60,9 +62,9 @@ public class CompensationChaosIT extends BaseChaosIntegrationTest {
 
     @DynamicPropertySource
     static void configureChaosPostgres(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> SharedChaosContainers.getPostgresUrlForDatabase("competency_service"));
-        registry.add("spring.datasource.username", SharedChaosContainers::getPostgresUsername);
-        registry.add("spring.datasource.password", SharedChaosContainers::getPostgresPassword);
+        registry.add("spring.datasource.url", () -> SharedContainers.getPostgresUrlForDatabase("competency_service"));
+        registry.add("spring.datasource.username", SharedContainers::getPostgresUsername);
+        registry.add("spring.datasource.password", SharedContainers::getPostgresPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
@@ -208,16 +210,18 @@ public class CompensationChaosIT extends BaseChaosIntegrationTest {
         // 驗證正常通道下資料庫操作正常
         assertDoesNotThrow(() -> outboxRepository.count());
 
-        // 注入網路故障：切斷代理網路連線
-        SharedChaosContainers.cutPostgresNetwork();
+        try {
+            // 注入網路故障：切斷代理網路連線 (主動 disable + 雙向頻寬歸零)
+            SharedContainers.cutPostgresNetwork();
 
-        // 斷網狀態下資料庫查詢應拋出異常
-        assertThrows(DataAccessException.class, () -> {
-            outboxRepository.count();
-        }, "網路分區切斷時，資料庫存取應立即中斷拋出異常");
-
-        // 恢復代理網路連線
-        SharedChaosContainers.restorePostgresNetwork();
+            // 斷網狀態下資料庫查詢應在 socketTimeout 內拋出異常
+            assertThrows(DataAccessException.class, () -> {
+                outboxRepository.count();
+            }, "網路分區切斷時，資料庫存取應中斷並拋出異常");
+        } finally {
+            // 確保即便斷言失敗也必定恢復代理網路連線
+            SharedContainers.restorePostgresNetwork();
+        }
 
         // 驗證網路恢復後資料庫存取自動回復正常
         assertDoesNotThrow(() -> outboxRepository.count(), "網路通道恢復後，資料庫操作應完全恢復");
