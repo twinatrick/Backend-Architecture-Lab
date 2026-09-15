@@ -30,6 +30,9 @@ public class KafkaCompensationConfig {
     @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
 
+    @Value("${spring.kafka.consumer.group-id:compensation-group}")
+    private String consumerGroupId;
+
     @Bean
     public ProducerFactory<String, CompensationEvent> compensationProducerFactory(ObjectMapper objectMapper) {
         Map<String, Object> props = new HashMap<>();
@@ -49,7 +52,7 @@ public class KafkaCompensationConfig {
     public ConsumerFactory<String, CompensationEvent> compensationConsumerFactory(ObjectMapper objectMapper) {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "compensation-group");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         JsonDeserializer<CompensationEvent> deserializer = new JsonDeserializer<>(

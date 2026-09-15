@@ -92,3 +92,40 @@ _Avoid_: Code redaction, Filter drop, Manual sanitize.
 日誌輸出端採用的非阻塞記憶體環狀緩衝機制，當日誌伺服器斷線或超時時自動丟棄或降級輸出，確保主業務執行緒永不被阻塞。
 _Avoid_: Sync logging, Blocking queue, Hard-fail logging.
 
+**Chaos Verification (混沌驗證)**:
+在端到端整合測試環境中，主動注入非預期之網路分區、TCP 延遲、資源耗盡或節點暴斃，以自動化檢驗分散式狀態機是否能自愈並維持一致性的工程實踐。
+_Avoid_: Destructive test, Random breakdown, Uncontrolled crash.
+
+**Toxic Proxy (故障注入代理)**:
+介於應用程式與其基礎設施（如 DB、Kafka、Redis）之間的網路代理管道，由測試套件動態操控以模擬網路延遲、抖動或斷線。
+_Avoid_: Mock server, Stub proxy, Traffic sniffer.
+
+**Cascading Failure Defense (微服務防雪崩防禦)**:
+在分散式鏈路中結合斷路器（Circuit Breaker）、本機降級快取與線程隔離（Bulkhead），防止單一下游服務異常導致上游調用方資源衰竭的保護機制。
+_Avoid_: Retry storm, Hard dependency, Fail cascade.
+
+**Stale Worker Fencing (陳舊工作者隔離防護)**:
+當分散式工作者因長時間 GC 停頓或網路隔絕導致租約過期後，藉由資料庫原子單調遞增的代數 Token（Fencing Version）徹底阻絕其甦醒後產生的過期髒寫入。
+_Avoid_: Race lock, Lease renewal, Soft check.
+
+**Fail-Closed Authorization (閉合失敗授權)**:
+當身分與權限判定服務無法連線且本地快取未命中時，一律視為未授權並立即中斷請求的防衛原則，防止在安全狀態不明時意外放行操作。
+_Avoid_: Soft allow, Fail-open, Permissive auth.
+
+**Lease Preemption (租約搶佔接管)**:
+當持有分佈式租約之工作者心跳超時或中斷時，由其他待命工作者透過原子條件更新（CAS）強制奪取租約並遞增代數（Version）的自主容錯機制。
+_Avoid_: Lock steal, Force override, Dead lock break.
+
+**Toxiproxy Pipeline (故障注入管道)**:
+在整合測試生命週期中，透過 TCP 代理層動態插入網路延遲（Latency Toxic）與頻寬中斷（Bandwidth/Down Toxic）的確定性模擬管線。
+_Avoid_: Network interceptor, Fake port, Mock socket.
+
+**Pre-commit Compliance Gate (提交前規範通行閘門)**:
+在版本控制提交變更前，由本地端確定性稽核引擎執行的強制性守門防線，以阻絕任何違反微服務架構邊界或安全規範的程式碼進入儲存庫。
+_Avoid_: Commit linter, Git check, Format hook.
+
+**Local Deterministic Audit (本機確定性規範稽核)**:
+在開發端本機環境中執行的離線、零相依、高效率靜態規則掃描機制，與 CI 遠端稽核規則 100% 鏡像對齊，確保提交即合規。
+_Avoid_: Remote linting, Cloud audit, Manual checklist.
+
+

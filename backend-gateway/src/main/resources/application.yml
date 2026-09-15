@@ -23,6 +23,10 @@ spring:
             - Path=/api/auth/**,/api/users/**,/api/role/**,/api/function/**
           filters:
             - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: iamCircuitBreaker
+                fallbackUri: forward:/fallback
 
         - id: job-service
           uri: lb://job-service
@@ -30,6 +34,10 @@ spring:
             - Path=/api/job-posting/**,/api/company/**,/api/user-job-link/**,/api/user/bindings/job/**
           filters:
             - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: jobCircuitBreaker
+                fallbackUri: forward:/fallback
 
         - id: competency-service
           uri: lb://competency-service
@@ -37,6 +45,10 @@ spring:
             - Path=/api/skill/**,/api/project/**,/api/user/bindings/**
           filters:
             - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: competencyCircuitBreaker
+                fallbackUri: forward:/fallback
 
         - id: external-api-service
           uri: lb://external-api-service
@@ -44,6 +56,10 @@ spring:
             - Path=/api/stt/**,/api/ai/**,/api/external/**
           filters:
             - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: externalApiCircuitBreaker
+                fallbackUri: forward:/fallback
 
         - id: alert-service
           uri: lb://alert-service
@@ -51,6 +67,10 @@ spring:
             - Path=/api/alertCheckLimit/**,/api/aquarkData/**
           filters:
             - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: alertCircuitBreaker
+                fallbackUri: forward:/fallback
 
         - id: cache-stats
           uri: lb://alert-service
@@ -58,6 +78,10 @@ spring:
             - Path=/api/cache-stats
           filters:
             - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: alertCircuitBreaker
+                fallbackUri: forward:/fallback
 
         - id: iam-api-docs
           uri: lb://iam-service

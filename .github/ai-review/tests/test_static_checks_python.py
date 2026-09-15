@@ -162,6 +162,41 @@ def test_check_python_missing_type_hints_detected():
     assert any("缺少明確的回傳型別標註" in finding_item["problem"] for finding_item in findings)
 
 
+def test_check_python_noqa_suppression_detected():
+    content = (
+        "import os\n"
+        "import sys  # noqa: E402\n"
+        "x = 1  # noqa\n"
+    )
+    patch = "@@ -1,3 +1,3 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
+    files = [{"filename": "scripts/sample.py", "patch": patch, "full_content": content}]
+    findings = static_checks.run_static_checks(files)
+    noqa_findings = [
+        finding_item for finding_item in findings
+        if "禁止 # noqa 行內抑制註解" in finding_item["rule"]
+    ]
+    assert len(noqa_findings) == 2
+    assert noqa_findings[0]["severity"] == "MEDIUM"
+    assert "禁止在程式碼中撰寫 # noqa 行內抑制註解" in noqa_findings[0]["problem"]
+
+
+def test_check_python_clean_code_no_noqa():
+    content = (
+        "import os\n"
+        "import sys\n\n"
+        "def run() -> None:\n"
+        "    pass\n"
+    )
+    patch = "@@ -1,4 +1,4 @@\n" + "".join(f"+{line}" for line in content.splitlines(True))
+    files = [{"filename": "scripts/clean.py", "patch": patch, "full_content": content}]
+    findings = static_checks.run_static_checks(files)
+    noqa_findings = [
+        finding_item for finding_item in findings
+        if "禁止 # noqa 行內抑制註解" in finding_item["rule"]
+    ]
+    assert noqa_findings == []
+
+
 def test_all_ai_review_python_files_compliance():
     violations = []
     for py_file in AI_REVIEW_DIR.rglob("*.py"):

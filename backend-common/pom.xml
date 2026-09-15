@@ -82,6 +82,10 @@
             <groupId>com.github.loki4j</groupId>
             <artifactId>loki-logback-appender</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

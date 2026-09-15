@@ -9,6 +9,7 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-# 測試目錄允許在 sys.path 調整後進行 import (E402)
+# 測試目錄與 CLI 工具允許在 sys.path 調整後進行 import (E402)
 ".github/ai-review/tests/*" = ["E402"]
+".github/ai-review/check_local.py" = ["E402"]
 "backend-ai-py/tests/*" = ["E402", "N802"]
