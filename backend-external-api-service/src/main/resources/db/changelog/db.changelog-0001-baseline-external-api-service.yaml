@@ -1,0 +1,493 @@
+databaseChangeLog:
+  - property:
+      name: text.type
+      value: varchar(65535)
+      dbms: h2
+  - property:
+      name: text.type
+      value: text
+      dbms: postgresql
+  - property:
+      name: text.type
+      value: text
+
+  - changeSet:
+      id: 0001-01-create-bot-config
+      author: opencode
+      changes:
+        - createTable:
+            tableName: bot_config
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: platform
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: config_key
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: config_value
+                  type: ${text.type}
+              - column:
+                  name: description
+                  type: varchar(255)
+              - column:
+                  name: cost_limit_daily
+                  type: numeric(38, 2)
+              - column:
+                  name: cost_alert_at
+                  type: numeric(38, 2)
+        - createIndex:
+            indexName: idx_bot_config_platform_key
+            tableName: bot_config
+            columns:
+              - column:
+                  name: platform
+              - column:
+                  name: config_key
+
+  - changeSet:
+      id: 0001-02-create-discord-gf-session
+      author: opencode
+      changes:
+        - createTable:
+            tableName: discord_gf_session
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: guild_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: channel_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: prompt
+                  type: ${text.type}
+              - column:
+                  name: voice_enabled
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: voice_sample_key
+                  type: varchar(255)
+              - column:
+                  name: voice_sample_text
+                  type: ${text.type}
+              - column:
+                  name: gf_name
+                  type: varchar(255)
+              - column:
+                  name: gf_avatar_url
+                  type: ${text.type}
+              - column:
+                  name: conversation_history
+                  type: ${text.type}
+              - column:
+                  name: language
+                  type: varchar(255)
+                  defaultValue: zh
+        - addUniqueConstraint:
+            constraintName: uq_discord_gf_session_channel_user
+            tableName: discord_gf_session
+            columnNames: channel_id, user_id
+        - createIndex:
+            indexName: idx_discord_gf_session_channel_id
+            tableName: discord_gf_session
+            columns:
+              - column:
+                  name: channel_id
+
+  - changeSet:
+      id: 0001-03-create-user-voice-upload
+      author: opencode
+      changes:
+        - createTable:
+            tableName: user_voice_upload
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: audio_url
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: file_name
+                  type: varchar(255)
+              - column:
+                  name: file_size
+                  type: bigint
+              - column:
+                  name: duration
+                  type: integer
+              - column:
+                  name: status
+                  type: varchar(255)
+        - createIndex:
+            indexName: idx_user_voice_upload_user_id
+            tableName: user_voice_upload
+            columns:
+              - column:
+                  name: user_id
+
+  - changeSet:
+      id: 0001-04-create-voice-translation
+      author: opencode
+      changes:
+        - createTable:
+            tableName: voice_translation
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: voice_upload_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: target_language
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: translated_text
+                  type: ${text.type}
+              - column:
+                  name: status
+                  type: varchar(255)
+              - column:
+                  name: translation_engine
+                  type: varchar(255)
+        - addForeignKeyConstraint:
+            baseTableName: voice_translation
+            baseColumnNames: voice_upload_id
+            constraintName: fk_voice_translation_voice_upload_id
+            referencedTableName: user_voice_upload
+            referencedColumnNames: id
+        - createIndex:
+            indexName: idx_voice_translation_voice_upload_id
+            tableName: voice_translation
+            columns:
+              - column:
+                  name: voice_upload_id
+
+  - changeSet:
+      id: 0001-05-create-line-gf-session
+      author: opencode
+      changes:
+        - createTable:
+            tableName: line_gf_session
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_line_gf_session_user_id
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: prompt
+                  type: ${text.type}
+              - column:
+                  name: voice_enabled
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: voice_sample_key
+                  type: varchar(255)
+              - column:
+                  name: voice_sample_text
+                  type: ${text.type}
+              - column:
+                  name: pending_prompt
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: gf_name
+                  type: varchar(255)
+              - column:
+                  name: gf_avatar_url
+                  type: ${text.type}
+              - column:
+                  name: conversation_history
+                  type: ${text.type}
+              - column:
+                  name: language
+                  type: varchar(255)
+                  defaultValue: zh
+
+  - changeSet:
+      id: 0001-06-create-discord-subscription
+      author: opencode
+      changes:
+        - createTable:
+            tableName: discord_subscription
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: guild_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: channel_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: bot_type
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: webhook_url
+                  type: varchar(255)
+              - column:
+                  name: webhook_id
+                  type: varchar(255)
+              - column:
+                  name: language
+                  type: varchar(255)
+                  defaultValue: zh
+        - createIndex:
+            indexName: idx_discord_sub_guild_bot
+            tableName: discord_subscription
+            columns:
+              - column:
+                  name: guild_id
+              - column:
+                  name: bot_type
+
+  - changeSet:
+      id: 0001-07-create-api-usage-log
+      author: opencode
+      changes:
+        - createTable:
+            tableName: api_usage_log
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: service
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: call_type
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: input_unit
+                  type: varchar(255)
+              - column:
+                  name: input_amount
+                  type: bigint
+              - column:
+                  name: estimated_cost
+                  type: decimal(10, 4)
+              - column:
+                  name: user_id
+                  type: varchar(255)
+        - createIndex:
+            indexName: idx_api_usage_log_service_created
+            tableName: api_usage_log
+            columns:
+              - column:
+                  name: service
+              - column:
+                  name: created_time
+
+  - changeSet:
+      id: 0001-08-create-voice-diary
+      author: opencode
+      changes:
+        - createTable:
+            tableName: voice_diary
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: audio_url
+                  type: varchar(255)
+              - column:
+                  name: transcript
+                  type: varchar(255)
+              - column:
+                  name: language
+                  type: varchar(255)
+              - column:
+                  name: source
+                  type: varchar(255)
+        - createIndex:
+            indexName: idx_voice_diary_user_created
+            tableName: voice_diary
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: created_time
