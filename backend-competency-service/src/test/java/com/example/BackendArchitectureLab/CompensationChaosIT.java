@@ -68,7 +68,6 @@ public class CompensationChaosIT extends BaseChaosIntegrationTest {
         registry.add("spring.datasource.username", SharedContainers::getPostgresUsername);
         registry.add("spring.datasource.password", SharedContainers::getPostgresPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
         registry.add("spring.kafka.listener.auto-startup", () -> "false");
     }

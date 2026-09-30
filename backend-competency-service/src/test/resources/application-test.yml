@@ -10,6 +10,10 @@ spring:
       host: localhost
       port: 6379
 
+  test:
+    database:
+      replace: none
+
   # 測試環境數據庫配置 - 使用內存 H2 數據庫
   datasource:
     url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;NON_KEYWORDS=KEY
@@ -17,10 +21,14 @@ spring:
     username: sa
     password: 
   
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+
   # JPA 配置
   jpa:
     hibernate:
-      ddl-auto: create-drop  # 每次測試開始時創建表,結束時刪除
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
