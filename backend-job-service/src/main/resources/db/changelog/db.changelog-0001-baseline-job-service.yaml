@@ -1,0 +1,226 @@
+databaseChangeLog:
+  - property:
+      name: text.type
+      value: varchar(65535)
+      dbms: h2
+  - property:
+      name: text.type
+      value: text
+      dbms: postgresql
+  - property:
+      name: text.type
+      value: text
+
+  - changeSet:
+      id: 0001-01-create-company
+      author: opencode
+      changes:
+        - createTable:
+            tableName: company
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: ${text.type}
+              - column:
+                  name: last_scraped_at
+                  type: date
+
+  - changeSet:
+      id: 0001-02-create-company-website
+      author: opencode
+      changes:
+        - createTable:
+            tableName: company_website
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: company_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: url
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: company_website
+            baseColumnNames: company_id
+            constraintName: fk_company_website_company_id
+            referencedTableName: company
+            referencedColumnNames: id
+        - createIndex:
+            tableName: company_website
+            indexName: idx_company_website_company_id
+            columns:
+              - column:
+                  name: company_id
+
+  - changeSet:
+      id: 0001-03-create-job-posting
+      author: opencode
+      changes:
+        - createTable:
+            tableName: job_posting
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: company_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: url
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: ${text.type}
+              - column:
+                  name: requirements
+                  type: ${text.type}
+              - column:
+                  name: responsibilities
+                  type: ${text.type}
+              - column:
+                  name: salary_range
+                  type: varchar(255)
+              - column:
+                  name: posted_date
+                  type: date
+              - column:
+                  name: gemini_analysis
+                  type: ${text.type}
+        - addForeignKeyConstraint:
+            baseTableName: job_posting
+            baseColumnNames: company_id
+            constraintName: fk_job_posting_company_id
+            referencedTableName: company
+            referencedColumnNames: id
+        - createIndex:
+            tableName: job_posting
+            indexName: idx_job_posting_company_id
+            columns:
+              - column:
+                  name: company_id
+
+  - changeSet:
+      id: 0001-04-create-user-job-link
+      author: opencode
+      changes:
+        - createTable:
+            tableName: user_job_link
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: job_posting_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_notes
+                  type: ${text.type}
+              - column:
+                  name: gemini_feedback
+                  type: ${text.type}
+        - addForeignKeyConstraint:
+            baseTableName: user_job_link
+            baseColumnNames: job_posting_id
+            constraintName: fk_user_job_link_job_posting_id
+            referencedTableName: job_posting
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: user_job_link
+            columnNames: user_id, job_posting_id
+            constraintName: uq_user_job_link_user_job
+        - createIndex:
+            tableName: user_job_link
+            indexName: idx_user_job_link_job_posting_id
+            columns:
+              - column:
+                  name: job_posting_id

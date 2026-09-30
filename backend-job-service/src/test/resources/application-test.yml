@@ -16,11 +16,15 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password: 
-  
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
   # JPA 配置
   jpa:
     hibernate:
-      ddl-auto: create-drop  # 每次測試開始時創建表,結束時刪除
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
