@@ -128,4 +128,15 @@ _Avoid_: Commit linter, Git check, Format hook.
 在開發端本機環境中執行的離線、零相依、高效率靜態規則掃描機制，與 CI 遠端稽核規則 100% 鏡像對齊，確保提交即合規。
 _Avoid_: Remote linting, Cloud audit, Manual checklist.
 
+**Schema Migration (資料庫結構遷移)**:
+以版本化變更紀錄持續演進資料表、欄位、索引與約束的治理機制，取代仰賴 ORM 在啟動時隱式調整資料庫結構。
+_Avoid_: Auto DDL, Hibernate update, Schema sync.
+
+**Migration Ownership (遷移所有權)**:
+在多微服務系統中，對應資料庫結構變更的責任邊界；每個服務僅維護自己擁有之資料庫的遷移紀錄。
+_Avoid_: Central migration, Shared schema control, Cross-service DDL.
+
+**Optimistic Concurrency Control (樂觀並發控制)**:
+在更新高價值業務資料前，以版本比對偵測並阻止併發覆寫的控制模型。
+_Avoid_: Last write wins, Blind overwrite, Silent conflict.
 
