@@ -1,0 +1,97 @@
+stages:
+  - test
+  - integration
+  - package
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=/root/.m2 -Xms256m -Xmx1024m -XX:+UseG1GC"
+  PIP_CACHE_DIR: "/root/.cache/pip"
+
+# ============================================
+# Job 1：Maven 單元測試與代碼覆蓋率
+# ============================================
+java-unit-test:
+  stage: test
+  image: maven:3.9.8-eclipse-temurin-21
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  before_script:
+    - chmod +x mvnw
+  script:
+    - ./mvnw test jacoco:check -B
+    - |
+      if [ -n "$SONAR_TOKEN" ]; then
+        echo "Running SonarQube Scanner..."
+        ./mvnw sonar:sonar \
+          -Dsonar.host.url="${SONAR_HOST_URL:-https://sonarcloud.io}" \
+          -Dsonar.token="${SONAR_TOKEN}"
+      else
+        echo "SONAR_TOKEN not set, skipping SonarQube analysis."
+      fi
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - "**/target/surefire-reports/*.xml"
+    paths:
+      - "target/site/jacoco/"
+    expire_in: 7 days
+
+# ============================================
+# Job 2：Python 服務靜態檢查與 Pytest
+# ============================================
+python-verify:
+  stage: test
+  image: python:3.11-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install ruff pytest httpx fastapi pydantic-settings python-multipart requests av minio nacos-sdk-python==2.0.11 opencc soundfile numpy
+  script:
+    - ruff check backend-ai-py
+    - ruff format --check backend-ai-py
+    - cd backend-ai-py && pytest
+
+# ============================================
+# Job 3：Testcontainers 端到端整合測試 (手動觸發)
+# ============================================
+testcontainers-integration:
+  stage: integration
+  image: maven:3.9.8-eclipse-temurin-21
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - when: manual
+  allow_failure: true
+  before_script:
+    - chmod +x mvnw
+  script:
+    - ./mvnw verify -Pintegration-test -Dsurefire.skip=true -B
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - "**/target/failsafe-reports/*.xml"
+    paths:
+      - "**/target/failsafe-reports/"
+    expire_in: 7 days
+
+# ============================================
+# Job 4：Gateway Docker Image 建置 (手動觸發)
+# ============================================
+docker-gateway-build:
+  stage: package
+  image: docker:27-cli
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - when: manual
+  allow_failure: true
+  script:
+    - docker build -t backend-gateway:latest .
+    - docker images | grep backend-gateway
