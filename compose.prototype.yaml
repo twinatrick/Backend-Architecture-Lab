@@ -1,0 +1,38 @@
+services:
+  nacos:
+    image: nacos/nacos-server:v2.5.1
+    container_name: backend-architecture-lab-nacos
+    restart: always
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      JVM_XMS: 128m
+      JVM_XMX: 256m
+    mem_limit: 512m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    networks:
+      - backend-architecture-lab-net
+
+  gateway:
+    image: backend-architecture-lab-gateway:latest
+    container_name: backend-architecture-lab-gateway
+    restart: always
+    depends_on:
+      - nacos
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      AI_PY_URL: ${AI_PY_URL:-http://localhost:5001}
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx256m"
+    mem_limit: 512m
+    ports:
+      - "8000:8000"
+    networks:
+      - backend-architecture-lab-net
+
+networks:
+  backend-architecture-lab-net:
+    name: backend-architecture-lab-net
+    driver: bridge

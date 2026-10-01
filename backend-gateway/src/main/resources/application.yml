@@ -14,9 +14,23 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: ${NACOS_SERVER_ADDR:${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:localhost:8848}}
     gateway:
       routes:
+        - id: ai-py-health
+          uri: ${AI_PY_URL:http://localhost:5001}
+          predicates:
+            - Path=/api/ai-py/health
+          filters:
+            - SetPath=/health
+
+        - id: ai-py-service
+          uri: ${AI_PY_URL:http://localhost:5001}
+          predicates:
+            - Path=/api/ai-py/**,/api/stt/**,/api/tts/**,/api/chat/**
+          filters:
+            - StripPrefix=1
+
         - id: iam-service
           uri: lb://iam-service
           predicates:
@@ -124,3 +138,12 @@ spring:
 springdoc:
   swagger-ui:
     url: /v3/api-docs-merged
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
