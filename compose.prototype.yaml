@@ -10,8 +10,8 @@ services:
       JVM_XMX: 256m
     mem_limit: 512m
     ports:
-      - "8848:8848"
-      - "9848:9848"
+      - "127.0.0.1:8848:8848"
+      - "127.0.0.1:9848:9848"
     networks:
       - backend-architecture-lab-net
 
@@ -24,8 +24,10 @@ services:
     environment:
       NACOS_SERVER_ADDR: nacos:8848
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
-      AI_PY_URL: ${AI_PY_URL:-http://localhost:5001}
+      AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx256m"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     mem_limit: 512m
     ports:
       - "8000:8000"
