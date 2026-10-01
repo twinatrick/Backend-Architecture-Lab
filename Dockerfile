@@ -38,9 +38,6 @@ WORKDIR /app
 # 從 build 階段複製 gateway JAR
 COPY --from=build /app/backend-gateway/target/*.jar app.jar
 
-# 複製 models/ 目錄（Whisper 語音模型，僅 ai-service 需要，但保留以備擴充）
-COPY models/ models/
-
 EXPOSE 8000
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
