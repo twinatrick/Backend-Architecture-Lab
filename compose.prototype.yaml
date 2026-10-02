@@ -247,6 +247,12 @@ services:
       MINIO_URL: http://minio:9000
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-dummy_channel_secret}
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-dummy_channel_token}
+      LINE_GF_CHANNEL_SECRET: ${LINE_GF_CHANNEL_SECRET:-dummy_gf_secret}
+      LINE_GF_CHANNEL_ACCESS_TOKEN: ${LINE_GF_CHANNEL_ACCESS_TOKEN:-dummy_gf_token}
+      LINE_DIARY_CHANNEL_SECRET: ${LINE_DIARY_CHANNEL_SECRET:-dummy_diary_secret}
+      LINE_DIARY_CHANNEL_ACCESS_TOKEN: ${LINE_DIARY_CHANNEL_ACCESS_TOKEN:-dummy_diary_token}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     extra_hosts:
       - "host.docker.internal:host-gateway"

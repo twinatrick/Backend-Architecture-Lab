@@ -120,11 +120,11 @@ deploy-cluster:
         PG_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-postgres 2>/dev/null || echo "starting")
         if [ "$PG_STATUS" = "healthy" ]; then
           echo "PostgreSQL 已就緒！確認 5 個業務資料庫建立..."
-          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE iam_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'iam_service')\gexec"
-          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE competency_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'competency_service')\gexec"
-          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE job_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'job_service')\gexec"
-          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE external_api_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'external_api_service')\gexec"
-          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE alert_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'alert_service')\gexec"
+          docker exec -i backend-architecture-lab-postgres createdb -U postgres iam_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U postgres competency_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U postgres job_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U postgres external_api_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U postgres alert_service || true
           break
         fi
         sleep 2
