@@ -139,7 +139,6 @@ services:
       redis:
         condition: service_healthy
     environment:
-      SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/iam_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
@@ -174,7 +173,6 @@ services:
       kafka:
         condition: service_started
     environment:
-      SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/competency_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
@@ -210,7 +208,6 @@ services:
       kafka:
         condition: service_started
     environment:
-      SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
@@ -244,7 +241,6 @@ services:
       minio:
         condition: service_started
     environment:
-      SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/external_api_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
@@ -285,7 +281,6 @@ services:
       kafka:
         condition: service_started
     environment:
-      SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/alert_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
