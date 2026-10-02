@@ -72,11 +72,11 @@ services:
     mem_limit: 256m
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "${MINIO_BIND_IP:-127.0.0.1}:9000:9000"
+      - "${MINIO_BIND_IP:-127.0.0.1}:9001:9001"
     volumes:
       - minio_data:/data
     networks:
@@ -93,8 +93,8 @@ services:
       JVM_XMX: 256m
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8848:8848"
-      - "127.0.0.1:9848:9848"
+      - "${NACOS_BIND_IP:-127.0.0.1}:8848:8848"
+      - "${NACOS_BIND_IP:-127.0.0.1}:9848:9848"
     networks:
       - backend-architecture-lab-net
 
@@ -250,7 +250,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
-      MINIO_URL: http://minio:9000
+      MINIO_URL: ${MINIO_URL:-http://minio:9000}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
       LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-dummy_channel_secret}
