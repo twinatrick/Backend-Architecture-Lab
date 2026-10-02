@@ -9,8 +9,9 @@ FROM maven:3.9.8-eclipse-temurin-21 AS build
 ARG SERVICE_NAME
 WORKDIR /app
 
-# 複製所有 pom.xml（利用 Docker layer cache 加速相依性下載）
+# 複製所有 pom.xml 與 lombok 設定（利用 Docker layer cache 加速相依性下載）
 COPY pom.xml .
+COPY lombok.config .
 COPY backend-common/pom.xml backend-common/
 COPY backend-gateway/pom.xml backend-gateway/
 COPY backend-iam-service/pom.xml backend-iam-service/
