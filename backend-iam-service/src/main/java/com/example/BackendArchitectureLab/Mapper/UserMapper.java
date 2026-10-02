@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Mapper;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Entity.Function;
+import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
 import org.mapstruct.AfterMapping;
@@ -16,6 +17,7 @@ import java.util.List;
 @Mapper(componentModel = "spring", uses = {FunctionMapper.class})
 public interface UserMapper {
     @Mapping(target = "id", expression = "java(user.getId() == null ? null : user.getId().toString())")
+    @Mapping(target = "roleNames", ignore = true)
     UserVo toVo(User user);
 
     @Mapping(target = "id", expression = "java(userVo.getId() == null || userVo.getId().isBlank() ? null : java.util.UUID.fromString(userVo.getId()))")
@@ -37,6 +39,12 @@ public interface UserMapper {
                 .map(role -> role.getId().toString())
                 .toList();
         vo.setRoleArr(roleArr);
+
+        List<String> roleNames = user.getRoles().stream()
+                .map(UserRole::getRole)
+                .map(Role::getName)
+                .toList();
+        vo.setRoleNames(roleNames);
 
         List<FunctionVo> permissions = new ArrayList<>();
         user.getRoles().forEach(userRole -> userRole.getRole().getRoleFunctions().forEach(
