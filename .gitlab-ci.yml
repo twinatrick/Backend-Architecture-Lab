@@ -2,6 +2,7 @@ stages:
   - test
   - integration
   - package
+  - deploy
 
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=/root/.m2 -Xms256m -Xmx1024m -XX:+UseG1GC"
@@ -82,16 +83,47 @@ testcontainers-integration:
     expire_in: 7 days
 
 # ============================================
-# Job 4：Gateway Docker Image 建置 (手動觸發)
+# Job 4：Gateway Docker Image 建置
 # ============================================
 docker-gateway-build:
   stage: package
   image: docker:27-cli
   rules:
+    - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
     - when: manual
-  allow_failure: true
+      allow_failure: true
   script:
-    - docker build -t backend-gateway:latest .
-    - docker images | grep backend-gateway
+    - docker build -t backend-architecture-lab-gateway:latest .
+    - docker images | grep backend-architecture-lab-gateway
+
+# ============================================
+# Job 5：Prototype Gateway 原型部署 (master 自動部署)
+# ============================================
+deploy-prototype:
+  stage: deploy
+  image: docker:27-cli
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "===> 部署 Prototype 架構 (Gateway + Nacos)..."
+    - docker compose -f compose.prototype.yaml up -d --remove-orphans
+    - echo "===> 等候服務就緒..."
+    - |
+      for i in $(seq 1 30); do
+        GW_STATUS=$(docker inspect -f '{{.State.Status}}' backend-architecture-lab-gateway 2>/dev/null || echo "down")
+        if [ "$GW_STATUS" = "running" ]; then
+          echo "backend-architecture-lab-gateway 容器已啟動！"
+          break
+        fi
+        sleep 1
+      done
+    - docker ps --filter "name=backend-architecture-lab-"
+    - echo "===> 服務日誌摘要："
+    - docker logs --tail 25 backend-architecture-lab-gateway
+    - echo "===> Prototype 部署完成，Gateway 於 8000 埠待命！"
