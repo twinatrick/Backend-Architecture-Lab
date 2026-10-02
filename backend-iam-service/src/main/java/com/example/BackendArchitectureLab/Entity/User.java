@@ -18,6 +18,10 @@ import java.util.List;
 @NoArgsConstructor
 
 public class User extends BaseEntity {
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "name")
     private String name;
     @Column(name = "email", nullable = false, unique = true)
