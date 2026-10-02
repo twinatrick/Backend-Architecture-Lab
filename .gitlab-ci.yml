@@ -83,9 +83,9 @@ testcontainers-integration:
     expire_in: 7 days
 
 # ============================================
-# Job 4：Gateway Docker Image 建置
+# Job 4：全量微服務 Docker Image 建置
 # ============================================
-docker-gateway-build:
+docker-images-build:
   stage: package
   image: docker:27-cli
   rules:
@@ -95,13 +95,14 @@ docker-gateway-build:
     - when: manual
       allow_failure: true
   script:
-    - docker build -t backend-architecture-lab-gateway:latest .
-    - docker images | grep backend-architecture-lab-gateway
+    - echo "===> 使用 Docker Compose 構建全量微服務映像檔 (Gateway + 5 微服務)..."
+    - docker compose -f compose.prototype.yaml build
+    - docker images | grep backend-architecture-lab-
 
 # ============================================
-# Job 5：Prototype Gateway 原型部署 (master 自動部署)
+# Job 5：微服務叢集部署 (master 自動部署)
 # ============================================
-deploy-prototype:
+deploy-cluster:
   stage: deploy
   image: docker:27-cli
   rules:
@@ -111,9 +112,26 @@ deploy-prototype:
     - when: manual
       allow_failure: true
   script:
-    - echo "===> 部署 Prototype 架構 (Gateway + Nacos)..."
+    - echo "===> 啟動中介軟體 (PostgreSQL, Redis, Kafka, Zookeeper, Nacos, MinIO)..."
+    - docker compose -f compose.prototype.yaml up -d postgres redis nacos zookeeper kafka minio
+    - echo "===> 等候 PostgreSQL 就緒並建立業務資料庫..."
+    - |
+      for i in $(seq 1 30); do
+        PG_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-postgres 2>/dev/null || echo "starting")
+        if [ "$PG_STATUS" = "healthy" ]; then
+          echo "PostgreSQL 已就緒！確認 5 個業務資料庫建立..."
+          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE iam_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'iam_service')\gexec"
+          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE competency_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'competency_service')\gexec"
+          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE job_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'job_service')\gexec"
+          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE external_api_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'external_api_service')\gexec"
+          docker exec -i backend-architecture-lab-postgres psql -U postgres -c "SELECT 'CREATE DATABASE alert_service' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'alert_service')\gexec"
+          break
+        fi
+        sleep 2
+      done
+    - echo "===> 啟動全量微服務 (IAM, Competency, Job, External-API, Alert, Gateway)..."
     - docker compose -f compose.prototype.yaml up -d --remove-orphans
-    - echo "===> 等候服務就緒..."
+    - echo "===> 等候 Gateway 就緒..."
     - |
       for i in $(seq 1 30); do
         GW_STATUS=$(docker inspect -f '{{.State.Status}}' backend-architecture-lab-gateway 2>/dev/null || echo "down")
@@ -126,4 +144,4 @@ deploy-prototype:
     - docker ps --filter "name=backend-architecture-lab-"
     - echo "===> 服務日誌摘要："
     - docker logs --tail 25 backend-architecture-lab-gateway
-    - echo "===> Prototype 部署完成，Gateway 於 8000 埠待命！"
+    - echo "===> 微服務叢集部署完成！"

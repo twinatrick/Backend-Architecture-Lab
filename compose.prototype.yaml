@@ -1,4 +1,87 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: backend-architecture-lab-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - backend-architecture-lab-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: backend-architecture-lab-redis
+    restart: always
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - backend-architecture-lab-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.2.1
+    container_name: backend-architecture-lab-zookeeper
+    restart: always
+    mem_limit: 256m
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      JVMFLAGS: "-Xms128m -Xmx256m"
+    networks:
+      - backend-architecture-lab-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.2.1
+    container_name: backend-architecture-lab-kafka
+    restart: always
+    depends_on:
+      - zookeeper
+    mem_limit: 512m
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_HEAP_OPTS: "-Xms128m -Xmx384m"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - backend-architecture-lab-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: backend-architecture-lab-minio
+    restart: always
+    mem_limit: 256m
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend-architecture-lab-net
+
   nacos:
     image: nacos/nacos-server:v2.5.1
     container_name: backend-architecture-lab-nacos
@@ -16,6 +99,11 @@ services:
       - backend-architecture-lab-net
 
   gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: backend-gateway
     image: backend-architecture-lab-gateway:latest
     container_name: backend-architecture-lab-gateway
     restart: always
@@ -33,6 +121,183 @@ services:
       - "8000:8000"
     networks:
       - backend-architecture-lab-net
+
+  iam-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: backend-iam-service
+    image: backend-architecture-lab-iam-service:latest
+    container_name: backend-architecture-lab-iam-service
+    restart: always
+    depends_on:
+      nacos:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/iam_service
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8002:8002"
+    networks:
+      - backend-architecture-lab-net
+
+  competency-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: backend-competency-service
+    image: backend-architecture-lab-competency-service:latest
+    container_name: backend-architecture-lab-competency-service
+    restart: always
+    depends_on:
+      nacos:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/competency_service
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8004:8004"
+    networks:
+      - backend-architecture-lab-net
+
+  job-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: backend-job-service
+    image: backend-architecture-lab-job-service:latest
+    container_name: backend-architecture-lab-job-service
+    restart: always
+    depends_on:
+      nacos:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job_service
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8006:8006"
+    networks:
+      - backend-architecture-lab-net
+
+  external-api-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: backend-external-api-service
+    image: backend-architecture-lab-external-api-service:latest
+    container_name: backend-architecture-lab-external-api-service
+    restart: always
+    depends_on:
+      nacos:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/external_api_service
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
+      MINIO_URL: http://minio:9000
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8007:8007"
+    networks:
+      - backend-architecture-lab-net
+
+  alert-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: backend-alert-service
+    image: backend-architecture-lab-alert-service:latest
+    container_name: backend-architecture-lab-alert-service
+    restart: always
+    depends_on:
+      nacos:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/alert_service
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8008:8008"
+    networks:
+      - backend-architecture-lab-net
+
+volumes:
+  postgres_data:
+    name: backend-architecture-lab-postgres-data
+  redis_data:
+    name: backend-architecture-lab-redis-data
+  minio_data:
+    name: backend-architecture-lab-minio-data
 
 networks:
   backend-architecture-lab-net:
