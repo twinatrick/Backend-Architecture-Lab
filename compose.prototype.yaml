@@ -259,6 +259,8 @@ services:
       LINE_GF_CHANNEL_ACCESS_TOKEN: ${LINE_GF_CHANNEL_ACCESS_TOKEN:-dummy_gf_token}
       LINE_DIARY_CHANNEL_SECRET: ${LINE_DIARY_CHANNEL_SECRET:-dummy_diary_secret}
       LINE_DIARY_CHANNEL_ACCESS_TOKEN: ${LINE_DIARY_CHANNEL_ACCESS_TOKEN:-dummy_diary_token}
+      DISCORD_GF_TOKEN: ${DISCORD_GF_TOKEN:-}
+      DISCORD_DIARY_TOKEN: ${DISCORD_DIARY_TOKEN:-}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     extra_hosts:
       - "host.docker.internal:host-gateway"
