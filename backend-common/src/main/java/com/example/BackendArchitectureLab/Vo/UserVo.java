@@ -23,5 +23,7 @@ public class UserVo {
 
     private List<String> roleArr;
 
+    private List<String> roleNames;
+
     private List<FunctionVo> permissions;
 }
