@@ -14,6 +14,7 @@ COPY backend-competency-service/pom.xml backend-competency-service/
 COPY backend-job-service/pom.xml backend-job-service/
 COPY backend-external-api-service/pom.xml backend-external-api-service/
 COPY backend-alert-service/pom.xml backend-alert-service/
+COPY backend-test-support/pom.xml backend-test-support/
 
 # 預先下載相依性（獨立 layer，source code 未變更時可快取）
 RUN mvn dependency:go-offline -pl backend-gateway -am -B -q || true
@@ -26,6 +27,7 @@ COPY backend-competency-service/src backend-competency-service/src/
 COPY backend-job-service/src backend-job-service/src/
 COPY backend-external-api-service/src backend-external-api-service/src/
 COPY backend-alert-service/src backend-alert-service/src/
+COPY backend-test-support/src backend-test-support/src/
 
 # 編譯並打包 gateway（含其依賴模組），跳過測試
 RUN mvn clean package -pl backend-gateway -am -DskipTests -B -q
