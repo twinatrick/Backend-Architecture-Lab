@@ -92,7 +92,7 @@ def _nacos_register():
             logger.warning("[nacos] NacosClient 不可用，跳過服務註冊")
             return
         client = NacosClient(settings.nacos_server_addr, namespace=settings.nacos_namespace)
-        ip = _get_local_ip()
+        ip = settings.service_ip or _get_local_ip()
         client.add_naming_instance(
             settings.service_name,
             ip,
@@ -121,7 +121,7 @@ def _nacos_deregister():
     if _nacos_service is None:
         return
     try:
-        ip = _get_local_ip()
+        ip = settings.service_ip or _get_local_ip()
         _nacos_service.remove_naming_instance(
             settings.service_name,
             ip,

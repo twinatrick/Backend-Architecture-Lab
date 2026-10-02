@@ -7,6 +7,7 @@ from pydantic_settings import SettingsConfigDict
 class Settings(BaseSettings):
     server_port: int = 5001
     service_name: str = "ai-py-service"
+    service_ip: str = ""
 
     nacos_server_addr: str = "localhost:8848"
     nacos_namespace: str = ""

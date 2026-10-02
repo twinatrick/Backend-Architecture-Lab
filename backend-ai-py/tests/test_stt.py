@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 # 先行於替換外部相依套件，避免 CI 環境未安裝或載入成本過高
 class _FakeMinioError(Exception):
-    """測試用 MinIO 錯誤型別替身（取代真實 minio.error.MinioError）。"""
+    """測試用 MinIO 錯誤型別替身（取代真實 minio.error.MinioException）。"""
 
 
 sys.modules["uvicorn"] = MagicMock()
@@ -16,13 +16,17 @@ sys.modules["soundfile"] = MagicMock()
 sys.modules["av"] = MagicMock()
 sys.modules["faster_whisper"] = MagicMock()
 sys.modules["minio"] = MagicMock()
-sys.modules["minio.error"] = MagicMock(MinioError=_FakeMinioError)
+sys.modules["minio.error"] = MagicMock(
+    MinioException=_FakeMinioError,
+    MinioError=_FakeMinioError,
+)
 
 from fastapi.testclient import TestClient
 
 # 確保 backend-ai-py 目錄在 Python 搜尋路徑中
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from config import settings
 from main import app
 
 
@@ -64,7 +68,7 @@ def test_stt_whisper_returns_fields_and_uses_whisper_provider():
         assert body["text"] == "你好世界"
         assert body["language"] == "zh"
         assert body["duration_sec"] == 2.5
-        assert body["audio_url"].startswith("http://localhost:9000")
+        assert body["audio_url"].startswith(settings.minio_endpoint.rstrip("/"))
 
         mock_stt.assert_called_once()
         assert mock_stt.call_args.args[2] == "whisper"
