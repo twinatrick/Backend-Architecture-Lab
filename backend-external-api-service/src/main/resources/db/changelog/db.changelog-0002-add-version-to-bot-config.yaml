@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-01-add-version-to-bot-config
+      author: architecture-lab
+      comment: 為 bot_config 表新增 version 欄位以支援 JPA @Version 樂觀並發控制
+      changes:
+        - addColumn:
+            tableName: bot_config
+            columns:
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: 0
+      rollback:
+        - dropColumn:
+            tableName: bot_config
+            columnName: version
