@@ -85,7 +85,7 @@ class UserJobLinkDataAccessImplTest {
         userJobLinkRepository.save(link1);
 
         UserJobLink link2 = new UserJobLink();
-        link2.setUserId(testUserId);
+        link2.setUserId(UUID.randomUUID());
         link2.setJobPosting(testJobPosting);
         userJobLinkRepository.save(link2);
 

@@ -49,7 +49,6 @@ public class AlertKafkaAndRedisFlowIT extends BaseTestcontainersIntegrationTest 
         registry.add("spring.datasource.username", SharedContainers::getPostgresUsername);
         registry.add("spring.datasource.password", SharedContainers::getPostgresPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
         String testGroupId = "alert-test-group-" + UUID.randomUUID();
         registry.add("spring.kafka.consumer.group-id", () -> testGroupId);

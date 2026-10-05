@@ -9,8 +9,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -29,10 +31,12 @@ class UserDataAccessImplTest {
 
     private final UserRepository userRepository;
     private final IUserDataAccess userDataAccess;
+    private final TestEntityManager testEntityManager;
 
     @Autowired
-    public UserDataAccessImplTest(UserRepository userRepository) {
+    public UserDataAccessImplTest(UserRepository userRepository, TestEntityManager testEntityManager) {
         this.userRepository = userRepository;
+        this.testEntityManager = testEntityManager;
         this.userDataAccess = new UserDataAccessImpl(userRepository);
     }
 
@@ -331,6 +335,43 @@ class UserDataAccessImplTest {
         assertEquals(5, result.getTotalElements());
         assertEquals(3, result.getTotalPages());
         assertEquals(2, result.getContent().size());
+    }
+
+    @Test
+    @DisplayName("Should detect optimistic lock collision when updating user concurrently")
+    void testOptimisticLocking() {
+        // Arrange
+        User user = new User();
+        user.setEmail("concurrent@example.com");
+        user.setName("Original");
+        user.setPassword("password");
+        userDataAccess.save(user);
+        testEntityManager.flush();
+        testEntityManager.clear();
+
+        User saved = userDataAccess.findByEmail("concurrent@example.com").orElseThrow();
+        assertNotNull(saved.getVersion());
+        assertEquals(0L, saved.getVersion());
+
+        // Simulate concurrent transactions reading same entity
+        User tx1User = userDataAccess.findById(saved.getId()).orElseThrow();
+        testEntityManager.detach(tx1User);
+
+        User tx2User = userDataAccess.findById(saved.getId()).orElseThrow();
+        assertEquals(0L, tx1User.getVersion());
+        assertEquals(0L, tx2User.getVersion());
+
+        // Transaction 2 updates and flushes successfully -> DB version becomes 1
+        tx2User.setName("Updated By TX2");
+        userDataAccess.save(tx2User);
+        testEntityManager.flush();
+
+        // Transaction 1 tries to update with stale version (0)
+        tx1User.setName("Updated By TX1");
+        assertThrows(ObjectOptimisticLockingFailureException.class, () -> {
+            userDataAccess.save(tx1User);
+            testEntityManager.flush();
+        });
     }
 }
 

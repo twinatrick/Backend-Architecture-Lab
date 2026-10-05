@@ -17,10 +17,14 @@ spring:
     username: sa
     password: 
   
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+
   # JPA 配置
   jpa:
     hibernate:
-      ddl-auto: create-drop  # 每次測試開始時創建表,結束時刪除
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:

@@ -22,9 +22,14 @@ import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Repository.CompensationRestoreLogRepository;
 import com.example.BackendArchitectureLab.Repository.ProjectRepository;
+import com.example.BackendArchitectureLab.Repository.SkillLevelRepository;
+import com.example.BackendArchitectureLab.Repository.SkillRepository;
+import com.example.BackendArchitectureLab.Repository.UserProjectRepository;
+import com.example.BackendArchitectureLab.Repository.UserProjectSkillRepository;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -154,8 +159,33 @@ class ProjectUserBindingServiceIntegrationTest {
     @Autowired
     private CompensationRestoreLogRepository restoreLogRepository;
 
+    @Autowired
+    private UserProjectSkillRepository userProjectSkillRepository;
+
+    @Autowired
+    private UserProjectRepository userProjectRepository;
+
+    @Autowired
+    private SkillLevelRepository skillLevelRepository;
+
+    @Autowired
+    private SkillRepository skillRepository;
+
+    @Autowired
+    private ProjectRepository projectRepository;
+
     @MockBean
     private IUserGateway userGateway;
+
+    @AfterEach
+    void tearDown() {
+        restoreLogRepository.deleteAll();
+        userProjectSkillRepository.deleteAll();
+        userProjectRepository.deleteAll();
+        skillLevelRepository.deleteAll();
+        skillRepository.deleteAll();
+        projectRepository.deleteAll();
+    }
 
     @Test
     void rebind_shouldBumpProjectVersion_onEachMutation() {

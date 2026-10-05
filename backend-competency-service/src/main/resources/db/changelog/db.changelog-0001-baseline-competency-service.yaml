@@ -1,0 +1,830 @@
+databaseChangeLog:
+  - property:
+      name: text.type
+      value: varchar(65535)
+      dbms: h2
+  - property:
+      name: text.type
+      value: text
+      dbms: postgresql
+
+  - changeSet:
+      id: 0001-01-create-project
+      author: architecture-lab
+      comment: 建立專案實體表 (project)
+      changes:
+        - createTable:
+            tableName: project
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: version
+                  type: bigint
+              - column:
+                  name: name
+                  type: varchar(255)
+              - column:
+                  name: description
+                  type: varchar(255)
+
+  - changeSet:
+      id: 0001-02-create-skill
+      author: architecture-lab
+      comment: 建立技能實體表 (skill)
+      changes:
+        - createTable:
+            tableName: skill
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: name
+                  type: varchar(255)
+              - column:
+                  name: description
+                  type: varchar(255)
+
+  - changeSet:
+      id: 0001-03-create-skill-level
+      author: architecture-lab
+      comment: 建立技能等級實體表 (skill_level)
+      changes:
+        - createTable:
+            tableName: skill_level
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: skill_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: level_value
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(255)
+        - addForeignKeyConstraint:
+            baseTableName: skill_level
+            baseColumnNames: skill_id
+            constraintName: fk_skill_level_skill_id
+            referencedTableName: skill
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: skill_level
+            columnNames: skill_id, level_value
+            constraintName: uq_skill_level_skill_value
+        - createIndex:
+            tableName: skill_level
+            indexName: idx_skill_level_skill_id
+            columns:
+              - column:
+                  name: skill_id
+
+  - changeSet:
+      id: 0001-04-create-user-project
+      author: architecture-lab
+      comment: 建立成員專案綁定表 (user_project)
+      changes:
+        - createTable:
+            tableName: user_project
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: project_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: user_project
+            baseColumnNames: project_id
+            constraintName: fk_user_project_project_id
+            referencedTableName: project
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: user_project
+            columnNames: user_id, project_id
+            constraintName: uq_user_project_user_project
+        - createIndex:
+            tableName: user_project
+            indexName: idx_user_project_user_id
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: user_project
+            indexName: idx_user_project_project_id
+            columns:
+              - column:
+                  name: project_id
+
+  - changeSet:
+      id: 0001-05-create-user-skill
+      author: architecture-lab
+      comment: 建立成員技能關聯表 (user_skill)
+      changes:
+        - createTable:
+            tableName: user_skill
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: skill_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: skill_level_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: user_skill
+            baseColumnNames: skill_id
+            constraintName: fk_user_skill_skill_id
+            referencedTableName: skill
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: user_skill
+            baseColumnNames: skill_level_id
+            constraintName: fk_user_skill_skill_level_id
+            referencedTableName: skill_level
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: user_skill
+            columnNames: user_id, skill_id
+            constraintName: uq_user_skill_user_skill
+        - createIndex:
+            tableName: user_skill
+            indexName: idx_user_skill_user_id
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: user_skill
+            indexName: idx_user_skill_skill_id
+            columns:
+              - column:
+                  name: skill_id
+        - createIndex:
+            tableName: user_skill
+            indexName: idx_user_skill_level_id
+            columns:
+              - column:
+                  name: skill_level_id
+
+  - changeSet:
+      id: 0001-06-create-project-skill
+      author: architecture-lab
+      comment: 建立專案所需技能表 (project_skill)
+      changes:
+        - createTable:
+            tableName: project_skill
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: project_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: skill_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: skill_level_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: project_skill
+            baseColumnNames: project_id
+            constraintName: fk_project_skill_project_id
+            referencedTableName: project
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: project_skill
+            baseColumnNames: skill_id
+            constraintName: fk_project_skill_skill_id
+            referencedTableName: skill
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: project_skill
+            baseColumnNames: skill_level_id
+            constraintName: fk_project_skill_skill_level_id
+            referencedTableName: skill_level
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: project_skill
+            columnNames: project_id, skill_id
+            constraintName: uq_project_skill_project_skill
+        - createIndex:
+            tableName: project_skill
+            indexName: idx_project_skill_project_id
+            columns:
+              - column:
+                  name: project_id
+        - createIndex:
+            tableName: project_skill
+            indexName: idx_project_skill_skill_id
+            columns:
+              - column:
+                  name: skill_id
+        - createIndex:
+            tableName: project_skill
+            indexName: idx_project_skill_level_id
+            columns:
+              - column:
+                  name: skill_level_id
+
+  - changeSet:
+      id: 0001-07-create-user-project-skill
+      author: architecture-lab
+      comment: 建立專案成員技能綁定表 (user_project_skill)
+      changes:
+        - createTable:
+            tableName: user_project_skill
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: project_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: skill_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: skill_level_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: user_project_skill
+            baseColumnNames: project_id
+            constraintName: fk_ups_project_id
+            referencedTableName: project
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: user_project_skill
+            baseColumnNames: skill_id
+            constraintName: fk_ups_skill_id
+            referencedTableName: skill
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: user_project_skill
+            baseColumnNames: skill_level_id
+            constraintName: fk_ups_skill_level_id
+            referencedTableName: skill_level
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: user_project_skill
+            columnNames: user_id, project_id, skill_id
+            constraintName: uq_user_project_skill_user_project_skill
+        - createIndex:
+            tableName: user_project_skill
+            indexName: idx_ups_user_id
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: user_project_skill
+            indexName: idx_ups_project_id
+            columns:
+              - column:
+                  name: project_id
+        - createIndex:
+            tableName: user_project_skill
+            indexName: idx_ups_skill_id
+            columns:
+              - column:
+                  name: skill_id
+        - createIndex:
+            tableName: user_project_skill
+            indexName: idx_ups_level_id
+            columns:
+              - column:
+                  name: skill_level_id
+
+  - changeSet:
+      id: 0001-08-create-compensation-outbox-event
+      author: architecture-lab
+      comment: 建立補償交易發送日誌表 (compensation_outbox_event)
+      changes:
+        - createTable:
+            tableName: compensation_outbox_event
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: transaction_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: event_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: action
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payload
+                  type: ${text.type}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: delivery_status
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: processing_at
+                  type: timestamp
+              - column:
+                  name: lease_until
+                  type: timestamp
+              - column:
+                  name: attempt_count
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: next_attempt_at
+                  type: timestamp
+              - column:
+                  name: sent_at
+                  type: timestamp
+              - column:
+                  name: owner_id
+                  type: varchar(64)
+              - column:
+                  name: fencing_version
+                  type: bigint
+              - column:
+                  name: error_message
+                  type: varchar(1024)
+              - column:
+                  name: last_alerted_at
+                  type: timestamp
+        - addUniqueConstraint:
+            tableName: compensation_outbox_event
+            columnNames: event_id
+            constraintName: uq_compensation_outbox_event_event_id
+        - createIndex:
+            tableName: compensation_outbox_event
+            indexName: idx_comp_outbox_tx_id
+            columns:
+              - column:
+                  name: transaction_id
+        - createIndex:
+            tableName: compensation_outbox_event
+            indexName: idx_comp_outbox_status_due
+            columns:
+              - column:
+                  name: delivery_status
+              - column:
+                  name: next_attempt_at
+              - column:
+                  name: lease_until
+        - createIndex:
+            tableName: compensation_outbox_event
+            indexName: idx_comp_outbox_delivery_status
+            columns:
+              - column:
+                  name: delivery_status
+              - column:
+                  name: updated_time
+
+  - changeSet:
+      id: 0001-09-create-compensation-event-log
+      author: architecture-lab
+      comment: 建立補償接收處理日誌表 (compensation_event_log)
+      changes:
+        - createTable:
+            tableName: compensation_event_log
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: event_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: transaction_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: attempt_count
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_error
+                  type: varchar(1024)
+              - column:
+                  name: received_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: processing_at
+                  type: timestamp
+              - column:
+                  name: lease_until
+                  type: timestamp
+              - column:
+                  name: processed_at
+                  type: timestamp
+              - column:
+                  name: failed_at
+                  type: timestamp
+              - column:
+                  name: next_attempt_at
+                  type: timestamp
+              - column:
+                  name: last_alerted_at
+                  type: timestamp
+              - column:
+                  name: owner_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: fencing_version
+                  type: bigint
+              - column:
+                  name: payload
+                  type: ${text.type}
+        - addUniqueConstraint:
+            tableName: compensation_event_log
+            columnNames: event_id
+            constraintName: uq_compensation_event_log_event_id
+        - createIndex:
+            tableName: compensation_event_log
+            indexName: idx_comp_event_log_tx_id
+            columns:
+              - column:
+                  name: transaction_id
+        - createIndex:
+            tableName: compensation_event_log
+            indexName: idx_comp_event_log_status_lease
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: lease_until
+        - createIndex:
+            tableName: compensation_event_log
+            indexName: idx_comp_event_log_status_next
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: next_attempt_at
+
+  - changeSet:
+      id: 0001-10-create-compensation-restore-log
+      author: architecture-lab
+      comment: 建立補償還原日誌表 (compensation_restore_log)
+      changes:
+        - createTable:
+            tableName: compensation_restore_log
+            columns:
+              - column:
+                  name: event_id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: project_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: processed_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+              - column:
+                  name: last_error
+                  type: varchar(1024)
+              - column:
+                  name: owner_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: fencing_version
+                  type: bigint
+              - column:
+                  name: lease_until
+                  type: timestamp
+              - column:
+                  name: before_state
+                  type: ${text.type}
+        - createIndex:
+            tableName: compensation_restore_log
+            indexName: idx_comp_restore_log_project_id
+            columns:
+              - column:
+                  name: project_id
+        - createIndex:
+            tableName: compensation_restore_log
+            indexName: idx_comp_restore_log_status
+            columns:
+              - column:
+                  name: status
+
+  - changeSet:
+      id: 0001-11-create-external-sync-command
+      author: architecture-lab
+      comment: 建立外部同步命令表 (external_sync_command)
+      changes:
+        - createTable:
+            tableName: external_sync_command
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: transaction_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: project_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: delivery_status
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payload
+                  type: ${text.type}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: processing_at
+                  type: timestamp
+              - column:
+                  name: lease_until
+                  type: timestamp
+              - column:
+                  name: attempt_count
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: next_attempt_at
+                  type: timestamp
+              - column:
+                  name: sent_at
+                  type: timestamp
+              - column:
+                  name: owner_id
+                  type: varchar(64)
+              - column:
+                  name: fencing_version
+                  type: bigint
+              - column:
+                  name: error_message
+                  type: varchar(1024)
+        - createIndex:
+            tableName: external_sync_command
+            indexName: idx_ext_sync_cmd_tx_id
+            columns:
+              - column:
+                  name: transaction_id
+        - createIndex:
+            tableName: external_sync_command
+            indexName: idx_ext_sync_cmd_proj_id
+            columns:
+              - column:
+                  name: project_id
+        - createIndex:
+            tableName: external_sync_command
+            indexName: idx_ext_sync_cmd_status_due
+            columns:
+              - column:
+                  name: delivery_status
+              - column:
+                  name: next_attempt_at
+              - column:
+                  name: lease_until

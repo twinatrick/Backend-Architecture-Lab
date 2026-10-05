@@ -1,0 +1,240 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0001-01-create-user
+      author: opencode
+      changes:
+        - sql:
+            comment: Create user table with quoted lowercase name to match Hibernate "@Table(name = \"\"user\"\")" and unquoted columns
+            sql: >
+              CREATE TABLE "user" (
+                id UUID NOT NULL,
+                created_by VARCHAR(255),
+                updated_by VARCHAR(255),
+                created_time TIMESTAMP,
+                updated_time TIMESTAMP,
+                name VARCHAR(255) DEFAULT '',
+                email VARCHAR(255) NOT NULL,
+                password VARCHAR(255),
+                phone VARCHAR(255),
+                disabled BOOLEAN NOT NULL DEFAULT FALSE,
+                CONSTRAINT pk_user PRIMARY KEY (id),
+                CONSTRAINT uq_user_email UNIQUE (email)
+              )
+            rollback: DROP TABLE "user"
+        - sql:
+            comment: Create index on user email
+            sql: CREATE INDEX idx_user_email ON "user" (email)
+            rollback: DROP INDEX idx_user_email
+
+  - changeSet:
+      id: 0001-02-create-role
+      author: opencode
+      changes:
+        - createTable:
+            tableName: role
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: name
+                  type: varchar(255)
+              - column:
+                  name: description
+                  type: varchar(255)
+        - createIndex:
+            tableName: role
+            indexName: idx_role_name
+            columns:
+              - column:
+                  name: name
+
+  - changeSet:
+      id: 0001-03-create-function
+      author: opencode
+      changes:
+        - createTable:
+            tableName: function
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: name
+                  type: varchar(255)
+                  defaultValue: ""
+              - column:
+                  name: parent
+                  type: varchar(255)
+                  defaultValue: ""
+              - column:
+                  name: sort
+                  type: varchar(255)
+                  defaultValue: ""
+              - column:
+                  name: type
+                  type: int
+        - createIndex:
+            tableName: function
+            indexName: idx_function_parent
+            columns:
+              - column:
+                  name: parent
+        - createIndex:
+            tableName: function
+            indexName: idx_function_type
+            columns:
+              - column:
+                  name: type
+
+  - changeSet:
+      id: 0001-04-create-user-role
+      author: opencode
+      changes:
+        - createTable:
+            tableName: user_role
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+        - sql:
+            comment: Add foreign key constraint from user_role to user table
+            sql: ALTER TABLE user_role ADD CONSTRAINT fk_user_role_user_id FOREIGN KEY (user_id) REFERENCES "user" (id)
+            rollback: ALTER TABLE user_role DROP CONSTRAINT fk_user_role_user_id
+        - addForeignKeyConstraint:
+            baseTableName: user_role
+            baseColumnNames: role_id
+            constraintName: fk_user_role_role_id
+            referencedTableName: role
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: user_role
+            columnNames: user_id, role_id
+            constraintName: uq_user_role_user_role
+        - createIndex:
+            tableName: user_role
+            indexName: idx_user_role_user_id
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: user_role
+            indexName: idx_user_role_role_id
+            columns:
+              - column:
+                  name: role_id
+
+  - changeSet:
+      id: 0001-05-create-role-function
+      author: opencode
+      changes:
+        - createTable:
+            tableName: role_function
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: role_id
+                  type: uuid
+              - column:
+                  name: function_id
+                  type: uuid
+        - addForeignKeyConstraint:
+            baseTableName: role_function
+            baseColumnNames: role_id
+            constraintName: fk_role_function_role_id
+            referencedTableName: role
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: role_function
+            baseColumnNames: function_id
+            constraintName: fk_role_function_function_id
+            referencedTableName: function
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            tableName: role_function
+            columnNames: role_id, function_id
+            constraintName: uq_role_function_role_function
+        - createIndex:
+            tableName: role_function
+            indexName: idx_role_function_role_id
+            columns:
+              - column:
+                  name: role_id
+        - createIndex:
+            tableName: role_function
+            indexName: idx_role_function_function_id
+            columns:
+              - column:
+                  name: function_id

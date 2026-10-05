@@ -1,0 +1,5 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/db.changelog-0001-baseline-external-api-service.yaml
+  - include:
+      file: db/changelog/db.changelog-0002-add-version-to-bot-config.yaml

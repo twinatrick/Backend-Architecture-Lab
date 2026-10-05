@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-01-add-version-to-user
+      author: architecture-lab
+      comment: 為 user 表新增 version 欄位以支援 JPA @Version 樂觀並發控制
+      changes:
+        - sql:
+            comment: Add version column to "user" table
+            sql: ALTER TABLE "user" ADD COLUMN version BIGINT DEFAULT 0
+            rollback: ALTER TABLE "user" DROP COLUMN version
