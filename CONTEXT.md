@@ -140,3 +140,16 @@ _Avoid_: Central migration, Shared schema control, Cross-service DDL.
 在更新高價值業務資料前，以版本比對偵測並阻止併發覆寫的控制模型。
 _Avoid_: Last write wins, Blind overwrite, Silent conflict.
 
+**Gateway Fallback (網關降級回退)**:
+當 API Gateway 轉發下游微服務發生逾時、熔斷開啟或連線中斷時，自動將流量導向預設之降級控制器並回應結構化標準錯誤之容錯機制。
+_Avoid_: Error forwarding, Dropped connection, Gateway crash.
+
+**Near-Cache Authorization (近端授權快取)**:
+在調用端微服務本機記憶體中維護短時效的授權檢驗快取，並在授權中心離線且快取過期時嚴格遵循 Fail-Closed 原則阻擋存取的防禦性快取架構。
+_Avoid_: Central-only auth, Remote call on every hit, Unbounded token cache.
+
+**Prototype Cluster Deployment (全微服務叢集原型部署)**:
+透過整合式容器編排定義檔（如 compose.prototype.yaml）一鍵拉起包含所有微服務、Python AI 側車及全套中間件之自包含可運行原型環境。
+_Avoid_: Partial mock run, Incomplete local stack, Manual service start.
+
+

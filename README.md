@@ -10,8 +10,9 @@
 
 ## 系統核心亮點 (Architecture Highlights)
 
-- 🛡️ **安全與權限**：Spring Security + JWT 雙來源解析（Header + Cookie）+ 宣告式動態三層 RBAC 權限模型（`@RequirePermission`）+ IAM 防自我 Feign 死鎖本地校驗。
-- 🚪 **網關與隔離**：Spring Cloud Gateway 統一入口 + 動態 OpenAPI 聚合器（`/v3/api-docs-merged`）+ 內部端點防護過濾器（阻擋外部直連 `/inner/`）。
+- 🛡️ **安全與權限**：Spring Security + JWT 雙來源解析（Header + Cookie）+ 宣告式動態三層 RBAC 權限模型（`@RequirePermission`）+ Caffeine 本機近端快取（Near-Cache）與 Fail-Closed 授權防雪崩機制 + IAM 防自我 Feign 死鎖本地校驗。
+- 🚪 **網關與隔離**：Spring Cloud Gateway 統一入口 + 動態 OpenAPI 聚合器（`/v3/api-docs-merged`）+ 內部端點防護過濾器（阻擋外部直連 `/inner/`）+ Resilience4j 斷路降級回退（`/fallback` 阻絕跨服務雪崩）。
+- 🗄️ **資料庫遷移與併發控制**：全面導入 **Liquibase 5 DB 宣告式遷移治理**（Baseline + 增量 YAML 鏈，強制可回滾宣告，`ddl-auto: validate`）+ 核心聚合根（`User`, `BotConfig`）**JPA `@Version` 樂觀鎖併發控制**（防範覆蓋遺失 Lost Update）。
 - ⚡ **快取防穿透**：六層快取防禦機制（Null Marker + Redisson 布隆過濾器 + 本機公平信號量 + 請求合併 Request Collapsing + Redisson 分散式互斥鎖 + 隨機 Jitter 抖動），涵蓋 19 個 Cache Names。
 - 🔄 **分散式事務與補償**：Durable Command + Transactional Outbox + Lease/Fencing Token + SAGA 補償機制，具備原子 CAS 領取、指數退避重試、死信佇列（DLT）與自動還原閉環。
 - 📬 **事件驅動架構**：Kafka 4 大主題（告警推播 `socketSend`、分散式補償 `transaction-compensation`、死信隔離 `transaction-compensation.DLT`、快取統計 `cache-stats`）。
@@ -20,10 +21,13 @@
   - **Python 側車 (`backend-ai-py`)**：Faster-Whisper (CUDA 12 DLLs 動態加載) + Sherpa-ONNX SenseVoice 雙引擎 STT、PyAnnote 語者分離 Conda 獨立子進程隔離、GPT-SoVITS + Sherpa-ONNX 雙引擎 TTS、Ollama 本地 LLM SSE 串流。
   - **Java 整合中心**：LINE Bot 串流端點、Discord Bot 動態 Webhook 偽裝、多模型瀑布級聯降級（Gemini 3.8/3.7 Flash → Groq → DeepSeek → GitHub Models）。
 - 📊 **可觀測性、鏈路追蹤與集中日誌**：全微服務標準整合 **Micrometer Tracing (W3C `traceparent` 分散式鏈路追蹤)** + **Grafana Loki 3.0 集中式日誌聚合** + **LogMaskingConverter 敏感資料脫敏保護** + **Prometheus (`/actuator/prometheus`) 指標監控** 與 **Grafana 統一可視化看板**。
-- 🧪 **極致品質保證**：
-  - GitHub Actions 雙軌自動化 CI（Java 嚴格要求 BUNDLE 覆蓋率 >= 80% + Python Ruff/Pytest + 整合 Gemini 3.8 Flash 最高優先級模型池之 AI Code Review + SonarQube / Strix 安全掃描）。
+- 🧪 **極致品質保證與韌性驗證**：
+  - 本地 Pre-commit 確定性守門防線（`check_local.py` 強制 0 違規）。
+  - Testcontainers + Toxiproxy 確定性混沌工程驗證（網路延遲、抖動與伺服器中斷模擬）。
+  - GitHub Actions / GitLab CI 多階段自動化管線（Java 嚴格要求單執行緒測試與 BUNDLE 覆蓋率 >= 80% + Python Ruff/Pytest + 整合 Gemini 3.8 Flash 最高優先級模型池之 AI Code Review + SonarQube / Strix 安全掃描）。
   - 完整 JMeter 500 併發壓力測試套件（含 10 個 SQL 大量測試數據生成腳本與效能報告）。
   - 嚴格代碼規範：全面建構子注入（`@RequiredArgsConstructor` + `private final`）、Mapper 僅限 Service Impl、Controller 嚴禁出現 Entity、禁止完全限定名稱 (FQN)。
+- 🚢 **雙軌部署架構**：提供「模式一：本機開發與單模組除錯軌道（`compose.yaml`）」與「模式二：一鍵全微服務叢集原型軌道（`compose.prototype.yaml` 一鍵啟動 7 服務 + 中間件）」。
 
 ---
 
@@ -33,7 +37,7 @@
 
 ```mermaid
 graph TB
-    Client["客戶端 Web / App / LINE / Discord"] -->|HTTP / REST| GW["API Gateway<br/>Port: 8000"]
+    Client["客戶端 Web / App / LINE / Discord"] -->|HTTP / REST| GW["API Gateway<br/>Port: 8000<br/>(Resilience4j 斷路降級 /fallback)"]
     Client -->|WebSocket| WS["AlarmWebSocket<br/>Port: 8008"]
 
     subgraph "服務註冊中心"
@@ -62,7 +66,7 @@ graph TB
     EXT -->|Feign OpenFeign| AIPY
 
     subgraph "基礎設施 (Docker Compose)"
-        PG[("PostgreSQL 16<br/>5 個獨立 DB")]
+        PG[("PostgreSQL 16<br/>5 個獨立 DB (Liquibase 遷移治理)")]
         RD[("Redis 7<br/>快取與布隆過濾器")]
         KF[("Kafka 集群<br/>Port: 9092")]
         MINIO[("MinIO S3<br/>Port: 9000/9001")]
@@ -82,13 +86,13 @@ graph TB
 
 | 微服務模組 | 基礎埠號 | 資料庫名稱 | 核心職責與技術要點 |
 |---|:---:|:---:|---|
-| **`backend-gateway`** | `8000` | - | 系統統一對外入口，負責動態路由轉發、路徑前綴剝除 (`StripPrefix=1`)、內部端點隔離 (`InnerEndpointBlockFilter` 攔截 `/inner/`)、跨域 CORS、OpenAPI 規格動態聚合 (`/v3/api-docs-merged`) 與 WebFlux 鏈路追蹤自動上下文傳播。 |
-| **`backend-iam-service`** | `8002` | `iam_service` | 身分識別與存取管理。提供 JWT 簽發驗證、超級使用者初始化、動態權限字典維護，以及防止自我 Feign 調用的本地權限校驗器 (`LocalPermissionValidatorImpl`)。 |
-| **`backend-competency-service`** | `8004` | `competency_service` | 職能與專案管理。涵蓋技能庫、技能等級、專案綁定，以及包含 Transactional Outbox、租約鎖定、Fencing Token 與 SAGA 回滾在內的全套分散式事務補償引擎。 |
-| **`backend-job-service`** | `8006` | `job_service` | 企業與職缺媒合服務。提供企業資訊、職缺發布、個人職缺收藏，並整合 Jsoup/Selenium 爬蟲抓取與 AI 職缺結構化分析。 |
-| **`backend-external-api-service`** | `8007` | `external_api_service` | 外部整合與 AI 代理中心。提供 LINE/Discord 雙平台機器人（女友對話、語音日記）、MinIO 語音儲存串流端點、Bot 動態配置與 API 用量成本審計。 |
-| **`backend-alert-service`** | `8008` | `alert_service` | 即時水情監控與告警服務。提供感測器數據分析、告警閥值比對、Kafka 事件消費、WebSocket 跨節點推播，以及跨服務快取指標統計聚合 (`/cache-stats`)。 |
-| **`backend-common`** | - | - | 基礎共用模組。提供 `BaseEntity` 審計實體、Feign Clients 定義、JWT 安全過濾器、三層權限切面 (`PermissionCheck`)、六層快取防穿透管理器、`LogMaskingConverter` 敏感資料脫敏轉換器、`AsyncTraceContextConfig` 非同步與響應式鏈路傳播器、`logback-spring.xml` 集中日誌配置與全域例外處理。 |
+| **`backend-gateway`** | `8000` | - | 系統統一對外入口，負責動態路由轉發、路徑前綴剝除 (`StripPrefix=1`)、內部端點隔離 (`InnerEndpointBlockFilter` 攔截 `/inner/`)、跨域 CORS、OpenAPI 規格動態聚合 (`/v3/api-docs-merged`)、Resilience4j 斷路器與降級控制器 (`/fallback`) 與 WebFlux 鏈路追蹤自動上下文傳播。 |
+| **`backend-iam-service`** | `8002` | `iam_service` (Liquibase) | 身分識別與存取管理。提供 JWT 簽發驗證、超級使用者初始化、動態權限字典維護、核心 `User` 聚合根 `@Version` 樂觀鎖，以及防止自我 Feign 調用的本地權限校驗器 (`LocalPermissionValidatorImpl`)。 |
+| **`backend-competency-service`** | `8004` | `competency_service` (Liquibase) | 職能與專案管理。涵蓋技能庫、技能等級、專案綁定，以及包含 Transactional Outbox、租約鎖定、Fencing Token 與 SAGA 回滾在內的全套分散式事務補償引擎。 |
+| **`backend-job-service`** | `8006` | `job_service` (Liquibase) | 企業與職缺媒合服務。提供企業資訊、職缺發布、個人職缺收藏，並整合 Jsoup/Selenium 爬蟲抓取與 AI 職缺結構化分析。 |
+| **`backend-external-api-service`** | `8007` | `external_api_service` (Liquibase) | 外部整合與 AI 代理中心。提供 LINE/Discord 雙平台機器人（女友對話、語音日記）、MinIO 語音儲存串流端點、`BotConfig` 聚合根 `@Version` 樂觀鎖與 API 用量成本審計。 |
+| **`backend-alert-service`** | `8008` | `alert_service` (Liquibase) | 即時水情監控與告警服務。提供感測器數據分析、告警閥值比對、Kafka 事件消費、WebSocket 跨節點推播，以及跨服務快取指標統計聚合 (`/cache-stats`)。 |
+| **`backend-common`** | - | - | 基礎共用模組。提供 `BaseEntity` 審計實體、Feign Clients 定義、JWT 安全過濾器、三層權限切面 (`PermissionCheck`)、`DefaultPermissionValidator` Caffeine 近端快取與 Fail-Closed 防雪崩機制、六層快取防穿透管理器、`LogMaskingConverter` 敏感資料脫敏轉換器、`AsyncTraceContextConfig` 非同步與響應式鏈路傳播器、`logback-spring.xml` 集中日誌配置與全域例外處理。 |
 | **`backend-ai-py`** | `5001` | - | Python FastAPI AI 側車。提供 Faster-Whisper / SenseVoice 語音辨識、GPT-SoVITS / Sherpa-ONNX 語音合成、PyAnnote 語者分離 Conda 子進程隔離與 Ollama SSE 串流推論。 |
 
 ---
@@ -139,7 +143,7 @@ graph TB
 | 模組名稱 | 實體類別完整路徑 | 對應資料表 | 實體類型 | 業務用途與核心約束 |
 |---|---|---|:---:|---|
 | **common** | `com.example.BackendArchitectureLab.Entity.BaseEntity` | - | MappedSuperclass | 全系統基礎審計實體 (UUID + 審計欄位)。 |
-| **iam-service** | `com.example.BackendArchitectureLab.Entity.User` | `user` | 主實體 | 系統使用者帳號 (`email` 唯一約束)。 |
+| **iam-service** | `com.example.BackendArchitectureLab.Entity.User` | `user` | 主實體 | 系統使用者帳號 (@Version 樂觀鎖, `email` 唯一約束)。 |
 | | `com.example.BackendArchitectureLab.Entity.Role` | `role` | 主實體 | 角色定義 (`name` 唯一約束)。 |
 | | `com.example.BackendArchitectureLab.Entity.Function` | `function` | 主實體 | 階層式功能權限樹 (`parent` 支援樹狀結構)。 |
 | | `com.example.BackendArchitectureLab.Entity.UserRole` | `user_role` | 關聯表 | 使用者與角色關聯 (`user_id, role_id` 複合唯一約束)。 |
@@ -159,7 +163,7 @@ graph TB
 | | `com.example.BackendArchitectureLab.Entity.CompanyWebsite` | `company_website` | 子實體 | 企業官方網站與徵才網址列表。 |
 | | `com.example.BackendArchitectureLab.Entity.JobPosting` | `job_posting` | 主實體 | 職缺詳細資訊與 AI 結構化分析結果。 |
 | | `com.example.BackendArchitectureLab.Entity.UserJobLink` | `user_job_link` | 關聯表 | 使用者職缺收藏與備註 (`user_id, job_posting_id` 複合唯一約束)。 |
-| **external-api-service** | `com.example.BackendArchitectureLab.Entity.BotConfig` | `bot_config` | 主實體 | 平台機器人全域參數、每日用量預算與警報閥值。 |
+| **external-api-service** | `com.example.BackendArchitectureLab.Entity.BotConfig` | `bot_config` | 主實體 | 平台機器人全域參數 (@Version 樂觀鎖, 每日用量預算與警報閥值)。 |
 | | `com.example.BackendArchitectureLab.Entity.ApiUsageLog` | `api_usage_log` | 審計表 | 外部 API / LLM 呼叫紀錄與成本估算日誌。 |
 | | `com.example.BackendArchitectureLab.Entity.VoiceDiary` | `voice_diary` | 主實體 | 語音日記轉譯文本、語言與音訊來源。 |
 | | `com.example.BackendArchitectureLab.Entity.LineGfSession` | `line_gf_session` | 主實體 | LINE 女友對話狀態、Prompt 與歷史上下文 (`user_id` 唯一約束)。 |
@@ -188,6 +192,7 @@ erDiagram
         string password "BCrypt 雜湊"
         string name "使用者名稱"
         boolean disabled "帳號停用狀態"
+        bigint version "樂觀鎖版本號"
     }
 
     ROLE {
@@ -342,6 +347,7 @@ erDiagram
         string config_key UK "配置鍵名"
         string config_value "配置數值"
         decimal cost_limit_daily "每日成本上限 (USD)"
+        bigint version "樂觀鎖版本號"
     }
 
     API_USAGE_LOG {
@@ -1051,25 +1057,33 @@ sequenceDiagram
 
 # 十二、 快速啟動指南 (Quick Start)
 
-### 步驟 0：環境變數設定
+本專案支援**兩種部署與開發軌道**：
+- **軌道一：本機開發與單模組除錯軌道（Local Dev Track）**：使用 `compose.yaml` 僅啟動資料庫與中間件，後端微服務於本機 IDE 或命令列依需求啟動。
+- **軌道二：一鍵全微服務叢集原型軌道（Prototype Cluster Track）**：使用 `compose.prototype.yaml` 一鍵啟動全套 7 個微服務容器、Python AI 側車及全套基礎設施，快速體驗完整系統。
+
+---
+
+### 軌道一：本機開發與單模組除錯軌道 (Local Dev Track)
+
+#### 步驟 0：環境變數設定
 ```bash
 cp .env.example .env
 # 編輯 .env 填入各項 API Key 與資料庫密碼
 ```
 
-### 步驟 1：啟動 Docker 基礎設施
+#### 步驟 1：啟動 Docker 基礎設施
 ```bash
 docker compose -f compose.yaml up -d
 ```
 > 初始化會自動執行 `init-dbs.sql` 建立 5 個微服務獨立資料庫，並同步啟動 Redis、Kafka、MinIO 以及 Grafana Loki (Port 3100) 與 Grafana (Port 3000)。
 
-### 步驟 2：啟動 Python AI 側車服務
+#### 步驟 2：啟動 Python AI 側車服務
 ```bash
 conda env create -f backend-ai-py/environment.yml  # 首次建立環境
 conda run -n backend-ai-py uvicorn main:app --port 5001
 ```
 
-### 步驟 3：啟動 Java 後端微服務
+#### 步驟 3：啟動 Java 後端微服務
 依序在獨立終端機啟動微服務（IAM 優先啟動以建立權限字典，Gateway 最後啟動）：
 ```bash
 ./mvnw spring-boot:run -pl backend-iam-service
@@ -1079,6 +1093,26 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 ./mvnw spring-boot:run -pl backend-alert-service
 ./mvnw spring-boot:run -pl backend-gateway
 ```
+
+---
+
+### 軌道二：一鍵全微服務叢集原型軌道 (Prototype Cluster Track)
+
+適合快速原型驗證或不需要在本機配置 Java 21 / Conda 開發環境的場景：
+
+#### 步驟 1：環境設定與一鍵建置啟動
+```bash
+cp .env.example .env
+docker compose -f compose.prototype.yaml up -d --build
+```
+> 該命令將自動編譯並啟動全部 7 個微服務映像檔（含 6 個 Java 服務與 1 個 Python FastAPI 側車），並自帶健康檢查與啟動相依順序（PostgreSQL/Redis/Kafka 就緒 -> IAM/AI-PY 啟動 -> 業務服務 -> Gateway）。各服務於啟動時自動透過 Liquibase 執行 Schema 遷移與校驗。
+
+#### 步驟 2：檢視叢集狀態
+```bash
+docker compose -f compose.prototype.yaml ps
+```
+
+---
 
 ### 步驟 4：存取 OpenAPI / Swagger UI
 開啟瀏覽器訪問 Gateway 聚合文檔：
@@ -1127,6 +1161,9 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 - [x] Centralized Logging (Grafana Loki 3.0 + Loki4j Async Ring Buffer)
 - [x] Distributed Tracing (Micrometer Tracing + OpenTelemetry Bridge + W3C Trace Context)
 - [x] Log Sensitive Data Masking (LogMaskingConverter 敏感資料脫敏防護)
+- [x] Liquibase 宣告式資料庫版本控制 (5 個微服務獨立 Changelog 遷移治理，hibernate validate)
+- [x] Prototype Cluster Deployment (`compose.prototype.yaml` 7 服務全微服務原型環境一鍵拉起)
+- [x] GitLab CI 多階段管線整合 (`.gitlab-ci.yml` 靜態分析、單元測試、建置驗證)
 
 ### Architecture & Distributed Patterns
 - [x] Transactional Outbox Pattern (`compensation_outbox_event`)
@@ -1134,10 +1171,15 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 - [x] Lease-based Fencing Token 租約控制與 CAS 狀態機
 - [x] SAGA 分散式事務補償與自動還原閉環
 - [x] Event-Driven Architecture (Kafka 4 大主題)
+- [x] Optimistic Locking 併發控制 (`@Version` 樂觀鎖版本防護，`User` 與 `BotConfig` 核心聚合根)
+- [x] Resilience4j Circuit Breaker 斷路降級回退 (API Gateway 整合 `GatewayFallbackController` 防雪崩)
+- [x] Near-Cache & Fail-Closed 授權防雪崩 (Caffeine 本機快取 + `ObjectProvider` 動態感知)
 
 ### Quality & Benchmark
 - [x] Unit Test + JaCoCo Coverage Check (BUNDLE >= 80%)
 - [x] Testcontainers 端到端整合測試 (PostgreSQL 16, Kafka KRaft, Redis 7 共享容器)
+- [x] Toxiproxy 確定性混沌工程驗證 (`BaseChaosIntegrationTest` 網路延遲與中斷模擬)
+- [x] Pre-commit 本地確定性規範守門防線 (`check_local.py` 強制 0 違規)
 - [x] Grafana k6 + JMeter 50/200/500 階梯式高併發壓力測試與四象限效能對照 (快取開關 × 虛擬執行緒開關)
 - [x] GitHub Actions 雙軌 CI + AI Code Review
 
