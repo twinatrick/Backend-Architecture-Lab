@@ -10,10 +10,6 @@ spring:
       host: localhost
       port: 6379
 
-  test:
-    database:
-      replace: none
-
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
