@@ -37,6 +37,11 @@ public class ProjectDataAccessImpl implements IProjectDataAccess {
     }
     
     @Override
+    public Page<Project> findAllPaged(Pageable pageable) {
+        return projectRepository.findAll(pageable);
+    }
+
+    @Override
     public List<Project> findAll() {
         return projectRepository.findAll();
     }

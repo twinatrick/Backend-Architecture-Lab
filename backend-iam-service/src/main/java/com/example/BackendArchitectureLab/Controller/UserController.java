@@ -16,7 +16,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
@@ -56,11 +59,13 @@ public class UserController {
         return ResponseType.Success(userService.getUserById(id), "使用者查詢成功");
     }
 
-    @GetMapping("/getAllUser")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得所有使用者", description = "回傳所有使用者及其角色與權限。")
-    public ResponseType<List<UserVo>> getAllUser() {
-        return new ResponseType<>(0, userService.getAllUsersVo());
+    @ApiOperationOk(summary = "串流分塊取得使用者清單", description = "透過 Server-Sent Events (SSE) 分塊串流推播使用者清單，支援心跳保活與非阻塞背壓。")
+    public Flux<ServerSentEvent<List<UserVo>>> streamUsers(
+            @RequestParam(defaultValue = "250") int chunkSize
+    ) {
+        return userService.streamUsersChunked(chunkSize);
     }
 
     @PostMapping("/saveUser")

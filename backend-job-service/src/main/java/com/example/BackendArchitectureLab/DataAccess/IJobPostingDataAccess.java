@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess;
 import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +14,8 @@ public interface IJobPostingDataAccess {
     JobPosting save(JobPosting jobPosting);
 
     List<JobPosting> findAll();
+
+    Page<JobPosting> findAllPaged(Pageable pageable);
 
     Optional<JobPosting> findById(UUID id);
 

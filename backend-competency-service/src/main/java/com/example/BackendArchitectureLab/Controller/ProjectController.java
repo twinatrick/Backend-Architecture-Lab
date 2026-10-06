@@ -14,7 +14,10 @@ import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,11 +38,13 @@ public class ProjectController {
         return ResponseType.Success(projectCommandService.addProject(project), "專案新增成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得專案列表", description = "回傳所有專案。")
-    public ResponseType<List<ProjectVo>> getProject() {
-        return ResponseType.Success(projectQueryService.getProject(), "專案查詢成功");
+    @ApiOperationOk(summary = "專案分塊串流", description = "以 SSE 響應式分塊串流取得專案列表，避免萬筆級全表查詢與記憶體過載")
+    public Flux<ServerSentEvent<List<ProjectVo>>> streamProjects(
+            @RequestParam(defaultValue = "250") int chunkSize
+    ) {
+        return projectQueryService.streamProjectsChunked(chunkSize);
     }
 
     @PostMapping("/update")

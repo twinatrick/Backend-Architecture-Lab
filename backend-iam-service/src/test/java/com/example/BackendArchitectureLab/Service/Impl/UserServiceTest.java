@@ -22,6 +22,9 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.test.StepVerifier;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Optional;
@@ -379,19 +382,20 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Should get all users VO successfully")
-    void testGetAllUsersVo() {
+    @DisplayName("Should stream users chunked with events chunk and complete")
+    void testStreamUsersChunked_Success() {
         // Arrange
-        List<User> users = List.of(testUser);
-        when(userDataAccess.findAll()).thenReturn(users);
+        Page<User> page0 = new PageImpl<>(List.of(testUser), PageRequest.of(0, 10), 1);
+        when(userDataAccess.findAllPaged(any())).thenReturn(page0);
 
         // Act
-        List<UserVo> result = userService.getAllUsersVo();
+        Flux<ServerSentEvent<List<UserVo>>> stream = userService.streamUsersChunked(10);
 
         // Assert
-        assertNotNull(result);
-        assertEquals(1, result.size());
-        verify(userDataAccess).findAll();
+        StepVerifier.create(stream.take(2))
+                .expectNextMatches(sse -> "chunk".equals(sse.event()) && sse.data() != null && sse.data().size() == 1)
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
     }
 
     @Test

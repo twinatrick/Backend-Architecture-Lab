@@ -27,8 +27,10 @@ import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
+import reactor.test.StepVerifier;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -152,15 +154,24 @@ class JobPostingServiceTest {
     }
 
     @Test
-    @DisplayName("Should get all job postings")
-    void testGetAllJobPostings() {
-        when(jobPostingDataAccess.findAll()).thenReturn(List.of(testJobPosting));
+    @DisplayName("Should stream job postings chunked successfully")
+    void testStreamJobPostingsChunked_Success() {
+        when(jobPostingDataAccess.findAllPaged(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(testJobPosting)));
 
-        List<JobPostingVo> result = jobPostingService.getAllJobPostings();
+        StepVerifier.create(jobPostingService.streamJobPostingsChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("chunk", sse.event());
+                    assertNotNull(sse.data());
+                    assertEquals(1, sse.data().size());
+                    assertEquals("Software Engineer", sse.data().get(0).getTitle());
+                })
+                .assertNext(sse -> {
+                    assertEquals("complete", sse.event());
+                })
+                .verifyComplete();
 
-        assertEquals(1, result.size());
-        assertEquals("Software Engineer", result.get(0).getTitle());
-        verify(jobPostingDataAccess).findAll();
+        verify(jobPostingDataAccess).findAllPaged(any(Pageable.class));
     }
 
     @Test

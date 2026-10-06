@@ -11,6 +11,8 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserSkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
+import com.example.BackendArchitectureLab.Service.IProjectSkillService;
+import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,9 +30,12 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -208,5 +213,21 @@ class ProjectSkillServiceTest {
         projectSkillService.rebindPersonalProjectSkills(projectId, mapping);
 
         verify(projectSkillDataAccess).save(any(ProjectSkill.class));
+    }
+
+    @Test
+    void getProjectSkills_shouldReturnEmptyList_whenCacheReturnsNull() throws Exception {
+        IProjectSkillService mockSelf = mock(IProjectSkillService.class);
+        Field selfField = ProjectSkillService.class.getDeclaredField("self");
+        selfField.setAccessible(true);
+        selfField.set(projectSkillService, mockSelf);
+
+        UUID projectId = UUID.randomUUID();
+        when(mockSelf.getProjectSkillsCache(projectId)).thenReturn(null);
+
+        List<ProjectSkillVo> result = projectSkillService.getProjectSkills(projectId);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
     }
 }

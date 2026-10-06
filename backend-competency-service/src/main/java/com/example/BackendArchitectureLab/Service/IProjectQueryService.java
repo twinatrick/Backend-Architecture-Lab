@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
@@ -14,12 +16,11 @@ import java.util.UUID;
 public interface IProjectQueryService {
 
     /**
-     * 查詢所有專案
-     * @return 所有專案列表
+     * 以響應式分塊 SSE 串流方式取得專案列表
+     * @param chunkSize 每次推送筆數
+     * @return Server-Sent Events 串流
      */
-    List<ProjectVo> getProject();
-
-    CacheListWrapper<ProjectVo> getProjectListCache();
+    Flux<ServerSentEvent<List<ProjectVo>>> streamProjectsChunked(int chunkSize);
 
     /**
      * 分頁搜尋專案

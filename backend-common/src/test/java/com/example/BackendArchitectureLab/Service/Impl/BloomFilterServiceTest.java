@@ -30,6 +30,11 @@ class BloomFilterServiceTest {
 
     private final BloomFilterProperties defaultProps = new BloomFilterProperties();
 
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        defaultProps.setEntities(List.of("Test:test-cache"));
+    }
+
     @Test
     void mightContain_WhenFilterSaysYes_ReturnsTrue() {
         when(redissonClient.getBloomFilter(anyString())).thenReturn(bloomFilter);
@@ -50,6 +55,23 @@ class BloomFilterServiceTest {
         BloomFilterService service = new BloomFilterService(redissonClient, defaultProps);
         service.count("test-cache");
         assertFalse(service.mightContain("test-cache", "unknown-key"));
+    }
+
+    @Test
+    void mightContain_WhenCacheNotConfigured_ReturnsTrueWithoutCheckingFilter() {
+        BloomFilterService service = new BloomFilterService(redissonClient, defaultProps);
+        boolean result = service.mightContain("projectSkills", "any-uuid-key");
+
+        assertTrue(result, "未宣告於布隆過濾器清單之快取實體應遵循未宣告放行原則直接回傳 true");
+        verify(redissonClient, never()).getBloomFilter(anyString());
+    }
+
+    @Test
+    void add_WhenCacheNotConfigured_DoesNothing() {
+        BloomFilterService service = new BloomFilterService(redissonClient, defaultProps);
+        service.add("projectSkills", "any-key");
+
+        verify(redissonClient, never()).getBloomFilter(anyString());
     }
 
     @Test

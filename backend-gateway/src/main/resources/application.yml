@@ -31,6 +31,16 @@ spring:
           filters:
             - StripPrefix=1
 
+        - id: iam-stream
+          uri: lb://iam-service
+          predicates:
+            - Path=/api/users/stream/**,/api/users/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: 60000
+            connect-timeout: 10000
+
         - id: iam-service
           uri: lb://iam-service
           predicates:
@@ -42,6 +52,16 @@ spring:
                 name: iamCircuitBreaker
                 fallbackUri: forward:/fallback
 
+        - id: job-stream
+          uri: lb://job-service
+          predicates:
+            - Path=/api/job-posting/stream/**,/api/job-posting/stream,/api/user-job-link/stream/**,/api/user-job-link/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: 60000
+            connect-timeout: 10000
+
         - id: job-service
           uri: lb://job-service
           predicates:
@@ -52,6 +72,16 @@ spring:
               args:
                 name: jobCircuitBreaker
                 fallbackUri: forward:/fallback
+
+        - id: competency-stream
+          uri: lb://competency-service
+          predicates:
+            - Path=/api/project/stream/**,/api/project/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: 60000
+            connect-timeout: 10000
 
         - id: competency-service
           uri: lb://competency-service
