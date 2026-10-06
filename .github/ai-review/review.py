@@ -26,6 +26,7 @@ from github_client import (
     validate_target_pr,
 )
 from key_pool import get_gemini_api_keys, get_groq_api_keys
+from model_pool import get_gemini_candidate_models
 from orchestrator import chat_completion
 from redaction import get_gh_token
 from reporter import format_json_report, format_markdown_report
@@ -154,8 +155,9 @@ def main() -> None:
     rules_text = rules_p.read_text(encoding="utf-8") if rules_p.exists() else ""
     contract_text = contract_p.read_text(encoding="utf-8") if contract_p.exists() else ""
     policy = load_policy()
-    max_batch_chars = int(os.environ.get("AI_REVIEW_MAX_BATCH_CHARS", "24000"))
-    batches = build_batches(files, max_chars=max_batch_chars)
+    gemini_candidates = get_gemini_candidate_models()
+    primary_model = gemini_candidates[0] if gemini_candidates else None
+    batches = build_batches(files, model_name=primary_model)
 
     expected_files = [fname for _, paths in batches for fname in paths]
     is_batch_valid = (

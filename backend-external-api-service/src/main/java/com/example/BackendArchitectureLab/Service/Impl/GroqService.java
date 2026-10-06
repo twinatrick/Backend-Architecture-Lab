@@ -1,12 +1,17 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.google.gson.Gson;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 @Service
+@RequiredArgsConstructor
 public class GroqService extends BaseOpenAiService {
+
+    private final RestTemplate restTemplate;
+    private final Gson gson;
 
     @Value("${groq.api.key}")
     private String apiKey;
@@ -17,8 +22,14 @@ public class GroqService extends BaseOpenAiService {
     @Value("${groq.api.model}")
     private String model;
 
-    public GroqService(RestTemplate restTemplate, Gson gson) {
-        super(restTemplate, gson);
+    @Override
+    protected RestTemplate getRestTemplate() {
+        return restTemplate;
+    }
+
+    @Override
+    protected Gson getGson() {
+        return gson;
     }
 
     @Override

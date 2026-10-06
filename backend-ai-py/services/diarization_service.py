@@ -24,8 +24,8 @@ def _resolve_conda_python(env_name: str) -> str:
                 candidate = os.path.join(env_path, "python.exe")
                 if os.path.exists(candidate):
                     return candidate
-    except Exception as e:
-        logger.warning("[STT] conda env 解析失敗: %s", e)
+    except (subprocess.SubprocessError, json.JSONDecodeError, OSError, ValueError) as exc:
+        logger.warning("[STT] conda env 解析失敗: %s", exc)
     return ""
 
 
@@ -41,7 +41,7 @@ def _get_gpu_vram_gb() -> float:
         )
         vram_mb = float(res.stdout.strip().split("\n")[0])
         return vram_mb / 1024.0
-    except Exception as exc:
+    except (subprocess.SubprocessError, ValueError, OSError) as exc:
         logger.warning("[STT] 查詢 GPU VRAM 失敗: %s", exc)
         return 0.0
 
@@ -85,14 +85,14 @@ def _run_diarization(pyannote_python: str, audio_path: str, output_json: str, de
             logger.debug("[STT] Diarization stdout: %s", res.stdout)
         if res.returncode != 0 and res.stderr:
             logger.warning("[STT] Diarization stderr (tail): %s", res.stderr[-500:])
-    except Exception as e:
-        logger.error("[STT] Diarization 子進程執行失敗: %s", e)
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.error("[STT] Diarization 子進程執行失敗: %s", exc)
         return []
 
     if os.path.exists(output_json) and os.path.getsize(output_json) > 0:
         try:
-            with open(output_json, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.warning("[STT] Diarization 結果解析失敗: %s", e)
+            with open(output_json, encoding="utf-8") as json_file:
+                return json.load(json_file)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("[STT] Diarization 結果解析失敗: %s", exc)
     return []

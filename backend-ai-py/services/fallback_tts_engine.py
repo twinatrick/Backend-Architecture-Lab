@@ -27,5 +27,5 @@ class FallbackTtsEngine:
         tts = sherpa_onnx.OfflineTts(config)
         audio = tts.generate(text, sid=0, speed=1.0)
         sf.write(save_path, audio.samples, audio.sample_rate)
-        with open(save_path, "rb") as f:
-            return f.read()
+        with open(save_path, "rb") as audio_file:
+            return audio_file.read()

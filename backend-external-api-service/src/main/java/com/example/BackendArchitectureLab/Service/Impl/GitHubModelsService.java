@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.AiJobPostingVo;
 import com.google.gson.Gson;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -11,7 +12,11 @@ import java.util.List;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class GitHubModelsService extends BaseOpenAiService {
+
+    private final RestTemplate restTemplate;
+    private final Gson gson;
 
     @Value("${github.models.api.key}")
     private String apiKey;
@@ -22,8 +27,14 @@ public class GitHubModelsService extends BaseOpenAiService {
     @Value("${github.models.api.model}")
     private String model;
 
-    public GitHubModelsService(RestTemplate restTemplate, Gson gson) {
-        super(restTemplate, gson);
+    @Override
+    protected RestTemplate getRestTemplate() {
+        return restTemplate;
+    }
+
+    @Override
+    protected Gson getGson() {
+        return gson;
     }
 
     @Override

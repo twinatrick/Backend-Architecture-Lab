@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 
@@ -15,14 +16,15 @@ class BaseOpenAiServiceTest {
     private TestBaseOpenAiService service;
 
     static class TestBaseOpenAiService extends BaseOpenAiService {
-        private String apiKey = "test-key";
+        private final Gson gson = new Gson();
+        private String apiKey = "dummy-test-key";
         private String apiUrl = "https://api.test.com/v1/chat/completions";
         private String modelName = "test-model";
 
-        TestBaseOpenAiService() {
-            super(null, new Gson());
-        }
-
+        @Override
+        protected RestTemplate getRestTemplate() { return null; }
+        @Override
+        protected Gson getGson() { return gson; }
         @Override
         protected String getApiKey() { return apiKey; }
         @Override

@@ -5,7 +5,6 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ILearnService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
-import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -20,11 +19,16 @@ public class LearnController {
     private final ILearnService learnService;
 
     @PostMapping(value = "/{lan}/{mode}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @ApiOperationBadRequest(summary = "語音辨識與拼音轉換", description = "上傳音訊進行 Whisper 辨識，並根據語言及模式轉換為拼音、注音或羅馬音。")
+    @ApiOperationBadRequest(
+            summary = "語音辨識與拼音轉換",
+            description = "上傳音訊進行 Whisper 辨識，並根據語言及模式轉換為拼音、注音或羅馬音。"
+                    + " [參數說明] lan: 目標語言，如 zh (繁體中文) 或 ja (日文)；"
+                    + "mode: 輸出模式 (pinyin, zhuyin, romaji, none)；file: 音訊檔案。"
+    )
     public ResponseType<AudioRecognizeVo> recognizeAudio(
-            @Parameter(description = "目標語言，如 zh (繁體中文) 或 ja (日文)", required = true) @PathVariable("lan") String lan,
-            @Parameter(description = "輸出模式：pinyin, zhuyin, romaji, none", required = true) @PathVariable("mode") String mode,
-            @Parameter(description = "音訊檔案", required = true) @RequestParam("file") MultipartFile file) {
+            @PathVariable("lan") String lan,
+            @PathVariable("mode") String mode,
+            @RequestParam("file") MultipartFile file) {
         
         if (file.isEmpty()) {
             return ResponseType.Fail("BAD_REQUEST", "請上傳音訊檔案", 400);

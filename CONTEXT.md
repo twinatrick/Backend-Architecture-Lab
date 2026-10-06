@@ -188,4 +188,16 @@ _Avoid_: Full table in-memory load, Cache BigKey, Sync batch polling.
 在長時間開啟的 SSE 伺服器發送事件通道中，週期性由伺服端發送符合 SSE 規範之協定層註釋訊框（如 `: keep-alive\n\n`），以防止反向代理（如 Caddy）、網關或負載均衡器因閒置超時中斷串流連線的保活機制。
 _Avoid_: Heartbeat JSON event, Idle timeout drop, Ping polling.
 
+**Dynamic Model Specification (動態模型規格註冊)**:
+在 AI 審查調度體系中，以資料結構顯式宣告各語言模型之最大批次 Tokens、單批檔案上限及輸出 Token 上限的靜態合約機制，取代無界黑箱分發。
+_Avoid_: Hardcoded batch size, Blind model dispatch.
+
+**Dual-Condition Batching (雙重批次切分條件)**:
+在程式碼變更審查批次建構時，同時依據模型規格的 Token 總量上限與檔案數量上限作為雙重切分條件，防止大批次或多小檔塞入單一批次導致輸出截斷的切分防線。
+_Avoid_: Char-only batching, Unbounded file batch, Truncated prompt cut.
+
+**Template Composition Service (模板組合服務架構)**:
+在多模型或外部 API 整合層中，以抽象模板方法模式配合子類別建構子注入（Lombok @RequiredArgsConstructor）持有相依性，杜絕繼承手寫建構子呼叫與屬性遺失的健全架構。
+_Avoid_: Manual super constructor, Field injection, Loose parameter pass.
+
 

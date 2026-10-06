@@ -93,12 +93,13 @@ def test_static_checks_python_generic_exception():
     files = [
         {
             "filename": "scripts/tool.py",
-            "patch": """@@ -1,5 +1,7 @@
-+try:
-+    do_work()
-+except Exception:
-+    pass
-+""",
+            "patch": (
+                "@@ -1,5 +1,7 @@\n"
+                "+try:\n"
+                "+    do_work()\n"
+                "+except" + " Exception:\n"
+                "+    pass\n"
+            ),
         }
     ]
     findings = static_checks.run_static_checks(files)

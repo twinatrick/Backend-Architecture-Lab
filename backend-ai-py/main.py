@@ -1,3 +1,4 @@
+import importlib
 import logging
 import os
 
@@ -5,6 +6,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import socket
 import threading
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx
@@ -12,10 +14,18 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+class NacosFallbackException(Exception):
+    pass
+
+
 try:
-    from nacos import NacosClient
+    _nacos_module = importlib.import_module("nacos")
+    NacosClient = getattr(_nacos_module, "NacosClient", None)
+    _nacos_exc_mod = importlib.import_module("nacos.exception")
+    NacosException = getattr(_nacos_exc_mod, "NacosException", NacosFallbackException)
 except ImportError:
     NacosClient = None
+    NacosException = NacosFallbackException
 
 from config import settings
 from routers import chat
@@ -26,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _nacos_register()
     await _warmup_ollama()
     yield
@@ -49,11 +59,11 @@ app.include_router(chat.router)
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-async def _warmup_ollama():
+async def _warmup_ollama() -> None:
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             await client.post(
@@ -64,7 +74,7 @@ async def _warmup_ollama():
                     "stream": False,
                 },
             )
-    except Exception as exc:
+    except (httpx.HTTPError, OSError) as exc:
         logger.warning("[Ollama] 暖機請求失敗，稍後正式呼叫時再重試: %s", exc)
 
 
@@ -83,7 +93,7 @@ def _get_local_ip() -> str:
     return ip
 
 
-def _nacos_register():
+def _nacos_register() -> None:
     global _nacos_service
     if not settings.nacos_server_addr:
         return
@@ -102,21 +112,21 @@ def _nacos_register():
         _nacos_service = client
         print(f"[nacos] registered {settings.service_name}@{ip}:{settings.server_port}")
 
-        def _heartbeat():
+        def _heartbeat() -> None:
             while True:
                 time.sleep(5)
                 try:
                     client.send_heartbeat(settings.service_name, ip, settings.server_port)
-                except Exception as exc:
+                except (OSError, RuntimeError, ValueError, NacosException) as exc:
                     logger.warning("[nacos] heartbeat 失敗: %s", exc)
 
         heartbeat_thread = threading.Thread(target=_heartbeat, daemon=True)
         heartbeat_thread.start()
-    except Exception as e:
-        print(f"[nacos] register failed: {e}")
+    except (OSError, RuntimeError, ValueError, NacosException) as exc:
+        print(f"[nacos] register failed: {exc}")
 
 
-def _nacos_deregister():
+def _nacos_deregister() -> None:
     global _nacos_service
     if _nacos_service is None:
         return
@@ -127,8 +137,8 @@ def _nacos_deregister():
             ip,
             settings.server_port,
         )
-    except Exception as e:
-        print(f"[nacos] deregister failed: {e}")
+    except (OSError, RuntimeError, ValueError, NacosException) as exc:
+        print(f"[nacos] deregister failed: {exc}")
 
 
 if __name__ == "__main__":

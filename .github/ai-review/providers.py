@@ -3,6 +3,7 @@ from typing import Any
 import requests
 
 from key_pool import get_groq_api_keys
+from model_pool import get_model_spec
 from redaction import sanitize_diff
 
 SYSTEM_CONTENT = (
@@ -27,6 +28,7 @@ class GroqClient:
         use_json_mode: bool = True,
     ) -> requests.Response:
         clean_prompt = sanitize_diff(prompt)
+        spec = get_model_spec(model_name)
         request_payload = {
             "model": model_name,
             "messages": [
@@ -34,7 +36,7 @@ class GroqClient:
                 {"role": "user", "content": clean_prompt},
             ],
             "temperature": 0.1,
-            "max_tokens": 4096,
+            "max_tokens": spec.max_output_tokens,
         }
         if use_json_mode:
             request_payload["response_format"] = {"type": "json_object"}
@@ -78,8 +80,9 @@ class GeminiClient:
     @staticmethod
     def build_generation_config(model_name: str) -> dict[str, Any]:
         """依模型版本構建 generationConfig，Gemini 3.x 移除 deprecated sampling 參數。"""
+        spec = get_model_spec(model_name)
         config: dict[str, Any] = {
-            "maxOutputTokens": 4096,
+            "maxOutputTokens": spec.max_output_tokens,
             "responseMimeType": "application/json",
         }
         norm_model = model_name.lower()

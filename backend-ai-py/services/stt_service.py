@@ -46,7 +46,7 @@ class SttService:
         }
 
     @staticmethod
-    def _cleanup(paths) -> None:
+    def _cleanup(paths: list[str | None]) -> None:
         """清理暫存檔案，失敗僅記錄不影響主流程。"""
         for file_path in paths:
             if file_path and os.path.exists(file_path):

@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from typing import Any
 
 import huggingface_hub
 import torch
@@ -14,7 +15,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 try:
     _orig_download = huggingface_hub.hf_hub_download
 
-    def _patched_download(*args, **kwargs):
+    def _patched_download(*args: Any, **kwargs: Any) -> Any:
         if "use_auth_token" in kwargs:
             kwargs["token"] = kwargs.pop("use_auth_token")
         return _orig_download(*args, **kwargs)
@@ -22,12 +23,12 @@ try:
     huggingface_hub.hf_hub_download = _patched_download
     if hasattr(huggingface_hub, "file_download"):
         huggingface_hub.file_download.hf_hub_download = _patched_download
-except Exception as exc:
+except (AttributeError, TypeError, RuntimeError) as exc:
     # 相容層 patch 失敗時退回首版行為，不影響後續語者分離流程
     print(f"[Diarization Worker] HF download patch failed: {exc}")
 
 
-def main():
+def main() -> None:
     # 參數：<file_path> <output_json> [device]
     # 機密（HF_TOKEN）與模型名稱（DIARIZATION_MODEL）一律由父程序以環境變數注入
     if len(sys.argv) < 3:
@@ -64,8 +65,8 @@ def main():
             }
         )
 
-    with open(output_json, "w", encoding="utf-8") as f:
-        json.dump(turns, f, ensure_ascii=False, indent=2)
+    with open(output_json, "w", encoding="utf-8") as json_file:
+        json.dump(turns, json_file, ensure_ascii=False, indent=2)
 
     print(f"[Diarization Worker] Successfully exported {len(turns)} turns to {output_json}")
 

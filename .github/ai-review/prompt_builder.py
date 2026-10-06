@@ -95,7 +95,7 @@ def build_batch_prompt(
 
 【長度與格式約束】
 各欄位描述務必簡潔扼要，單一 Finding 不得贅述；若無違規，findings 輸出空陣列 []。
-確保回應在 1000 Tokens 內結束。
+各欄位內容務求精簡確實，嚴禁無效贅述；確保 JSON 結構完整閉合且所有欄位齊全。
 
 【Review Contract】
 {clean_contract}
