@@ -1,4 +1,3 @@
-import importlib
 import logging
 import os
 
@@ -14,18 +13,16 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-class NacosFallbackException(Exception):
-    pass
-
-
 try:
-    _nacos_module = importlib.import_module("nacos")
-    NacosClient = getattr(_nacos_module, "NacosClient", None)
-    _nacos_exc_mod = importlib.import_module("nacos.exception")
-    NacosException = getattr(_nacos_exc_mod, "NacosException", NacosFallbackException)
+    from nacos import NacosClient
+    from nacos.exception import NacosException
 except ImportError:
     NacosClient = None
-    NacosException = NacosFallbackException
+
+    class _NacosFallbackError(Exception):
+        pass
+
+    NacosException = _NacosFallbackError
 
 from config import settings
 from routers import chat
