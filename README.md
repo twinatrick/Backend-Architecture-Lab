@@ -441,7 +441,7 @@ erDiagram
 | `UserController` | `POST /create` | `/users/create` | `/api/users/create` | **Protected** | `Create` 權限。 |
 | | `GET /infoVo` | `/users/infoVo` | `/api/users/infoVo` | **Protected** | 取得當前登入使用者詳細資料。 |
 | | `GET /{id}` | `/users/{id}` | `/api/users/{id}` | **Protected** | `View` 權限。 |
-| | `GET /getAllUser` | `/users/getAllUser` | `/api/users/getAllUser` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/users/stream` | `/api/users/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /saveUser` | `/users/saveUser` | `/api/users/saveUser` | **Protected** | `Edit` 權限。 |
 | | `POST /{userId}/roles/rebind` | `/users/{userId}/roles/rebind` | `/api/users/{userId}/roles/rebind` | **Protected** | `Edit` 權限（重新綁定使用者角色）。 |
 | | `POST /search` | `/users/search` | `/api/users/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
@@ -499,7 +499,7 @@ erDiagram
 | | `POST /update-level` | `/skill/personal/update-level` | `/api/skill/personal/update-level` | **Protected** | `Edit` 權限。 |
 | | `POST /delete` | `/skill/personal/delete` | `/api/skill/personal/delete` | **Protected** | `Edit` 權限。 |
 | `ProjectController` | `POST /add` | `/project/add` | `/api/project/add` | **Protected** | `Edit` 權限。 |
-| | `GET /get` | `/project/get` | `/api/project/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/project/stream` | `/api/project/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /update` | `/project/update` | `/api/project/update` | **Protected** | `Edit` 權限。 |
 | | `POST /delete` | `/project/delete` | `/api/project/delete` | **Protected** | `Edit` 權限。 |
 | | `GET /{projectId}/skills` | `/project/{projectId}/skills` | `/api/project/{projectId}/skills` | **Protected** | `View` 權限。 |
@@ -532,7 +532,7 @@ erDiagram
 | | `POST /search` | `/company/search` | `/api/company/search` | **Protected** | `View` 權限。 |
 | | `DELETE /delete/{id}` | `/company/delete/{id}` | `/api/company/delete/{id}` | **Protected** | `Edit` 權限。 |
 | `JobPostingController` | `POST /add` | `/job-posting/add` | `/api/job-posting/add` | **Protected** | `Edit` 權限。 |
-| | `GET /get` | `/job-posting/get` | `/api/job-posting/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/job-posting/stream` | `/api/job-posting/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `GET /get/{id}` | `/job-posting/get/{id}` | `/api/job-posting/get/{id}` | **Protected** | `View` 權限。 |
 | | `GET /company/{companyId}` | `/job-posting/company/{companyId}` | `/api/job-posting/company/{companyId}` | **Protected** | `View` 權限。 |
 | | `PUT /update` | `/job-posting/update` | `/api/job-posting/update` | **Protected** | `Edit` 權限。 |
@@ -541,7 +541,7 @@ erDiagram
 | | `POST /search` | `/job-posting/search` | `/api/job-posting/search` | **Protected** | `View` 權限。 |
 | `UserJobLinkController` | `POST /add` | `/user-job-link/add` | `/api/user-job-link/add` | **Protected** | `Edit` 權限。 |
 | | `PUT /update` | `/user-job-link/update` | `/api/user-job-link/update` | **Protected** | `Edit` 權限。 |
-| | `GET /get` | `/user-job-link/get` | `/api/user-job-link/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/user-job-link/stream` | `/api/user-job-link/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `GET /get/{id}` | `/user-job-link/get/{id}` | `/api/user-job-link/get/{id}` | **Protected** | `View` 權限。 |
 | | `GET /user/{userId}` | `/user-job-link/user/{userId}` | `/api/user-job-link/user/{userId}` | **Protected** | `View` 權限。 |
 | | `GET /job-posting/{jobPostingId}` | `/user-job-link/job-posting/{jobPostingId}` | `/api/user-job-link/job-posting/{jobPostingId}` | **Protected** | `View` 權限。 |

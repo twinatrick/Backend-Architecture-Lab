@@ -59,16 +59,19 @@ python-verify:
     - cd backend-ai-py && pytest
 
 # ============================================
-# Job 3：Testcontainers 端到端整合測試 (手動觸發)
+# Job 3：Testcontainers 端到端整合測試 (自動執行門禁)
 # ============================================
 testcontainers-integration:
   stage: integration
   image: maven:3.9.8-eclipse-temurin-21
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    TESTCONTAINERS_RYUK_DISABLED: "true"
   rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_PIPELINE_SOURCE == "web"
-      when: manual
-    - when: manual
-  allow_failure: true
+  allow_failure: false
   before_script:
     - chmod +x mvnw
   script:
