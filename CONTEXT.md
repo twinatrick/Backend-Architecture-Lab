@@ -176,4 +176,16 @@ _Avoid_: Buffered proxy, Short-timeout circuit breaker, Polling fallback.
 在長連線通訊管線中，由伺服端週期性發送協定層心跳訊框或資料註解，用以防止中介代理或負載均衡器因閒置逾時而強制斷開連線的保活防線。
 _Avoid_: Heartbeat payload JSON, Client polling ping, Blind idle timeout.
 
+**Undeclared Cache Bypass (未宣告快取放行原則)**:
+當快取防穿透保護機制面臨未於布隆過濾器清單明確宣告之快取分區時，直接放行資料庫查詢並杜絕在儲存層動態建立空布隆過濾器，防止誤判穿透導致合法資料被阻絕或引發空指標例外的防禦性原則。
+_Avoid_: Blind bloom check, Auto empty filter, False penetration drop.
+
+**Reactive Chunked Streaming (響應式分塊串流)**:
+針對萬筆級以上巨量資料集合，廢除一次性全表載入與無界快取巨鍵，改以主鍵排序之分頁游標分批讀取，並透過非阻塞響應式流（Flux）與 SSE 協議以固定批次大小逐塊推播至客戶端的流式傳輸機制。
+_Avoid_: Full table in-memory load, Cache BigKey, Sync batch polling.
+
+**Stream Heartbeat Frame (串流心跳保活訊框)**:
+在長時間開啟的 SSE 伺服器發送事件通道中，週期性由伺服端發送符合 SSE 規範之協定層註釋訊框（如 `: keep-alive\n\n`），以防止反向代理（如 Caddy）、網關或負載均衡器因閒置超時中斷串流連線的保活機制。
+_Avoid_: Heartbeat JSON event, Idle timeout drop, Ping polling.
+
 

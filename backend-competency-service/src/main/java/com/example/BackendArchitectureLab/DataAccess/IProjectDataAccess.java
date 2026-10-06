@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Project;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +31,13 @@ public interface IProjectDataAccess {
      */
     Project saveAndFlush(Project project);
     
+    /**
+     * 分頁查詢所有專案 (用於分塊串流)
+     * @param pageable 分頁參數
+     * @return 專案分頁
+     */
+    Page<Project> findAllPaged(Pageable pageable);
+
     /**
      * 查詢所有 Project
      * @return 所有專案列表

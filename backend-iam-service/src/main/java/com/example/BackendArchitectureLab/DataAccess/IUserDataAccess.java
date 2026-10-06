@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess;
 import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Entity.User;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -77,4 +78,12 @@ public interface IUserDataAccess {
      * @return 分頁結果
      */
     Page<User> searchUsers(UserSearchQuery query);
+
+    /**
+     * 無條件分頁查詢使用者（用於批次分塊串流）
+     *
+     * @param pageable 分頁參數
+     * @return 分頁結果
+     */
+    Page<User> findAllPaged(Pageable pageable);
 }

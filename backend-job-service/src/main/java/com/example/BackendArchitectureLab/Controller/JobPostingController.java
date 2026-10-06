@@ -12,6 +12,8 @@ import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,7 +21,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -38,11 +42,12 @@ public class JobPostingController {
         return ResponseType.Success(jobPostingService.createJobPosting(request), "職缺新增成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得所有職缺", description = "返回所有職缺列表。")
-    public ResponseType<List<JobPostingVo>> getAllJobPostings() {
-        return ResponseType.Success(jobPostingService.getAllJobPostings(), "職缺列表查詢成功");
+    @ApiOperationOk(summary = "串流分塊取得所有職缺", description = "透過 Server-Sent Events (SSE) 分塊串流返回職缺數據。")
+    public Flux<ServerSentEvent<List<JobPostingVo>>> streamJobPostings(
+            @RequestParam(value = "chunkSize", defaultValue = "250") int chunkSize) {
+        return jobPostingService.streamJobPostingsChunked(chunkSize);
     }
 
     @GetMapping("/get/{id}")

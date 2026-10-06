@@ -8,6 +8,7 @@ import com.example.BackendArchitectureLab.Repository.JobPostingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +30,11 @@ public class JobPostingDataAccessImpl implements IJobPostingDataAccess {
     @Override
     public List<JobPosting> findAll() {
         return jobPostingRepository.findAll();
+    }
+
+    @Override
+    public Page<JobPosting> findAllPaged(Pageable pageable) {
+        return jobPostingRepository.findAll(pageable);
     }
 
     @Override

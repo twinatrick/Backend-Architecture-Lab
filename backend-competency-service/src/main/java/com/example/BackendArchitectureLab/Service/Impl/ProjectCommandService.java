@@ -55,9 +55,6 @@ public class ProjectCommandService implements IProjectCommandService {
      * 交易內新增專案（由 addProject 在交易外的 Feign 驗證後呼叫）
      */
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "projects", key = "'all'")
-    })
     public ProjectVo doAddProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
         if (project.getId() != null) {
@@ -98,9 +95,6 @@ public class ProjectCommandService implements IProjectCommandService {
      * 交易內更新專案（由 updateProject 在交易外的 Feign 驗證後呼叫）
      */
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "projects", key = "'all'")
-    })
     public void doUpdateProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
         if (project.getId() == null) {
@@ -132,10 +126,7 @@ public class ProjectCommandService implements IProjectCommandService {
      */
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "projects", key = "'all'"),
-        @CacheEvict(value = "projectSkills", key = "#projectVo.id")
-    })
+    @CacheEvict(value = "projectSkills", key = "#projectVo.id")
     public void deleteProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
         if (project.getId() == null) {
@@ -152,9 +143,6 @@ public class ProjectCommandService implements IProjectCommandService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "projects", key = "'all'")
-    })
     public ProjectVo addPersonalProject(PersonalProjectRequest request) {
         // 驗證輸入
         if (request.getName() == null || request.getName().trim().isEmpty()) {
@@ -186,10 +174,7 @@ public class ProjectCommandService implements IProjectCommandService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "projects", key = "'all'"),
-        @CacheEvict(value = "projectSkills", key = "#projectId")
-    })
+    @CacheEvict(value = "projectSkills", key = "#projectId")
     public void updatePersonalProject(UUID projectId, PersonalProjectRequest request) {
         // 驗證輸入
         if (projectId == null) {
@@ -223,10 +208,7 @@ public class ProjectCommandService implements IProjectCommandService {
 
     @Transactional
     @Override
-    @Caching(evict = {
-        @CacheEvict(value = "projects", key = "'all'"),
-        @CacheEvict(value = "projectSkills", key = "#projectId")
-    })
+    @CacheEvict(value = "projectSkills", key = "#projectId")
     public void deletePersonalProject(UUID projectId) {
         // 驗證輸入
         if (projectId == null) {

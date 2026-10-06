@@ -51,7 +51,8 @@ public class ProjectSkillService implements IProjectSkillService {
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
-        return self.getProjectSkillsCache(projectId).getData();
+        CacheListWrapper<ProjectSkillVo> wrapper = self.getProjectSkillsCache(projectId);
+        return (wrapper != null && wrapper.getData() != null) ? wrapper.getData() : List.of();
     }
 
     @Override
