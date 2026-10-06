@@ -52,6 +52,11 @@ spring:
     nacos:
       discovery:
         server-addr: localhost:8848
+
+ai:
+  py:
+    service:
+      url: ${AI_PY_SERVICE_URL:http://localhost:5001}
 gemini:
   api:
     key: ${GEMINI_API_KEY:}

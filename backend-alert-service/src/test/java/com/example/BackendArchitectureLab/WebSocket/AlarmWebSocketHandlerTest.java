@@ -82,16 +82,13 @@ class AlarmWebSocketHandlerTest {
     }
 
     @Test
-    void alarmWebSocket_broadcast_shouldEmitToSink() {
-        AlarmWebSocket alarmWebSocket = new AlarmWebSocket(alarmReactiveSink);
-        assertNotNull(alarmWebSocket);
-
+    void alarmReactiveSink_tryEmitNext_shouldEmitToFlux() {
         StepVerifier.create(alarmReactiveSink.asFlux())
                 .then(() -> {
                     AlarmMessage message = new AlarmMessage();
                     message.setLevel("EMERGENCY");
                     message.setMessage("測試緊急告警");
-                    AlarmWebSocket.broadcast(message);
+                    alarmReactiveSink.tryEmitNext(message);
                 })
                 .expectNextMatches(m -> "EMERGENCY".equals(m.getLevel()))
                 .thenCancel()

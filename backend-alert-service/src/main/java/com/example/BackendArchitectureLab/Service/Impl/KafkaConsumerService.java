@@ -3,7 +3,6 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IKafkaConsumerService;
 import com.example.BackendArchitectureLab.WebSocket.AlarmReactiveSink;
-import com.example.BackendArchitectureLab.WebSocket.AlarmWebSocket;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -26,10 +25,7 @@ public class KafkaConsumerService implements IKafkaConsumerService {
             return;
         }
         log.debug("outSize: {}", messages.size());
-        messages.forEach(msg -> {
-            alarmReactiveSink.tryEmitNext(msg);
-            AlarmWebSocket.broadcast(msg);
-        });
+        messages.forEach(alarmReactiveSink::tryEmitNext);
     }
 
 }
