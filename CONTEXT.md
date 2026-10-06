@@ -152,4 +152,28 @@ _Avoid_: Central-only auth, Remote call on every hit, Unbounded token cache.
 透過整合式容器編排定義檔（如 compose.prototype.yaml）一鍵拉起包含所有微服務、Python AI 側車及全套中間件之自包含可運行原型環境。
 _Avoid_: Partial mock run, Incomplete local stack, Manual service start.
 
+**Reactive Stream Bridge (響應式串流橋接)**:
+在以伺服器端容器為基礎的微服務中，以非阻塞連線池與響應式資料流橋接外部長時間運行的非同步 I/O，防止平臺執行緒與底層 Carrier Thread 被外部慢速調用長時間佔用的邊界機制。
+_Avoid_: Blocking HTTP client, Thread sleep streaming, Async Servlet polling.
+
+**Backpressure Push Buffer (具背壓之推播緩衝)**:
+在即時推播中，取代無界同步連線遍歷，改採具容量限制與明確背壓溢出策略的非阻塞推播管道，防止慢消費者拖垮全域推播佇列與記憶體的保護防線。
+_Avoid_: Unbounded session queue, Blocking session write, Infinite memory buffer.
+
+**Slow Consumer Eviction (慢消費者隔離防護)**:
+當單一客戶端連線因為網路延遲或處理停滯導致發送緩衝區持續飽和時，系統主動拋棄過期訊框或關閉該連線以保全全域推播吞吐的防衛原則。
+_Avoid_: Stalled pipeline, Global wait, Blocking broadcast.
+
+**Hot Multicast Sink (熱發布多播通道)**:
+在響應式推播架構中，作為一對多事件派發中心之無鎖併發緩衝區，允許外部非響應式事件來源以非阻塞方式發布訊號，並自動扇出廣播給多個獨立訂閱者的整合機制。
+_Avoid_: Message polling loop, Blocking queue per client, Shared sync list.
+
+**Stream Passthrough Route (串流穿透路由)**:
+在 API 網關中針對長時間保持的單向串流特別定義的路由通道，關閉 HTTP 回應緩衝區累積與短時超時斷路器，確保每個生成訊框或數據片段零延遲透傳至客戶端的機制。
+_Avoid_: Buffered proxy, Short-timeout circuit breaker, Polling fallback.
+
+**Reactive Frame Keep-Alive (響應式訊框心跳保活)**:
+在長連線通訊管線中，由伺服端週期性發送協定層心跳訊框或資料註解，用以防止中介代理或負載均衡器因閒置逾時而強制斷開連線的保活防線。
+_Avoid_: Heartbeat payload JSON, Client polling ping, Blind idle timeout.
+
 

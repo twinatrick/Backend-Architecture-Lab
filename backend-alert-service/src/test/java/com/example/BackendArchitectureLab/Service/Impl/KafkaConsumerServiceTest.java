@@ -1,22 +1,22 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
-import com.example.BackendArchitectureLab.WebSocket.AlarmWebSocket;
+import com.example.BackendArchitectureLab.WebSocket.AlarmReactiveSink;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.MockedStatic;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
 import java.util.List;
 
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class KafkaConsumerServiceTest {
+
+    @Mock
+    private AlarmReactiveSink alarmReactiveSink;
 
     @InjectMocks
     private KafkaConsumerService kafkaConsumerService;
@@ -25,18 +25,14 @@ class KafkaConsumerServiceTest {
     void listen_whenMessagesIsNull_shouldLogWarningAndReturn() {
         kafkaConsumerService.listen(null);
 
-        try (MockedStatic<AlarmWebSocket> mockedWebSocket = mockStatic(AlarmWebSocket.class)) {
-            mockedWebSocket.verifyNoInteractions();
-        }
+        verifyNoInteractions(alarmReactiveSink);
     }
 
     @Test
     void listen_whenMessagesIsEmpty_shouldLogWarningAndReturn() {
         kafkaConsumerService.listen(List.of());
 
-        try (MockedStatic<AlarmWebSocket> mockedWebSocket = mockStatic(AlarmWebSocket.class)) {
-            mockedWebSocket.verifyNoInteractions();
-        }
+        verifyNoInteractions(alarmReactiveSink);
     }
 
     @Test
@@ -51,12 +47,10 @@ class KafkaConsumerServiceTest {
 
         List<AlarmMessage> messages = List.of(msg1, msg2);
 
-        try (MockedStatic<AlarmWebSocket> mockedWebSocket = mockStatic(AlarmWebSocket.class)) {
-            kafkaConsumerService.listen(messages);
+        kafkaConsumerService.listen(messages);
 
-            mockedWebSocket.verify(() -> AlarmWebSocket.broadcast(msg1), times(1));
-            mockedWebSocket.verify(() -> AlarmWebSocket.broadcast(msg2), times(1));
-        }
+        verify(alarmReactiveSink, times(1)).tryEmitNext(msg1);
+        verify(alarmReactiveSink, times(1)).tryEmitNext(msg2);
     }
 
     @Test
@@ -65,10 +59,8 @@ class KafkaConsumerServiceTest {
         msg.setLevel("INFO");
         msg.setMessage("single alarm");
 
-        try (MockedStatic<AlarmWebSocket> mockedWebSocket = mockStatic(AlarmWebSocket.class)) {
-            kafkaConsumerService.listen(List.of(msg));
+        kafkaConsumerService.listen(List.of(msg));
 
-            mockedWebSocket.verify(() -> AlarmWebSocket.broadcast(msg), times(1));
-        }
+        verify(alarmReactiveSink, times(1)).tryEmitNext(msg);
     }
 }

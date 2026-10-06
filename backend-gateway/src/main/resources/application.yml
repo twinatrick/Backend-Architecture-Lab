@@ -64,6 +64,16 @@ spring:
                 name: competencyCircuitBreaker
                 fallbackUri: forward:/fallback
 
+        - id: external-api-stream
+          uri: lb://external-api-service
+          predicates:
+            - Path=/api/ai/stream/**
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: 60000
+            connect-timeout: 10000
+
         - id: external-api-service
           uri: lb://external-api-service
           predicates:
@@ -74,6 +84,11 @@ spring:
               args:
                 name: externalApiCircuitBreaker
                 fallbackUri: forward:/fallback
+
+        - id: alert-websocket
+          uri: lb:ws://alert-service
+          predicates:
+            - Path=/ws/**
 
         - id: alert-service
           uri: lb://alert-service

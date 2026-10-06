@@ -2,28 +2,30 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
 import com.example.BackendArchitectureLab.Service.IKafkaConsumerService;
-import com.example.BackendArchitectureLab.WebSocket.AlarmWebSocket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.example.BackendArchitectureLab.WebSocket.AlarmReactiveSink;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class KafkaConsumerService implements IKafkaConsumerService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerService.class);
+    private final AlarmReactiveSink alarmReactiveSink;
 
     @KafkaListener(topics = "socketSend", containerFactory = "alarmMessageKafkaListenerContainerFactory")
     @Override
     public void listen(List<AlarmMessage> messages) {
         if (messages == null || messages.isEmpty()) {
-            LOGGER.warn("Received empty alarm message list");
+            log.warn("Received empty alarm message list");
             return;
         }
-        LOGGER.debug("outSize: {}", messages.size());
-        messages.forEach(AlarmWebSocket::broadcast);
+        log.debug("outSize: {}", messages.size());
+        messages.forEach(alarmReactiveSink::tryEmitNext);
     }
 
 }
