@@ -26,6 +26,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.List;
@@ -106,7 +107,7 @@ public class UserJobLinkService implements IUserJobLinkService {
                     sink.error(e);
                 }
             });
-        });
+        }).subscribeOn(Schedulers.boundedElastic());
 
         ServerSentEvent<List<UserJobLinkVo>> completeEvent = ServerSentEvent.<List<UserJobLinkVo>>builder()
                 .event("complete")
