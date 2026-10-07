@@ -1,5 +1,6 @@
 import json
 
+import model_pool
 import requests
 from batching import estimate_tokens
 from gemini_runner import execute_gemini_loop
@@ -13,7 +14,6 @@ from model_pool import (
     GLOBAL_MODEL_POOL_GEMINI,
     GLOBAL_MODEL_POOL_GROQ,
     ModelPool,
-    filter_eligible_models,  # 模型規格動態過濾
 )
 from parser import ReviewResponseParser
 from providers import GeminiClient, GroqClient
@@ -48,10 +48,7 @@ class ReviewOrchestrator:
             return candidates
         try:
             available = self.groq_client.get_available_models(groq_keys[0][1])
-            filtered = [
-                model_name for model_name in candidates
-                if model_name in available
-            ]
+            filtered = [model_name for model_name in candidates if model_name in available]
             if filtered:
                 return filtered
         except requests.RequestException as exc:
@@ -75,14 +72,12 @@ class ReviewOrchestrator:
                 )
             )
 
-        est_tokens = (
-            required_tokens if required_tokens is not None else estimate_tokens(prompt)
-        )
+        est_tokens = required_tokens if required_tokens is not None else estimate_tokens(prompt)
         error_details: list[tuple[str, str]] = []
 
         if gemini_keys:
             raw_gemini_models = self.gemini_model_pool.get_candidates()
-            gemini_models = filter_eligible_models(raw_gemini_models, est_tokens)
+            gemini_models = model_pool.filter_eligible_models(raw_gemini_models, est_tokens)
             if not gemini_models:
                 print(
                     f"批次預估需 {est_tokens} Tokens，候選池無單一 Gemini 模型能完全容納，"
@@ -107,7 +102,7 @@ class ReviewOrchestrator:
             if gemini_keys:
                 print("所有 Gemini 金鑰與模型均無法取得有效回應，降級至備援 Provider：Groq...")
             raw_groq_models = self._get_groq_candidate_models()
-            groq_models = filter_eligible_models(raw_groq_models, est_tokens)
+            groq_models = model_pool.filter_eligible_models(raw_groq_models, est_tokens)
             if not groq_models:
                 print(
                     f"批次預估需 {est_tokens} Tokens，Groq 候選無完全適配模型，"
