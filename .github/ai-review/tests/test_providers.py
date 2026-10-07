@@ -52,7 +52,10 @@ def test_gemini_build_generation_config_sampling_parameters_by_model():
     cfg_35_lite = providers.GeminiClient.build_generation_config("gemini-3.5-flash-lite")
     assert "temperature" not in cfg_35_lite
 
-    cfg_25 = providers.GeminiClient.build_generation_config("gemini-2.5-flash")
+    cfg_flash_latest = providers.GeminiClient.build_generation_config("gemini-flash-latest")
+    assert "temperature" not in cfg_flash_latest
+
+    cfg_25 = providers.GeminiClient.build_generation_config("gemini-2.5-flash-lite")
     assert "temperature" in cfg_25
     assert cfg_25["temperature"] == 0.1
 
