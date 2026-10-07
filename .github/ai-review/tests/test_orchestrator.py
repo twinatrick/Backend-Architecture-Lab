@@ -159,3 +159,19 @@ def test_orchestrator_gemini_models_empty_falls_back_to_groq(monkeypatch):
     )
     result = orch.chat_completion("test prompt")
     assert result == '[{"location": "groq_cooldown_fallback.py:1"}]'
+
+
+def test_orchestrator_skips_groq_when_batch_exceeds_capacity():
+    gemini_pool = MagicMock()
+    gemini_pool.get_all_keys.return_value = []
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
+
+    orch = orchestrator.ReviewOrchestrator(
+        groq_key_pool=groq_pool,
+        gemini_key_pool=gemini_pool,
+    )
+    huge_prompt = "x" * 25000
+    with pytest.raises(RuntimeError) as exc_info:
+        orch.chat_completion(huge_prompt)
+    assert "GROQ_CAPACITY" in str(exc_info.value)

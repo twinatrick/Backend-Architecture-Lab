@@ -86,7 +86,11 @@ class GeminiClient:
             "responseMimeType": "application/json",
         }
         norm_model = model_name.lower()
-        if not ("gemini-3" in norm_model or "gemini-v3" in norm_model):
+        if not (
+            "gemini-3" in norm_model
+            or "gemini-v3" in norm_model
+            or "flash-latest" in norm_model
+        ):
             config["temperature"] = 0.1
         return config
 
