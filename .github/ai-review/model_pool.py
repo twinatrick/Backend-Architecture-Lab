@@ -17,6 +17,9 @@ MODEL_SPECS: dict[str, ModelSpec] = {
     "gemini-3.8-flash": ModelSpec(
         "gemini-3.8-flash", max_batch_tokens=24000, max_files=6
     ),
+    "gemini-flash-latest": ModelSpec(
+        "gemini-flash-latest", max_batch_tokens=24000, max_files=6
+    ),
     "gemini-3.7-flash": ModelSpec(
         "gemini-3.7-flash", max_batch_tokens=20000, max_files=5
     ),
@@ -27,13 +30,13 @@ MODEL_SPECS: dict[str, ModelSpec] = {
     "gemini-3.5-flash": ModelSpec(
         "gemini-3.5-flash", max_batch_tokens=16000, max_files=4
     ),
-    "gemini-3-flash": ModelSpec(
-        "gemini-3-flash", max_batch_tokens=16000, max_files=4
-    ),
-    "gemini-2.5-flash": ModelSpec(
-        "gemini-2.5-flash", max_batch_tokens=16000, max_files=4
+    "gemini-3-flash-preview": ModelSpec(
+        "gemini-3-flash-preview", max_batch_tokens=16000, max_files=4
     ),
     # Google Gemini Flash Lite - Tier 3
+    "gemini-flash-lite-latest": ModelSpec(
+        "gemini-flash-lite-latest", max_batch_tokens=8000, max_files=3
+    ),
     "gemini-3.5-flash-lite": ModelSpec(
         "gemini-3.5-flash-lite", max_batch_tokens=8000, max_files=3
     ),
@@ -43,30 +46,30 @@ MODEL_SPECS: dict[str, ModelSpec] = {
     "gemini-2.5-flash-lite": ModelSpec(
         "gemini-2.5-flash-lite", max_batch_tokens=6000, max_files=3
     ),
-    # Groq / Open Source Models
+    # Groq / Open Source Models (針對免費層級硬性門檻：TPM 8,000 / ITPM 7,000 / OTPM 1,000)
     "groq/compound": ModelSpec(
-        "groq/compound", max_batch_tokens=20000, max_files=5
+        "groq/compound", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
     "groq/compound-mini": ModelSpec(
-        "groq/compound-mini", max_batch_tokens=10000, max_files=3
+        "groq/compound-mini", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
     "llama-3.3-70b-versatile": ModelSpec(
-        "llama-3.3-70b-versatile", max_batch_tokens=20000, max_files=5
+        "llama-3.3-70b-versatile", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
     "llama-3.1-8b-instant": ModelSpec(
-        "llama-3.1-8b-instant", max_batch_tokens=8000, max_files=3
+        "llama-3.1-8b-instant", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
     "openai/gpt-oss-120b": ModelSpec(
-        "openai/gpt-oss-120b", max_batch_tokens=20000, max_files=5
+        "openai/gpt-oss-120b", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
     "openai/gpt-oss-20b": ModelSpec(
-        "openai/gpt-oss-20b", max_batch_tokens=10000, max_files=3
+        "openai/gpt-oss-20b", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
     "qwen/qwen3.8-27b": ModelSpec(
-        "qwen/qwen3.8-27b", max_batch_tokens=16000, max_files=4
+        "qwen/qwen3.8-27b", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
     "qwen/qwen3.6-27b": ModelSpec(
-        "qwen/qwen3.6-27b", max_batch_tokens=16000, max_files=4
+        "qwen/qwen3.6-27b", max_batch_tokens=5000, max_files=3, max_output_tokens=1000
     ),
 }
 
@@ -107,11 +110,12 @@ def filter_eligible_models(candidate_models: list[str], required_tokens: int) ->
 
 DEFAULT_GEMINI_MODELS = [
     "gemini-3.8-flash",
+    "gemini-flash-latest",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash",
-    "gemini-3-flash",
-    "gemini-2.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-flash-lite-latest",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash-lite",

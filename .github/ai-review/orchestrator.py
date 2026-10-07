@@ -108,24 +108,25 @@ class ReviewOrchestrator:
             if raw_groq_models:
                 groq_models = model_pool.filter_eligible_models(raw_groq_models, est_tokens)
                 if not groq_models:
-                    print(
-                        f"批次預估需 {est_tokens} Tokens，Groq 候選無完全適配模型，"
-                        f"採用第一候選 {raw_groq_models[0]} 嘗試執行..."
+                    msg = (
+                        f"批次預估需 {est_tokens} Tokens，超過 Groq 免費層級容量上限 "
+                        f"(<= 5000 Tokens)，略過 Groq 避免觸發 HTTP 413/429。"
                     )
-                    groq_models = [raw_groq_models[0]]
-
-                result = execute_groq_loop(
-                    prompt,
-                    max_retries_per_model,
-                    groq_models,
-                    self.groq_key_pool,
-                    self.groq_model_pool,
-                    self.groq_client,
-                    self.parser,
-                    error_details,
-                )
-                if result is not None:
-                    return result
+                    print(msg)
+                    error_details.append(("GROQ_CAPACITY", msg))
+                else:
+                    result = execute_groq_loop(
+                        prompt,
+                        max_retries_per_model,
+                        groq_models,
+                        self.groq_key_pool,
+                        self.groq_model_pool,
+                        self.groq_client,
+                        self.parser,
+                        error_details,
+                    )
+                    if result is not None:
+                        return result
             else:
                 error_details.append(("GROQ_POOL", "所有 Groq 候選模型均處於冷卻狀態，無可用模型"))
 
