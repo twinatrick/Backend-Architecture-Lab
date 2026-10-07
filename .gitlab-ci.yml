@@ -72,6 +72,8 @@ testcontainers-integration:
     DOCKER_TLS_CERTDIR: ""
     DOCKER_DRIVER: overlay2
     TESTCONTAINERS_HOST_OVERRIDE: "docker"
+    TESTCONTAINERS_RYUK_DISABLED: "true"
+    MAVEN_OPTS: "-Dmaven.repo.local=/root/.m2 -Xms512m -Xmx2048m -XX:+UseG1GC"
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -79,6 +81,16 @@ testcontainers-integration:
   allow_failure: false
   before_script:
     - chmod +x mvnw
+    - |
+      echo "===> 等候 Docker Daemon (docker:2375) 就緒..."
+      for i in $(seq 1 30); do
+        if nc -z docker 2375 2>/dev/null || (exec 3<>/dev/tcp/docker/2375) 2>/dev/null; then
+          echo "Docker Daemon 2375 已連通！"
+          break
+        fi
+        echo "等待 Docker 啟動中 ($i/30)..."
+        sleep 2
+      done
   script:
     - ./mvnw verify -Pintegration-test -Dsurefire.skip=true -B
   artifacts:
