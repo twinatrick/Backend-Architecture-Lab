@@ -6,7 +6,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -20,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@RequiredArgsConstructor
 public abstract class BaseOpenAiService implements IAiService {
 
     protected static final int MAX_RETRIES = 2;
@@ -38,9 +36,8 @@ public abstract class BaseOpenAiService implements IAiService {
             "4. 所有欄位內容請以繁體中文填寫。\n" +
             "5. 範例：[{\"title\":\"軟體工程師\",\"url\":\"https://...\",\"description\":\"開發後端服務\",\"requirements\":\"熟悉Java\",\"responsibilities\":\"API開發\",\"salaryRange\":\"面議\"}]";
 
-    protected final RestTemplate restTemplate;
-    protected final Gson gson;
-
+    protected abstract RestTemplate getRestTemplate();
+    protected abstract Gson getGson();
     protected abstract String getApiKey();
     protected abstract String getApiUrl();
     protected abstract String getModelName();
@@ -79,7 +76,7 @@ public abstract class BaseOpenAiService implements IAiService {
 
                 log.info("Calling {} API for company: {} (attempt {}/{})", getModelName(), companyName, attempt + 1, MAX_RETRIES + 1);
 
-                String response = restTemplate.postForObject(getApiUrl(), request, String.class);
+                String response = getRestTemplate().postForObject(getApiUrl(), request, String.class);
 
                 if (response == null) {
                     log.warn("{} API returned null response for company: {} (attempt {})", getModelName(), companyName, attempt + 1);
@@ -126,7 +123,7 @@ public abstract class BaseOpenAiService implements IAiService {
         requestBody.addProperty("temperature", 0.1);
         requestBody.addProperty("max_tokens", 8192);
 
-        return gson.toJson(requestBody);
+        return getGson().toJson(requestBody);
     }
 
     private String buildRetryRequestBody(String prompt, String modelResponse, String correction) {
@@ -159,7 +156,7 @@ public abstract class BaseOpenAiService implements IAiService {
         requestBody.addProperty("temperature", 0.1);
         requestBody.addProperty("max_tokens", 8192);
 
-        return gson.toJson(requestBody);
+        return getGson().toJson(requestBody);
     }
 
     private boolean isValidJobList(List<AiJobPostingVo> jobs) {
@@ -173,7 +170,7 @@ public abstract class BaseOpenAiService implements IAiService {
 
     private String extractTextFromRawResponse(String rawResponse) {
         try {
-            JsonObject obj = gson.fromJson(rawResponse, JsonObject.class);
+            JsonObject obj = getGson().fromJson(rawResponse, JsonObject.class);
             JsonArray choices = obj.getAsJsonArray("choices");
             if (choices != null && choices.size() > 0) {
                 JsonObject message = choices.get(0).getAsJsonObject().getAsJsonObject("message");
@@ -190,7 +187,7 @@ public abstract class BaseOpenAiService implements IAiService {
 
     protected List<AiJobPostingVo> parseResponse(String response) {
         try {
-            JsonObject responseObj = gson.fromJson(response, JsonObject.class);
+            JsonObject responseObj = getGson().fromJson(response, JsonObject.class);
             JsonArray choices = responseObj.getAsJsonArray("choices");
             if (choices == null || choices.size() == 0) {
                 log.warn("No choices found in {} response", getModelName());
@@ -214,7 +211,7 @@ public abstract class BaseOpenAiService implements IAiService {
             }
 
             String jsonArray = text.substring(start, end + 1);
-            JsonArray jobs = gson.fromJson(jsonArray, JsonArray.class);
+            JsonArray jobs = getGson().fromJson(jsonArray, JsonArray.class);
 
             List<AiJobPostingVo> result = new ArrayList<>();
             for (JsonElement jobElement : jobs) {
