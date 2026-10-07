@@ -76,8 +76,9 @@ testcontainers-integration:
   allow_failure: false
   before_script:
     - chmod +x mvnw
+    - echo "api.version=1.44" > /root/.docker-java.properties
   script:
-    - ./mvnw verify -Pintegration-test -Dsurefire.skip=true -B
+    - ./mvnw verify -Pintegration-test -Dsurefire.skip=true -Dapi.version=1.44 -B
   artifacts:
     when: always
     reports:
