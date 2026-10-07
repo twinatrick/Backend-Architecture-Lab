@@ -39,15 +39,15 @@ def test_mask_api_key():
 
 def test_get_gemini_api_keys_discovery_and_sorting():
     env_vars = {
-        "GEMINI_API_KEY_2": "key_two",
-        "GEMINI_API_KEY_10": "key_ten",
-        "GEMINI_API_KEY": "key_default",
-        "GEMINI_API_KEY_1": "key_one",
-        "GEMINI_API_KEY_B": "key_beta",
-        "GEMINI_API_KEY_A": "key_alpha",
+        "GEMINI_API_KEY_2": "mock_two",
+        "GEMINI_API_KEY_10": "mock_ten",
+        "GEMINI_API_KEY": "mock_default",
+        "GEMINI_API_KEY_1": "mock_one",
+        "GEMINI_API_KEY_B": "mock_beta",
+        "GEMINI_API_KEY_A": "mock_alpha",
         "GEMINI_API_KEY_EMPTY": "",
         "GEMINI_API_KEY_BLANK": "   ",
-        "GEMINI_API_KEY_DUP": "key_one",
+        "GEMINI_API_KEY_DUP": "mock_one",
         "OTHER_VAR": "something_else",
     }
     with patch.dict(os.environ, env_vars, clear=True):
@@ -60,16 +60,16 @@ def test_get_gemini_api_keys_discovery_and_sorting():
             "GEMINI_API_KEY_2",
             "GEMINI_API_KEY_10",
         ]
-        assert key_vals == ["key_default", "key_one", "key_two", "key_ten"]
+        assert key_vals == ["mock_default", "mock_one", "mock_two", "mock_ten"]
 
 
 def test_get_groq_api_keys_discovery_and_sorting():
     env_vars = {
-        "GROQ_API_KEY_3": "groq_three",
-        "GROQ_API_KEY": "groq_default",
-        "GROQ_API_KEY_1": "groq_one",
+        "GROQ_API_KEY_3": "mock_groq_three",
+        "GROQ_API_KEY": "mock_groq_default",
+        "GROQ_API_KEY_1": "mock_groq_one",
         "GROQ_API_KEY_XYZ": "invalid_suffix",
-        "GROQ_API_KEY_DUP": "groq_default",
+        "GROQ_API_KEY_DUP": "mock_groq_default",
     }
     with patch.dict(os.environ, env_vars, clear=True):
         keys = key_pool.get_groq_api_keys()
@@ -80,7 +80,7 @@ def test_get_groq_api_keys_discovery_and_sorting():
             "GROQ_API_KEY_1",
             "GROQ_API_KEY_3",
         ]
-        assert key_vals == ["groq_default", "groq_one", "groq_three"]
+        assert key_vals == ["mock_groq_default", "mock_groq_one", "mock_groq_three"]
 
 
 def test_key_cooldown_marking_and_expiration():

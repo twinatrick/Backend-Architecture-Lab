@@ -65,3 +65,54 @@ def test_build_batches_handles_missing_patch():
     batches = batching.build_batches(files, max_chars=5000)
     flattened = [filename for _, paths in batches for filename in paths]
     assert sorted(flattened) == sorted(["deleted.txt", "binary.png"])
+
+
+def test_estimate_tokens_and_batch_tokens():
+    text = "public class Hello {\n    int a = 1;\n}\n"
+    tokens = batching.estimate_tokens(text)
+    assert tokens > 0
+    assert batching.estimate_tokens("") == 0
+
+    file_item = {"filename": "Hello.java", "patch": text}
+    file_tokens = batching.estimate_file_tokens("Hello.java", file_item)
+    assert file_tokens >= 250
+
+    batch_tokens = batching.estimate_batch_tokens(["Hello.java"], {"Hello.java": file_item})
+    assert batch_tokens > file_tokens
+
+
+def test_build_batches_dual_condition_splits_by_max_files():
+    # 6 個極小變更檔案，確認在未達 token 上限下依 max_files 切分
+    files = [
+        {"filename": f"backend-service/Service{i}.java", "patch": "+ short"}
+        for i in range(6)
+    ]
+    batches = batching.build_batches(files, max_files=3, max_tokens=100000)
+    assert len(batches) == 2
+    assert len(batches[0][1]) == 3
+    assert len(batches[1][1]) == 3
+    flattened = [fname for _, paths in batches for fname in paths]
+    assert len(flattened) == 6
+
+
+def test_build_batches_with_model_name_spec():
+    # gemini-3.5-flash-lite 規格為 max_files=3
+    files = [
+        {"filename": f"backend-service/Service{i}.java", "patch": "+ short"}
+        for i in range(7)
+    ]
+    batches = batching.build_batches(files, model_name="gemini-3.5-flash-lite")
+    assert len(batches) == 3
+    assert len(batches[0][1]) == 3
+    assert len(batches[1][1]) == 3
+    assert len(batches[2][1]) == 1
+
+
+def test_build_batches_dual_condition_splits_by_tokens():
+    # 2 個檔案，每個檔案 token 消耗均大於 max_tokens
+    files = [
+        {"filename": f"backend-service/Big{i}.java", "patch": "+" * 10000}
+        for i in range(2)
+    ]
+    batches = batching.build_batches(files, max_files=10, max_tokens=1500)
+    assert len(batches) == 2

@@ -87,3 +87,33 @@ def test_model_pool_thread_safety():
     candidates = pool.get_candidates()
     assert len(candidates) == 5
     assert set(candidates) == {"m1", "m2", "m3", "m4", "m5"}
+
+
+def test_model_spec_registry_and_capacity():
+    spec_38 = model_pool.get_model_spec("gemini-3.8-flash")
+    assert spec_38.max_batch_tokens == 24000
+    assert spec_38.max_files == 6
+    assert spec_38.max_output_tokens == 4096
+
+    spec_lite = model_pool.get_model_spec("gemini-3.5-flash-lite")
+    assert spec_lite.max_batch_tokens == 8000
+    assert spec_lite.max_files == 3
+
+    spec_unknown = model_pool.get_model_spec("unknown-custom-model")
+    assert spec_unknown.max_batch_tokens == model_pool.DEFAULT_MODEL_SPEC.max_batch_tokens
+    assert spec_unknown.max_files == model_pool.DEFAULT_MODEL_SPEC.max_files
+
+
+def test_model_spec_env_override(monkeypatch):
+    monkeypatch.setenv("AI_REVIEW_MAX_BATCH_TOKENS", "9999")
+    monkeypatch.setenv("AI_REVIEW_MAX_BATCH_FILES", "2")
+    spec = model_pool.get_model_spec("gemini-3.8-flash")
+    assert spec.max_batch_tokens == 9999
+    assert spec.max_files == 2
+
+
+def test_filter_eligible_models_by_tokens():
+    candidates = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"]
+    eligible = model_pool.filter_eligible_models(candidates, 15000)
+    assert eligible == ["gemini-3.8-flash", "gemini-3.6-flash"]
+    assert "gemini-3.5-flash-lite" not in eligible

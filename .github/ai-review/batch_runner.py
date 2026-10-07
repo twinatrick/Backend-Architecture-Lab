@@ -7,6 +7,7 @@ from typing import Any
 
 import requests
 
+from batching import estimate_tokens
 from engine import validate_coverage, validate_finding
 from github_client import gh_get, normalize_paths, publish_failure_report
 from orchestrator import chat_completion
@@ -128,8 +129,12 @@ def process_batch(
 
     diff = sanitize_diff("\n\n".join(diff_parts))
     prompt = build_batch_prompt(scope, index, paths, diff, contract_text, relevant_rules)
+    batch_tokens = estimate_tokens(prompt)
     try:
-        text_output = caller(prompt).strip()
+        try:
+            text_output = caller(prompt, required_tokens=batch_tokens).strip()
+        except TypeError:
+            text_output = caller(prompt).strip()
     except RuntimeError as run_exc:
         try:
             details = json.loads(str(run_exc))
