@@ -1,7 +1,6 @@
 import json
 
 import requests
-
 from batching import estimate_tokens
 from gemini_runner import execute_gemini_loop
 from groq_runner import execute_groq_loop
@@ -14,7 +13,7 @@ from model_pool import (
     GLOBAL_MODEL_POOL_GEMINI,
     GLOBAL_MODEL_POOL_GROQ,
     ModelPool,
-    filter_eligible_models,
+    filter_eligible_models,  # 模型規格動態過濾
 )
 from parser import ReviewResponseParser
 from providers import GeminiClient, GroqClient

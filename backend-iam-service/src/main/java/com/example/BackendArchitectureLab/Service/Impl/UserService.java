@@ -18,8 +18,6 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
@@ -194,28 +192,26 @@ public class UserService implements IUserService {
                 () -> 0,
                 (page, sink) -> {
                     try {
-                        Page<UserVo> userPage = transactionExecutor.executeReadOnly(() -> {
-                            Page<User> entityPage = userDataAccess.findAllPaged(
-                                    PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
-                            );
-                            List<UserVo> voList = entityPage.getContent().stream()
-                                    .map(userMapper::toVo)
-                                    .toList();
-                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
-                        });
+                        Page<User> entityPage = userDataAccess.findAllPaged(
+                                PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
+                        );
 
-                        if (userPage.isEmpty()) {
+                        if (entityPage.isEmpty()) {
                             sink.complete();
                             return page;
                         }
 
+                        List<UserVo> voList = entityPage.getContent().stream()
+                                .map(userMapper::toVo)
+                                .toList();
+
                         sink.next(ServerSentEvent.<List<UserVo>>builder()
                                 .event("chunk")
                                 .id(String.valueOf(page))
-                                .data(userPage.getContent())
+                                .data(voList)
                                 .build());
 
-                        if (!userPage.hasNext()) {
+                        if (!entityPage.hasNext()) {
                             sink.complete();
                             return page;
                         }
