@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -24,6 +26,11 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
     @Override
     public List<UserJobLink> findAll() {
         return userJobLinkRepository.findAll();
+    }
+
+    @Override
+    public Page<UserJobLink> findAllPaged(Pageable pageable) {
+        return userJobLinkRepository.findAll(pageable);
     }
 
     @Override

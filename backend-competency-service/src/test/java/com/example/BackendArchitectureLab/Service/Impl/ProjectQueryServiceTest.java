@@ -22,6 +22,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.util.Collections;
 import java.util.List;
@@ -83,6 +86,23 @@ class ProjectQueryServiceTest {
 
     private void setupSecurityContext(UUID userId, String email) {
         lenient().when(securityUtil.requireCurrentUserId()).thenReturn(userId);
+    }
+
+    @Test
+    void testStreamProjectsChunked_Success() {
+        // Arrange
+        Page<Project> projectPage = new PageImpl<>(List.of(testProject), PageRequest.of(0, 10), 1);
+        when(projectDataAccess.findAllPaged(any())).thenReturn(projectPage);
+        when(projectMapper.toVo(testProject)).thenReturn(testProjectVo);
+
+        // Act
+        Flux<ServerSentEvent<List<ProjectVo>>> stream = projectQueryService.streamProjectsChunked(10);
+
+        // Assert
+        StepVerifier.create(stream.take(2))
+                .expectNextMatches(sse -> "chunk".equals(sse.event()) && sse.data() != null && sse.data().size() == 1)
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
     }
 
     @Test

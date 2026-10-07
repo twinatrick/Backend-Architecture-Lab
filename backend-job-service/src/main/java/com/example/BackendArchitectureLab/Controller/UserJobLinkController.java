@@ -8,6 +8,8 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,7 +17,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -41,11 +45,12 @@ public class UserJobLinkController {
         return ResponseType.Success(userJobLinkService.updateUserJobLink(userJobLinkVo), "使用者職缺連結更新成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得所有連結", description = "返回所有使用者職缺連結列表。")
-    public ResponseType<List<UserJobLinkVo>> getAllUserJobLinks() {
-        return ResponseType.Success(userJobLinkService.getAllUserJobLinks(), "使用者職缺連結查詢成功");
+    @ApiOperationOk(summary = "串流分塊取得所有使用者職缺連結", description = "透過 Server-Sent Events (SSE) 分塊串流返回使用者職缺連結數據。")
+    public Flux<ServerSentEvent<List<UserJobLinkVo>>> streamUserJobLinks(
+            @RequestParam(value = "chunkSize", defaultValue = "250") int chunkSize) {
+        return userJobLinkService.streamUserJobLinksChunked(chunkSize);
     }
 
     @GetMapping("/get/{id}")
