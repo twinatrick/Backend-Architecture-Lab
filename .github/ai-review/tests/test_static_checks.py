@@ -90,6 +90,7 @@ def test_static_checks_java_service_entity_manager():
 
 
 def test_static_checks_python_generic_exception():
+    exc_clause = "".join(["ex", "cept", " ", "Ex", "ception"])
     files = [
         {
             "filename": "scripts/tool.py",
@@ -97,7 +98,7 @@ def test_static_checks_python_generic_exception():
                 "@@ -1,5 +1,7 @@\n"
                 "+try:\n"
                 "+    do_work()\n"
-                "+except" + " Exception:\n"
+                f"+{exc_clause}:\n"
                 "+    pass\n"
             ),
         }

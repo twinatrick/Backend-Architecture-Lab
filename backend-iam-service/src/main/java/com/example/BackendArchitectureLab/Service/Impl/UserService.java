@@ -239,12 +239,15 @@ public class UserService implements IUserService {
 
         return Flux.merge(streamWithComplete, heartbeatFlux.takeUntilOther(streamWithComplete.ignoreElements()))
                 .doOnCancel(() -> log.info("客戶端中斷使用者 SSE 串流連線"))
-                .onErrorResume(ex -> Flux.just(
-                        ServerSentEvent.<List<UserVo>>builder()
-                                .event("error")
-                                .comment("串流發生異常: " + ex.getMessage())
-                                .data(List.of())
-                                .build()
-                ));
+                .onErrorResume(ex -> {
+                    log.error("使用者 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<UserVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .data(List.of())
+                                    .build()
+                    );
+                });
     }
 }

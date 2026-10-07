@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Config.BloomFilterProperties;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -30,7 +31,7 @@ class BloomFilterServiceTest {
 
     private final BloomFilterProperties defaultProps = new BloomFilterProperties();
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
         defaultProps.setEntities(List.of("Test:test-cache"));
     }

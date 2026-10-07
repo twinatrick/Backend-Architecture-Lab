@@ -121,13 +121,16 @@ public class JobPostingService implements IJobPostingService {
                 .build();
 
         Flux<ServerSentEvent<List<JobPostingVo>>> contentFlux = Flux.concat(dataFlux, Flux.just(completeEvent))
-                .onErrorResume(e -> Flux.just(
-                        ServerSentEvent.<List<JobPostingVo>>builder()
-                                .event("error")
-                                .comment("Stream error: " + e.getMessage())
-                                .data(List.of())
-                                .build()
-                ));
+                .onErrorResume(e -> {
+                    log.error("職缺 SSE 串流處理發生異常: {}", e.getMessage(), e);
+                    return Flux.just(
+                            ServerSentEvent.<List<JobPostingVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .data(List.of())
+                                    .build()
+                    );
+                });
 
         Flux<ServerSentEvent<List<JobPostingVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
                 .map(tick -> ServerSentEvent.<List<JobPostingVo>>builder()

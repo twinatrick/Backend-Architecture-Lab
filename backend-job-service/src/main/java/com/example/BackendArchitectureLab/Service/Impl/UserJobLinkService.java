@@ -115,13 +115,16 @@ public class UserJobLinkService implements IUserJobLinkService {
                 .build();
 
         Flux<ServerSentEvent<List<UserJobLinkVo>>> contentFlux = Flux.concat(dataFlux, Flux.just(completeEvent))
-                .onErrorResume(e -> Flux.just(
-                        ServerSentEvent.<List<UserJobLinkVo>>builder()
-                                .event("error")
-                                .comment("Stream error: " + e.getMessage())
-                                .data(List.of())
-                                .build()
-                ));
+                .onErrorResume(e -> {
+                    log.error("使用者職缺關聯 SSE 串流處理發生異常: {}", e.getMessage(), e);
+                    return Flux.just(
+                            ServerSentEvent.<List<UserJobLinkVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .data(List.of())
+                                    .build()
+                    );
+                });
 
         Flux<ServerSentEvent<List<UserJobLinkVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
                 .map(tick -> ServerSentEvent.<List<UserJobLinkVo>>builder()

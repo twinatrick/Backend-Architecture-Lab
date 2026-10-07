@@ -64,9 +64,14 @@ python-verify:
 testcontainers-integration:
   stage: integration
   image: maven:3.9.8-eclipse-temurin-21
+  services:
+    - name: docker:27-dind
+      alias: docker
   variables:
-    DOCKER_HOST: unix:///var/run/docker.sock
-    TESTCONTAINERS_RYUK_DISABLED: "true"
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_DRIVER: overlay2
+    TESTCONTAINERS_HOST_OVERRIDE: "docker"
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
