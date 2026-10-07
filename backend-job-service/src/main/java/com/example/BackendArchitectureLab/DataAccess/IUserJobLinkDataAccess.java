@@ -1,6 +1,8 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -11,6 +13,8 @@ public interface IUserJobLinkDataAccess {
     UserJobLink save(UserJobLink userJobLink);
 
     List<UserJobLink> findAll();
+
+    Page<UserJobLink> findAllPaged(Pageable pageable);
 
     Optional<UserJobLink> findById(UUID id);
 

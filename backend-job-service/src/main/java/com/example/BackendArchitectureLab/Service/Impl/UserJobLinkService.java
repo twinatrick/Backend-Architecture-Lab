@@ -19,9 +19,16 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -71,17 +78,61 @@ public class UserJobLinkService implements IUserJobLinkService {
     }
 
     @Override
-    public List<UserJobLinkVo> getAllUserJobLinks() {
-        return self.getAllUserJobLinksCache().getData();
-    }
+    public Flux<ServerSentEvent<List<UserJobLinkVo>>> streamUserJobLinksChunked(int chunkSize) {
+        final int effectiveChunkSize = Math.max(10, Math.min(chunkSize, 1000));
 
-    @Override
-    @Cacheable(value = "userJobLinks", key = "'all'", sync = true)
-    public CacheListWrapper<UserJobLinkVo> getAllUserJobLinksCache() {
-        List<UserJobLinkVo> list = userJobLinkDataAccess.findAll().stream()
-                .map(userJobLinkMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        Flux<ServerSentEvent<List<UserJobLinkVo>>> dataFlux = Flux.defer(() -> {
+            int[] pageTracker = new int[]{0};
+            return Flux.<ServerSentEvent<List<UserJobLinkVo>>>generate(sink -> {
+                try {
+                    Page<UserJobLink> page = userJobLinkDataAccess.findAllPaged(
+                            PageRequest.of(pageTracker[0], effectiveChunkSize, Sort.by("id").ascending()));
+
+                    List<UserJobLinkVo> chunk = page.getContent().stream()
+                            .map(userJobLinkMapper::toVo)
+                            .toList();
+
+                    sink.next(ServerSentEvent.<List<UserJobLinkVo>>builder()
+                            .event("chunk")
+                            .data(chunk)
+                            .build());
+
+                    if (!page.hasNext() || chunk.isEmpty()) {
+                        sink.complete();
+                    } else {
+                        pageTracker[0]++;
+                    }
+                } catch (Exception e) {
+                    log.error("Error streaming user job links at page {}: {}", pageTracker[0], e.getMessage(), e);
+                    sink.error(e);
+                }
+            });
+        }).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<UserJobLinkVo>> completeEvent = ServerSentEvent.<List<UserJobLinkVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<UserJobLinkVo>>> contentFlux = Flux.concat(dataFlux, Flux.just(completeEvent))
+                .onErrorResume(e -> {
+                    log.error("使用者職缺關聯 SSE 串流處理發生異常: {}", e.getMessage(), e);
+                    return Flux.just(
+                            ServerSentEvent.<List<UserJobLinkVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .data(List.of())
+                                    .build()
+                    );
+                });
+
+        Flux<ServerSentEvent<List<UserJobLinkVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<UserJobLinkVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(contentFlux, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()) || "error".equals(event.event()));
     }
 
     @Override

@@ -21,7 +21,11 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import org.springframework.cache.CacheManager;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
+import reactor.test.StepVerifier;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -178,14 +182,24 @@ class UserJobLinkServiceTest {
     }
 
     @Test
-    @DisplayName("Should get all user job links")
-    void testGetAllUserJobLinks() {
-        when(userJobLinkDataAccess.findAll()).thenReturn(List.of(testLink));
+    @DisplayName("Should stream user job links chunked successfully")
+    void testStreamUserJobLinksChunked_Success() {
+        when(userJobLinkDataAccess.findAllPaged(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(testLink)));
+        when(userJobLinkMapper.toVo(testLink)).thenReturn(new UserJobLinkVo());
 
-        List<UserJobLinkVo> result = userJobLinkService.getAllUserJobLinks();
+        StepVerifier.create(userJobLinkService.streamUserJobLinksChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("chunk", sse.event());
+                    assertNotNull(sse.data());
+                    assertEquals(1, sse.data().size());
+                })
+                .assertNext(sse -> {
+                    assertEquals("complete", sse.event());
+                })
+                .verifyComplete();
 
-        assertEquals(1, result.size());
-        verify(userJobLinkDataAccess).findAll();
+        verify(userJobLinkDataAccess).findAllPaged(any(Pageable.class));
     }
 
     @Test

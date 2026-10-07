@@ -18,7 +18,14 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +33,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService implements IUserService {
@@ -132,12 +140,6 @@ public class UserService implements IUserService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<UserVo> getAllUsersVo() {
-        return getUser();
-    }
-
-    @Override
     @Transactional
     @CacheEvict(value = "users", key = "#userId")
     public void rebindUserRoles(UUID userId, List<String> roleIds) {
@@ -180,5 +182,72 @@ public class UserService implements IUserService {
             
             return PageResult.of(userPage, userVos);
         });
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<UserVo>>> streamUsersChunked(int chunkSize) {
+        int safeChunkSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<UserVo>>> dataFlux = Flux.<ServerSentEvent<List<UserVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<User> entityPage = userDataAccess.findAllPaged(
+                                PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
+                        );
+
+                        if (entityPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        List<UserVo> voList = entityPage.getContent().stream()
+                                .map(userMapper::toVo)
+                                .toList();
+
+                        sink.next(ServerSentEvent.<List<UserVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(voList)
+                                .build());
+
+                        if (!entityPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("使用者 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        ).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<UserVo>> completeEvent = ServerSentEvent.<List<UserVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<UserVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+
+        Flux<ServerSentEvent<List<UserVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<UserVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(streamWithComplete, heartbeatFlux.takeUntilOther(streamWithComplete.ignoreElements()))
+                .doOnCancel(() -> log.info("客戶端中斷使用者 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("使用者 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<UserVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .data(List.of())
+                                    .build()
+                    );
+                });
     }
 }

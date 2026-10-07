@@ -26,9 +26,15 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,8 +63,7 @@ public class JobPostingService implements IJobPostingService {
     @Caching(put = {
         @CachePut(value = "jobPostings", key = "#result.id")
     }, evict = {
-        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #request.companyId"),
-        @CacheEvict(value = "jobPostings", key = "'all'")
+        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #request.companyId")
     })
     public JobPostingVo createJobPosting(CreateJobPostingRequest request) {
         Company company = companyDataAccess.findById(UUID.fromString(request.getCompanyId()))
@@ -79,17 +84,61 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
-    public List<JobPostingVo> getAllJobPostings() {
-        return self.getAllJobPostingsCache().getData();
-    }
+    public Flux<ServerSentEvent<List<JobPostingVo>>> streamJobPostingsChunked(int chunkSize) {
+        final int effectiveChunkSize = Math.max(10, Math.min(chunkSize, 1000));
 
-    @Override
-    @Cacheable(value = "jobPostings", key = "'all'", sync = true)
-    public CacheListWrapper<JobPostingVo> getAllJobPostingsCache() {
-        List<JobPostingVo> list = jobPostingDataAccess.findAll().stream()
-                .map(jobPostingMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        Flux<ServerSentEvent<List<JobPostingVo>>> dataFlux = Flux.defer(() -> {
+            int[] pageTracker = new int[]{0};
+            return Flux.<ServerSentEvent<List<JobPostingVo>>>generate(sink -> {
+                try {
+                    Page<JobPosting> page = jobPostingDataAccess.findAllPaged(
+                            PageRequest.of(pageTracker[0], effectiveChunkSize, Sort.by("id").ascending()));
+
+                    List<JobPostingVo> chunk = page.getContent().stream()
+                            .map(jobPostingMapper::toVo)
+                            .toList();
+
+                    sink.next(ServerSentEvent.<List<JobPostingVo>>builder()
+                            .event("chunk")
+                            .data(chunk)
+                            .build());
+
+                    if (!page.hasNext() || chunk.isEmpty()) {
+                        sink.complete();
+                    } else {
+                        pageTracker[0]++;
+                    }
+                } catch (Exception e) {
+                    log.error("Error streaming job postings at page {}: {}", pageTracker[0], e.getMessage(), e);
+                    sink.error(e);
+                }
+            });
+        }).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<JobPostingVo>> completeEvent = ServerSentEvent.<List<JobPostingVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<JobPostingVo>>> contentFlux = Flux.concat(dataFlux, Flux.just(completeEvent))
+                .onErrorResume(e -> {
+                    log.error("職缺 SSE 串流處理發生異常: {}", e.getMessage(), e);
+                    return Flux.just(
+                            ServerSentEvent.<List<JobPostingVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .data(List.of())
+                                    .build()
+                    );
+                });
+
+        Flux<ServerSentEvent<List<JobPostingVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<JobPostingVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(contentFlux, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()) || "error".equals(event.event()));
     }
 
     @Override
@@ -109,8 +158,7 @@ public class JobPostingService implements IJobPostingService {
     @Caching(put = {
         @CachePut(value = "jobPostings", key = "#jobPostingVo.id")
     }, evict = {
-        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #jobPostingVo.companyId"),
-        @CacheEvict(value = "jobPostings", key = "'all'")
+        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #jobPostingVo.companyId")
     })
     public JobPostingVo updateJobPosting(JobPostingVo jobPostingVo) {
         if (jobPostingVo.getId() == null || jobPostingVo.getId().isBlank()) {
@@ -170,7 +218,6 @@ public class JobPostingService implements IJobPostingService {
             if (cache != null) {
                 cache.evict(id);
                 cache.evict("bycompany:" + companyId);
-                cache.evict("all");
             }
         }
         evictJobPostingsSearchCache();
@@ -198,7 +245,6 @@ public class JobPostingService implements IJobPostingService {
     @Transactional
     @Caching(evict = {
         @CacheEvict(value = "jobPostings", key = "'bycompany:' + #companyId"),
-        @CacheEvict(value = "jobPostings", key = "'all'"),
         @CacheEvict(value = "companies", key = "'all'")
     })
     public List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId) {
