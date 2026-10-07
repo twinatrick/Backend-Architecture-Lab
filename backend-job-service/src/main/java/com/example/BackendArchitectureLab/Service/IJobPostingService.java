@@ -5,6 +5,8 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Vo.JobPostingVo;
 import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -12,8 +14,7 @@ public interface IJobPostingService {
 
     JobPostingVo createJobPosting(CreateJobPostingRequest request);
 
-    List<JobPostingVo> getAllJobPostings();
-    CacheListWrapper<JobPostingVo> getAllJobPostingsCache();
+    Flux<ServerSentEvent<List<JobPostingVo>>> streamJobPostingsChunked(int chunkSize);
 
     JobPostingVo getJobPostingById(String id);
 

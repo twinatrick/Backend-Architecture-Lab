@@ -2,6 +2,8 @@ package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -9,8 +11,7 @@ public interface IUserJobLinkService {
 
     UserJobLinkVo createUserJobLink(UserJobLinkVo userJobLinkVo);
 
-    List<UserJobLinkVo> getAllUserJobLinks();
-    CacheListWrapper<UserJobLinkVo> getAllUserJobLinksCache();
+    Flux<ServerSentEvent<List<UserJobLinkVo>>> streamUserJobLinksChunked(int chunkSize);
 
     UserJobLinkVo getUserJobLinkById(String id);
 

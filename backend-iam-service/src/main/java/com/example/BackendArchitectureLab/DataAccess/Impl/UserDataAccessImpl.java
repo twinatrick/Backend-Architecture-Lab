@@ -79,4 +79,9 @@ public class UserDataAccessImpl implements IUserDataAccess {
         
         return userRepository.findAll(UserSpecification.buildSpecification(query), pageable);
     }
+
+    @Override
+    public Page<User> findAllPaged(Pageable pageable) {
+        return userRepository.findAll(pageable);
+    }
 }
