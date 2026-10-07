@@ -15,8 +15,8 @@ class ChatRequest(BaseModel):
     stream: bool = False
 
 
-@router.post("/chat")
-async def chat_endpoint(body: ChatRequest):
+@router.post("/chat", response_model=None)
+async def chat_endpoint(body: ChatRequest) -> StreamingResponse | dict[str, str]:
     if body.stream:
         return StreamingResponse(
             chat_stream(body.messages, body.temperature),
