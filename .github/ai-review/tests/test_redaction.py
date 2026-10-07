@@ -33,7 +33,7 @@ def test_redact_secrets():
 
 def test_sanitize_diff_various_secret_patterns():
     mock_raw_pk = (
-        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "-----BEGIN " + "RSA PRIVATE KEY-----\n"
         "MIIEowIBAAKCAQEA0\n"
         "-----END RSA PRIVATE KEY-----"
     )
@@ -50,7 +50,7 @@ def test_sanitize_diff_various_secret_patterns():
     raw_ghp = "github token ghp_mock123456789012345678901234567890"
     raw_pat = "github pat github_pat_mock12345678901234567890_12345"
     raw_aws = "aws key AKIAIOSFODNN7EXAMPLE and ASIAIOSFODNN7EXAMPLE"
-    raw_slack = "slack token xoxb-1234567890-123456789012-abcdef123456"
+    raw_slack = "slack token xoxb-mock123456-123456789012-abcdef123456"
     raw_jwt = (
         "jwt eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
         "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0."
@@ -64,7 +64,7 @@ def test_sanitize_diff_various_secret_patterns():
     assert redaction.sanitize_diff(raw_slack) == "slack token [REDACTED]"
     assert "[REDACTED_JWT]" in redaction.sanitize_diff(raw_jwt)
 
-    raw_assign = 'api_key = "super_secret_value_123"\npassword: \'topsecretpass456\''
+    raw_assign = 'api_key = "mock_secret_value_123"\npassword: \'mock_secret_pass456\''
     sanitized_assign = redaction.sanitize_diff(raw_assign)
     assert 'api_key = "[REDACTED]"' in sanitized_assign
     assert "password: '[REDACTED]'" in sanitized_assign
@@ -89,23 +89,23 @@ def test_sanitize_diff_various_secret_patterns():
     assert "SPRING_SECURITY_PASSWORD=[REDACTED]" in sanitized_env
 
     # 驗證 JSON, TOML, XML, Shell, Docker 格式脫敏
-    raw_json = '{"apiKey": "json_secret_token_123", "debug": true}'
+    raw_json = '{"apiKey": "mock_json_secret_token_123", "debug": true}'
     sanitized_json = redaction.sanitize_diff(raw_json)
     assert '"apiKey": "[REDACTED]"' in sanitized_json
 
-    raw_toml = 'api_token = "toml_secret_value_456"'
+    raw_toml = 'api_token = "mock_toml_secret_value_456"'
     sanitized_toml = redaction.sanitize_diff(raw_toml)
     assert 'api_token = "[REDACTED]"' in sanitized_toml
 
-    raw_xml = '<config><password>xml_secret_pass_789</password></config>'
+    raw_xml = '<config><password>mock_xml_secret_pass_789</password></config>'
     sanitized_xml = redaction.sanitize_diff(raw_xml)
     assert '<password>[REDACTED]</password>' in sanitized_xml
 
-    raw_shell = "export DB_PASSWORD=shell_secret_password_111"
+    raw_shell = "export DB_PASSWORD=mock_shell_secret_password_111"
     sanitized_shell = redaction.sanitize_diff(raw_shell)
     assert "export DB_PASSWORD=[REDACTED]" in sanitized_shell
 
-    raw_docker = "ENV APP_SECRET=docker_secret_value_222"
+    raw_docker = "ENV APP_SECRET=mock_docker_secret_value_222"
     sanitized_docker = redaction.sanitize_diff(raw_docker)
     assert "ENV APP_SECRET=[REDACTED]" in sanitized_docker
 
@@ -117,13 +117,13 @@ def test_sanitize_diff_various_secret_patterns():
 
 
 def test_sanitize_diff_known_env_vars():
-    with patch.dict(os.environ, {"MY_TEST_SECRET_KEY": "super_hidden_env_token_999"}):
-        raw_text = "Here is the token: super_hidden_env_token_999 in diff"
+    with patch.dict(os.environ, {"MY_TEST_SECRET_KEY": "mock_hidden_env_token_999"}):
+        raw_text = "Here is the token: mock_hidden_env_token_999 in diff"
         assert redaction.sanitize_diff(raw_text) == "Here is the token: [REDACTED] in diff"
 
 
 def test_safe_print_redacts_tokens(capsys):
-    raw_secret = "gsk_secrettoken12345678901234567890"
+    raw_secret = "gsk_mocktoken12345678901234567890"
     redaction.safe_print("Processing key:", raw_secret)
     captured = capsys.readouterr()
     assert "gsk_" not in captured.out

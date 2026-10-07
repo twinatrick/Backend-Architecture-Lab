@@ -95,7 +95,7 @@ def build_batch_prompt(
 
 【長度與格式約束】
 各欄位描述務必簡潔扼要，單一 Finding 不得贅述；若無違規，findings 輸出空陣列 []。
-確保回應在 1000 Tokens 內結束。
+各欄位內容務求精簡確實，嚴禁無效贅述；確保 JSON 結構完整閉合且所有欄位齊全。
 
 【Review Contract】
 {clean_contract}
@@ -118,6 +118,15 @@ def build_batch_prompt(
 不得提出與本 PR 無關的既有技術債或純風格建議。
 CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Action pinning、
 artifact/cache、fail-open 與 Review bypass。
+
+【Diff 變更極性與行號絕對約束】
+1. 你只能針對以「+」開頭之新增或修改行提出 Finding，必須引用新檔案中實際存在的行號！
+2. 嚴禁將以「-」開頭之刪除行視為本次 PR 引入的違規！
+   若本次 PR 刪除或重構了舊有違規代碼（例如移除單字母變數、移除泛型 Exception 捕捉），
+   應視為符合規範並記錄於 passed_checks，絕對禁止提出 Finding！
+3. 【測試案例豁免】對於測試目錄（如 tests/、test/ 等）中，
+   專門為驗證語法檢查器、靜態檢查規則或安全防護而構造的測試字串/樣例
+   （例如驗證檢查器是否能捕獲 Exception 的測試用例），嚴禁將其誤判為生產代碼違規。
 
 只輸出合法 JSON，不得輸出 markdown：
 {json_template}

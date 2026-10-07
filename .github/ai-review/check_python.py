@@ -88,6 +88,13 @@ def check_python_file(
             id(child_node) for child_node in tree.body
             if isinstance(child_node, (ast.Import, ast.ImportFrom))
         }
+        for child_node in tree.body:
+            if isinstance(child_node, ast.Try):
+                for sub_node in child_node.body + [
+                    h_node for handler in child_node.handlers for h_node in handler.body
+                ]:
+                    if isinstance(sub_node, (ast.Import, ast.ImportFrom)):
+                        top_import_ids.add(id(sub_node))
 
         for node in ast.walk(tree):
             lineno = getattr(node, "lineno", None)

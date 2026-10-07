@@ -1,7 +1,8 @@
 import json
 
+import model_pool
 import requests
-
+from batching import estimate_tokens
 from gemini_runner import execute_gemini_loop
 from groq_runner import execute_groq_loop
 from key_pool import (
@@ -47,10 +48,7 @@ class ReviewOrchestrator:
             return candidates
         try:
             available = self.groq_client.get_available_models(groq_keys[0][1])
-            filtered = [
-                model_name for model_name in candidates
-                if model_name in available
-            ]
+            filtered = [model_name for model_name in candidates if model_name in available]
             if filtered:
                 return filtered
         except requests.RequestException as exc:
@@ -61,6 +59,7 @@ class ReviewOrchestrator:
         self,
         prompt: str,
         max_retries_per_model: int = DEFAULT_MAX_RETRIES_PER_MODEL,
+        required_tokens: int | None = None,
     ) -> str:
         groq_keys = self.groq_key_pool.get_all_keys()
         gemini_keys = self.gemini_key_pool.get_all_keys()
@@ -73,39 +72,62 @@ class ReviewOrchestrator:
                 )
             )
 
+        est_tokens = required_tokens if required_tokens is not None else estimate_tokens(prompt)
         error_details: list[tuple[str, str]] = []
 
         if gemini_keys:
-            gemini_models = self.gemini_model_pool.get_candidates()
-            result = execute_gemini_loop(
-                prompt,
-                max_retries_per_model,
-                gemini_models,
-                self.gemini_key_pool,
-                self.gemini_model_pool,
-                self.gemini_client,
-                self.parser,
-                error_details,
-            )
-            if result is not None:
-                return result
+            raw_gemini_models = self.gemini_model_pool.get_candidates()
+            if raw_gemini_models:
+                gemini_models = model_pool.filter_eligible_models(raw_gemini_models, est_tokens)
+                if not gemini_models:
+                    print(
+                        f"批次預估需 {est_tokens} Tokens，候選池無單一 Gemini 模型能完全容納，"
+                        f"採用第一候選 {raw_gemini_models[0]} 嘗試執行..."
+                    )
+                    gemini_models = [raw_gemini_models[0]]
+
+                result = execute_gemini_loop(
+                    prompt,
+                    max_retries_per_model,
+                    gemini_models,
+                    self.gemini_key_pool,
+                    self.gemini_model_pool,
+                    self.gemini_client,
+                    self.parser,
+                    error_details,
+                )
+                if result is not None:
+                    return result
+            else:
+                error_details.append(("GEMINI_POOL", "所有 Gemini 候選模型均處於冷卻狀態，無可用模型"))
 
         if groq_keys:
             if gemini_keys:
                 print("所有 Gemini 金鑰與模型均無法取得有效回應，降級至備援 Provider：Groq...")
-            groq_models = self._get_groq_candidate_models()
-            result = execute_groq_loop(
-                prompt,
-                max_retries_per_model,
-                groq_models,
-                self.groq_key_pool,
-                self.groq_model_pool,
-                self.groq_client,
-                self.parser,
-                error_details,
-            )
-            if result is not None:
-                return result
+            raw_groq_models = self._get_groq_candidate_models()
+            if raw_groq_models:
+                groq_models = model_pool.filter_eligible_models(raw_groq_models, est_tokens)
+                if not groq_models:
+                    print(
+                        f"批次預估需 {est_tokens} Tokens，Groq 候選無完全適配模型，"
+                        f"採用第一候選 {raw_groq_models[0]} 嘗試執行..."
+                    )
+                    groq_models = [raw_groq_models[0]]
+
+                result = execute_groq_loop(
+                    prompt,
+                    max_retries_per_model,
+                    groq_models,
+                    self.groq_key_pool,
+                    self.groq_model_pool,
+                    self.groq_client,
+                    self.parser,
+                    error_details,
+                )
+                if result is not None:
+                    return result
+            else:
+                error_details.append(("GROQ_POOL", "所有 Groq 候選模型均處於冷卻狀態，無可用模型"))
 
         raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
 
@@ -116,5 +138,10 @@ DEFAULT_ORCHESTRATOR = ReviewOrchestrator()
 def chat_completion(
     prompt: str,
     max_retries_per_model: int = DEFAULT_MAX_RETRIES_PER_MODEL,
+    required_tokens: int | None = None,
 ) -> str:
-    return DEFAULT_ORCHESTRATOR.chat_completion(prompt, max_retries_per_model)
+    return DEFAULT_ORCHESTRATOR.chat_completion(
+        prompt,
+        max_retries_per_model=max_retries_per_model,
+        required_tokens=required_tokens,
+    )

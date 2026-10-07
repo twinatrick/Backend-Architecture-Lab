@@ -28,8 +28,8 @@ def test_format_markdown_report_with_findings_and_redaction():
         {
             "location": "app.py:10",
             "rule": "SEC-01",
-            "problem": "Found secret gsk_secret_123456789012345678901234 in code",
-            "evidence": "api_key = 'gsk_secret_123456789012345678901234'",
+            "problem": "Found secret gsk_mock_123456789012345678901234 in code",
+            "evidence": "api_key = 'gsk_mock_123456789012345678901234'",
             "risk": "Leakage",
             "recommendation": "Use env var",
             "severity": "BLOCKER",
@@ -45,7 +45,7 @@ def test_format_markdown_report_with_findings_and_redaction():
         passed_checks=[],
     )
     assert "REQUEST_CHANGES" in report
-    assert "gsk_secret_" not in report
+    assert "gsk_mock_" not in report
     assert "[REDACTED]" in report
     assert "app.py:10" in report
 

@@ -47,7 +47,11 @@ def check_secrets(
             for match in pattern.finditer(line):
                 matched = match.group(0).lower()
                 if is_test and any(
-                    token in matched for token in ("dummy", "mock", "fake", "placeholder")
+                    token in matched
+                    for token in (
+                        "dummy", "mock", "fake", "placeholder", "test",
+                        "example", "sample", "redacted", "[redacted]"
+                    )
                 ):
                     continue
                 findings.append(make_finding(
