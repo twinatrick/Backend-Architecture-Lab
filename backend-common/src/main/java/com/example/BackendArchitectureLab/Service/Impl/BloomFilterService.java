@@ -26,19 +26,37 @@ public class BloomFilterService implements IBloomFilterService {
     }
 
     @Override
+    public boolean isConfigured(String cacheName) {
+        if (cacheName == null || bloomFilterProperties == null) {
+            return false;
+        }
+        return bloomFilterProperties.getEntityCacheMap().containsValue(cacheName);
+    }
+
+    @Override
     public boolean mightContain(String cacheName, String key) {
+        if (!isConfigured(cacheName)) {
+            log.debug("快取實體未宣告於布隆過濾器清單 [{}]，依未宣告放行原則直接放行查庫", cacheName);
+            return true;
+        }
         RBloomFilter<String> filter = getOrCreate(cacheName);
         return filter.contains(key);
     }
 
     @Override
     public void add(String cacheName, String key) {
+        if (!isConfigured(cacheName)) {
+            return;
+        }
         RBloomFilter<String> filter = getOrCreate(cacheName);
         filter.add(key);
     }
 
     @Override
     public void addAll(String cacheName, Collection<String> keys) {
+        if (!isConfigured(cacheName)) {
+            return;
+        }
         RBloomFilter<String> filter = getOrCreate(cacheName);
         for (String key : keys) {
             filter.add(key);
