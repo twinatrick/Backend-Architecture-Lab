@@ -136,3 +136,26 @@ def test_orchestrator_gemini_quota_exhaustion_switches_to_groq(monkeypatch):
     )
     result = orch.chat_completion("test prompt")
     assert result == '[{"location": "groq.py:1"}]'
+
+
+def test_orchestrator_gemini_models_empty_falls_back_to_groq(monkeypatch):
+    gemini_pool = MagicMock()
+    gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY", "gkey1")]
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY", "key1")]
+    gemini_model_pool = MagicMock()
+    gemini_model_pool.get_candidates.return_value = []
+
+    monkeypatch.setattr(
+        orchestrator,
+        "execute_groq_loop",
+        MagicMock(return_value='[{"location": "groq_cooldown_fallback.py:1"}]'),
+    )
+
+    orch = orchestrator.ReviewOrchestrator(
+        groq_key_pool=groq_pool,
+        gemini_key_pool=gemini_pool,
+        gemini_model_pool=gemini_model_pool,
+    )
+    result = orch.chat_completion("test prompt")
+    assert result == '[{"location": "groq_cooldown_fallback.py:1"}]'

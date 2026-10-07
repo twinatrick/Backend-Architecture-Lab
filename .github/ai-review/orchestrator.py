@@ -77,51 +77,57 @@ class ReviewOrchestrator:
 
         if gemini_keys:
             raw_gemini_models = self.gemini_model_pool.get_candidates()
-            gemini_models = model_pool.filter_eligible_models(raw_gemini_models, est_tokens)
-            if not gemini_models:
-                print(
-                    f"批次預估需 {est_tokens} Tokens，候選池無單一 Gemini 模型能完全容納，"
-                    f"採用第一候選 {raw_gemini_models[0]} 嘗試執行..."
-                )
-                gemini_models = [raw_gemini_models[0]]
+            if raw_gemini_models:
+                gemini_models = model_pool.filter_eligible_models(raw_gemini_models, est_tokens)
+                if not gemini_models:
+                    print(
+                        f"批次預估需 {est_tokens} Tokens，候選池無單一 Gemini 模型能完全容納，"
+                        f"採用第一候選 {raw_gemini_models[0]} 嘗試執行..."
+                    )
+                    gemini_models = [raw_gemini_models[0]]
 
-            result = execute_gemini_loop(
-                prompt,
-                max_retries_per_model,
-                gemini_models,
-                self.gemini_key_pool,
-                self.gemini_model_pool,
-                self.gemini_client,
-                self.parser,
-                error_details,
-            )
-            if result is not None:
-                return result
+                result = execute_gemini_loop(
+                    prompt,
+                    max_retries_per_model,
+                    gemini_models,
+                    self.gemini_key_pool,
+                    self.gemini_model_pool,
+                    self.gemini_client,
+                    self.parser,
+                    error_details,
+                )
+                if result is not None:
+                    return result
+            else:
+                error_details.append(("GEMINI_POOL", "所有 Gemini 候選模型均處於冷卻狀態，無可用模型"))
 
         if groq_keys:
             if gemini_keys:
                 print("所有 Gemini 金鑰與模型均無法取得有效回應，降級至備援 Provider：Groq...")
             raw_groq_models = self._get_groq_candidate_models()
-            groq_models = model_pool.filter_eligible_models(raw_groq_models, est_tokens)
-            if not groq_models:
-                print(
-                    f"批次預估需 {est_tokens} Tokens，Groq 候選無完全適配模型，"
-                    f"採用第一候選 {raw_groq_models[0]} 嘗試執行..."
-                )
-                groq_models = [raw_groq_models[0]]
+            if raw_groq_models:
+                groq_models = model_pool.filter_eligible_models(raw_groq_models, est_tokens)
+                if not groq_models:
+                    print(
+                        f"批次預估需 {est_tokens} Tokens，Groq 候選無完全適配模型，"
+                        f"採用第一候選 {raw_groq_models[0]} 嘗試執行..."
+                    )
+                    groq_models = [raw_groq_models[0]]
 
-            result = execute_groq_loop(
-                prompt,
-                max_retries_per_model,
-                groq_models,
-                self.groq_key_pool,
-                self.groq_model_pool,
-                self.groq_client,
-                self.parser,
-                error_details,
-            )
-            if result is not None:
-                return result
+                result = execute_groq_loop(
+                    prompt,
+                    max_retries_per_model,
+                    groq_models,
+                    self.groq_key_pool,
+                    self.groq_model_pool,
+                    self.groq_client,
+                    self.parser,
+                    error_details,
+                )
+                if result is not None:
+                    return result
+            else:
+                error_details.append(("GROQ_POOL", "所有 Groq 候選模型均處於冷卻狀態，無可用模型"))
 
         raise RuntimeError(json.dumps(error_details, ensure_ascii=False))
 
