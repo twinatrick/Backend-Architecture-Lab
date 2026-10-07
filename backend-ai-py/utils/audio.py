@@ -32,7 +32,7 @@ def get_audio_duration(file_path: str) -> float:
     return duration
 
 
-def _prepare_audio(file_path: str):
+def _prepare_audio(file_path: str) -> tuple[str, str | None]:
     """智慧型格式預處理：非 WAV 格式（如 .mp3）以當前環境 ffmpeg 轉為 16kHz mono WAV"""
     ext = os.path.splitext(file_path.lower())[1]
     if ext == ".wav":
@@ -54,14 +54,14 @@ def _prepare_audio(file_path: str):
         )
         print("[STT] Up-front WAV conversion completed successfully.")
         return temp_wav, temp_wav
-    except Exception as e:
-        print(f"[STT] FFmpeg 前置轉檔失敗，嘗試直接讀取原檔: {e}")
+    except (subprocess.SubprocessError, OSError) as exc:
+        print(f"[STT] FFmpeg 前置轉檔失敗，嘗試直接讀取原檔: {exc}")
         if temp_wav and os.path.exists(temp_wav):
             try:
                 os.remove(temp_wav)
-            except OSError as exc:
+            except OSError as cleanup_exc:
                 # 暫存檔清理失敗不影響後續處理，僅記錄
-                logger.warning("[STT] 暫存檔清理失敗 %s: %s", temp_wav, exc)
+                logger.warning("[STT] 暫存檔清理失敗 %s: %s", temp_wav, cleanup_exc)
         return file_path, None
 
 
@@ -87,8 +87,8 @@ def convert_wav_to_m4a(wav_bytes: bytes) -> bytes:
             tf_out_name,
         ]
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        with open(tf_out_name, "rb") as f:
-            m4a_bytes = f.read()
+        with open(tf_out_name, "rb") as m4a_file:
+            m4a_bytes = m4a_file.read()
         return m4a_bytes
     finally:
         if os.path.exists(tf_in_name):

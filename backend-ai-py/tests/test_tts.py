@@ -145,8 +145,8 @@ def test_tts_service_fallback_cleans_temp_file():
     written_paths = []
 
     def _fake_synthesize(text, save_path):
-        with open(save_path, "wb") as f:
-            f.write(b"wav")
+        with open(save_path, "wb") as temp_file:
+            temp_file.write(b"wav")
         written_paths.append(save_path)
         return b"wav"
 

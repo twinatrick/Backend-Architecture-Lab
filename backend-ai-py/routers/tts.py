@@ -19,7 +19,7 @@ class TtsRequest(BaseModel):
 
 
 @router.post("/tts")
-async def tts_endpoint(body: TtsRequest):
+async def tts_endpoint(body: TtsRequest) -> dict[str, str]:
     audio_bytes = tts_service.text_to_sound(
         body.text,
         body.language,
