@@ -11,6 +11,7 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -20,6 +21,7 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
@@ -42,6 +44,7 @@ public class UserJobLinkService implements IUserJobLinkService {
     private final UserJobLinkMapper userJobLinkMapper;
     private final CacheManager cacheManager;
     private final UserServiceFeignClient userServiceFeignClient;
+    private final TransactionExecutor transactionExecutor;
 
     @Lazy
     private final IUserJobLinkService self;
@@ -81,58 +84,75 @@ public class UserJobLinkService implements IUserJobLinkService {
     public Flux<ServerSentEvent<List<UserJobLinkVo>>> streamUserJobLinksChunked(int chunkSize) {
         final int effectiveChunkSize = Math.max(10, Math.min(chunkSize, 1000));
 
-        Flux<ServerSentEvent<List<UserJobLinkVo>>> dataFlux = Flux.defer(() -> {
-            int[] pageTracker = new int[]{0};
-            return Flux.<ServerSentEvent<List<UserJobLinkVo>>>generate(sink -> {
-                try {
-                    Page<UserJobLink> page = userJobLinkDataAccess.findAllPaged(
-                            PageRequest.of(pageTracker[0], effectiveChunkSize, Sort.by("id").ascending()));
+        Flux<ServerSentEvent<List<UserJobLinkVo>>> dataFlux = Flux.<ServerSentEvent<List<UserJobLinkVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<UserJobLinkVo> linkPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<UserJobLink> entityPage = userJobLinkDataAccess.findAllPaged(
+                                    PageRequest.of(page, effectiveChunkSize, Sort.by("id").ascending())
+                            );
 
-                    List<UserJobLinkVo> chunk = page.getContent().stream()
-                            .map(userJobLinkMapper::toVo)
-                            .toList();
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<UserJobLinkVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
 
-                    sink.next(ServerSentEvent.<List<UserJobLinkVo>>builder()
-                            .event("chunk")
-                            .data(chunk)
-                            .build());
+                            List<UserJobLinkVo> voList = entityPage.getContent().stream()
+                                    .map(userJobLinkMapper::toVo)
+                                    .toList();
 
-                    if (!page.hasNext() || chunk.isEmpty()) {
-                        sink.complete();
-                    } else {
-                        pageTracker[0]++;
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (linkPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<UserJobLinkVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(linkPage.getContent())
+                                .build());
+
+                        if (!linkPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("使用者職缺關聯 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
                     }
-                } catch (Exception e) {
-                    log.error("Error streaming user job links at page {}: {}", pageTracker[0], e.getMessage(), e);
-                    sink.error(e);
                 }
-            });
-        }).subscribeOn(Schedulers.boundedElastic());
+        ).subscribeOn(Schedulers.boundedElastic());
 
         ServerSentEvent<List<UserJobLinkVo>> completeEvent = ServerSentEvent.<List<UserJobLinkVo>>builder()
                 .event("complete")
                 .data(List.of())
                 .build();
 
-        Flux<ServerSentEvent<List<UserJobLinkVo>>> contentFlux = Flux.concat(dataFlux, Flux.just(completeEvent))
-                .onErrorResume(e -> {
-                    log.error("使用者職缺關聯 SSE 串流處理發生異常: {}", e.getMessage(), e);
-                    return Flux.just(
-                            ServerSentEvent.<List<UserJobLinkVo>>builder()
-                                    .event("error")
-                                    .comment("串流處理發生異常，請聯繫管理員")
-                                    .data(List.of())
-                                    .build()
-                    );
-                });
+        Flux<ServerSentEvent<List<UserJobLinkVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
 
         Flux<ServerSentEvent<List<UserJobLinkVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
                 .map(tick -> ServerSentEvent.<List<UserJobLinkVo>>builder()
                         .comment("keep-alive")
                         .build());
 
-        return Flux.merge(contentFlux, heartbeatFlux)
-                .takeUntil(event -> "complete".equals(event.event()) || "error".equals(event.event()));
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷使用者職缺關聯 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("使用者職缺關聯 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<UserJobLinkVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .build()
+                    );
+                });
     }
 
     @Override

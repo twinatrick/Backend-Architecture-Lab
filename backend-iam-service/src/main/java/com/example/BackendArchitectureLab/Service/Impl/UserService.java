@@ -16,6 +16,7 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
@@ -192,26 +193,34 @@ public class UserService implements IUserService {
                 () -> 0,
                 (page, sink) -> {
                     try {
-                        Page<User> entityPage = userDataAccess.findAllPaged(
-                                PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
-                        );
+                        Page<UserVo> userPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<User> entityPage = userDataAccess.findAllPaged(
+                                    PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
+                            );
 
-                        if (entityPage.isEmpty()) {
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<UserVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
+
+                            List<UserVo> voList = entityPage.getContent().stream()
+                                    .map(userMapper::toVo)
+                                    .toList();
+
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (userPage.isEmpty()) {
                             sink.complete();
                             return page;
                         }
 
-                        List<UserVo> voList = entityPage.getContent().stream()
-                                .map(userMapper::toVo)
-                                .toList();
-
                         sink.next(ServerSentEvent.<List<UserVo>>builder()
                                 .event("chunk")
                                 .id(String.valueOf(page))
-                                .data(voList)
+                                .data(userPage.getContent())
                                 .build());
 
-                        if (!entityPage.hasNext()) {
+                        if (!userPage.hasNext()) {
                             sink.complete();
                             return page;
                         }
@@ -237,7 +246,8 @@ public class UserService implements IUserService {
                         .comment("keep-alive")
                         .build());
 
-        return Flux.merge(streamWithComplete, heartbeatFlux.takeUntilOther(streamWithComplete.ignoreElements()))
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
                 .doOnCancel(() -> log.info("客戶端中斷使用者 SSE 串流連線"))
                 .onErrorResume(ex -> {
                     log.error("使用者 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
@@ -245,7 +255,6 @@ public class UserService implements IUserService {
                             ServerSentEvent.<List<UserVo>>builder()
                                     .event("error")
                                     .comment("串流處理發生異常，請聯繫管理員")
-                                    .data(List.of())
                                     .build()
                     );
                 });

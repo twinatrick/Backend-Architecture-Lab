@@ -10,6 +10,7 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import reactor.test.StepVerifier;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -53,6 +55,9 @@ class UserJobLinkServiceTest {
     @Mock
     private CacheManager cacheManager;
 
+    @Mock
+    private TransactionExecutor transactionExecutor;
+
     @InjectMocks
     private UserJobLinkService userJobLinkService;
 
@@ -66,6 +71,11 @@ class UserJobLinkServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         ReflectionTestUtils.setField(userJobLinkService, "self", userJobLinkService);
         userId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();
@@ -191,6 +201,7 @@ class UserJobLinkServiceTest {
         StepVerifier.create(userJobLinkService.streamUserJobLinksChunked(250))
                 .assertNext(sse -> {
                     assertEquals("chunk", sse.event());
+                    assertEquals("0", sse.id());
                     assertNotNull(sse.data());
                     assertEquals(1, sse.data().size());
                 })
@@ -200,6 +211,20 @@ class UserJobLinkServiceTest {
                 .verifyComplete();
 
         verify(userJobLinkDataAccess).findAllPaged(any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Should emit error event without data when database error occurs")
+    void testStreamUserJobLinksChunked_DatabaseError_ShouldEmitErrorEventWithoutData() {
+        when(userJobLinkDataAccess.findAllPaged(any(Pageable.class)))
+                .thenThrow(new RuntimeException("Database error"));
+
+        StepVerifier.create(userJobLinkService.streamUserJobLinksChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("error", sse.event());
+                    assertNull(sse.data());
+                })
+                .verifyComplete();
     }
 
     @Test

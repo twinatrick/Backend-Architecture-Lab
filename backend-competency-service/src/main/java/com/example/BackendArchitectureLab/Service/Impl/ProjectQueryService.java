@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
@@ -55,25 +56,31 @@ public class ProjectQueryService implements IProjectQueryService {
                 () -> 0,
                 (page, sink) -> {
                     try {
-                        Page<Project> projectPage = transactionExecutor.executeReadOnly(() ->
-                                projectDataAccess.findAllPaged(
-                                        PageRequest.of(page, effectiveSize, Sort.by("id").ascending())
-                                )
-                        );
+                        Page<ProjectVo> projectPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<Project> entityPage = projectDataAccess.findAllPaged(
+                                    PageRequest.of(page, effectiveSize, Sort.by("id").ascending())
+                            );
+
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<ProjectVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
+
+                            List<ProjectVo> voList = entityPage.getContent().stream()
+                                    .map(projectMapper::toVo)
+                                    .toList();
+
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
 
                         if (projectPage.isEmpty()) {
                             sink.complete();
                             return page;
                         }
 
-                        List<ProjectVo> voList = projectPage.getContent().stream()
-                                .map(projectMapper::toVo)
-                                .toList();
-
                         sink.next(ServerSentEvent.<List<ProjectVo>>builder()
                                 .event("chunk")
                                 .id(String.valueOf(page))
-                                .data(voList)
+                                .data(projectPage.getContent())
                                 .build());
 
                         if (!projectPage.hasNext()) {
@@ -102,7 +109,8 @@ public class ProjectQueryService implements IProjectQueryService {
                         .comment("keep-alive")
                         .build());
 
-        return Flux.merge(streamWithComplete, heartbeatFlux.takeUntilOther(streamWithComplete.ignoreElements()))
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
                 .doOnCancel(() -> log.info("客戶端中斷專案 SSE 串流連線"))
                 .onErrorResume(ex -> {
                     log.error("專案 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
@@ -110,7 +118,6 @@ public class ProjectQueryService implements IProjectQueryService {
                             ServerSentEvent.<List<ProjectVo>>builder()
                                     .event("error")
                                     .comment("串流處理發生異常，請聯繫管理員")
-                                    .data(List.of())
                                     .build()
                     );
                 });
