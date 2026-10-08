@@ -16,6 +16,7 @@ import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -26,6 +27,7 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
@@ -54,6 +56,7 @@ public class JobPostingService implements IJobPostingService {
     private final ExternalApiServiceFeignClient aiServiceFeignClient;
     private final CacheManager cacheManager;
     private final StringRedisTemplate stringRedisTemplate;
+    private final TransactionExecutor transactionExecutor;
 
     @Lazy
     private final IJobPostingService self;
@@ -87,58 +90,75 @@ public class JobPostingService implements IJobPostingService {
     public Flux<ServerSentEvent<List<JobPostingVo>>> streamJobPostingsChunked(int chunkSize) {
         final int effectiveChunkSize = Math.max(10, Math.min(chunkSize, 1000));
 
-        Flux<ServerSentEvent<List<JobPostingVo>>> dataFlux = Flux.defer(() -> {
-            int[] pageTracker = new int[]{0};
-            return Flux.<ServerSentEvent<List<JobPostingVo>>>generate(sink -> {
-                try {
-                    Page<JobPosting> page = jobPostingDataAccess.findAllPaged(
-                            PageRequest.of(pageTracker[0], effectiveChunkSize, Sort.by("id").ascending()));
+        Flux<ServerSentEvent<List<JobPostingVo>>> dataFlux = Flux.<ServerSentEvent<List<JobPostingVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<JobPostingVo> jobPostingPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<JobPosting> entityPage = jobPostingDataAccess.findAllPaged(
+                                    PageRequest.of(page, effectiveChunkSize, Sort.by("id").ascending())
+                            );
 
-                    List<JobPostingVo> chunk = page.getContent().stream()
-                            .map(jobPostingMapper::toVo)
-                            .toList();
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<JobPostingVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
 
-                    sink.next(ServerSentEvent.<List<JobPostingVo>>builder()
-                            .event("chunk")
-                            .data(chunk)
-                            .build());
+                            List<JobPostingVo> voList = entityPage.getContent().stream()
+                                    .map(jobPostingMapper::toVo)
+                                    .toList();
 
-                    if (!page.hasNext() || chunk.isEmpty()) {
-                        sink.complete();
-                    } else {
-                        pageTracker[0]++;
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (jobPostingPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<JobPostingVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(jobPostingPage.getContent())
+                                .build());
+
+                        if (!jobPostingPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("職缺 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
                     }
-                } catch (Exception e) {
-                    log.error("Error streaming job postings at page {}: {}", pageTracker[0], e.getMessage(), e);
-                    sink.error(e);
                 }
-            });
-        }).subscribeOn(Schedulers.boundedElastic());
+        ).subscribeOn(Schedulers.boundedElastic());
 
         ServerSentEvent<List<JobPostingVo>> completeEvent = ServerSentEvent.<List<JobPostingVo>>builder()
                 .event("complete")
                 .data(List.of())
                 .build();
 
-        Flux<ServerSentEvent<List<JobPostingVo>>> contentFlux = Flux.concat(dataFlux, Flux.just(completeEvent))
-                .onErrorResume(e -> {
-                    log.error("職缺 SSE 串流處理發生異常: {}", e.getMessage(), e);
-                    return Flux.just(
-                            ServerSentEvent.<List<JobPostingVo>>builder()
-                                    .event("error")
-                                    .comment("串流處理發生異常，請聯繫管理員")
-                                    .data(List.of())
-                                    .build()
-                    );
-                });
+        Flux<ServerSentEvent<List<JobPostingVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
 
         Flux<ServerSentEvent<List<JobPostingVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
                 .map(tick -> ServerSentEvent.<List<JobPostingVo>>builder()
                         .comment("keep-alive")
                         .build());
 
-        return Flux.merge(contentFlux, heartbeatFlux)
-                .takeUntil(event -> "complete".equals(event.event()) || "error".equals(event.event()));
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷職缺 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("職缺 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<JobPostingVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .build()
+                    );
+                });
     }
 
     @Override

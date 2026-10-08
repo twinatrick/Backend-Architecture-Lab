@@ -106,6 +106,20 @@ class ProjectQueryServiceTest {
     }
 
     @Test
+    void testStreamProjectsChunked_DatabaseError_ShouldEmitErrorEventWithoutData() {
+        // Arrange
+        when(projectDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("Database error"));
+
+        // Act
+        Flux<ServerSentEvent<List<ProjectVo>>> stream = projectQueryService.streamProjectsChunked(10);
+
+        // Assert
+        StepVerifier.create(stream)
+                .expectNextMatches(sse -> "error".equals(sse.event()) && sse.data() == null)
+                .verifyComplete();
+    }
+
+    @Test
     void testSearchProjects_Success() {
         // Arrange
         ProjectSearchQuery query = new ProjectSearchQuery();

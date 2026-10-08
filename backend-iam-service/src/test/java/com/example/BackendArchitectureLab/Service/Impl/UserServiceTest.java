@@ -399,6 +399,21 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("Should emit error event without data when database error occurs")
+    void testStreamUsersChunked_DatabaseError_ShouldEmitErrorEventWithoutData() {
+        // Arrange
+        when(userDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("Database error"));
+
+        // Act
+        Flux<ServerSentEvent<List<UserVo>>> stream = userService.streamUsersChunked(10);
+
+        // Assert
+        StepVerifier.create(stream)
+                .expectNextMatches(sse -> "error".equals(sse.event()) && sse.data() == null)
+                .verifyComplete();
+    }
+
+    @Test
     @DisplayName("Should throw Exception when updating non-existing user with role")
     void testSaveUserWithRole_ExistingUser_NotFound() {
         // Arrange

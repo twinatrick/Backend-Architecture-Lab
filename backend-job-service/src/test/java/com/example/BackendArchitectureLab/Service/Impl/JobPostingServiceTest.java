@@ -14,6 +14,7 @@ import com.example.BackendArchitectureLab.Entity.CompanyWebsite;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -62,6 +64,9 @@ class JobPostingServiceTest {
     @Mock
     private CacheManager cacheManager;
 
+    @Mock
+    private TransactionExecutor transactionExecutor;
+
     @InjectMocks
     private JobPostingService jobPostingService;
 
@@ -73,6 +78,11 @@ class JobPostingServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         companyId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();
 
@@ -162,6 +172,7 @@ class JobPostingServiceTest {
         StepVerifier.create(jobPostingService.streamJobPostingsChunked(250))
                 .assertNext(sse -> {
                     assertEquals("chunk", sse.event());
+                    assertEquals("0", sse.id());
                     assertNotNull(sse.data());
                     assertEquals(1, sse.data().size());
                     assertEquals("Software Engineer", sse.data().get(0).getTitle());
@@ -172,6 +183,20 @@ class JobPostingServiceTest {
                 .verifyComplete();
 
         verify(jobPostingDataAccess).findAllPaged(any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Should emit error event without data when database error occurs")
+    void testStreamJobPostingsChunked_DatabaseError_ShouldEmitErrorEventWithoutData() {
+        when(jobPostingDataAccess.findAllPaged(any(Pageable.class)))
+                .thenThrow(new RuntimeException("Database error"));
+
+        StepVerifier.create(jobPostingService.streamJobPostingsChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("error", sse.event());
+                    assertNull(sse.data());
+                })
+                .verifyComplete();
     }
 
     @Test
