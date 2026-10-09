@@ -10,6 +10,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Calendar;
@@ -177,6 +181,48 @@ class AquarkDataDataAccessImplTest {
 
         assertEquals(1, results.size());
         assertTrue(results.getFirst().isPeak());
+    }
+
+    @Test
+    @DisplayName("Should find paged aquark data records with criteria and sort")
+    void testFindByCriteriaPaged_WithPagingAndSort() {
+        aquarkDataRepository.save(buildAquarkData("S1", baseDate, 10f, false));
+        aquarkDataRepository.save(buildAquarkData("S1", addHours(baseDate, 1), 20f, false));
+        aquarkDataRepository.save(buildAquarkData("S2", addHours(baseDate, 2), 30f, true));
+        entityManager.flush();
+
+        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        filter.setColumnName("station_id");
+        filter.setType(0);
+        filter.setEqual(true);
+        filter.setString("S1");
+
+        Pageable pageable = PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "trans_time"));
+        Page<AquarkData> page = aquarkDataDataAccess.findByCriteriaPaged(List.of(filter), pageable);
+
+        assertNotNull(page);
+        assertEquals(2, page.getTotalElements());
+        assertEquals(2, page.getTotalPages());
+        assertEquals(1, page.getContent().size());
+        assertEquals(addHours(baseDate, 1), page.getContent().getFirst().getTrans_time());
+    }
+
+    @Test
+    @DisplayName("Should find paged aquark data records with empty criteria")
+    void testFindByCriteriaPaged_EmptyCriteria() {
+        aquarkDataRepository.save(buildAquarkData("S1", baseDate, 10f, false));
+        aquarkDataRepository.save(buildAquarkData("S2", addHours(baseDate, 1), 20f, true));
+        aquarkDataRepository.save(buildAquarkData("S3", addHours(baseDate, 2), 30f, true));
+        entityManager.flush();
+
+        Pageable pageable = PageRequest.of(0, 2, Sort.by(Sort.Direction.ASC, "station_id"));
+        Page<AquarkData> page = aquarkDataDataAccess.findByCriteriaPaged(List.of(), pageable);
+
+        assertNotNull(page);
+        assertEquals(3, page.getTotalElements());
+        assertEquals(2, page.getContent().size());
+        assertEquals("S1", page.getContent().get(0).getStation_id());
+        assertEquals("S2", page.getContent().get(1).getStation_id());
     }
 
     private AquarkData buildAquarkData(String stationId, Date transTime, float rain, boolean peak) {

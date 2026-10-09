@@ -7,14 +7,22 @@ import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -229,6 +237,102 @@ class AquarkDataQueryServiceTest {
         assertEquals(1f, s2Average.getRain_d());
         assertEquals(30f, s2Average.getMoisture());
         assertEquals(40f, s2Average.getTemperature());
+    }
+
+    @Test
+    void testSearchAquarkData_DefaultPaging() {
+        AquarkData data = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 12f, 50f, 24f, 1f, 2f, true);
+        Page<AquarkData> page = new PageImpl<>(List.of(data), PageRequest.of(0, 20), 1);
+        when(aquarkDataDataAccess.findByCriteriaPaged(anyList(), any(Pageable.class))).thenReturn(page);
+
+        PageResult<AquarkDataRaw> result = aquarkDataQueryService.searchAquarkData(null);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals("S1", result.getContent().getFirst().getStation_id());
+        assertEquals(1L, result.getTotalElements());
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(aquarkDataDataAccess, times(1)).findByCriteriaPaged(eq(List.of()), pageableCaptor.capture());
+        Pageable captured = pageableCaptor.getValue();
+        assertEquals(0, captured.getPageNumber());
+        assertEquals(20, captured.getPageSize());
+        assertNotNull(captured.getSort().getOrderFor("trans_time"));
+        assertEquals(Sort.Direction.DESC, captured.getSort().getOrderFor("trans_time").getDirection());
+    }
+
+    @Test
+    void testSearchAquarkData_CustomPagingAndSort() {
+        AquarkData data = buildAquarkData(UUID.randomUUID(), "S2", baseDate, 5f, 40f, 22f, 1f, 2f, false);
+        Page<AquarkData> page = new PageImpl<>(List.of(data));
+        when(aquarkDataDataAccess.findByCriteriaPaged(anyList(), any(Pageable.class))).thenReturn(page);
+
+        AquarkDataSearchQuery query = new AquarkDataSearchQuery();
+        query.setPage(2);
+        query.setSize(50);
+        query.setSortBy("station_id");
+        query.setSortDir("asc");
+
+        PageResult<AquarkDataRaw> result = aquarkDataQueryService.searchAquarkData(query);
+
+        assertNotNull(result);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(aquarkDataDataAccess, times(1)).findByCriteriaPaged(eq(List.of()), pageableCaptor.capture());
+        Pageable captured = pageableCaptor.getValue();
+        assertEquals(2, captured.getPageNumber());
+        assertEquals(50, captured.getPageSize());
+        assertNotNull(captured.getSort().getOrderFor("station_id"));
+        assertEquals(Sort.Direction.ASC, captured.getSort().getOrderFor("station_id").getDirection());
+    }
+
+    @Test
+    void testSearchAquarkData_PageSizeCappedAt100() {
+        Page<AquarkData> page = new PageImpl<>(List.of());
+        when(aquarkDataDataAccess.findByCriteriaPaged(anyList(), any(Pageable.class))).thenReturn(page);
+
+        AquarkDataSearchQuery query = new AquarkDataSearchQuery();
+        query.setSize(500);
+
+        aquarkDataQueryService.searchAquarkData(query);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(aquarkDataDataAccess, times(1)).findByCriteriaPaged(anyList(), pageableCaptor.capture());
+        assertEquals(100, pageableCaptor.getValue().getPageSize());
+    }
+
+    @Test
+    void testSearchAquarkData_WithFilters() {
+        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        filter.setColumnName("station_id");
+        filter.setType(0);
+        filter.setEqual(true);
+        filter.setString("S1");
+
+        AquarkDataSearchQuery query = new AquarkDataSearchQuery();
+        query.setFilters(List.of(filter));
+
+        Page<AquarkData> page = new PageImpl<>(List.of());
+        when(aquarkDataDataAccess.findByCriteriaPaged(eq(List.of(filter)), any(Pageable.class))).thenReturn(page);
+
+        PageResult<AquarkDataRaw> result = aquarkDataQueryService.searchAquarkData(query);
+
+        assertNotNull(result);
+        verify(aquarkDataDataAccess, times(1)).findByCriteriaPaged(eq(List.of(filter)), any(Pageable.class));
+    }
+
+    @Test
+    void testSearchAquarkData_AliasSortNormalized() {
+        Page<AquarkData> page = new PageImpl<>(List.of());
+        when(aquarkDataDataAccess.findByCriteriaPaged(anyList(), any(Pageable.class))).thenReturn(page);
+
+        AquarkDataSearchQuery query = new AquarkDataSearchQuery();
+        query.setSortBy("transTime");
+
+        aquarkDataQueryService.searchAquarkData(query);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(aquarkDataDataAccess, times(1)).findByCriteriaPaged(anyList(), pageableCaptor.capture());
+        assertNotNull(pageableCaptor.getValue().getSort().getOrderFor("trans_time"));
     }
 
     private AquarkData buildAquarkData(UUID key, String stationId, Date transTime, float rain, float moisture,
