@@ -3,6 +3,8 @@ package com.example.BackendArchitectureLab.Service;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
 
 import java.util.Date;
 import java.util.List;
@@ -46,4 +48,12 @@ public interface IAquarkDataQueryService {
      * @return 單筆資料，不存在時為 null
      */
     AquarkDataRaw getAquarkData(AquarkDataRaw aquarkDataRaw);
+
+    /**
+     * 分頁查詢 Aquark 水情資料。
+     *
+     * @param query 分頁與篩選查詢參數
+     * @return 分頁結果
+     */
+    PageResult<AquarkDataRaw> searchAquarkData(AquarkDataSearchQuery query);
 }

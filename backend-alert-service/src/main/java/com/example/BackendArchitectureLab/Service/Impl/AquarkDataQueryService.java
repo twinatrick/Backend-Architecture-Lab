@@ -4,12 +4,19 @@ import com.example.BackendArchitectureLab.DataAccess.IAquarkDataDataAccess;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
 import com.example.BackendArchitectureLab.Mapper.AquarkDataMapper;
 import com.example.BackendArchitectureLab.Service.IAquarkDataQueryService;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Field;
@@ -22,6 +29,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AquarkDataQueryService implements IAquarkDataQueryService {
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "station_id", "CSQ", "trans_time", "rain_d", "moisture", "temperature",
+            "echo", "waterSpeedAquark", "isPeak", "v1", "v2", "v3", "v4", "v5", "v6", "v7",
+            "createdTime", "updatedTime", "createdBy", "updatedBy"
+    );
+
     private final TransactionExecutor transactionExecutor;
     private final IAquarkDataDataAccess aquarkDataDataAccess;
     private final AquarkDataMapper aquarkDataMapper;
@@ -110,6 +123,47 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
             AquarkData found = getAquarkDataEntity(aquarkData);
             return found == null ? null : aquarkDataMapper.toVo(found);
         });
+    }
+
+    @Override
+    public PageResult<AquarkDataRaw> searchAquarkData(AquarkDataSearchQuery query) {
+        if (query == null) {
+            query = new AquarkDataSearchQuery();
+        }
+
+        int safeSize = (query.getSize() == null || query.getSize() <= 0) ? 20 : Math.min(query.getSize(), 100);
+        int safePage = (query.getPage() == null || query.getPage() < 0) ? 0 : query.getPage();
+
+        String sortBy = normalizeSortBy(query.getSortBy());
+        String sortDir = (query.getSortDir() != null && !query.getSortDir().isBlank()) ? query.getSortDir() : "desc";
+        SEARCH_SORT_POLICY.validate(sortBy, sortDir);
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(direction, sortBy));
+
+        List<CriteriaAPIFilter> filters = query.getFilters() != null ? query.getFilters() : List.of();
+        return transactionExecutor.executeReadOnly(() -> {
+            Page<AquarkData> entityPage = aquarkDataDataAccess.findByCriteriaPaged(filters, pageable);
+            List<AquarkDataRaw> voList = entityPage.getContent().stream()
+                    .map(aquarkDataMapper::toVo)
+                    .toList();
+            return PageResult.of(entityPage, voList);
+        });
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "trans_time";
+        }
+        if ("stationId".equalsIgnoreCase(sortBy)) {
+            return "station_id";
+        }
+        if ("transTime".equalsIgnoreCase(sortBy)) {
+            return "trans_time";
+        }
+        if ("is_peak".equalsIgnoreCase(sortBy)) {
+            return "isPeak";
+        }
+        return sortBy;
     }
 
     private AquarkData getAquarkDataEntity(AquarkData aquarkData) {

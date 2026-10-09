@@ -2,6 +2,8 @@ package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Date;
 import java.util.List;
@@ -51,4 +53,13 @@ public interface IAquarkDataDataAccess {
      * @return list of matching aquark data
      */
     List<AquarkData> findByCriteria(List<CriteriaAPIFilter> filterList);
+
+    /**
+     * Find aquark data by criteria filters with pagination and sorting.
+     *
+     * @param filterList criteria filters
+     * @param pageable pagination and sorting parameters
+     * @return page of matching entities
+     */
+    Page<AquarkData> findByCriteriaPaged(List<CriteriaAPIFilter> filterList, Pageable pageable);
 }

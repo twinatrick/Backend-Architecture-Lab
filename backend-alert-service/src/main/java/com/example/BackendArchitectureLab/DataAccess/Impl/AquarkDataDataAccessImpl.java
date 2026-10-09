@@ -5,11 +5,16 @@ import com.example.BackendArchitectureLab.DataAccess.IAquarkDataDataAccess;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Order;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -52,9 +57,67 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<AquarkData> query = cb.createQuery(AquarkData.class);
         Root<AquarkData> root = query.from(AquarkData.class);
+        List<Predicate> predicates = buildPredicates(cb, root, filterList);
+        if (!predicates.isEmpty()) {
+            query.where(cb.and(predicates.toArray(new Predicate[0])));
+        }
+        return entityManager.createQuery(query).getResultList();
+    }
+
+    @Override
+    public Page<AquarkData> findByCriteriaPaged(List<CriteriaAPIFilter> filterList, Pageable pageable) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+
+        // 1. 查詢資料 (Data Query)
+        CriteriaQuery<AquarkData> dataQuery = cb.createQuery(AquarkData.class);
+        Root<AquarkData> dataRoot = dataQuery.from(AquarkData.class);
+        List<Predicate> dataPredicates = buildPredicates(cb, dataRoot, filterList);
+        if (!dataPredicates.isEmpty()) {
+            dataQuery.where(cb.and(dataPredicates.toArray(new Predicate[0])));
+        }
+
+        // 動態排序
+        if (pageable.getSort().isSorted()) {
+            List<Order> orders = new ArrayList<>();
+            pageable.getSort().forEach(sortOrder -> {
+                String property = sortOrder.getProperty();
+                if (sortOrder.isAscending()) {
+                    orders.add(cb.asc(dataRoot.get(property)));
+                } else {
+                    orders.add(cb.desc(dataRoot.get(property)));
+                }
+            });
+            dataQuery.orderBy(orders);
+        }
+
+        TypedQuery<AquarkData> typedDataQuery = entityManager.createQuery(dataQuery);
+        typedDataQuery.setFirstResult((int) pageable.getOffset());
+        typedDataQuery.setMaxResults(pageable.getPageSize());
+        List<AquarkData> content = typedDataQuery.getResultList();
+
+        // 2. 查詢總筆數 (Count Query)
+        CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
+        Root<AquarkData> countRoot = countQuery.from(AquarkData.class);
+        countQuery.select(cb.count(countRoot));
+        List<Predicate> countPredicates = buildPredicates(cb, countRoot, filterList);
+        if (!countPredicates.isEmpty()) {
+            countQuery.where(cb.and(countPredicates.toArray(new Predicate[0])));
+        }
+        Long total = entityManager.createQuery(countQuery).getSingleResult();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0L);
+    }
+
+    private List<Predicate> buildPredicates(CriteriaBuilder cb, Root<AquarkData> root, List<CriteriaAPIFilter> filterList) {
         List<Predicate> predicates = new ArrayList<>();
+        if (filterList == null || filterList.isEmpty()) {
+            return predicates;
+        }
         filterList.forEach(f -> {
             String colName = f.getColumnName();
+            if (colName == null || colName.isBlank()) {
+                return;
+            }
             if (f.getType() == 0) {
                 if (f.isLike()) {
                     predicates.add(cb.like(root.get(colName), "%" + f.getString() + "%"));
@@ -97,7 +160,6 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
                 }
             }
         });
-        query.where(cb.and(predicates.toArray(new Predicate[0])));
-        return entityManager.createQuery(query).getResultList();
+        return predicates;
     }
 }
