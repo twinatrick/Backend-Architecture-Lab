@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
+import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -31,4 +32,6 @@ public interface IUserJobLinkDataAccess {
     void deleteByUserIdAndJobPostingId(UUID userId, UUID jobPostingId);
 
     boolean existsByUserIdAndJobPostingId(UUID userId, UUID jobPostingId);
+
+    Page<UserJobLink> searchUserJobLinks(UserJobLinkSearchQuery query);
 }

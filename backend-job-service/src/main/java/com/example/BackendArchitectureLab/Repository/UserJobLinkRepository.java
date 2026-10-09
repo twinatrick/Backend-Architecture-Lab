@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Repository;
 
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -9,7 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface UserJobLinkRepository extends JpaRepository<UserJobLink, UUID> {
+public interface UserJobLinkRepository extends JpaRepository<UserJobLink, UUID>, JpaSpecificationExecutor<UserJobLink> {
     List<UserJobLink> findByUserId(UUID userId);
 
     List<UserJobLink> findByJobPostingId(UUID jobPostingId);

@@ -8,12 +8,14 @@ import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Repository.CompanyRepository;
 import com.example.BackendArchitectureLab.Repository.JobPostingRepository;
 import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
+import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -213,5 +215,65 @@ class UserJobLinkDataAccessImplTest {
                 testUserId, testJobPosting.getId()));
         assertFalse(userJobLinkDataAccess.existsByUserIdAndJobPostingId(
                 UUID.randomUUID(), testJobPosting.getId()));
+    }
+
+    @Test
+    @DisplayName("Should search user job links with all filters")
+    void testSearchUserJobLinks_allFilters() {
+        UserJobLink link = new UserJobLink();
+        link.setUserId(testUserId);
+        link.setJobPosting(testJobPosting);
+        link.setUserNotes("Interested");
+        link.setCreatedBy("admin");
+        userJobLinkRepository.save(link);
+
+        UserJobLinkSearchQuery query = new UserJobLinkSearchQuery();
+        query.setJobTitle("Software");
+        query.setCompanyName("Test Company");
+        query.setUserId(testUserId.toString());
+        query.setJobPostingId(testJobPosting.getId().toString());
+        query.setCreatedBy("admin");
+
+        Page<UserJobLink> result = userJobLinkDataAccess.searchUserJobLinks(query);
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals(testUserId, result.getContent().get(0).getUserId());
+    }
+
+    @Test
+    @DisplayName("Should search user job links with pagination and sorting")
+    void testSearchUserJobLinks_paginationAndSorting() {
+        for (int i = 0; i < 5; i++) {
+            UserJobLink link = new UserJobLink();
+            link.setUserId(UUID.randomUUID());
+            link.setJobPosting(testJobPosting);
+            link.setUserNotes("Note " + i);
+            userJobLinkRepository.save(link);
+        }
+
+        UserJobLinkSearchQuery query = new UserJobLinkSearchQuery();
+        query.setPage(0);
+        query.setSize(2);
+        query.setSortBy("userNotes");
+        query.setSortDir("asc");
+
+        Page<UserJobLink> result = userJobLinkDataAccess.searchUserJobLinks(query);
+
+        assertEquals(5, result.getTotalElements());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(2, result.getContent().size());
+        assertEquals("Note 0", result.getContent().get(0).getUserNotes());
+    }
+
+    @Test
+    @DisplayName("Should return empty page when no matching records")
+    void testSearchUserJobLinks_emptyResult() {
+        UserJobLinkSearchQuery query = new UserJobLinkSearchQuery();
+        query.setJobTitle("NonExistentJobTitle");
+
+        Page<UserJobLink> result = userJobLinkDataAccess.searchUserJobLinks(query);
+
+        assertEquals(0, result.getTotalElements());
+        assertTrue(result.getContent().isEmpty());
     }
 }

@@ -1,11 +1,15 @@
 package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.specification.UserJobLinkSpecification;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
+import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -72,5 +76,16 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
     @Override
     public boolean existsByUserIdAndJobPostingId(UUID userId, UUID jobPostingId) {
         return userJobLinkRepository.existsByUserIdAndJobPostingId(userId, jobPostingId);
+    }
+
+    @Override
+    public Page<UserJobLink> searchUserJobLinks(UserJobLinkSearchQuery query) {
+        Sort sort = Sort.by(
+                "asc".equalsIgnoreCase(query.getNormalizedSortDir())
+                        ? Sort.Direction.ASC : Sort.Direction.DESC,
+                query.getSortBy()
+        );
+        PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
+        return userJobLinkRepository.findAll(UserJobLinkSpecification.buildSpecification(query), pageRequest);
     }
 }
