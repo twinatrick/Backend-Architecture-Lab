@@ -1,12 +1,14 @@
 package com.example.BackendArchitectureLab.Controller;
 
-import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
-import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
+import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
+import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -36,6 +38,13 @@ public class UserJobLinkController {
     @ApiOperationBadRequest(summary = "新增使用者職缺連結", description = "建立使用者與職缺的關聯。")
     public ResponseType<UserJobLinkVo> addUserJobLink(@RequestBody UserJobLinkVo userJobLinkVo) {
         return ResponseType.Success(userJobLinkService.createUserJobLink(userJobLinkVo), "使用者職缺連結新增成功");
+    }
+
+    @PostMapping("/search")
+    @RequirePermission("View")
+    @ApiOperationBadRequest(summary = "分頁搜尋使用者職缺連結", description = "根據條件分頁搜尋使用者職缺連結。")
+    public ResponseType<PageResult<UserJobLinkVo>> searchUserJobLinks(@RequestBody UserJobLinkSearchQuery query) {
+        return ResponseType.Success(userJobLinkService.searchUserJobLinks(query), "使用者職缺連結搜尋成功");
     }
 
     @PutMapping("/update")

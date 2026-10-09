@@ -11,7 +11,10 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -38,6 +41,11 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserJobLinkService implements IUserJobLinkService {
+
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "userId", "userNotes", "geminiFeedback",
+            "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
 
     private final IUserJobLinkDataAccess userJobLinkDataAccess;
     private final IJobPostingDataAccess jobPostingDataAccess;
@@ -308,6 +316,18 @@ public class UserJobLinkService implements IUserJobLinkService {
     @Cacheable(value = "userJobLinks", key = "'currentuser:' + #currentUserId", sync = true)
     public CacheListWrapper<UserJobLinkVo> getCurrentUserJobLinksCache(String currentUserId) {
         return self.getUserJobLinksByUserIdCache(currentUserId);
+    }
+
+    @Override
+    public PageResult<UserJobLinkVo> searchUserJobLinks(UserJobLinkSearchQuery query) {
+        return transactionExecutor.executeReadOnly(() -> {
+            SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
+            Page<UserJobLink> page = userJobLinkDataAccess.searchUserJobLinks(query);
+            List<UserJobLinkVo> content = page.getContent().stream()
+                    .map(userJobLinkMapper::toVo)
+                    .toList();
+            return PageResult.of(page, content);
+        });
     }
 
     private UUID mapUuid(String id) {

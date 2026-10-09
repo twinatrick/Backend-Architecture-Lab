@@ -1,6 +1,8 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
@@ -10,6 +12,8 @@ import java.util.List;
 public interface IUserJobLinkService {
 
     UserJobLinkVo createUserJobLink(UserJobLinkVo userJobLinkVo);
+
+    PageResult<UserJobLinkVo> searchUserJobLinks(UserJobLinkSearchQuery query);
 
     Flux<ServerSentEvent<List<UserJobLinkVo>>> streamUserJobLinksChunked(int chunkSize);
 

@@ -2,6 +2,8 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
@@ -22,7 +24,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import org.springframework.cache.CacheManager;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -426,5 +430,57 @@ class UserJobLinkServiceTest {
         when(userJobLinkDataAccess.findById(any(UUID.class))).thenReturn(Optional.empty());
 
         assertThrows(AppException.class, () -> userJobLinkService.updateUserJobLink(updateVo));
+    }
+
+    @Test
+    @DisplayName("Should search user job links successfully")
+    void testSearchUserJobLinks_success() {
+        UserJobLinkSearchQuery query = new UserJobLinkSearchQuery();
+        query.setPage(0);
+        query.setSize(20);
+        query.setSortBy("createdTime");
+        query.setSortDir("desc");
+
+        Page<UserJobLink> page = new PageImpl<>(List.of(testLink), PageRequest.of(0, 20), 1);
+        when(userJobLinkDataAccess.searchUserJobLinks(query)).thenReturn(page);
+        when(userJobLinkMapper.toVo(testLink)).thenReturn(testLinkVo);
+
+        PageResult<UserJobLinkVo> result = userJobLinkService.searchUserJobLinks(query);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals(1L, result.getTotalElements());
+        verify(userJobLinkDataAccess).searchUserJobLinks(query);
+        verify(userJobLinkMapper).toVo(testLink);
+    }
+
+    @Test
+    @DisplayName("Should throw AppException when sort field is invalid")
+    void testSearchUserJobLinks_invalidSortField_throwsAppException() {
+        UserJobLinkSearchQuery query = new UserJobLinkSearchQuery();
+        query.setSortBy("invalidField");
+        query.setSortDir("asc");
+
+        AppException exception = assertThrows(AppException.class,
+                () -> userJobLinkService.searchUserJobLinks(query));
+
+        assertEquals("排序欄位錯誤", exception.getErrorType());
+        assertEquals(400, exception.getHttpStatus());
+        verify(userJobLinkDataAccess, never()).searchUserJobLinks(any());
+    }
+
+    @Test
+    @DisplayName("Should throw AppException when sort direction is invalid")
+    void testSearchUserJobLinks_invalidSortDir_throwsAppException() {
+        UserJobLinkSearchQuery query = new UserJobLinkSearchQuery();
+        query.setSortBy("createdTime");
+        query.setSortDir("invalidDir");
+
+        AppException exception = assertThrows(AppException.class,
+                () -> userJobLinkService.searchUserJobLinks(query));
+
+        assertEquals("排序欄位錯誤", exception.getErrorType());
+        assertEquals(400, exception.getHttpStatus());
+        verify(userJobLinkDataAccess, never()).searchUserJobLinks(any());
     }
 }
