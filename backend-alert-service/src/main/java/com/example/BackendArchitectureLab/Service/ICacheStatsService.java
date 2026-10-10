@@ -1,7 +1,9 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Vo.CacheMetricsVo;
+
 import java.util.Map;
 
 public interface ICacheStatsService {
-    Map<String, Map<Object, Object>> getCacheStats();
+    Map<String, CacheMetricsVo> getCacheStats();
 }

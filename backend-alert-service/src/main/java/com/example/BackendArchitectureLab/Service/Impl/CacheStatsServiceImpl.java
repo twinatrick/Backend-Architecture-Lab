@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Service.ICacheStatsService;
+import com.example.BackendArchitectureLab.Vo.CacheMetricsVo;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,8 +21,8 @@ public class CacheStatsServiceImpl implements ICacheStatsService {
     private final StringRedisTemplate stringRedisTemplate;
 
     @Override
-    public Map<String, Map<Object, Object>> getCacheStats() {
-        Map<String, Map<Object, Object>> result = new LinkedHashMap<>();
+    public Map<String, CacheMetricsVo> getCacheStats() {
+        Map<String, CacheMetricsVo> result = new LinkedHashMap<>();
         try {
             Set<String> keys = stringRedisTemplate.keys("cache:stats:*");
             if (keys != null) {
@@ -29,9 +30,7 @@ public class CacheStatsServiceImpl implements ICacheStatsService {
                     String cacheName = key.substring("cache:stats:".length());
                     Map<Object, Object> rawStats = stringRedisTemplate.opsForHash().entries(key);
                     if (rawStats != null && !rawStats.isEmpty()) {
-                        Map<Object, Object> stats = new LinkedHashMap<>(rawStats);
-                        enrichDerivedMetrics(stats);
-                        result.put(cacheName, stats);
+                        result.put(cacheName, CacheMetricsVo.fromRawStats(rawStats));
                     }
                 }
             }
@@ -39,36 +38,5 @@ public class CacheStatsServiceImpl implements ICacheStatsService {
             log.warn("讀取快取統計異常: {}", e.toString());
         }
         return result;
-    }
-
-    private void enrichDerivedMetrics(Map<Object, Object> stats) {
-        long hits = parseMetric(stats, "hits", "hitCount");
-        long misses = parseMetric(stats, "misses", "missCount");
-        long bloomRejects = parseMetric(stats, "bloom_rejects", "bloomRejects");
-        long nullHits = parseMetric(stats, "null_hits", "nullHits");
-
-        long total = hits + misses + bloomRejects + nullHits;
-        float hitRate = (total > 0L) ? ((float) hits / (float) total) : 0.0f;
-
-        stats.put("total", total);
-        stats.put("hitRate", hitRate);
-    }
-
-    private long parseMetric(Map<Object, Object> stats, String primaryKey, String fallbackKey) {
-        Object val = stats.get(primaryKey);
-        if (val == null && fallbackKey != null) {
-            val = stats.get(fallbackKey);
-        }
-        if (val == null) {
-            return 0L;
-        }
-        try {
-            if (val instanceof Number number) {
-                return number.longValue();
-            }
-            return Long.parseLong(val.toString().trim());
-        } catch (NumberFormatException e) {
-            return 0L;
-        }
     }
 }

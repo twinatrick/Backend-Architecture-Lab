@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Service.ICacheStatsService;
+import com.example.BackendArchitectureLab.Vo.CacheMetricsVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,7 +21,7 @@ public class CacheStatsController {
 
     @GetMapping
     @ApiOperationOk(summary = "取得快取統計", description = "回傳所有快取區域的統計資料。")
-    public Map<String, Map<Object, Object>> getCacheStats() {
+    public Map<String, CacheMetricsVo> getCacheStats() {
         return cacheStatsService.getCacheStats();
     }
 }
