@@ -3,3 +3,7 @@ databaseChangeLog:
       file: db/changelog/db.changelog-0001-baseline-external-api-service.yaml
   - include:
       file: db/changelog/db.changelog-0002-add-version-to-bot-config.yaml
+  - include:
+      file: db/changelog/db.changelog-0003-seed-bot-config.yaml
+  - include:
+      file: db/changelog/db.changelog-0004-refactor-gf-messages-1-to-n.yaml

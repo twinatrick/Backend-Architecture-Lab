@@ -2,6 +2,9 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IApiUsageLogDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IBotConfigDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IDiscordGfMessageDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IDiscordGfSessionDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.ILineGfMessageDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ILineGfSessionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserVoiceUploadDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IVoiceTranslationDataAccess;
@@ -19,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import({
         UserVoiceUploadDataAccessImpl.class,
         LineGfSessionDataAccessImpl.class,
+        LineGfMessageDataAccessImpl.class,
+        DiscordGfSessionDataAccessImpl.class,
+        DiscordGfMessageDataAccessImpl.class,
         BotConfigDataAccessImpl.class,
         ApiUsageLogDataAccessImpl.class,
         VoiceTranslationDataAccessImpl.class
@@ -28,6 +34,9 @@ class ExternalApiDataAccessWiringTest {
 
     private final IUserVoiceUploadDataAccess userVoiceUploadDataAccess;
     private final ILineGfSessionDataAccess lineGfSessionDataAccess;
+    private final ILineGfMessageDataAccess lineGfMessageDataAccess;
+    private final IDiscordGfSessionDataAccess discordGfSessionDataAccess;
+    private final IDiscordGfMessageDataAccess discordGfMessageDataAccess;
     private final IBotConfigDataAccess botConfigDataAccess;
     private final IApiUsageLogDataAccess apiUsageLogDataAccess;
     private final IVoiceTranslationDataAccess voiceTranslationDataAccess;
@@ -36,11 +45,17 @@ class ExternalApiDataAccessWiringTest {
     public ExternalApiDataAccessWiringTest(
             IUserVoiceUploadDataAccess userVoiceUploadDataAccess,
             ILineGfSessionDataAccess lineGfSessionDataAccess,
+            ILineGfMessageDataAccess lineGfMessageDataAccess,
+            IDiscordGfSessionDataAccess discordGfSessionDataAccess,
+            IDiscordGfMessageDataAccess discordGfMessageDataAccess,
             IBotConfigDataAccess botConfigDataAccess,
             IApiUsageLogDataAccess apiUsageLogDataAccess,
             IVoiceTranslationDataAccess voiceTranslationDataAccess) {
         this.userVoiceUploadDataAccess = userVoiceUploadDataAccess;
         this.lineGfSessionDataAccess = lineGfSessionDataAccess;
+        this.lineGfMessageDataAccess = lineGfMessageDataAccess;
+        this.discordGfSessionDataAccess = discordGfSessionDataAccess;
+        this.discordGfMessageDataAccess = discordGfMessageDataAccess;
         this.botConfigDataAccess = botConfigDataAccess;
         this.apiUsageLogDataAccess = apiUsageLogDataAccess;
         this.voiceTranslationDataAccess = voiceTranslationDataAccess;
@@ -55,6 +70,15 @@ class ExternalApiDataAccessWiringTest {
         assertThat(lineGfSessionDataAccess)
                 .isNotNull()
                 .isInstanceOf(LineGfSessionDataAccessImpl.class);
+        assertThat(lineGfMessageDataAccess)
+                .isNotNull()
+                .isInstanceOf(LineGfMessageDataAccessImpl.class);
+        assertThat(discordGfSessionDataAccess)
+                .isNotNull()
+                .isInstanceOf(DiscordGfSessionDataAccessImpl.class);
+        assertThat(discordGfMessageDataAccess)
+                .isNotNull()
+                .isInstanceOf(DiscordGfMessageDataAccessImpl.class);
         assertThat(botConfigDataAccess)
                 .isNotNull()
                 .isInstanceOf(BotConfigDataAccessImpl.class);

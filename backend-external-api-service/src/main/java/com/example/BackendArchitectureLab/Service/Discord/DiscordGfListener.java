@@ -1,8 +1,10 @@
 package com.example.BackendArchitectureLab.Service.Discord;
 
+import com.example.BackendArchitectureLab.DataAccess.IDiscordGfMessageDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IDiscordGfSessionDataAccess;
+import com.example.BackendArchitectureLab.Entity.DiscordGfMessage;
 import com.example.BackendArchitectureLab.Entity.DiscordGfSession;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
-import com.example.BackendArchitectureLab.Repository.DiscordGfSessionRepository;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.ISttService;
@@ -13,8 +15,6 @@ import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
 import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import lombok.RequiredArgsConstructor;
@@ -45,14 +45,14 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class DiscordGfListener extends ListenerAdapter {
 
-    private final DiscordGfSessionRepository sessionRepository;
+    private final IDiscordGfSessionDataAccess sessionDataAccess;
+    private final IDiscordGfMessageDataAccess messageDataAccess;
     private final GfSessionMapper gfSessionMapper;
     private final AiPyServiceFeignClient aiPyServiceFeignClient;
     private final IUsageTrackService usageTrackService;
     private final MinioClient minioClient;
     private final ITtsService ttsService;
     private final ISttService sttService;
-    private final ObjectMapper objectMapper;
 
     @Value("${minio.bucket}")
     private String bucket;
@@ -101,11 +101,11 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void handleToggleGf(SlashCommandInteractionEvent event, String channelId, String userId) {
-        DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+        DiscordGfSession session = sessionDataAccess.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
         if (Boolean.TRUE.equals(session.getActive())) {
             session.setActive(false);
-            sessionRepository.save(session);
+            sessionDataAccess.save(session);
             event.reply("已關閉你的女友對話模式").setEphemeral(true).queue();
         } else {
             String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
@@ -116,7 +116,7 @@ public class DiscordGfListener extends ListenerAdapter {
             if (session.getPrompt() == null) {
                 session.setPrompt("你是一個可愛的女朋友，用溫柔關心的語氣回覆");
             }
-            sessionRepository.save(session);
+            sessionDataAccess.save(session);
             event.reply("已啟用你的女友對話模式！今後你在這個頻道傳送的非指令訊息都會得到女友回覆。").setEphemeral(true).queue();
         }
     }
@@ -128,34 +128,33 @@ public class DiscordGfListener extends ListenerAdapter {
             return;
         }
         String prompt = option.getAsString();
-        DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+        DiscordGfSession session = sessionDataAccess.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
         String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
         session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setPrompt(prompt);
-        session.setConversationHistory(null);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         event.reply("已設定你的女友提示詞").setEphemeral(true).queue();
     }
 
     private void handleVoiceOn(SlashCommandInteractionEvent event, String channelId, String userId) {
-        DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+        DiscordGfSession session = sessionDataAccess.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
         String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
         session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setVoiceEnabled(true);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         event.reply("已啟用你的語音回覆").setEphemeral(true).queue();
     }
 
     private void handleVoiceOff(SlashCommandInteractionEvent event, String channelId, String userId) {
-        sessionRepository.findByChannelIdAndUserId(channelId, userId).ifPresent(s -> {
+        sessionDataAccess.findByChannelIdAndUserId(channelId, userId).ifPresent(s -> {
             s.setVoiceEnabled(false);
-            sessionRepository.save(s);
+            sessionDataAccess.save(s);
         });
         event.reply("已關閉你的語音回覆").setEphemeral(true).queue();
     }
@@ -171,14 +170,14 @@ public class DiscordGfListener extends ListenerAdapter {
             event.reply("❌ 不支援的語言。僅支援: zh (繁中), ja (日文), en (英文)").setEphemeral(true).queue();
             return;
         }
-        DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+        DiscordGfSession session = sessionDataAccess.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
         String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
         session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setLanguage(lang);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         event.reply("✅ 已將女友語言設定為：" + lang).setEphemeral(true).queue();
     }
 
@@ -206,7 +205,7 @@ public class DiscordGfListener extends ListenerAdapter {
                         .contentType(attachment.getContentType())
                         .build());
 
-                DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+                DiscordGfSession session = sessionDataAccess.findByChannelIdAndUserId(channelId, userId)
                         .orElse(new DiscordGfSession());
                 String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
                 session.setGuildId(guildId);
@@ -214,7 +213,7 @@ public class DiscordGfListener extends ListenerAdapter {
                 session.setUserId(userId);
                 session.setVoiceSampleKey(objectKey);
                 session.setVoiceSampleText(text);
-                sessionRepository.save(session);
+                sessionDataAccess.save(session);
 
                 event.getHook().sendMessage("已設定你的語音樣本（台詞：" + text + "）").queue();
             } catch (Exception e) {
@@ -224,7 +223,7 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void handleStatus(SlashCommandInteractionEvent event, String channelId, String userId) {
-        Optional<DiscordGfSession> opt = sessionRepository.findByChannelIdAndUserId(channelId, userId);
+        Optional<DiscordGfSession> opt = sessionDataAccess.findByChannelIdAndUserId(channelId, userId);
         if (opt.isEmpty()) {
             event.reply("❌ 你尚未設定女友對話模式").setEphemeral(true).queue();
             return;
@@ -238,13 +237,9 @@ public class DiscordGfListener extends ListenerAdapter {
         sb.append("**語音回覆**：").append(Boolean.TRUE.equals(s.getVoiceEnabled()) ? "✅ 啟用" : "❌ 關閉").append("\n");
         sb.append("**女友語言**：").append(s.getLanguage() != null ? s.getLanguage() : "zh").append("\n");
         sb.append("**語音樣本**：").append(s.getVoiceSampleKey() != null ? "✅ 已設定" : "❌ 未設定").append("\n");
-        if (s.getConversationHistory() != null) {
-            try {
-                List<Map<String, Object>> hist = objectMapper.readValue(s.getConversationHistory(), new TypeReference<List<Map<String, Object>>>() {});
-                sb.append("**對話歷史**：").append(hist.size()).append(" 則");
-            } catch (Exception e) {
-                sb.append("**對話歷史**：讀取失敗");
-            }
+        if (s.getId() != null) {
+            long count = messageDataAccess.countBySessionId(s.getId());
+            sb.append("**對話歷史**：").append(count).append(" 則");
         } else {
             sb.append("**對話歷史**：無");
         }
@@ -258,14 +253,14 @@ public class DiscordGfListener extends ListenerAdapter {
             return;
         }
         String name = option.getAsString();
-        DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+        DiscordGfSession session = sessionDataAccess.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
         String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
         session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setGfName(name);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         event.reply("✅ 已設定女友名稱：" + name).setEphemeral(true).queue();
     }
 
@@ -276,14 +271,14 @@ public class DiscordGfListener extends ListenerAdapter {
             return;
         }
         String url = option.getAsString();
-        DiscordGfSession session = sessionRepository.findByChannelIdAndUserId(channelId, userId)
+        DiscordGfSession session = sessionDataAccess.findByChannelIdAndUserId(channelId, userId)
                 .orElse(new DiscordGfSession());
         String guildId = event.getGuild() != null ? event.getGuild().getId() : null;
         session.setGuildId(guildId);
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setGfAvatarUrl(url);
-        sessionRepository.save(session);
+        sessionDataAccess.save(session);
         event.reply("✅ 已設定女友頭像").setEphemeral(true).queue();
     }
 
@@ -294,7 +289,7 @@ public class DiscordGfListener extends ListenerAdapter {
 
         String channelId = event.getChannel().getId();
         String userId = event.getAuthor().getId();
-        Optional<DiscordGfSession> sessionOpt = sessionRepository.findByChannelIdAndUserId(channelId, userId);
+        Optional<DiscordGfSession> sessionOpt = sessionDataAccess.findByChannelIdAndUserId(channelId, userId);
         if (sessionOpt.isEmpty() || !Boolean.TRUE.equals(sessionOpt.get().getActive())) return;
 
         DiscordGfSession session = sessionOpt.get();
@@ -339,23 +334,31 @@ public class DiscordGfListener extends ListenerAdapter {
     }
 
     private void processChat(MessageReceivedEvent event, DiscordGfSession session, String content, String userName) {
-        String userId = event.getAuthor().getId();
-        TypeReference<Map<String, List<Map<String, String>>>> mapTypeRef = new TypeReference<>() {};
-        Map<String, List<Map<String, String>>> allHistories = new HashMap<>();
-        if (session.getConversationHistory() != null) {
-            try {
-                allHistories = objectMapper.readValue(session.getConversationHistory(), mapTypeRef);
-            } catch (Exception e) {
-                allHistories = new HashMap<>();
-            }
+        if (session.getId() == null) {
+            session = sessionDataAccess.save(session);
         }
 
-        List<Map<String, String>> userHistory = allHistories.getOrDefault(userId, new ArrayList<>());
+        DiscordGfMessage userMsg = DiscordGfMessage.builder()
+                .sessionId(session.getId())
+                .role("user")
+                .content(content)
+                .senderName(userName)
+                .build();
+        messageDataAccess.save(userMsg);
+
+        List<DiscordGfMessage> recentMessages = messageDataAccess.findRecentMessages(session.getId(), 20);
 
         DiscordGfSessionVo sessionVo = gfSessionMapper.toVo(session);
         List<Map<String, String>> messages = sessionVo.buildSystemMessage();
-        messages.addAll(userHistory);
-        messages.add(Map.of("role", "user", "content", content, "name", userName));
+        for (DiscordGfMessage msg : recentMessages) {
+            Map<String, String> m = new HashMap<>();
+            m.put("role", msg.getRole());
+            m.put("content", msg.getContent());
+            if (msg.getSenderName() != null) {
+                m.put("name", msg.getSenderName());
+            }
+            messages.add(m);
+        }
 
         ChatRequestVo chatRequest = new ChatRequestVo(messages, null, false);
         ChatResponseVo chatResponse = aiPyServiceFeignClient.chat(chatRequest);
@@ -363,18 +366,13 @@ public class DiscordGfListener extends ListenerAdapter {
 
         String reply = chatResponse.getContent();
 
-        userHistory.add(Map.of("role", "user", "content", content, "name", userName));
-        userHistory.add(Map.of("role", "assistant", "content", reply));
-        if (userHistory.size() > 20) {
-            userHistory = userHistory.subList(userHistory.size() - 20, userHistory.size());
-        }
-        allHistories.put(userId, userHistory);
-        try {
-            session.setConversationHistory(objectMapper.writeValueAsString(allHistories));
-        } catch (Exception e) {
-            session.setConversationHistory(null);
-        }
-        sessionRepository.save(session);
+        DiscordGfMessage assistantMsg = DiscordGfMessage.builder()
+                .sessionId(session.getId())
+                .role("assistant")
+                .content(reply)
+                .senderName(session.getGfName())
+                .build();
+        messageDataAccess.save(assistantMsg);
 
         if (Boolean.TRUE.equals(session.getVoiceEnabled())) {
             try {

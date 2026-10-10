@@ -1,6 +1,8 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
+import com.example.BackendArchitectureLab.DataAccess.ILineGfMessageDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ILineGfSessionDataAccess;
+import com.example.BackendArchitectureLab.Entity.LineGfMessage;
 import com.example.BackendArchitectureLab.Entity.LineGfSession;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
@@ -15,8 +17,6 @@ import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
 import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
 import com.example.BackendArchitectureLab.Vo.LineGfSessionVo;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.bot.client.LineBlobClient;
 import com.linecorp.bot.client.LineMessagingClient;
 import com.linecorp.bot.client.MessageContentResponse;
@@ -49,8 +49,8 @@ public class LineGfService implements ILineGfService {
     private final ISttService sttService;
     private final IUsageTrackService usageTrackService;
     private final ILineGfSessionDataAccess sessionDataAccess;
+    private final ILineGfMessageDataAccess messageDataAccess;
     private final GfSessionMapper gfSessionMapper;
-    private final ObjectMapper objectMapper;
 
     @Value("${OUT_URL:}")
     private String outUrl;
@@ -76,7 +76,6 @@ public class LineGfService implements ILineGfService {
         if (Boolean.TRUE.equals(session.getPendingPrompt())) {
             session.setPrompt(text);
             session.setPendingPrompt(false);
-            session.setConversationHistory(null);
             sessionDataAccess.save(session);
             replyText(replyToken, "✅ 已設定提示詞");
             return;
@@ -156,7 +155,6 @@ public class LineGfService implements ILineGfService {
         LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setPrompt(prompt);
-        session.setConversationHistory(null);
         sessionDataAccess.save(session);
         replyText(replyToken, "✅ 已設定提示詞");
     }
@@ -190,13 +188,9 @@ public class LineGfService implements ILineGfService {
         sb.append("女友語言：").append(s.getLanguage() != null ? s.getLanguage() : "zh").append("\n");
         sb.append("女友名稱：").append(s.getGfName() != null ? s.getGfName() : "預設").append("\n");
         sb.append("提示詞：").append(s.getPrompt() != null ? s.getPrompt().substring(0, Math.min(30, s.getPrompt().length())) + "..." : "未設定").append("\n");
-        if (s.getConversationHistory() != null) {
-            try {
-                Map<String, List<Map<String, String>>> hist = objectMapper.readValue(s.getConversationHistory(), new TypeReference<Map<String, List<Map<String, String>>>>() {});
-                sb.append("對話歷史：").append(hist.values().stream().mapToInt(List::size).sum()).append(" 則");
-            } catch (Exception e) {
-                sb.append("對話歷史：讀取失敗");
-            }
+        if (s.getId() != null) {
+            long count = messageDataAccess.countBySessionId(s.getId());
+            sb.append("對話歷史：").append(count).append(" 則");
         } else {
             sb.append("對話歷史：無");
         }
@@ -222,40 +216,43 @@ public class LineGfService implements ILineGfService {
     private void handleAiChat(String replyToken, String text, String userId, LineGfSession session) {
         usageTrackService.track("line-gf", "chat", "char", (long) text.length());
 
-        TypeReference<Map<String, List<Map<String, String>>>> mapTypeRef = new TypeReference<>() {};
-        Map<String, List<Map<String, String>>> allHistories = new HashMap<>();
-        if (session.getConversationHistory() != null) {
-            try {
-                allHistories = objectMapper.readValue(session.getConversationHistory(), mapTypeRef);
-            } catch (Exception e) {
-                allHistories = new HashMap<>();
-            }
+        if (session.getId() == null) {
+            session = sessionDataAccess.save(session);
         }
 
-        List<Map<String, String>> userHistory = allHistories.getOrDefault(userId, new ArrayList<>());
+        LineGfMessage userMsg = LineGfMessage.builder()
+                .sessionId(session.getId())
+                .role("user")
+                .content(text)
+                .build();
+        messageDataAccess.save(userMsg);
+
+        List<LineGfMessage> recentMessages = messageDataAccess.findRecentMessages(session.getId(), 20);
 
         LineGfSessionVo sessionVo = gfSessionMapper.toVo(session);
         List<Map<String, String>> messages = sessionVo.buildSystemMessage();
-        messages.addAll(userHistory);
-        messages.add(Map.of("role", "user", "content", text));
+        for (LineGfMessage msg : recentMessages) {
+            Map<String, String> m = new HashMap<>();
+            m.put("role", msg.getRole());
+            m.put("content", msg.getContent());
+            if (msg.getSenderName() != null) {
+                m.put("name", msg.getSenderName());
+            }
+            messages.add(m);
+        }
 
         ChatRequestVo chatRequest = new ChatRequestVo(messages, null, false);
         ChatResponseVo chatResponse = aiPyServiceFeignClient.chat(chatRequest);
 
         String reply = chatResponse.getContent();
 
-        userHistory.add(Map.of("role", "user", "content", text));
-        userHistory.add(Map.of("role", "assistant", "content", reply));
-        if (userHistory.size() > 20) {
-            userHistory = userHistory.subList(userHistory.size() - 20, userHistory.size());
-        }
-        allHistories.put(userId, userHistory);
-        try {
-            session.setConversationHistory(objectMapper.writeValueAsString(allHistories));
-        } catch (Exception e) {
-            session.setConversationHistory(null);
-        }
-        sessionDataAccess.save(session);
+        LineGfMessage assistantMsg = LineGfMessage.builder()
+                .sessionId(session.getId())
+                .role("assistant")
+                .content(reply)
+                .senderName(session.getGfName())
+                .build();
+        messageDataAccess.save(assistantMsg);
 
         boolean voiceEnable = voiceEnabledGlobal && Boolean.TRUE.equals(session.getVoiceEnabled());
 

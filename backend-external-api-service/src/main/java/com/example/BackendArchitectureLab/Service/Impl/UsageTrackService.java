@@ -34,7 +34,7 @@ public class UsageTrackService implements IUsageTrackService {
         BigDecimal estimatedCost = unitCost.multiply(BigDecimal.valueOf(inputAmount))
                 .setScale(6, RoundingMode.HALF_UP);
 
-        String dailyLimitStr = botConfigLoader.get(service, "cost_limit_daily");
+        String dailyLimitStr = resolveDailyLimitStr(service);
         if (dailyLimitStr != null) {
             BigDecimal dailyLimit = new BigDecimal(dailyLimitStr);
             BigDecimal todayUsage = getTodayUsage(service);
@@ -61,5 +61,20 @@ public class UsageTrackService implements IUsageTrackService {
                 service, start, end).stream()
                 .map(ApiUsageLog::getEstimatedCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private String resolveDailyLimitStr(String service) {
+        String dailyLimitStr = botConfigLoader.get(service, "cost_limit_daily");
+        if (dailyLimitStr != null) {
+            return dailyLimitStr;
+        }
+        if (service != null) {
+            if (service.equalsIgnoreCase("discord-gf") || service.toLowerCase().contains("discord")) {
+                return botConfigLoader.get("DISCORD", "cost_limit_daily");
+            } else if (service.equalsIgnoreCase("line-gf") || service.toLowerCase().contains("line")) {
+                return botConfigLoader.get("LINE", "cost_limit_daily");
+            }
+        }
+        return null;
     }
 }
