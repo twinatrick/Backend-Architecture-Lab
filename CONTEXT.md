@@ -200,4 +200,17 @@ _Avoid_: Char-only batching, Unbounded file batch, Truncated prompt cut.
 在多模型或外部 API 整合層中，以抽象模板方法模式配合子類別建構子注入（Lombok @RequiredArgsConstructor）持有相依性，杜絕繼承手寫建構子呼叫與屬性遺失的健全架構。
 _Avoid_: Manual super constructor, Field injection, Loose parameter pass.
 
+**Cache Telemetry Mesh (全微服務快取遙測網格)**:
+跨微服務快取指標收集體系。各微服務快取切面透過非同步發布器將命中（hits）、未命中（misses）、布隆阻擋（bloom_rejects）與空值命中（null_hits）等度量事件統一投遞至訊息主題，由度量消費端聚合寫入快取雜湊提供全域觀測性，避免多微服務直接寫入儲存層造成計數競爭與架構邊界穿透。
+_Avoid_: Direct Redis stats writing, Distributed multi-write counter.
+
+**Telemetry Fail-Safe Isolation (遙測故障安全隔離防護)**:
+在快取度量指標傳遞管線中，配置短逾時與非阻塞非同步機制。當訊息代理伺服器短暫離線或網路抖動時，度量發送失敗僅記錄日誌，絕對不阻塞執行緒、不拋出例外，確保核心業務查詢流程不受次要監控影響。
+_Avoid_: Blocking telemetry send, Hard failure on metrics drop.
+
+**Derived Cache Metrics (快取衍生計算指標)**:
+在聚合各快取指標時，直接原子計算之總請求量（total 為 Long）與綜合命中率數值（hitRate 為 Float，範圍 0.0 ~ 1.0，如 0.85f），維持對外介面向下相容的同時消除客戶端重複計算成本。
+_Avoid_: Frontend metric calculation, Raw-only counters.
+
+
 

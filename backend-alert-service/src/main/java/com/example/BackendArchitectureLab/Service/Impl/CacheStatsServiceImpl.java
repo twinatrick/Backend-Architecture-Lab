@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Service.ICacheStatsService;
+import com.example.BackendArchitectureLab.Vo.CacheMetricsVo;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,16 +21,16 @@ public class CacheStatsServiceImpl implements ICacheStatsService {
     private final StringRedisTemplate stringRedisTemplate;
 
     @Override
-    public Map<String, Map<Object, Object>> getCacheStats() {
-        Map<String, Map<Object, Object>> result = new LinkedHashMap<>();
+    public Map<String, CacheMetricsVo> getCacheStats() {
+        Map<String, CacheMetricsVo> result = new LinkedHashMap<>();
         try {
             Set<String> keys = stringRedisTemplate.keys("cache:stats:*");
             if (keys != null) {
                 for (String key : keys) {
                     String cacheName = key.substring("cache:stats:".length());
-                    Map<Object, Object> stats = stringRedisTemplate.opsForHash().entries(key);
-                    if (!stats.isEmpty()) {
-                        result.put(cacheName, stats);
+                    Map<Object, Object> rawStats = stringRedisTemplate.opsForHash().entries(key);
+                    if (rawStats != null && !rawStats.isEmpty()) {
+                        result.put(cacheName, CacheMetricsVo.fromRawStats(rawStats));
                     }
                 }
             }

@@ -18,6 +18,7 @@ import com.example.BackendArchitectureLab.Vo.CompensationRestoreResultVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,7 +53,10 @@ public class CompensationRestoreService implements ICompensationRestoreService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "projectSkills", key = "#projectId")
+    @Caching(evict = {
+            @CacheEvict(value = "projectSkills", key = "#projectId"),
+            @CacheEvict(value = "projectMemberSkills", key = "#projectId")
+    })
     public CompensationRestoreResultVo restoreMemberSkills(UUID projectId, UUID eventId, Long expectedVersion,
                                                            String ownerId, Long fencingVersion, List<BindingSnapshot> bindings) {
         if (expectedVersion == null) {
