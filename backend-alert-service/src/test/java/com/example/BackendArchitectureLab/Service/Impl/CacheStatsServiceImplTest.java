@@ -42,6 +42,31 @@ class CacheStatsServiceImplTest {
         assertTrue(result.containsKey("projects"));
         assertEquals("10", result.get("users").get("hitCount"));
         assertEquals("5", result.get("projects").get("hitCount"));
+        assertEquals(12L, result.get("users").get("total"));
+        assertEquals(10f / 12f, (Float) result.get("users").get("hitRate"), 0.0001f);
+    }
+
+    @Test
+    void getCacheStats_shouldCalculateTotalAndHitRateAsFloat() {
+        when(stringRedisTemplate.keys("cache:stats:*")).thenReturn(Set.of("cache:stats:jobPostings"));
+        when(stringRedisTemplate.opsForHash()).thenReturn(hashOperations);
+        when(hashOperations.entries("cache:stats:jobPostings")).thenReturn(Map.of(
+                "hits", "8",
+                "misses", "2",
+                "bloom_rejects", "1",
+                "null_hits", "1"
+        ));
+
+        Map<String, Map<Object, Object>> result = cacheStatsService.getCacheStats();
+
+        assertNotNull(result);
+        assertTrue(result.containsKey("jobPostings"));
+        Map<Object, Object> stats = result.get("jobPostings");
+        assertEquals(12L, stats.get("total"));
+        assertTrue(stats.get("hitRate") instanceof Float);
+        Float hitRate = (Float) stats.get("hitRate");
+        assertEquals(8f / 12f, hitRate, 0.0001f);
+        assertTrue(hitRate >= 0.0f && hitRate <= 1.0f);
     }
 
     @Test

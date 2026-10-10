@@ -24,6 +24,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,6 +68,8 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
      * @param userIds 使用者 ID 列表
      */
     @Override
+    @Transactional
+    @CacheEvict(value = "projectMemberSkills", key = "#projectId")
     public void bindUsersToProject(UUID projectId, List<String> userIds) {
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
@@ -175,7 +179,10 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
      * @return 建立的一致性快照 state
      */
     @Transactional
-    @CacheEvict(value = "projectSkills", key = "#projectId")
+    @Caching(evict = {
+            @CacheEvict(value = "projectSkills", key = "#projectId"),
+            @CacheEvict(value = "projectMemberSkills", key = "#projectId")
+    })
     public Map<String, Object> doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
                                                             UUID transactionId) {
         // 驗證專案存在
@@ -299,6 +306,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     }
 
     @Override
+    @Cacheable(value = "projectMemberSkills", key = "#projectId", sync = true)
     public List<ProjectMemberSkillVo> getProjectMemberSkills(UUID projectId) {
         if (projectId == null) {
             throw new IllegalArgumentException("Project ID must not be null");
