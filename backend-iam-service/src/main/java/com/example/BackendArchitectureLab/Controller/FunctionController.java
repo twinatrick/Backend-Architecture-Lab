@@ -14,7 +14,10 @@ import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -51,11 +54,12 @@ public class FunctionController {
         return ResponseType.Success("功能刪除成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得功能列表", description = "回傳所有功能。")
-    public ResponseType<List<FunctionVo>> getFunction() {
-        return ResponseType.Success(functionQueryService.getFunction(), "功能查詢成功");
+    @ApiOperationOk(summary = "串流分塊取得功能列表", description = "透過 SSE 串流分塊取得功能列表，每批次預設 250 筆")
+    public Flux<ServerSentEvent<List<FunctionVo>>> streamFunctions(
+            @RequestParam(name = "chunkSize", defaultValue = "250") int chunkSize) {
+        return functionQueryService.streamFunctionsChunked(chunkSize);
     }
 
     @PostMapping("/saveAllFunction")

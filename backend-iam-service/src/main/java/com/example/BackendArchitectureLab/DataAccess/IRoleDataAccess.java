@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Role;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -100,4 +101,12 @@ public interface IRoleDataAccess {
      * @return 分頁結果
      */
     Page<Role> searchRoles(RoleSearchQuery query);
+
+    /**
+     * 分頁查詢所有角色
+     *
+     * @param pageable 分頁參數
+     * @return 分頁角色實體清單
+     */
+    Page<Role> findAllPaged(Pageable pageable);
 }

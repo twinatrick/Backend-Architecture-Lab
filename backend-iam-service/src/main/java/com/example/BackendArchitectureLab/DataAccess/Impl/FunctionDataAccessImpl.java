@@ -108,4 +108,9 @@ public class FunctionDataAccessImpl implements IFunctionDataAccess {
         // 執行查詢
         return functionRepository.findAll(FunctionSpecification.buildSpecification(query), pageable);
     }
+
+    @Override
+    public Page<Function> findAllPaged(Pageable pageable) {
+        return functionRepository.findAll(pageable);
+    }
 }

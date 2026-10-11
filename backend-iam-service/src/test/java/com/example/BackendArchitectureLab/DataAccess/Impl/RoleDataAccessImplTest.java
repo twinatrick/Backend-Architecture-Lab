@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Example;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -261,6 +263,27 @@ class RoleDataAccessImplTest {
 
         // Assert
         assertNull(result);
+    }
+
+    @Test
+    @DisplayName("Should find all roles paged")
+    void testFindAllPaged() {
+        // Arrange
+        Role role1 = new Role();
+        role1.setName("ROLE_A");
+        roleRepository.save(role1);
+
+        Role role2 = new Role();
+        role2.setName("ROLE_B");
+        roleRepository.save(role2);
+
+        // Act
+        Page<Role> page = roleDataAccess.findAllPaged(PageRequest.of(0, 10));
+
+        // Assert
+        assertNotNull(page);
+        assertEquals(2, page.getTotalElements());
+        assertEquals(2, page.getContent().size());
     }
 }
 

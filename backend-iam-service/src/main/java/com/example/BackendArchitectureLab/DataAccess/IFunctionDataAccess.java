@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Function;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.util.List;
@@ -125,4 +126,12 @@ public interface IFunctionDataAccess {
      * @return 分頁結果
      */
     Page<Function> searchFunctions(FunctionSearchQuery query);
+
+    /**
+     * 分頁查詢所有功能
+     *
+     * @param pageable 分頁參數
+     * @return 分頁功能實體清單
+     */
+    Page<Function> findAllPaged(Pageable pageable);
 }
