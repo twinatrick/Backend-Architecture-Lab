@@ -1,8 +1,13 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.DiscordGfMessageVo;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
 import com.example.BackendArchitectureLab.Vo.DiscordSubscriptionVo;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +15,10 @@ import java.util.UUID;
 public interface IDiscordManagementService {
 
     List<DiscordGfSessionVo> getSessions(String guildId, Boolean active);
+
+    PageResult<DiscordGfSessionVo> searchSessions(DiscordGfSessionSearchQuery query);
+
+    Flux<ServerSentEvent<List<DiscordGfSessionVo>>> streamSessionsChunked(int chunkSize);
 
     DiscordGfSessionVo getSessionById(UUID id);
 
@@ -20,6 +29,10 @@ public interface IDiscordManagementService {
     void deleteSession(UUID id);
 
     List<DiscordSubscriptionVo> getSubscriptions(String guildId);
+
+    PageResult<DiscordSubscriptionVo> searchSubscriptions(DiscordSubscriptionSearchQuery query);
+
+    Flux<ServerSentEvent<List<DiscordSubscriptionVo>>> streamSubscriptionsChunked(int chunkSize);
 
     void deleteSubscription(UUID id);
 }

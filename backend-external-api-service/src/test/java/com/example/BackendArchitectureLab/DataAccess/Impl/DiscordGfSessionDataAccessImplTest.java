@@ -2,12 +2,18 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.Entity.DiscordGfSession;
 import com.example.BackendArchitectureLab.Repository.DiscordGfSessionRepository;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +21,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -124,6 +132,37 @@ class DiscordGfSessionDataAccessImplTest {
     void deleteByChannelIdAndUserId_ShouldDelegateToRepository() {
         dataAccess.deleteByChannelIdAndUserId("ch-1", "user-1");
         verify(repository).deleteByChannelIdAndUserId("ch-1", "user-1");
+    }
+
+    @Test
+    @DisplayName("findAllPaged 應代理至 repository")
+    void findAllPaged_ShouldDelegateToRepository() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<DiscordGfSession> page = new PageImpl<>(List.of(new DiscordGfSession()));
+        when(repository.findAll(pageable)).thenReturn(page);
+
+        Page<DiscordGfSession> result = dataAccess.findAllPaged(pageable);
+
+        assertEquals(1, result.getContent().size());
+        verify(repository).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("searchSessions 應代理至 repository")
+    void searchSessions_ShouldDelegateToRepository() {
+        DiscordGfSessionSearchQuery query = new DiscordGfSessionSearchQuery();
+        query.setPage(0);
+        query.setSize(10);
+        query.setSortBy("createdTime");
+        query.setSortDir("desc");
+
+        Page<DiscordGfSession> page = new PageImpl<>(List.of(new DiscordGfSession()));
+        when(repository.findAll(nullable(Specification.class), any(Pageable.class))).thenReturn(page);
+
+        Page<DiscordGfSession> result = dataAccess.searchSessions(query);
+
+        assertEquals(1, result.getContent().size());
+        verify(repository).findAll(nullable(Specification.class), any(Pageable.class));
     }
 
     @Test
