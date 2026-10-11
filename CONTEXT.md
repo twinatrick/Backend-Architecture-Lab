@@ -201,8 +201,8 @@ _Avoid_: Char-only batching, Unbounded file batch, Truncated prompt cut.
 _Avoid_: Manual super constructor, Field injection, Loose parameter pass.
 
 **Cache Telemetry Mesh (全微服務快取遙測網格)**:
-跨微服務快取指標收集體系。各微服務快取切面透過非同步發布器將命中（hits）、未命中（misses）、布隆阻擋（bloom_rejects）與空值命中（null_hits）等度量事件統一投遞至訊息主題，由度量消費端聚合寫入快取雜湊提供全域觀測性，避免多微服務直接寫入儲存層造成計數競爭與架構邊界穿透。
-_Avoid_: Direct Redis stats writing, Distributed multi-write counter.
+在全微服務架構中，以事件驅動訊息管線（Kafka cache-stats）集中收集快取命中、未命中、布隆阻擋與空值命中事件，並由專責警報/監控服務非同步聚合入庫的全域觀測體系。
+_Avoid_: Direct Redis stats write, Distributed multi-write counter.
 
 **Telemetry Fail-Safe Isolation (遙測故障安全隔離防護)**:
 在快取度量指標傳遞管線中，配置短逾時與非阻塞非同步機制。當訊息代理伺服器短暫離線或網路抖動時，度量發送失敗僅記錄日誌，絕對不阻塞執行緒、不拋出例外，確保核心業務查詢流程不受次要監控影響。
@@ -211,6 +211,30 @@ _Avoid_: Blocking telemetry send, Hard failure on metrics drop.
 **Derived Cache Metrics (快取衍生計算指標)**:
 在聚合各快取指標時，直接原子計算之總請求量（total 為 Long）與綜合命中率數值（hitRate 為 Float，範圍 0.0 ~ 1.0，如 0.85f），維持對外介面向下相容的同時消除客戶端重複計算成本。
 _Avoid_: Frontend metric calculation, Raw-only counters.
+
+**Repository Reverse Reference Audit (Repository 逆向引用檢索)**:
+在本地 Pre-commit 靜態稽核中，針對 Repository 介面所宣告之自訂衍生方法進行全專案逆向呼叫掃描，嚴禁存在未被任何 Service、DataAccess 或測試呼叫的孤島宣告，以貫徹 YAGNI 精簡原則並阻絕死代碼殘留。
+_Avoid_: Dead query declaration, Unreferenced repository method, Zombie interface.
+
+**Derived Deletion Transaction Boundary (衍生刪除事務邊界防護)**:
+在 Spring Data JPA 資料存取架構中，針對包含 `deleteBy*` / `removeBy*` 之衍生刪除操作，在 DataAccess 與 Service 實作層級強制顯式標註 `@Transactional` 交易邊界，杜絕在非同步監聽或無事務上下文執行緒引發 `TransactionRequiredException` 執行期崩潰的防禦防線。
+_Avoid_: Non-transactional derived delete, Implicit transaction assumption, Async delete failure.
+
+**Strongly-Typed Contract Discipline (強型別契約紀律)**:
+在 Controller 與 Service 介面規範中，嚴禁公開 API 與服務邊界回傳弱型別之 `Map<Object, Object>` 或非結構化 Map 容器，強制要求採用 Java 17+ `Record` 或專案標準 `Vo` 宣告明確契約，以確保呼叫端、前端與文件生成具備嚴格型別安全性。
+_Avoid_: Untyped map return, Dynamic schema passing, Weak contract payload.
+
+**External Platform Status Probe (外部平台執行時狀態探針)**:
+在整合多方通訊與 AI 平台的邊界服務中，以故障安全（Fail-Safe）與非阻塞方式探測 JDA（Discord）、LINE 與多模型 API 憑證與閘道連線狀態，並彙總為結構化度量物件的監控機制。
+_Avoid_: Blind platform check, Blocking connection probe, Unhandled ping failure.
+
+**Normalized Dialogue History (1:N 規範化對話歷史)**:
+在聊天機器人持久化架構中，摒棄關聯資料表中的單一 JSON 陣列或反正規化欄位，將每則訊息以獨立資料庫紀錄（Row）外鍵關聯至主會話，並透過滑動視窗（Sliding Window）動態撈取上下文之規範化模型。
+_Avoid_: Monolithic conversation JSON, Unbounded history string, JSON array column.
+
+**On-Demand Message Audit (按需訊息調閱)**:
+在管理端點與審計調閱介面中，將會話清單查詢與詳細對話歷史解耦，會話清單僅返回元數據與摘要，而具體歷史訊息依會話識別碼獨立按需調閱，以杜絕 BigKey 傳輸與多餘網路負擔的存取模式。
+_Avoid_: Heavy session list payload, All-in-one conversation dump.
 
 
 

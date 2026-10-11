@@ -20,6 +20,12 @@ public interface IDiscordGfSessionDataAccess {
 
     List<DiscordGfSession> findByChannelId(String channelId);
 
+    List<DiscordGfSession> findByGuildId(String guildId);
+
+    List<DiscordGfSession> findByGuildIdAndActive(String guildId, Boolean active);
+
+    List<DiscordGfSession> findByActive(Boolean active);
+
     Optional<DiscordGfSession> findById(UUID id);
 
     List<DiscordGfSession> findAll();

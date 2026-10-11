@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Discord;
 
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
-import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;
+import com.example.BackendArchitectureLab.DataAccess.IDiscordSubscriptionDataAccess;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
 class DiscordDiaryListenerTest {
 
     @Mock
-    private DiscordSubscriptionRepository subscriptionRepository;
+    private IDiscordSubscriptionDataAccess subscriptionDataAccess;
 
     @Mock
     private ISttService sttService;
@@ -71,7 +71,7 @@ class DiscordDiaryListenerTest {
         listener.onMessageReceived(event);
 
         verify(event, never()).isFromGuild();
-        verifyNoInteractions(subscriptionRepository);
+        verifyNoInteractions(subscriptionDataAccess);
     }
 
     @Test
@@ -82,7 +82,7 @@ class DiscordDiaryListenerTest {
         listener.onMessageReceived(event);
 
         verify(event, never()).getMessage();
-        verifyNoInteractions(subscriptionRepository);
+        verifyNoInteractions(subscriptionDataAccess);
     }
 
     @Test
@@ -98,13 +98,13 @@ class DiscordDiaryListenerTest {
         when(channel.sendMessage(anyString())).thenReturn(messageCreateAction);
 
         DiscordSubscription sub = new DiscordSubscription("guild-1", "chan-1", "diary");
-        when(subscriptionRepository.findByGuildIdAndBotType("guild-1", "diary")).thenReturn(Optional.of(sub));
+        when(subscriptionDataAccess.findByGuildIdAndBotType("guild-1", "diary")).thenReturn(Optional.of(sub));
 
         listener.onMessageReceived(event);
 
         verify(channel).sendMessage("此伺服器已啟用日記功能");
         verify(messageCreateAction).queue();
-        verify(subscriptionRepository, never()).save(any());
+        verify(subscriptionDataAccess, never()).save(any());
     }
 
     @Test
@@ -120,11 +120,11 @@ class DiscordDiaryListenerTest {
         when(channel.sendMessage(anyString())).thenReturn(messageCreateAction);
 
         DiscordSubscription sub = new DiscordSubscription("guild-1", "chan-1", "diary");
-        when(subscriptionRepository.findByGuildIdAndBotType("guild-1", "diary")).thenReturn(Optional.of(sub));
+        when(subscriptionDataAccess.findByGuildIdAndBotType("guild-1", "diary")).thenReturn(Optional.of(sub));
 
         listener.onMessageReceived(event);
 
-        verify(subscriptionRepository).deleteByGuildIdAndBotType("guild-1", "diary");
+        verify(subscriptionDataAccess).deleteByGuildIdAndBotType("guild-1", "diary");
         verify(channel).sendMessage("已移除日記功能");
         verify(messageCreateAction).queue();
     }
@@ -145,7 +145,7 @@ class DiscordDiaryListenerTest {
         when(message.getAttachments()).thenReturn(List.of(attachment));
 
         DiscordSubscription sub = new DiscordSubscription("guild-1", "chan-1", "diary");
-        when(subscriptionRepository.findByGuildIdAndBotType("guild-1", "diary")).thenReturn(Optional.of(sub));
+        when(subscriptionDataAccess.findByGuildIdAndBotType("guild-1", "diary")).thenReturn(Optional.of(sub));
 
         listener.onMessageReceived(event);
 

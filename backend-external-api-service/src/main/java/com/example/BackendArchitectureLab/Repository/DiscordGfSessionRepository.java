@@ -13,4 +13,7 @@ public interface DiscordGfSessionRepository extends JpaRepository<DiscordGfSessi
     Optional<DiscordGfSession> findByChannelIdAndUserId(String channelId, String userId);
     void deleteByChannelIdAndUserId(String channelId, String userId);
     List<DiscordGfSession> findByChannelId(String channelId);
+    List<DiscordGfSession> findByGuildId(String guildId);
+    List<DiscordGfSession> findByGuildIdAndActive(String guildId, Boolean active);
+    List<DiscordGfSession> findByActive(Boolean active);
 }

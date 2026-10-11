@@ -5,7 +5,9 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequ
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
+import com.example.BackendArchitectureLab.Service.IExternalPlatformStatusService;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
+import com.example.BackendArchitectureLab.Vo.ExternalPlatformStatusVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,12 +30,20 @@ import java.util.UUID;
 public class ConfigController {
 
     private final IBotConfigService botConfigService;
+    private final IExternalPlatformStatusService externalPlatformStatusService;
 
     @GetMapping
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得所有 Bot 設定", description = "回傳所有 Bot 設定。")
     public ResponseType<List<BotConfigVo>> getAll() {
         return new ResponseType<>(botConfigService.findAll());
+    }
+
+    @GetMapping("/status")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "取得外部平台執行時狀態", description = "探查 Discord、LINE 與 AI 模型平台之連線與憑證配置狀態。")
+    public ResponseType<ExternalPlatformStatusVo> getStatus() {
+        return new ResponseType<>(externalPlatformStatusService.getPlatformStatus());
     }
 
     @GetMapping("/{id}")

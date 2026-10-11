@@ -2,118 +2,35 @@ import os
 import re
 from typing import Any
 
+from check_java_quality import (
+    check_cross_module,
+    check_derived_delete_transaction,
+    check_iam_reverse_dependency,
+    check_repository_dead_code,
+    check_self_feign_block,
+    check_weak_typed_map,
+    detect_module,
+)
 from check_rules import (
     BANNED_PERMISSIONS,
-    FOREIGN_ENTITIES,
     RULE_CONSTRUCTOR_INJECTION,
     RULE_CONTROLLER_DATA_ISOLATION,
     RULE_CONTROLLER_DEPENDENCY,
     RULE_DEPENDENCY_INJECTION,
     RULE_ENTITY_USAGE,
-    RULE_IAM_UNIDIRECTIONAL,
-    RULE_MICROSERVICE_ISOLATION,
     RULE_OPENAPI_ANNOTATION,
     RULE_PERMISSION_DICTIONARY,
     RULE_PROHIBIT_FQN,
-    RULE_PROHIBIT_SELF_FEIGN,
     RULE_SERVICE_ENTITY_MANAGER,
-    SERVICE_MODULES,
     make_finding,
 )
-
-
-def _detect_module(path: str) -> str:
-    norm_path = path.replace("\\", "/").lower()
-    for mod in SERVICE_MODULES:
-        if mod in norm_path:
-            return mod
-    return ""
-
-
-def _check_cross_module(
-    path: str, line: str, idx: int, mod: str
-) -> dict[str, Any] | None:
-    if not mod or not line.strip().startswith("import "):
-        return None
-    is_entity_or_repo = ".Entity." in line or ".Repository." in line
-    if not is_entity_or_repo:
-        return None
-
-    forbidden = FOREIGN_ENTITIES.get(mod, ())
-    if any(target in line for target in forbidden):
-        return make_finding(
-            path, idx, "HIGH", "ARCHITECTURE",
-            RULE_MICROSERVICE_ISOLATION,
-            f"微服務 {mod} 中直接引用外部微服務之 Entity 或 Repository",
-            line.strip(),
-            "破壞微服務資料庫獨立性與資料存取邊界",
-            "微服務間嚴禁共用或直接操作 Entity，應透過 Feign Client 呼叫 API",
-        )
-    return None
-
-
-def _check_self_feign_block(
-    path: str, content: str, mod: str, changed_lines: set[int] | None
-) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
-    if not mod or "@FeignClient" not in content:
-        return findings
-    feign_pattern = re.compile(
-        r'@FeignClient\s*\((?:[^)]*?\b(?:name|value)\s*=\s*["\']([^"\']+)["\']|'
-        r'["\']([^"\']+)["\'])',
-        re.DOTALL,
-    )
-    for match in feign_pattern.finditer(content):
-        target_client = match.group(1) or match.group(2) or ""
-        if (
-            target_client == mod
-            or target_client == mod.replace("backend-", "")
-            or f":{mod}" in target_client
-        ):
-            start_pos = match.start()
-            end_pos = match.end()
-            start_line = content[:start_pos].count("\n") + 1
-            end_line = content[:end_pos].count("\n") + 1
-            scope_lines = range(start_line, end_line + 1)
-            if changed_lines is None or any(line_num in changed_lines for line_num in scope_lines):
-                findings.append(make_finding(
-                    path, start_line, "HIGH", "ARCHITECTURE",
-                    RULE_PROHIBIT_SELF_FEIGN,
-                    f"微服務 {mod} 內部宣告了指向自身的 Feign Client: {target_client}",
-                    match.group(0).strip()[:100],
-                    "自我 Feign 呼叫增加非必要網路開銷並繞過事務隔離",
-                    "移除自我 Feign，改用 Spring @Lazy 介面自我代理處理 @Transactional/@Caching",
-                ))
-    return findings
-
-
-def _check_iam_reverse_dependency(
-    path: str, line: str, idx: int, mod: str
-) -> dict[str, Any] | None:
-    if mod != "backend-iam-service" or not line.strip().startswith("import "):
-        return None
-    if any(
-        business in line
-        for business in (
-            "CompetencyFeignClient", "SkillFeignClient", "AlertFeignClient",
-            "JobFeignClient", "JobPostingFeignClient",
-        )
-    ):
-        return make_finding(
-            path, idx, "HIGH", "ARCHITECTURE",
-            RULE_IAM_UNIDIRECTIONAL,
-            "IAM 基礎服務中反向引用業務微服務之 FeignClient",
-            line.strip(),
-            "違反 IAM 作為基礎核心服務的單向依賴架構，造成微服務循環依賴",
-            "移除 IAM 對業務微服務的依賴，由業務微服務單向依賴 IAM",
-        )
-    return None
 
 
 def check_java_file(
     path: str,
     content: str,
     changed_lines: set[int] | None = None,
+    repo_searcher: Any | None = None,
 ) -> list[dict[str, Any]]:
     """針對 Java Controller、Service 與架構分層進行確定性規範檢查。"""
     findings: list[dict[str, Any]] = []
@@ -122,12 +39,28 @@ def check_java_file(
     is_test = "src/test/java/" in path.replace("\\", "/")
     is_controller = "Controller" in filename or "@RestController" in content
     is_service_impl = "ServiceImpl" in filename or "/Service/Impl/" in path.replace("\\", "/")
-    current_module = _detect_module(path)
+    is_data_access_impl = (
+        "DataAccessImpl" in filename or "/DataAccess/Impl/" in path.replace("\\", "/")
+    )
+    is_service_interface = (
+        ("Service" in filename or "/Service/" in path.replace("\\", "/"))
+        and "interface " in content
+        and not is_test
+    )
+    has_class_transactional = bool(re.search(r"@Transactional\b[\s\S]*?\bclass\s+", content))
+    current_module = detect_module(path)
     class_match = re.search(r"\bclass\s+([A-Z]\w+)\b", content)
     class_name = class_match.group(1) if class_match else ""
 
     # 檢查自我 Feign（支援跨多行註解）
-    findings.extend(_check_self_feign_block(path, content, current_module, changed_lines))
+    findings.extend(check_self_feign_block(path, content, current_module, changed_lines))
+
+    # Repository 死代碼逆向引用檢索
+    findings.extend(
+        check_repository_dead_code(
+            path, content, changed_lines=changed_lines, repo_searcher=repo_searcher
+        )
+    )
 
     for idx, raw_line in enumerate(lines, start=1):
         if changed_lines is not None and idx not in changed_lines:
@@ -135,12 +68,12 @@ def check_java_file(
         line = raw_line.lstrip("+- ")
 
         # 1. 跨模組資料隔離與依賴檢查
-        cross_res = _check_cross_module(path, line, idx, current_module)
+        cross_res = check_cross_module(path, line, idx, current_module)
         if cross_res:
             findings.append(cross_res)
 
         # 2. IAM 單向依賴檢查
-        iam_res = _check_iam_reverse_dependency(path, line, idx, current_module)
+        iam_res = check_iam_reverse_dependency(path, line, idx, current_module)
         if iam_res:
             findings.append(iam_res)
 
@@ -281,5 +214,19 @@ def check_java_file(
                         "違反《開發規範.md》§5.12，降低程式碼可讀性與一致性",
                         "檔案頂部顯式宣告 import，程式碼中僅使用簡潔類別名稱",
                     ))
+
+        # 8. 衍生刪除事務邊界檢查 (deleteBy / removeBy)
+        if not is_test and (is_data_access_impl or is_service_impl):
+            del_finding = check_derived_delete_transaction(
+                path, raw_line, line, idx, lines, has_class_transactional
+            )
+            if del_finding:
+                findings.append(del_finding)
+
+        # 9. 弱型別集合回傳檢查 (Map<Object, Object>, Map<?, ?>, Map<String, Object>)
+        if not is_test and (is_controller or is_service_impl or is_service_interface):
+            map_finding = check_weak_typed_map(path, raw_line, line, idx)
+            if map_finding:
+                findings.append(map_finding)
 
     return findings

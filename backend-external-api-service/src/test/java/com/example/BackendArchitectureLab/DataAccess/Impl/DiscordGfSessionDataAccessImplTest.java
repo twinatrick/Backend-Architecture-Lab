@@ -82,4 +82,55 @@ class DiscordGfSessionDataAccessImplTest {
         assertEquals(session, result.get());
         verify(repository).findById(id);
     }
+
+    @Test
+    @DisplayName("findByGuildId 應代理至 repository")
+    void findByGuildId_ShouldDelegateToRepository() {
+        List<DiscordGfSession> list = List.of(new DiscordGfSession());
+        when(repository.findByGuildId("g-1")).thenReturn(list);
+
+        List<DiscordGfSession> result = dataAccess.findByGuildId("g-1");
+
+        assertEquals(1, result.size());
+        verify(repository).findByGuildId("g-1");
+    }
+
+    @Test
+    @DisplayName("findByGuildIdAndActive 應代理至 repository")
+    void findByGuildIdAndActive_ShouldDelegateToRepository() {
+        List<DiscordGfSession> list = List.of(new DiscordGfSession());
+        when(repository.findByGuildIdAndActive("g-1", true)).thenReturn(list);
+
+        List<DiscordGfSession> result = dataAccess.findByGuildIdAndActive("g-1", true);
+
+        assertEquals(1, result.size());
+        verify(repository).findByGuildIdAndActive("g-1", true);
+    }
+
+    @Test
+    @DisplayName("findByActive 應代理至 repository")
+    void findByActive_ShouldDelegateToRepository() {
+        List<DiscordGfSession> list = List.of(new DiscordGfSession());
+        when(repository.findByActive(true)).thenReturn(list);
+
+        List<DiscordGfSession> result = dataAccess.findByActive(true);
+
+        assertEquals(1, result.size());
+        verify(repository).findByActive(true);
+    }
+
+    @Test
+    @DisplayName("deleteByChannelIdAndUserId 應代理至 repository")
+    void deleteByChannelIdAndUserId_ShouldDelegateToRepository() {
+        dataAccess.deleteByChannelIdAndUserId("ch-1", "user-1");
+        verify(repository).deleteByChannelIdAndUserId("ch-1", "user-1");
+    }
+
+    @Test
+    @DisplayName("delete 應代理至 repository")
+    void delete_ShouldDelegateToRepository() {
+        DiscordGfSession session = new DiscordGfSession();
+        dataAccess.delete(session);
+        verify(repository).delete(session);
+    }
 }

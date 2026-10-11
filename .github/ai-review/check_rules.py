@@ -28,6 +28,16 @@ RULE_PYTHON_TYPE_HINTS = "開發規範 §4.3 型別標註規範"
 RULE_PYTHON_SPECIFIC_EXCEPTION = "開發規範 §4.4 具體例外處理規範"
 RULE_PYTHON_ERROR_HANDLING = "開發規範 §4.4 錯誤處理與安全規範"
 RULE_PROHIBIT_FQN = "開發規範 §5.12 禁寫完全限定名稱規範"
+RULE_DEAD_CODE_REPOSITORY = "開發規範 §5.8 程式碼精簡與死代碼防護（YAGNI 原則）"
+RULE_DERIVED_DELETE_TRANSACTIONAL = "開發規範 §1.3/§5 資料存取衍生刪除交易邊界規範"
+RULE_WEAK_TYPED_COLLECTION = "開發規範 §1.3/§5.3 契約型別安全性（禁止弱型別 Map 回傳）"
+
+JPA_BUILTIN_METHODS = frozenset({
+    "save", "saveAll", "saveAndFlush", "findById", "existsById",
+    "findAll", "findAllById", "count", "deleteById", "delete",
+    "deleteAllById", "deleteAll", "deleteAllInBatch", "deleteInBatch",
+    "flush", "getOne", "getById", "getReferenceById", "hashCode", "equals", "toString",
+})
 
 BANNED_PERMISSIONS = (
     "PersonalEdit",

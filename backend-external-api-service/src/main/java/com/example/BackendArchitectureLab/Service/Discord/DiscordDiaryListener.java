@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Service.Discord;
 
 import com.example.BackendArchitectureLab.Vo.SttResponseVo;
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
-import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;
+import com.example.BackendArchitectureLab.DataAccess.IDiscordSubscriptionDataAccess;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class DiscordDiaryListener extends ListenerAdapter {
 
-    private final DiscordSubscriptionRepository subscriptionRepository;
+    private final IDiscordSubscriptionDataAccess subscriptionDataAccess;
     private final ISttService sttService;
     private final DiscordWebhookNotifier webhookNotifier;
     private final IUsageTrackService usageTrackService;
@@ -34,7 +34,7 @@ public class DiscordDiaryListener extends ListenerAdapter {
         String channelId = event.getChannel().getId();
 
         if (content.equals("/日記")) {
-            Optional<DiscordSubscription> existing = subscriptionRepository
+            Optional<DiscordSubscription> existing = subscriptionDataAccess
                     .findByGuildIdAndBotType(guildId, "diary");
             if (existing.isPresent()) {
                 event.getChannel().sendMessage("此伺服器已啟用日記功能").queue();
@@ -45,17 +45,17 @@ public class DiscordDiaryListener extends ListenerAdapter {
                 textChannel.createWebhook("Diary Bot").queue(webhook -> {
                     sub.setWebhookUrl(webhook.getUrl());
                     sub.setWebhookId(webhook.getId());
-                    subscriptionRepository.save(sub);
-                }, error -> subscriptionRepository.save(sub));
+                    subscriptionDataAccess.save(sub);
+                }, error -> subscriptionDataAccess.save(sub));
             } else {
-                subscriptionRepository.save(sub);
+                subscriptionDataAccess.save(sub);
             }
             event.getChannel().sendMessage("已啟用日記功能，語音訊息將自動辨識為日記內容").queue();
             return;
         }
 
         if (content.equals("/移除")) {
-            Optional<DiscordSubscription> sub = subscriptionRepository
+            Optional<DiscordSubscription> sub = subscriptionDataAccess
                     .findByGuildIdAndBotType(guildId, "diary");
             sub.ifPresent(s -> {
                 if (s.getWebhookId() != null && event.getChannel() instanceof TextChannel textChannel) {
@@ -66,14 +66,14 @@ public class DiscordDiaryListener extends ListenerAdapter {
                                     .ifPresent(w -> w.delete().queue()));
                 }
             });
-            subscriptionRepository.deleteByGuildIdAndBotType(guildId, "diary");
+            subscriptionDataAccess.deleteByGuildIdAndBotType(guildId, "diary");
             event.getChannel().sendMessage("已移除日記功能").queue();
             return;
         }
 
         List<Message.Attachment> attachments = event.getMessage().getAttachments();
         if (attachments != null && !attachments.isEmpty()) {
-            Optional<DiscordSubscription> sub = subscriptionRepository
+            Optional<DiscordSubscription> sub = subscriptionDataAccess
                     .findByGuildIdAndBotType(guildId, "diary");
             if (sub.isEmpty()) return;
 

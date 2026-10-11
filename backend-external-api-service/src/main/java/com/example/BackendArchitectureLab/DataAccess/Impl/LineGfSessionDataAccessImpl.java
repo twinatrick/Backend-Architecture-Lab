@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Repository.LineGfSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -26,5 +27,15 @@ public class LineGfSessionDataAccessImpl implements ILineGfSessionDataAccess {
     @Override
     public LineGfSession save(LineGfSession session) {
         return lineGfSessionRepository.save(session);
+    }
+
+    @Override
+    public List<LineGfSession> findAll() {
+        return lineGfSessionRepository.findAll();
+    }
+
+    @Override
+    public long count() {
+        return lineGfSessionRepository.count();
     }
 }
