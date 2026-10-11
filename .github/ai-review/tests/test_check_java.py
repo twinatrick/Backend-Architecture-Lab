@@ -141,3 +141,114 @@ def test_check_java_fqn_allowed_imports_and_comments():
     )
     rules = [finding_item["rule"] for finding_item in findings]
     assert not any("禁寫完全限定名稱規範" in rule_text for rule_text in rules)
+
+
+def test_check_java_dead_code_repository_isolated():
+    content = (
+        "package com.example.BackendArchitectureLab.Repository;\n"
+        "public interface DiscordGfMessageRepository extends "
+        "JpaRepository<DiscordGfMessage, UUID> {\n"
+        "    List<DiscordGfMessage> findTop20BySessionIdOrderByCreatedTimeDesc(UUID sessionId);\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-external-api-service/src/main/java/com/example/Repository/"
+        "DiscordGfMessageRepository.java",
+        content,
+        repo_searcher=lambda method, path: [],
+    )
+    rules = [item["rule"] for item in findings]
+    assert any("死代碼防護" in rule for rule in rules)
+
+
+def test_check_java_dead_code_repository_has_callers():
+    content = (
+        "package com.example.BackendArchitectureLab.Repository;\n"
+        "public interface DiscordGfMessageRepository extends "
+        "JpaRepository<DiscordGfMessage, UUID> {\n"
+        "    List<DiscordGfMessage> findBySessionIdOrderByCreatedTimeDesc("
+        "UUID sessionId, Pageable pageable);\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-external-api-service/src/main/java/com/example/Repository/"
+        "DiscordGfMessageRepository.java",
+        content,
+        repo_searcher=lambda method, path: ["DiscordGfMessageDataAccessImpl.java"],
+    )
+    rules = [item["rule"] for item in findings]
+    assert not any("死代碼防護" in rule for rule in rules)
+
+
+def test_check_java_derived_delete_transactional_missing():
+    content = (
+        "package com.example.BackendArchitectureLab.DataAccess.Impl;\n"
+        "public class DiscordGfMessageDataAccessImpl {\n"
+        "    public int deleteBySessionId(UUID sessionId) {\n"
+        "        return 1;\n"
+        "    }\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-external-api-service/src/main/java/com/example/DataAccess/Impl/"
+        "DiscordGfMessageDataAccessImpl.java",
+        content,
+    )
+    rules = [item["rule"] for item in findings]
+    assert any("衍生刪除交易邊界" in rule for rule in rules)
+
+
+def test_check_java_derived_delete_transactional_present():
+    content = (
+        "package com.example.BackendArchitectureLab.DataAccess.Impl;\n"
+        "public class DiscordGfMessageDataAccessImpl {\n"
+        "    @Transactional\n"
+        "    public int deleteBySessionId(UUID sessionId) {\n"
+        "        return 1;\n"
+        "    }\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-external-api-service/src/main/java/com/example/DataAccess/Impl/"
+        "DiscordGfMessageDataAccessImpl.java",
+        content,
+    )
+    rules = [item["rule"] for item in findings]
+    assert not any("衍生刪除交易邊界" in rule for rule in rules)
+
+
+def test_check_java_weak_typed_map_prohibited():
+    content = (
+        "package com.example.BackendArchitectureLab.Controller;\n"
+        "@RestController\n"
+        "public class CacheStatsController {\n"
+        "    public ResponseType<Map<Object, Object>> getStats() {\n"
+        "        return null;\n"
+        "    }\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-alert-service/src/main/java/com/example/Controller/CacheStatsController.java",
+        content,
+    )
+    rules = [item["rule"] for item in findings]
+    assert any("禁止弱型別 Map 回傳" in rule for rule in rules)
+
+
+def test_check_java_strong_typed_map_allowed():
+    content = (
+        "package com.example.BackendArchitectureLab.Controller;\n"
+        "@RestController\n"
+        "public class CacheStatsController {\n"
+        "    public ResponseType<Map<String, CacheMetricsVo>> getStats() {\n"
+        "        Map<String, Object> localVariable = new HashMap<>();\n"
+        "        return null;\n"
+        "    }\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-alert-service/src/main/java/com/example/Controller/CacheStatsController.java",
+        content,
+    )
+    rules = [item["rule"] for item in findings]
+    assert not any("禁止弱型別 Map 回傳" in rule for rule in rules)

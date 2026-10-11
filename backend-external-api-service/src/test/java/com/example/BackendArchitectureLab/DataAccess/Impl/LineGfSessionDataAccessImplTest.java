@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,5 +40,18 @@ class LineGfSessionDataAccessImplTest {
         LineGfSession session = new LineGfSession();
         when(lineGfSessionRepository.save(session)).thenReturn(session);
         assertEquals(session, dataAccess.save(session));
+    }
+
+    @Test
+    void findAll_DelegatesToRepository() {
+        List<LineGfSession> list = List.of(new LineGfSession());
+        when(lineGfSessionRepository.findAll()).thenReturn(list);
+        assertEquals(list, dataAccess.findAll());
+    }
+
+    @Test
+    void count_DelegatesToRepository() {
+        when(lineGfSessionRepository.count()).thenReturn(5L);
+        assertEquals(5L, dataAccess.count());
     }
 }

@@ -7,8 +7,10 @@ import lombok.AllArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -16,6 +18,7 @@ import java.util.Map;
 @AllArgsConstructor
 @SuperBuilder
 public abstract class BaseGfSessionVo {
+    protected UUID id;
     protected String gfName;
     protected String prompt;
     protected Boolean active;
@@ -23,6 +26,8 @@ public abstract class BaseGfSessionVo {
     protected String voiceSampleKey;
     protected String voiceSampleText;
     protected String language;
+    protected Date createdTime;
+    protected Date updatedTime;
 
     /**
      * 動態拼接系統提示詞與 4 句話長度限制規則

@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IApiUsageLogDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IBotConfigDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IDiscordGfMessageDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IDiscordGfSessionDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IDiscordSubscriptionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ILineGfMessageDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ILineGfSessionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserVoiceUploadDataAccess;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         LineGfMessageDataAccessImpl.class,
         DiscordGfSessionDataAccessImpl.class,
         DiscordGfMessageDataAccessImpl.class,
+        DiscordSubscriptionDataAccessImpl.class,
         BotConfigDataAccessImpl.class,
         ApiUsageLogDataAccessImpl.class,
         VoiceTranslationDataAccessImpl.class
@@ -37,6 +39,7 @@ class ExternalApiDataAccessWiringTest {
     private final ILineGfMessageDataAccess lineGfMessageDataAccess;
     private final IDiscordGfSessionDataAccess discordGfSessionDataAccess;
     private final IDiscordGfMessageDataAccess discordGfMessageDataAccess;
+    private final IDiscordSubscriptionDataAccess discordSubscriptionDataAccess;
     private final IBotConfigDataAccess botConfigDataAccess;
     private final IApiUsageLogDataAccess apiUsageLogDataAccess;
     private final IVoiceTranslationDataAccess voiceTranslationDataAccess;
@@ -48,6 +51,7 @@ class ExternalApiDataAccessWiringTest {
             ILineGfMessageDataAccess lineGfMessageDataAccess,
             IDiscordGfSessionDataAccess discordGfSessionDataAccess,
             IDiscordGfMessageDataAccess discordGfMessageDataAccess,
+            IDiscordSubscriptionDataAccess discordSubscriptionDataAccess,
             IBotConfigDataAccess botConfigDataAccess,
             IApiUsageLogDataAccess apiUsageLogDataAccess,
             IVoiceTranslationDataAccess voiceTranslationDataAccess) {
@@ -56,6 +60,7 @@ class ExternalApiDataAccessWiringTest {
         this.lineGfMessageDataAccess = lineGfMessageDataAccess;
         this.discordGfSessionDataAccess = discordGfSessionDataAccess;
         this.discordGfMessageDataAccess = discordGfMessageDataAccess;
+        this.discordSubscriptionDataAccess = discordSubscriptionDataAccess;
         this.botConfigDataAccess = botConfigDataAccess;
         this.apiUsageLogDataAccess = apiUsageLogDataAccess;
         this.voiceTranslationDataAccess = voiceTranslationDataAccess;
@@ -79,6 +84,9 @@ class ExternalApiDataAccessWiringTest {
         assertThat(discordGfMessageDataAccess)
                 .isNotNull()
                 .isInstanceOf(DiscordGfMessageDataAccessImpl.class);
+        assertThat(discordSubscriptionDataAccess)
+                .isNotNull()
+                .isInstanceOf(DiscordSubscriptionDataAccessImpl.class);
         assertThat(botConfigDataAccess)
                 .isNotNull()
                 .isInstanceOf(BotConfigDataAccessImpl.class);

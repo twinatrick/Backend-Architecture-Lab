@@ -5,6 +5,7 @@ import com.example.BackendArchitectureLab.Entity.DiscordGfSession;
 import com.example.BackendArchitectureLab.Repository.DiscordGfSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -31,6 +32,7 @@ public class DiscordGfSessionDataAccessImpl implements IDiscordGfSessionDataAcce
     }
 
     @Override
+    @Transactional
     public void deleteByChannelIdAndUserId(String channelId, String userId) {
         discordGfSessionRepository.deleteByChannelIdAndUserId(channelId, userId);
     }
@@ -38,6 +40,21 @@ public class DiscordGfSessionDataAccessImpl implements IDiscordGfSessionDataAcce
     @Override
     public List<DiscordGfSession> findByChannelId(String channelId) {
         return discordGfSessionRepository.findByChannelId(channelId);
+    }
+
+    @Override
+    public List<DiscordGfSession> findByGuildId(String guildId) {
+        return discordGfSessionRepository.findByGuildId(guildId);
+    }
+
+    @Override
+    public List<DiscordGfSession> findByGuildIdAndActive(String guildId, Boolean active) {
+        return discordGfSessionRepository.findByGuildIdAndActive(guildId, active);
+    }
+
+    @Override
+    public List<DiscordGfSession> findByActive(Boolean active) {
+        return discordGfSessionRepository.findByActive(active);
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Entity.LineGfSession;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -13,4 +14,8 @@ public interface ILineGfSessionDataAccess {
     Optional<LineGfSession> findByUserId(String userId);
 
     LineGfSession save(LineGfSession session);
+
+    List<LineGfSession> findAll();
+
+    long count();
 }
