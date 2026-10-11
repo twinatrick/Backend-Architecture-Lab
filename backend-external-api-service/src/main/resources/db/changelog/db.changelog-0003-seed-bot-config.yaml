@@ -1,0 +1,118 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0003-01-seed-bot-config
+      author: architecture-lab
+      comment: 初始化 BotConfig 預設種子資料（Discord 與 LINE 服務代碼及全域每日花費上限）
+      changes:
+        - insert:
+            tableName: bot_config
+            columns:
+              - column:
+                  name: id
+                  value: 11111111-1111-1111-1111-111111111101
+              - column:
+                  name: platform
+                  value: discord-gf
+              - column:
+                  name: config_key
+                  value: cost_limit_daily
+              - column:
+                  name: config_value
+                  value: "500.00"
+              - column:
+                  name: description
+                  value: Discord GF 機器人每日花費上限
+              - column:
+                  name: cost_limit_daily
+                  valueNumeric: 500.00
+              - column:
+                  name: cost_alert_at
+                  valueNumeric: 400.00
+              - column:
+                  name: version
+                  valueNumeric: 0
+        - insert:
+            tableName: bot_config
+            columns:
+              - column:
+                  name: id
+                  value: 11111111-1111-1111-1111-111111111102
+              - column:
+                  name: platform
+                  value: DISCORD
+              - column:
+                  name: config_key
+                  value: cost_limit_daily
+              - column:
+                  name: config_value
+                  value: "1000.00"
+              - column:
+                  name: description
+                  value: Discord 全域每日花費上限
+              - column:
+                  name: cost_limit_daily
+                  valueNumeric: 1000.00
+              - column:
+                  name: cost_alert_at
+                  valueNumeric: 800.00
+              - column:
+                  name: version
+                  valueNumeric: 0
+        - insert:
+            tableName: bot_config
+            columns:
+              - column:
+                  name: id
+                  value: 11111111-1111-1111-1111-111111111103
+              - column:
+                  name: platform
+                  value: line-gf
+              - column:
+                  name: config_key
+                  value: cost_limit_daily
+              - column:
+                  name: config_value
+                  value: "500.00"
+              - column:
+                  name: description
+                  value: LINE GF 機器人每日花費上限
+              - column:
+                  name: cost_limit_daily
+                  valueNumeric: 500.00
+              - column:
+                  name: cost_alert_at
+                  valueNumeric: 400.00
+              - column:
+                  name: version
+                  valueNumeric: 0
+        - insert:
+            tableName: bot_config
+            columns:
+              - column:
+                  name: id
+                  value: 11111111-1111-1111-1111-111111111104
+              - column:
+                  name: platform
+                  value: LINE
+              - column:
+                  name: config_key
+                  value: cost_limit_daily
+              - column:
+                  name: config_value
+                  value: "1000.00"
+              - column:
+                  name: description
+                  value: LINE 全域每日花費上限
+              - column:
+                  name: cost_limit_daily
+                  valueNumeric: 1000.00
+              - column:
+                  name: cost_alert_at
+                  valueNumeric: 800.00
+              - column:
+                  name: version
+                  valueNumeric: 0
+      rollback:
+        - delete:
+            tableName: bot_config
+            where: "id in ('11111111-1111-1111-1111-111111111101', '11111111-1111-1111-1111-111111111102', '11111111-1111-1111-1111-111111111103', '11111111-1111-1111-1111-111111111104')"

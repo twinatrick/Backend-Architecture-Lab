@@ -47,9 +47,6 @@ public class DiscordGfSession extends BaseEntity {
     @Column(name = "gf_avatar_url", columnDefinition = "TEXT")
     private String gfAvatarUrl;
 
-    @Column(name = "conversation_history", columnDefinition = "TEXT")
-    private String conversationHistory;
-
     @Column(name = "language")
     private String language = "zh";
 }

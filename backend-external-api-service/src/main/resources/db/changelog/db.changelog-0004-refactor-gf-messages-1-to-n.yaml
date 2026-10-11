@@ -1,0 +1,167 @@
+databaseChangeLog:
+  - property:
+      name: text.type
+      value: varchar(65535)
+      dbms: h2
+  - property:
+      name: text.type
+      value: text
+      dbms: postgresql
+  - property:
+      name: text.type
+      value: text
+
+  - changeSet:
+      id: 0004-01-create-discord-gf-message
+      author: architecture-lab
+      comment: 建立 discord_gf_message 對話訊息資料表（1:N 獨立關聯表）
+      changes:
+        - createTable:
+            tableName: discord_gf_message
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: session_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: content
+                  type: ${text.type}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sender_name
+                  type: varchar(255)
+        - addForeignKeyConstraint:
+            baseTableName: discord_gf_message
+            baseColumnNames: session_id
+            constraintName: fk_discord_gf_msg_session_id
+            referencedTableName: discord_gf_session
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            indexName: idx_discord_gf_msg_session_time
+            tableName: discord_gf_message
+            columns:
+              - column:
+                  name: session_id
+              - column:
+                  name: created_time
+      rollback:
+        - dropTable:
+            tableName: discord_gf_message
+
+  - changeSet:
+      id: 0004-02-create-line-gf-message
+      author: architecture-lab
+      comment: 建立 line_gf_message 對話訊息資料表（1:N 獨立關聯表）
+      changes:
+        - createTable:
+            tableName: line_gf_message
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: created_time
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_time
+                  type: timestamp
+              - column:
+                  name: session_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: content
+                  type: ${text.type}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sender_name
+                  type: varchar(255)
+        - addForeignKeyConstraint:
+            baseTableName: line_gf_message
+            baseColumnNames: session_id
+            constraintName: fk_line_gf_msg_session_id
+            referencedTableName: line_gf_session
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            indexName: idx_line_gf_msg_session_time
+            tableName: line_gf_message
+            columns:
+              - column:
+                  name: session_id
+              - column:
+                  name: created_time
+      rollback:
+        - dropTable:
+            tableName: line_gf_message
+
+  - changeSet:
+      id: 0004-03-drop-session-conversation-history
+      author: architecture-lab
+      comment: 移除 discord_gf_session 與 line_gf_session 原有的 JSON conversation_history 欄位
+      changes:
+        - dropColumn:
+            tableName: discord_gf_session
+            columnName: conversation_history
+        - dropColumn:
+            tableName: line_gf_session
+            columnName: conversation_history
+      rollback:
+        - addColumn:
+            tableName: discord_gf_session
+            columns:
+              - column:
+                  name: conversation_history
+                  type: ${text.type}
+        - addColumn:
+            tableName: line_gf_session
+            columns:
+              - column:
+                  name: conversation_history
+                  type: ${text.type}

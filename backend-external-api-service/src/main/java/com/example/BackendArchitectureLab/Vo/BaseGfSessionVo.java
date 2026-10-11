@@ -22,7 +22,6 @@ public abstract class BaseGfSessionVo {
     protected Boolean voiceEnabled;
     protected String voiceSampleKey;
     protected String voiceSampleText;
-    protected String conversationHistory;
     protected String language;
 
     /**
