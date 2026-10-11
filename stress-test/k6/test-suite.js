@@ -87,9 +87,9 @@ export default function (data) {
     } else {
         // --- 10% External 外部整合服務 ---
         externalReqCount.add(1);
-        const resConfig = http.get(`${baseUrl}/api/external/config`, params);
+        const resConfig = http.post(`${baseUrl}/api/external/config/search`, JSON.stringify({}), params);
         e2eDuration.add(resConfig.timings.duration);
-        check(resConfig, { 'External Config Get 200': (r) => r.status === 200 });
+        check(resConfig, { 'External Config Search 200': (r) => r.status === 200 });
 
         const startDate = '2020-01-01T00:00:00.000Z';
         const endDate = '2030-01-01T00:00:00.000Z';

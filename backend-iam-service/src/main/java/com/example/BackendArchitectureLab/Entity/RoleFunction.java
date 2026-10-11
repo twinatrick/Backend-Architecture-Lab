@@ -4,11 +4,13 @@ import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import lombok.*;
 
 @Getter
 @Setter
 @Entity
+@BatchSize(size = 50)
 @Table(name = "role_function")
 @NoArgsConstructor
 @JsonIdentityInfo(

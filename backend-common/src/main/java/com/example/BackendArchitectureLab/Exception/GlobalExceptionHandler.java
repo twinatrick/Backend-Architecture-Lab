@@ -7,7 +7,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,6 +22,25 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ResponseType<?>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        String message = "HTTP method " + ex.getMethod() + " is not supported for this endpoint";
+        ResponseType<?> response = ResponseType.Fail("METHOD_NOT_ALLOWED", message, HttpStatus.METHOD_NOT_ALLOWED.value());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ResponseType<?>> handleMessageNotReadable(HttpMessageNotReadableException ex) {
+        ResponseType<?> response = ResponseType.Fail("MALFORMED_REQUEST_BODY", "Malformed JSON request body", HttpStatus.BAD_REQUEST.value());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ResponseType<?>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        ResponseType<?> response = ResponseType.Fail("UNSUPPORTED_MEDIA_TYPE", "Content type is not supported", HttpStatus.UNSUPPORTED_MEDIA_TYPE.value());
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(response);
+    }
 
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ResponseType<?>> handleAppException(AppException ex) {

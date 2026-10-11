@@ -16,6 +16,7 @@ import java.util.List;
 @Setter
 @Table(name = "role")
 @Entity
+@BatchSize(size = 50)
 @NoArgsConstructor
 @JsonIdentityInfo(
         generator = ObjectIdGenerators.PropertyGenerator.class,
@@ -28,6 +29,7 @@ public class Role extends BaseEntity {
     private String description;
 
     @JsonIgnore
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "role", fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserRole> userRoles =new ArrayList<>();
     @JsonIgnore

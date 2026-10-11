@@ -79,6 +79,10 @@ class UserJobLinkServiceTest {
             Supplier<?> supplier = invocation.getArgument(0);
             return supplier.get();
         });
+        when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
 
         ReflectionTestUtils.setField(userJobLinkService, "self", userJobLinkService);
         userId = UUID.randomUUID();
