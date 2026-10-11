@@ -11,7 +11,10 @@ import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -29,11 +32,13 @@ public class SkillController {
         return ResponseType.Success(skillService.addSkill(skill), "技能新增成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得技能列表", description = "回傳所有技能。")
-    public ResponseType<List<SkillVo>> getSkill() {
-        return ResponseType.Success(skillService.getSkill(), "技能查詢成功");
+    @ApiOperationOk(summary = "技能分塊串流", description = "以 SSE 響應式分塊串流取得技能列表，避免萬筆級全表查詢與記憶體過載")
+    public Flux<ServerSentEvent<List<SkillVo>>> streamSkills(
+            @RequestParam(defaultValue = "250") int chunkSize
+    ) {
+        return skillService.streamSkillsChunked(chunkSize);
     }
 
     @PostMapping("/update")

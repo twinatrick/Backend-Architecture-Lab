@@ -26,7 +26,9 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserSkillDataAccess;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -36,9 +38,16 @@ import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +60,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SkillService implements ISkillService {
@@ -72,6 +82,7 @@ public class SkillService implements ISkillService {
     private final StringRedisTemplate stringRedisTemplate;
     private final SecurityUtil securityUtil;
     private final IUserGateway userGateway;
+    private final TransactionExecutor transactionExecutor;
 
     @Lazy
     private final ISkillService self;
@@ -573,6 +584,81 @@ public class SkillService implements ISkillService {
                 .toList();
         
         return PageResult.of(page, content);
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<SkillVo>>> streamSkillsChunked(int chunkSize) {
+        int effectiveSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<SkillVo>>> dataFlux = Flux.<ServerSentEvent<List<SkillVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<SkillVo> skillPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<Skill> entityPage = skillDataAccess.findAllPaged(
+                                    PageRequest.of(page, effectiveSize, Sort.by("id").ascending())
+                            );
+
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<SkillVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
+
+                            List<SkillVo> voList = entityPage.getContent().stream()
+                                    .map(skillMapper::toVo)
+                                    .toList();
+
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (skillPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<SkillVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(skillPage.getContent())
+                                .build());
+
+                        if (!skillPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("技能 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        ).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<SkillVo>> completeEvent = ServerSentEvent.<List<SkillVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<SkillVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+
+        Flux<ServerSentEvent<List<SkillVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<SkillVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷技能 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("技能 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<SkillVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .build()
+                    );
+                });
     }
     
     @Override
