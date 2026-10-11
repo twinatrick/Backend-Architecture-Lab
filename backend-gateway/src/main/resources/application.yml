@@ -76,7 +76,7 @@ spring:
         - id: competency-stream
           uri: lb://competency-service
           predicates:
-            - Path=/api/project/stream/**,/api/project/stream
+            - Path=/api/project/stream/**,/api/project/stream,/api/skill/stream/**,/api/skill/stream
           filters:
             - StripPrefix=1
           metadata:
