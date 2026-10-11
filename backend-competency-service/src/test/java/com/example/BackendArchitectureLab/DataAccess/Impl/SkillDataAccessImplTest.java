@@ -13,6 +13,8 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Date;
@@ -360,5 +362,24 @@ class SkillDataAccessImplTest {
         // Assert
         assertEquals(1, result.getTotalElements());
         assertEquals("Skill 1", result.getContent().get(0).getName());
+    }
+
+    @Test
+    @DisplayName("Should find all skills with pagination")
+    void testFindAllPaged() {
+        // Arrange
+        for (int i = 0; i < 3; i++) {
+            Skill skill = new Skill();
+            skill.setName("PagedSkill " + i);
+            skill.setDescription("Desc " + i);
+            skillRepository.save(skill);
+        }
+
+        // Act
+        Page<Skill> page = skillDataAccess.findAllPaged(PageRequest.of(0, 2, Sort.by("id").ascending()));
+
+        // Assert
+        assertEquals(3, page.getTotalElements());
+        assertEquals(2, page.getContent().size());
     }
 }

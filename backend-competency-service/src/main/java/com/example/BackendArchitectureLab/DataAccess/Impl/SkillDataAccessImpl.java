@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
@@ -39,6 +40,11 @@ public class SkillDataAccessImpl implements ISkillDataAccess {
     @Override
     public List<Skill> findAll() {
         return skillRepository.findAll();
+    }
+
+    @Override
+    public Page<Skill> findAllPaged(Pageable pageable) {
+        return skillRepository.findAll(pageable);
     }
 
     @Override
