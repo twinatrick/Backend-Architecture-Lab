@@ -1,6 +1,9 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Entity.DiscordGfSession;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +32,10 @@ public interface IDiscordGfSessionDataAccess {
     Optional<DiscordGfSession> findById(UUID id);
 
     List<DiscordGfSession> findAll();
+
+    Page<DiscordGfSession> findAllPaged(Pageable pageable);
+
+    Page<DiscordGfSession> searchSessions(DiscordGfSessionSearchQuery query);
 
     void delete(DiscordGfSession session);
 }
