@@ -6,6 +6,8 @@ import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -64,4 +66,12 @@ public interface IRoleService {
      * @return 分頁結果
      */
     PageResult<RoleOutVo> searchRoles(RoleSearchQuery query);
+
+    /**
+     * 串流分塊取得角色列表
+     *
+     * @param chunkSize 批次大小
+     * @return Server-Sent Events 串流
+     */
+    Flux<ServerSentEvent<List<RoleOutVo>>> streamRolesChunked(int chunkSize);
 }
