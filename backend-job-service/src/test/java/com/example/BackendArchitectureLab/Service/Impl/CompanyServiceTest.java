@@ -9,6 +9,7 @@ import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,8 +17,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import reactor.test.StepVerifier;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -195,5 +198,56 @@ class CompanyServiceTest {
 
         assertEquals("ID must not be null", exception.getMessage());
         verify(companyDataAccess, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("Should stream companies chunked successfully")
+    void testStreamCompaniesChunked_Success() {
+        when(companyDataAccess.findAllPaged(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(testCompany)));
+
+        StepVerifier.create(companyService.streamCompaniesChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("chunk", sse.event());
+                    assertEquals("0", sse.id());
+                    assertNotNull(sse.data());
+                    assertEquals(1, sse.data().size());
+                    assertEquals("Test Company", sse.data().get(0).getName());
+                })
+                .assertNext(sse -> {
+                    assertEquals("complete", sse.event());
+                })
+                .verifyComplete();
+
+        verify(companyDataAccess).findAllPaged(any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Should stream empty companies when no data found")
+    void testStreamCompaniesChunked_Empty() {
+        when(companyDataAccess.findAllPaged(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        StepVerifier.create(companyService.streamCompaniesChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("complete", sse.event());
+                })
+                .verifyComplete();
+
+        verify(companyDataAccess).findAllPaged(any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Should emit error event without data when database error occurs")
+    void testStreamCompaniesChunked_DatabaseError_ShouldEmitErrorEventWithoutData() {
+        when(companyDataAccess.findAllPaged(any(Pageable.class)))
+                .thenThrow(new RuntimeException("Database error"));
+
+        StepVerifier.create(companyService.streamCompaniesChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("error", sse.event());
+                    assertNull(sse.data());
+                })
+                .verifyComplete();
     }
 }

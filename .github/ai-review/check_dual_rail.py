@@ -189,24 +189,19 @@ def check_missing_dual_rail_endpoints(
 
     has_search = bool(
         re.search(
-            r"@PostMapping\s*(?:\([^)]*(?:/search|search)[^)]*\)|\(\s*\))\s*"
-            r"(?:@\w+(?:\([^)]*\))?\s*)*"
-            r"public\s+[^\n{]+\s+\w*search\w*\s*\(",
+            r"@PostMapping\b[^{};]*?\bsearch\w*\s*\(",
             content,
-            re.IGNORECASE,
+            re.DOTALL | re.IGNORECASE,
         )
-        or re.search(r"@PostMapping\b[^\n]*\n[^\n{]*\bSearchQuery\b", content)
+        or re.search(r"@PostMapping\b[^{};]*?\bSearchQuery\b", content, re.DOTALL)
     )
 
     has_stream = bool(
         re.search(
-            r"@GetMapping\s*(?:\([^)]*(?:/stream|stream)[^)]*\)|\(\s*\))\s*"
-            r"(?:@\w+(?:\([^)]*\))?\s*)*"
-            r"public\s+[^\n{]*Flux\s*<\s*ServerSentEvent",
+            r"@GetMapping\b[^{};]*?\bFlux\s*<\s*ServerSentEvent",
             content,
-            re.IGNORECASE,
+            re.DOTALL,
         )
-        or re.search(r"@GetMapping\b[^\n]*\n[^\n{]*\bFlux\s*<\s*ServerSentEvent", content)
     )
 
     findings: list[dict[str, Any]] = []
