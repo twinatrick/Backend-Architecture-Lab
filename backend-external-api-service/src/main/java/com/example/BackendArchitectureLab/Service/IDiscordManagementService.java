@@ -14,8 +14,6 @@ import java.util.UUID;
 
 public interface IDiscordManagementService {
 
-    List<DiscordGfSessionVo> getSessions(String guildId, Boolean active);
-
     PageResult<DiscordGfSessionVo> searchSessions(DiscordGfSessionSearchQuery query);
 
     Flux<ServerSentEvent<List<DiscordGfSessionVo>>> streamSessionsChunked(int chunkSize);
@@ -27,8 +25,6 @@ public interface IDiscordManagementService {
     DiscordGfSessionVo toggleSessionActive(UUID id);
 
     void deleteSession(UUID id);
-
-    List<DiscordSubscriptionVo> getSubscriptions(String guildId);
 
     PageResult<DiscordSubscriptionVo> searchSubscriptions(DiscordSubscriptionSearchQuery query);
 

@@ -36,12 +36,14 @@
 
 | 測試腳本 (JMeter / k6) | 測試範圍 | 所需服務 | 建議階梯併發 |
 |---|---|---|:---:|
-| `test-iam` | users/search, role/get, function/get | IAM + Gateway | 50 / 200 / 500 |
-| `test-competency` | skill/get, project/search, skill/personal/add | IAM + Competency + Gateway | 50 / 200 / 500 |
-| `test-job` | company/get, job-posting/search, bindings/job | IAM + Job + Gateway | 50 / 200 / 500 |
-| `test-alert` | aquarkData/getColumnNameList, cache-stats | IAM + Alert + Gateway | 50 / 200 / 500 |
-| `test-external` | external/config, external/usage/summary | IAM + External + Gateway | 50 / 200 / 500 |
+| `test-iam` | users/search, role/search, function/search | IAM + Gateway | 50 / 200 / 500 |
+| `test-competency` | skill/search, project/search, skill/personal/add | IAM + Competency + Gateway | 50 / 200 / 500 |
+| `test-job` | company/search, job-posting/search, bindings/job | IAM + Job + Gateway | 50 / 200 / 500 |
+| `test-alert` | aquarkData/search, aquarkData/getColumnNameList, cache-stats | IAM + Alert + Gateway | 50 / 200 / 500 |
+| `test-external` | external/config/search, external/usage/summary | IAM + External + Gateway | 50 / 200 / 500 |
 | `test-suite` | 5 大服務綜合加權全鏈路 | 全部服務 + Gateway | 50 / 200 / 500 |
+
+> 💡 **雙軌標準升級說明**：依據《開發規範.md》§6 與 ADR 0016，原無分頁之端點（`role/get`、`function/get`、`skill/get`、`company/get`、`external/config`）已全數根除並升級為 `POST /search` 分頁搜尋與 `GET /stream` (SSE) 響應式串流。壓測腳本統一改測標準分頁搜尋端點或專用串流軌道。
 
 ### 2. 併發階梯物理意義
 * **50 併發（日常高負載）**：50 < 200（Tomcat 執行緒充足），評估快取對 HikariCP 連線池排隊的降載收益。

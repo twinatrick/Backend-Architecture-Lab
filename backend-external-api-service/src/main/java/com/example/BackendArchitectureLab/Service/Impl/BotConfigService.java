@@ -18,6 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.List;
@@ -96,7 +97,7 @@ public class BotConfigService implements IBotConfigService {
                         return page;
                     }
                 }
-        );
+        ).subscribeOn(Schedulers.boundedElastic());
 
         ServerSentEvent<List<BotConfigVo>> completeEvent = ServerSentEvent.<List<BotConfigVo>>builder()
                 .event("complete")

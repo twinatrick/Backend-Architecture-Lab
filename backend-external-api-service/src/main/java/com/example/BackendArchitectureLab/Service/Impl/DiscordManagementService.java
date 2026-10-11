@@ -27,6 +27,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.List;
@@ -55,21 +56,6 @@ public class DiscordManagementService implements IDiscordManagementService {
     private final DiscordGfMessageMapper discordGfMessageMapper;
     private final DiscordSubscriptionMapper discordSubscriptionMapper;
     private final TransactionExecutor transactionExecutor;
-
-    @Override
-    public List<DiscordGfSessionVo> getSessions(String guildId, Boolean active) {
-        List<DiscordGfSession> sessions;
-        if (guildId != null && active != null) {
-            sessions = discordGfSessionDataAccess.findByGuildIdAndActive(guildId, active);
-        } else if (guildId != null) {
-            sessions = discordGfSessionDataAccess.findByGuildId(guildId);
-        } else if (active != null) {
-            sessions = discordGfSessionDataAccess.findByActive(active);
-        } else {
-            sessions = discordGfSessionDataAccess.findAll();
-        }
-        return gfSessionMapper.toDiscordVoList(sessions);
-    }
 
     @Override
     public PageResult<DiscordGfSessionVo> searchSessions(DiscordGfSessionSearchQuery query) {
@@ -117,7 +103,7 @@ public class DiscordManagementService implements IDiscordManagementService {
                         return page;
                     }
                 }
-        );
+        ).subscribeOn(Schedulers.boundedElastic());
 
         ServerSentEvent<List<DiscordGfSessionVo>> completeEvent = ServerSentEvent.<List<DiscordGfSessionVo>>builder()
                 .event("complete")
@@ -174,17 +160,6 @@ public class DiscordManagementService implements IDiscordManagementService {
     }
 
     @Override
-    public List<DiscordSubscriptionVo> getSubscriptions(String guildId) {
-        List<DiscordSubscription> subscriptions;
-        if (guildId != null && !guildId.isBlank()) {
-            subscriptions = discordSubscriptionDataAccess.findByGuildId(guildId);
-        } else {
-            subscriptions = discordSubscriptionDataAccess.findAll();
-        }
-        return discordSubscriptionMapper.toVoList(subscriptions);
-    }
-
-    @Override
     public PageResult<DiscordSubscriptionVo> searchSubscriptions(DiscordSubscriptionSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             SEARCH_SUBSCRIPTION_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
@@ -230,7 +205,7 @@ public class DiscordManagementService implements IDiscordManagementService {
                         return page;
                     }
                 }
-        );
+        ).subscribeOn(Schedulers.boundedElastic());
 
         ServerSentEvent<List<DiscordSubscriptionVo>> completeEvent = ServerSentEvent.<List<DiscordSubscriptionVo>>builder()
                 .event("complete")

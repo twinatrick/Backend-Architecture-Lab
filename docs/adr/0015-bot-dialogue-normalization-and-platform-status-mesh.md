@@ -33,8 +33,8 @@
    - 對話處理時，僅透過 `findRecentMessages(sessionId, limit)` 撈取最新 20 則歷史訊息反轉為時間正序，作為 Prompt 傳送至 LLM。
    - 管理端點 `/external/discord/sessions/{id}/messages` 獨立按需調閱完整歷史紀錄，落實元數據與訊息分離傳輸。
 3. **Discord 管理控制層 (Discord Management Mesh)**：
-   - 提供 `GET /external/discord/sessions`（支援伺服器與狀態篩選）、`GET /external/discord/sessions/{id}`、`PATCH /sessions/{id}/toggle` 及 `DELETE /sessions/{id}`。
-   - 提供 `GET /external/discord/subscriptions` 與 `DELETE /subscriptions/{id}` 管理語音日記等伺服器頻道訂閱。
+   - 提供會話管理：`POST /external/discord/sessions/search`（分頁搜尋）、`GET /external/discord/sessions/stream`（分塊串流）、`GET /external/discord/sessions/{id}`、`PATCH /sessions/{id}/toggle` 及 `DELETE /sessions/{id}`（註：無分頁之舊 `GET /sessions` 端點已依據 ADR 0016 徹底根除並升級為雙軌存取）。
+   - 提供訂閱管理：`POST /external/discord/subscriptions/search`（分頁搜尋）、`GET /external/discord/subscriptions/stream`（分塊串流）與 `DELETE /subscriptions/{id}` 管理語音日記等伺服器頻道訂閱（註：無分頁之舊 `GET /subscriptions` 已依據 ADR 0016 徹底根除）。
    - 全面標註 `@RequirePermission(layer = "BotConfig")` 權限守衛。
 4. **故障安全平台狀態探針 (External Platform Status Probe)**：
    - 實作 `GET /external/config/status`，聚合探查 Discord（JDA 閘道狀態與 Ping）、LINE（Token 與 Secret 配置狀態）及 AI（Gemini, DeepSeek, Groq 憑證有效性）。

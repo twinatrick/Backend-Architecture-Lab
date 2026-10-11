@@ -221,62 +221,6 @@ class DiscordManagementServiceTest {
     }
 
     @Test
-    @DisplayName("getSessions: 帶有 guildId 與 active 參數應查詢 findByGuildIdAndActive")
-    void getSessions_WithGuildIdAndActive_ShouldFilterBoth() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findByGuildIdAndActive("g1", true)).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
-
-        List<DiscordGfSessionVo> result = service.getSessions("g1", true);
-
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findByGuildIdAndActive("g1", true);
-    }
-
-    @Test
-    @DisplayName("getSessions: 僅有 guildId 參數應查詢 findByGuildId")
-    void getSessions_WithGuildIdOnly_ShouldFilterByGuildId() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findByGuildId("g1")).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
-
-        List<DiscordGfSessionVo> result = service.getSessions("g1", null);
-
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findByGuildId("g1");
-    }
-
-    @Test
-    @DisplayName("getSessions: 僅有 active 參數應查詢 findByActive")
-    void getSessions_WithActiveOnly_ShouldFilterByActive() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findByActive(false)).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
-
-        List<DiscordGfSessionVo> result = service.getSessions(null, false);
-
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findByActive(false);
-    }
-
-    @Test
-    @DisplayName("getSessions: 無參數應查詢 findAll")
-    void getSessions_WithNoFilter_ShouldFindAll() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findAll()).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
-
-        List<DiscordGfSessionVo> result = service.getSessions(null, null);
-
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findAll();
-    }
-
-    @Test
     @DisplayName("getSessionById: 成功取得單筆會話")
     void getSessionById_Success() {
         UUID id = UUID.randomUUID();
@@ -377,34 +321,6 @@ class DiscordManagementServiceTest {
 
         AppException ex = assertThrows(AppException.class, () -> service.deleteSession(id));
         assertEquals(404, ex.getHttpStatus());
-    }
-
-    @Test
-    @DisplayName("getSubscriptions: 帶有 guildId 應篩選")
-    void getSubscriptions_WithGuildId() {
-        List<DiscordSubscription> list = List.of(new DiscordSubscription());
-        List<DiscordSubscriptionVo> vos = List.of(new DiscordSubscriptionVo());
-        when(discordSubscriptionDataAccess.findByGuildId("g1")).thenReturn(list);
-        when(discordSubscriptionMapper.toVoList(list)).thenReturn(vos);
-
-        List<DiscordSubscriptionVo> result = service.getSubscriptions("g1");
-
-        assertEquals(1, result.size());
-        verify(discordSubscriptionDataAccess).findByGuildId("g1");
-    }
-
-    @Test
-    @DisplayName("getSubscriptions: 無 guildId 應查詢全部")
-    void getSubscriptions_All() {
-        List<DiscordSubscription> list = List.of(new DiscordSubscription());
-        List<DiscordSubscriptionVo> vos = List.of(new DiscordSubscriptionVo());
-        when(discordSubscriptionDataAccess.findAll()).thenReturn(list);
-        when(discordSubscriptionMapper.toVoList(list)).thenReturn(vos);
-
-        List<DiscordSubscriptionVo> result = service.getSubscriptions(null);
-
-        assertEquals(1, result.size());
-        verify(discordSubscriptionDataAccess).findAll();
     }
 
     @Test
