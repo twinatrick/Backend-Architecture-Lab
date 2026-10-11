@@ -13,6 +13,7 @@ import com.example.BackendArchitectureLab.Service.ICompanyService;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -20,12 +21,20 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CompanyService implements ICompanyService {
@@ -147,6 +156,81 @@ public class CompanyService implements ICompanyService {
 
             return PageResult.of(companyPage, companyVos);
         });
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<CompanyVo>>> streamCompaniesChunked(int chunkSize) {
+        final int effectiveChunkSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<CompanyVo>>> dataFlux = Flux.<ServerSentEvent<List<CompanyVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<CompanyVo> companyPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<Company> entityPage = companyDataAccess.findAllPaged(
+                                    PageRequest.of(page, effectiveChunkSize, Sort.by("id").ascending())
+                            );
+
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<CompanyVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
+
+                            List<CompanyVo> voList = entityPage.getContent().stream()
+                                    .map(companyMapper::toVo)
+                                    .toList();
+
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (companyPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<CompanyVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(companyPage.getContent())
+                                .build());
+
+                        if (!companyPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("公司資料 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        ).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<CompanyVo>> completeEvent = ServerSentEvent.<List<CompanyVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<CompanyVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+
+        Flux<ServerSentEvent<List<CompanyVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<CompanyVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷公司資料 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("公司資料 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<CompanyVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .build()
+                    );
+                });
     }
 
     private UUID mapUuid(String id) {

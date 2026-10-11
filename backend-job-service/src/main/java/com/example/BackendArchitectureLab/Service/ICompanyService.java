@@ -6,6 +6,8 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.CreateCompanyRequest;
 import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -29,4 +31,12 @@ public interface ICompanyService {
      * @return 分頁結果
      */
     PageResult<CompanyVo> searchCompanies(CompanySearchQuery query);
+
+    /**
+     * 分塊串流取得公司資料 (SSE)
+     *
+     * @param chunkSize 每個區塊的公司筆數 (限制 10 ~ 1000)
+     * @return ServerSentEvent 串流
+     */
+    Flux<ServerSentEvent<List<CompanyVo>>> streamCompaniesChunked(int chunkSize);
 }
