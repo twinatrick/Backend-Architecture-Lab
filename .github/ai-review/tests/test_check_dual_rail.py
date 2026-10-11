@@ -162,15 +162,15 @@ def test_missing_dual_rail_endpoints_allowed_for_migration_list():
     content = (
         "package com.example.BackendArchitectureLab.Controller;\n"
         "@RestController\n"
-        "public class ConfigController {\n"
+        "public class DiscordManagementController {\n"
         "    @GetMapping(\"/get\")\n"
-        "    public ResponseType<List<BotConfigVo>> getConfig() {\n"
+        "    public ResponseType<List<DiscordGfSessionVo>> getSession() {\n"
         "        return null;\n"
         "    }\n"
         "}\n"
     )
     findings = check_java.check_java_file(
-        "backend-external-api-service/src/main/java/com/example/ConfigController.java",
+        "backend-external-api-service/src/main/java/com/example/DiscordManagementController.java",
         content,
     )
     rules = [item["rule"] for item in findings]
