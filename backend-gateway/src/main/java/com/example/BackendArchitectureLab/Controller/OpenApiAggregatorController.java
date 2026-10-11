@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,8 +109,8 @@ public class OpenApiAggregatorController {
                         merged.setComponents(new Components());
                     }
                     merged.getComponents().addSecuritySchemes("Bearer Authentication",
-                            new io.swagger.v3.oas.models.security.SecurityScheme()
-                                    .type(io.swagger.v3.oas.models.security.SecurityScheme.Type.HTTP)
+                            new SecurityScheme()
+                                    .type(SecurityScheme.Type.HTTP)
                                     .scheme("bearer")
                                     .bearerFormat("JWT"));
                 }

@@ -214,27 +214,27 @@ def check_java_file(
             ))
 
         # 7. 禁寫完全限定名稱 (FQN) 檢查 (§5.12)
-        if not is_test:
-            trimmed = line.strip()
-            is_import_or_pkg = trimmed.startswith(
-                ("import ", "package ", "//", "*", "/*", "@Mapping")
+        trimmed_code = line.strip()
+        is_import_or_pkg = trimmed_code.startswith(
+            ("import ", "package ", "//", "*", "/*", "@Mapping")
+        )
+        if not is_import_or_pkg:
+            clean_code = re.sub(r"//.*$", "", line)
+            clean_code = re.sub(r'"[^"]*"', '""', clean_code)
+            fqn_pattern = (
+                r"\b(?:java|jakarta|javax|org|com|reactor|io|net)\."
+                r"[a-z0-9_.]+\.[A-Z]\w+\b"
             )
-            if not is_import_or_pkg:
-                fqn_prefix = (
-                    r"com\.example\.BackendArchitectureLab\."
-                    r"(?:Repository|Entity|Service|Exception)"
-                )
-                fqn_pattern = rf"\b(java\.(?:util|time|sql|io)|{fqn_prefix})\.[A-Z]\w+\b"
-                fqn_match = re.search(fqn_pattern, line)
-                if fqn_match:
-                    findings.append(make_finding(
-                        path, idx, "HIGH", "COMPLIANCE",
-                        RULE_PROHIBIT_FQN,
-                        f"程式碼中禁止直接使用完全限定名稱 (FQN): {fqn_match.group(0)}",
-                        raw_line.strip(),
-                        "違反《開發規範.md》§5.12，降低程式碼可讀性與一致性",
-                        "檔案頂部顯式宣告 import，程式碼中僅使用簡潔類別名稱",
-                    ))
+            fqn_match = re.search(fqn_pattern, clean_code)
+            if fqn_match:
+                findings.append(make_finding(
+                    path, idx, "HIGH", "COMPLIANCE",
+                    RULE_PROHIBIT_FQN,
+                    f"程式碼中禁止直接使用完全限定名稱 (FQN): {fqn_match.group(0)}",
+                    raw_line.strip(),
+                    "違反《開發規範.md》§5.12，降低程式碼可讀性與一致性",
+                    "檔案頂部顯式宣告 import，程式碼中僅使用簡潔類別名稱",
+                ))
 
         # 8. 衍生刪除事務邊界檢查 (deleteBy / removeBy)
         if not is_test and (is_data_access_impl or is_service_impl):
