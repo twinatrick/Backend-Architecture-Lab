@@ -14,7 +14,10 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.springframework.cache.CacheManager;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +63,8 @@ class SkillServiceTest {
     private SecurityUtil securityUtil;
     @Mock
     private CacheManager cacheManager;
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @InjectMocks
     private SkillService skillService;
@@ -99,6 +104,15 @@ class SkillServiceTest {
         testSkillLevelVo.setTitle("Beginner");
 
         when(skillMapper.toVo(any(Skill.class))).thenReturn(testSkillVo);
+
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
         
         // Inject self reference
         try {
@@ -1607,5 +1621,60 @@ class SkillServiceTest {
         verify(userSkillDataAccess, never()).findBySkillId(any());
         verify(userSkillDataAccess, never()).deleteByUserIdAndSkillId(any(), any());
         verify(userSkillDataAccess, never()).save(any(UserSkill.class));
+    }
+
+    @Test
+    void testStreamSkillsChunked_Success() {
+        // Arrange
+        Skill skill1 = new Skill();
+        skill1.setId(UUID.randomUUID());
+        skill1.setName("Skill1");
+
+        Page<Skill> page0 = new PageImpl<>(List.of(skill1), PageRequest.of(0, 10), 1);
+        Page<Skill> page1 = new PageImpl<>(List.of(), PageRequest.of(1, 10), 1);
+
+        when(skillDataAccess.findAllPaged(any()))
+                .thenReturn(page0)
+                .thenReturn(page1);
+
+        // Act
+        Flux<ServerSentEvent<List<SkillVo>>> flux = skillService.streamSkillsChunked(10);
+        List<ServerSentEvent<List<SkillVo>>> events = flux.collectList().block();
+
+        // Assert
+        assertNotNull(events);
+        assertFalse(events.isEmpty());
+        assertTrue(events.stream().anyMatch(e -> "chunk".equals(e.event())));
+        assertTrue(events.stream().anyMatch(e -> "complete".equals(e.event())));
+    }
+
+    @Test
+    void testStreamSkillsChunked_Empty() {
+        // Arrange
+        Page<Skill> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
+        when(skillDataAccess.findAllPaged(any())).thenReturn(emptyPage);
+
+        // Act
+        Flux<ServerSentEvent<List<SkillVo>>> flux = skillService.streamSkillsChunked(10);
+        List<ServerSentEvent<List<SkillVo>>> events = flux.collectList().block();
+
+        // Assert
+        assertNotNull(events);
+        assertFalse(events.isEmpty());
+        assertTrue(events.stream().anyMatch(e -> "complete".equals(e.event())));
+    }
+
+    @Test
+    void testStreamSkillsChunked_Error() {
+        // Arrange
+        when(skillDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("DB error"));
+
+        // Act
+        Flux<ServerSentEvent<List<SkillVo>>> flux = skillService.streamSkillsChunked(10);
+        List<ServerSentEvent<List<SkillVo>>> events = flux.collectList().block();
+
+        // Assert
+        assertNotNull(events);
+        assertTrue(events.stream().anyMatch(e -> "error".equals(e.event())));
     }
 }
