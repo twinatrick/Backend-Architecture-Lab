@@ -162,15 +162,15 @@ def test_missing_dual_rail_endpoints_allowed_for_migration_list():
     content = (
         "package com.example.BackendArchitectureLab.Controller;\n"
         "@RestController\n"
-        "public class CompanyController {\n"
+        "public class SkillController {\n"
         "    @GetMapping(\"/get\")\n"
-        "    public ResponseType<List<CompanyVo>> getCompanies() {\n"
+        "    public ResponseType<List<SkillVo>> getSkills() {\n"
         "        return null;\n"
         "    }\n"
         "}\n"
     )
     findings = check_java.check_java_file(
-        "backend-job-service/src/main/java/com/example/CompanyController.java",
+        "backend-competency-service/src/main/java/com/example/SkillController.java",
         content,
     )
     rules = [item["rule"] for item in findings]

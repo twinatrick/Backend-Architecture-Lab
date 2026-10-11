@@ -55,7 +55,7 @@ spring:
         - id: job-stream
           uri: lb://job-service
           predicates:
-            - Path=/api/job-posting/stream/**,/api/job-posting/stream,/api/user-job-link/stream/**,/api/user-job-link/stream
+            - Path=/api/job-posting/stream/**,/api/job-posting/stream,/api/user-job-link/stream/**,/api/user-job-link/stream,/api/company/stream/**,/api/company/stream
           filters:
             - StripPrefix=1
           metadata:

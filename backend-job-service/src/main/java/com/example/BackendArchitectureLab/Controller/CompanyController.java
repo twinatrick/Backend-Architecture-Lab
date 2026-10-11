@@ -13,6 +13,8 @@ import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,7 +22,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -39,11 +43,12 @@ public class CompanyController {
         return ResponseType.Success(companyService.createCompany(request), "公司新增成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得所有公司", description = "返回所有公司列表。")
-    public ResponseType<List<CompanyVo>> getAllCompanies() {
-        return ResponseType.Success(companyService.getAllCompanies(), "公司列表查詢成功");
+    @ApiOperationOk(summary = "串流取得公司資料", description = "使用 Server-Sent Events (SSE) 分塊串流取得公司資料，避免一次性載入大量資料。")
+    public Flux<ServerSentEvent<List<CompanyVo>>> streamCompanies(
+            @RequestParam(defaultValue = "250") int chunkSize) {
+        return companyService.streamCompaniesChunked(chunkSize);
     }
 
     @GetMapping("/get/{id}")

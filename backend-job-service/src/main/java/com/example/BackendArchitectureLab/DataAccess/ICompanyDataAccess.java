@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess;
 import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +28,14 @@ public interface ICompanyDataAccess {
      * @return list of all companies
      */
     List<Company> findAll();
+
+    /**
+     * 分頁查詢所有公司
+     *
+     * @param pageable 分頁與排序參數
+     * @return 分頁公司實體
+     */
+    Page<Company> findAllPaged(Pageable pageable);
 
     /**
      * Find a company by its ID.
