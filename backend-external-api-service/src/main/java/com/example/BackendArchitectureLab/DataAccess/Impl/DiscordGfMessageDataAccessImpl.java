@@ -4,7 +4,9 @@ import com.example.BackendArchitectureLab.DataAccess.IDiscordGfMessageDataAccess
 import com.example.BackendArchitectureLab.Entity.DiscordGfMessage;
 import com.example.BackendArchitectureLab.Repository.DiscordGfMessageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +30,12 @@ public class DiscordGfMessageDataAccessImpl implements IDiscordGfMessageDataAcce
 
     @Override
     public List<DiscordGfMessage> findRecentMessages(UUID sessionId, int limit) {
-        List<DiscordGfMessage> recentDesc = discordGfMessageRepository.findTop20BySessionIdOrderByCreatedTimeDesc(sessionId);
+        if (limit <= 0) {
+            return Collections.emptyList();
+        }
+        List<DiscordGfMessage> recentDesc = discordGfMessageRepository.findBySessionIdOrderByCreatedTimeDesc(
+                sessionId, PageRequest.of(0, limit)
+        );
         if (recentDesc == null || recentDesc.isEmpty()) {
             return Collections.emptyList();
         }
@@ -48,6 +55,7 @@ public class DiscordGfMessageDataAccessImpl implements IDiscordGfMessageDataAcce
     }
 
     @Override
+    @Transactional
     public void deleteBySessionId(UUID sessionId) {
         discordGfMessageRepository.deleteBySessionId(sessionId);
     }

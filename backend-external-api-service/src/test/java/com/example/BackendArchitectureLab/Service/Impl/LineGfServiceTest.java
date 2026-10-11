@@ -159,4 +159,28 @@ class LineGfServiceTest {
         verify(messageDataAccess).countBySessionId(sessionId);
         verify(messagingClient).replyMessage(any(ReplyMessage.class));
     }
+
+    @Test
+    @DisplayName("handleText 當處於 pendingPrompt 狀態時應更新提示詞並清空歷史對話訊息")
+    void handleText_WhenPendingPrompt_ShouldUpdatePromptAndClearHistory() {
+        UUID sessionId = UUID.randomUUID();
+        LineGfSession session = new LineGfSession();
+        session.setUserId("user-789");
+        session.setPendingPrompt(true);
+        session.setId(sessionId);
+
+        when(sessionDataAccess.findByUserId("user-789")).thenReturn(Optional.of(session));
+        when(sessionDataAccess.save(any(LineGfSession.class))).thenReturn(session);
+        when(messagingClient.replyMessage(any(ReplyMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(BotApiResponse.class)));
+
+        service.handleText("token-prompt", "你是一位知性大姐姐", "user-789");
+
+        ArgumentCaptor<LineGfSession> sessionCaptor = ArgumentCaptor.forClass(LineGfSession.class);
+        verify(sessionDataAccess).save(sessionCaptor.capture());
+        assertEquals("你是一位知性大姐姐", sessionCaptor.getValue().getPrompt());
+        assertEquals(false, sessionCaptor.getValue().getPendingPrompt());
+        verify(messageDataAccess).deleteBySessionId(sessionId);
+        verify(messagingClient).replyMessage(any(ReplyMessage.class));
+    }
 }

@@ -8,12 +8,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,21 +46,30 @@ class DiscordGfMessageDataAccessImplTest {
     }
 
     @Test
-    @DisplayName("findRecentMessages 應將 desc 查詢結果反轉為時間正序 (升冪)")
+    @DisplayName("findRecentMessages 應以動態 PageRequest 查詢並將結果反轉為時間正序 (升冪)")
     void findRecentMessages_ShouldReverseDescResultsToChronologicalOrder() {
         UUID sessionId = UUID.randomUUID();
         DiscordGfMessage m1 = DiscordGfMessage.builder().content("第一句").build();
         DiscordGfMessage m2 = DiscordGfMessage.builder().content("第二句").build();
 
-        // repository returns DESC order (m2 newest, m1 older)
         List<DiscordGfMessage> descList = new ArrayList<>(List.of(m2, m1));
-        when(repository.findTop20BySessionIdOrderByCreatedTimeDesc(sessionId)).thenReturn(descList);
+        when(repository.findBySessionIdOrderByCreatedTimeDesc(sessionId, PageRequest.of(0, 10)))
+                .thenReturn(descList);
 
-        List<DiscordGfMessage> result = dataAccess.findRecentMessages(sessionId, 20);
+        List<DiscordGfMessage> result = dataAccess.findRecentMessages(sessionId, 10);
 
         assertEquals(2, result.size());
         assertEquals("第一句", result.get(0).getContent());
         assertEquals("第二句", result.get(1).getContent());
+        verify(repository).findBySessionIdOrderByCreatedTimeDesc(sessionId, PageRequest.of(0, 10));
+    }
+
+    @Test
+    @DisplayName("findRecentMessages limit <= 0 時應回傳空清單且不呼叫 repository")
+    void findRecentMessages_WhenLimitNonPositive_ShouldReturnEmptyList() {
+        UUID sessionId = UUID.randomUUID();
+        List<DiscordGfMessage> result = dataAccess.findRecentMessages(sessionId, 0);
+        assertTrue(result.isEmpty());
     }
 
     @Test

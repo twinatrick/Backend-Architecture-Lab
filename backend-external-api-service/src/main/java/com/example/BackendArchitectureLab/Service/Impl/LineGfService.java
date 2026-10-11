@@ -76,7 +76,10 @@ public class LineGfService implements ILineGfService {
         if (Boolean.TRUE.equals(session.getPendingPrompt())) {
             session.setPrompt(text);
             session.setPendingPrompt(false);
-            sessionDataAccess.save(session);
+            session = sessionDataAccess.save(session);
+            if (session.getId() != null) {
+                messageDataAccess.deleteBySessionId(session.getId());
+            }
             replyText(replyToken, "✅ 已設定提示詞");
             return;
         }
@@ -155,7 +158,10 @@ public class LineGfService implements ILineGfService {
         LineGfSession session = sessionDataAccess.findByUserId(userId).orElse(new LineGfSession());
         session.setUserId(userId);
         session.setPrompt(prompt);
-        sessionDataAccess.save(session);
+        session = sessionDataAccess.save(session);
+        if (session.getId() != null) {
+            messageDataAccess.deleteBySessionId(session.getId());
+        }
         replyText(replyToken, "✅ 已設定提示詞");
     }
 

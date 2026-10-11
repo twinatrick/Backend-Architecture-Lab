@@ -8,12 +8,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,20 +46,30 @@ class LineGfMessageDataAccessImplTest {
     }
 
     @Test
-    @DisplayName("findRecentMessages 應將 desc 查詢結果反轉為時間正序 (升冪)")
+    @DisplayName("findRecentMessages 應以動態 PageRequest 查詢並將結果反轉為時間正序 (升冪)")
     void findRecentMessages_ShouldReverseDescResultsToChronologicalOrder() {
         UUID sessionId = UUID.randomUUID();
         LineGfMessage m1 = LineGfMessage.builder().content("早安").build();
         LineGfMessage m2 = LineGfMessage.builder().content("吃飽了嗎").build();
 
         List<LineGfMessage> descList = new ArrayList<>(List.of(m2, m1));
-        when(repository.findTop20BySessionIdOrderByCreatedTimeDesc(sessionId)).thenReturn(descList);
+        when(repository.findBySessionIdOrderByCreatedTimeDesc(sessionId, PageRequest.of(0, 15)))
+                .thenReturn(descList);
 
-        List<LineGfMessage> result = dataAccess.findRecentMessages(sessionId, 20);
+        List<LineGfMessage> result = dataAccess.findRecentMessages(sessionId, 15);
 
         assertEquals(2, result.size());
         assertEquals("早安", result.get(0).getContent());
         assertEquals("吃飽了嗎", result.get(1).getContent());
+        verify(repository).findBySessionIdOrderByCreatedTimeDesc(sessionId, PageRequest.of(0, 15));
+    }
+
+    @Test
+    @DisplayName("findRecentMessages limit <= 0 時應回傳空清單且不呼叫 repository")
+    void findRecentMessages_WhenLimitNonPositive_ShouldReturnEmptyList() {
+        UUID sessionId = UUID.randomUUID();
+        List<LineGfMessage> result = dataAccess.findRecentMessages(sessionId, -1);
+        assertTrue(result.isEmpty());
     }
 
     @Test

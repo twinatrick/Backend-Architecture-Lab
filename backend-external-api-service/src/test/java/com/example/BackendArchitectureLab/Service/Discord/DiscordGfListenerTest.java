@@ -19,6 +19,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -192,5 +193,38 @@ class DiscordGfListenerTest {
 
         verify(messageDataAccess).countBySessionId(sessionId);
         verify(slashEvent).reply(anyString());
+    }
+
+    @Test
+    @DisplayName("onSlashCommandInteraction 當名稱為 女友提示詞 時應更新 Prompt 並清空歷史對話訊息")
+    void onSlashCommandInteraction_SetPrompt_ShouldUpdatePromptAndClearHistory() {
+        UUID sessionId = UUID.randomUUID();
+        DiscordGfSession session = new DiscordGfSession();
+        session.setChannelId("ch-300");
+        session.setUserId("u-300");
+        session.setId(sessionId);
+
+        when(slashEvent.getChannel()).thenReturn(channelUnion);
+        when(channelUnion.getId()).thenReturn("ch-300");
+        when(slashEvent.getUser()).thenReturn(author);
+        when(author.getId()).thenReturn("u-300");
+        when(slashEvent.getName()).thenReturn("女友提示詞");
+
+        OptionMapping option = org.mockito.Mockito.mock(OptionMapping.class);
+        when(option.getAsString()).thenReturn("新的人設提示詞");
+        when(slashEvent.getOption("內容")).thenReturn(option);
+
+        when(sessionDataAccess.findByChannelIdAndUserId("ch-300", "u-300")).thenReturn(Optional.of(session));
+        when(sessionDataAccess.save(any(DiscordGfSession.class))).thenReturn(session);
+
+        when(slashEvent.reply(anyString())).thenReturn(replyCallbackAction);
+        when(replyCallbackAction.setEphemeral(true)).thenReturn(replyCallbackAction);
+
+        listener.onSlashCommandInteraction(slashEvent);
+
+        ArgumentCaptor<DiscordGfSession> sessionCaptor = ArgumentCaptor.forClass(DiscordGfSession.class);
+        verify(sessionDataAccess).save(sessionCaptor.capture());
+        assertEquals("新的人設提示詞", sessionCaptor.getValue().getPrompt());
+        verify(messageDataAccess).deleteBySessionId(sessionId);
     }
 }

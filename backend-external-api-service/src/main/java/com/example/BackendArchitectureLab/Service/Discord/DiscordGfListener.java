@@ -135,7 +135,10 @@ public class DiscordGfListener extends ListenerAdapter {
         session.setChannelId(channelId);
         session.setUserId(userId);
         session.setPrompt(prompt);
-        sessionDataAccess.save(session);
+        DiscordGfSession savedSession = sessionDataAccess.save(session);
+        if (savedSession.getId() != null) {
+            messageDataAccess.deleteBySessionId(savedSession.getId());
+        }
         event.reply("已設定你的女友提示詞").setEphemeral(true).queue();
     }
 
