@@ -7,9 +7,13 @@ import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
 import com.example.BackendArchitectureLab.Service.IExternalPlatformStatusService;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ExternalPlatformStatusVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,7 +21,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
@@ -32,11 +38,19 @@ public class ConfigController {
     private final IBotConfigService botConfigService;
     private final IExternalPlatformStatusService externalPlatformStatusService;
 
-    @GetMapping
+    @PostMapping("/search")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得所有 Bot 設定", description = "回傳所有 Bot 設定。")
-    public ResponseType<List<BotConfigVo>> getAll() {
-        return new ResponseType<>(botConfigService.findAll());
+    @ApiOperationBadRequest(summary = "分頁搜尋 Bot 設定", description = "依條件分頁搜尋 Bot 設定。")
+    public ResponseType<PageResult<BotConfigVo>> search(@RequestBody BotConfigSearchQuery query) {
+        return new ResponseType<>(botConfigService.searchBotConfigs(query));
+    }
+
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "分塊串流獲取 Bot 設定", description = "以 SSE 分塊串流方式獲取 Bot 設定清單。")
+    public Flux<ServerSentEvent<List<BotConfigVo>>> streamBotConfigs(
+            @RequestParam(defaultValue = "250") int chunkSize) {
+        return botConfigService.streamBotConfigsChunked(chunkSize);
     }
 
     @GetMapping("/status")

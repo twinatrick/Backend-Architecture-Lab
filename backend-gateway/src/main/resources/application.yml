@@ -97,7 +97,7 @@ spring:
         - id: external-api-stream
           uri: lb://external-api-service
           predicates:
-            - Path=/api/ai/stream/**
+            - Path=/api/ai/stream/**,/api/external/config/stream/**,/api/external/config/stream
           filters:
             - StripPrefix=1
           metadata:
