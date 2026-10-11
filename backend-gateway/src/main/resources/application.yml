@@ -34,7 +34,7 @@ spring:
         - id: iam-stream
           uri: lb://iam-service
           predicates:
-            - Path=/api/users/stream/**,/api/users/stream
+            - Path=/api/users/stream/**,/api/users/stream,/api/role/stream/**,/api/role/stream,/api/function/stream/**,/api/function/stream
           filters:
             - StripPrefix=1
           metadata:
@@ -97,7 +97,7 @@ spring:
         - id: external-api-stream
           uri: lb://external-api-service
           predicates:
-            - Path=/api/ai/stream/**
+            - Path=/api/ai/stream/**,/api/external/config/stream/**,/api/external/config/stream,/api/external/discord/sessions/stream/**,/api/external/discord/sessions/stream,/api/external/discord/subscriptions/stream/**,/api/external/discord/subscriptions/stream
           filters:
             - StripPrefix=1
           metadata:

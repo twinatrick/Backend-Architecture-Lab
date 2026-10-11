@@ -5,6 +5,7 @@ AI_REVIEW_DIR = Path(__file__).resolve().parents[1]
 if str(AI_REVIEW_DIR) not in sys.path:
     sys.path.insert(0, str(AI_REVIEW_DIR))
 
+import check_dual_rail
 import check_java
 
 
@@ -158,19 +159,24 @@ def test_missing_dual_rail_endpoints_allowed_when_search_and_stream_present():
     assert not any("雙軌實體獲取標準" in rule for rule in rules)
 
 
-def test_missing_dual_rail_endpoints_allowed_for_migration_list():
+def test_missing_dual_rail_endpoints_allowed_for_migration_list(monkeypatch):
+    monkeypatch.setattr(
+        check_dual_rail,
+        "PENDING_DUAL_RAIL_MIGRATION",
+        frozenset({"LegacyController"}),
+    )
     content = (
         "package com.example.BackendArchitectureLab.Controller;\n"
         "@RestController\n"
-        "public class RoleController {\n"
+        "public class LegacyController {\n"
         "    @GetMapping(\"/get\")\n"
-        "    public ResponseType<List<RoleVo>> getRoles() {\n"
+        "    public ResponseType<List<LegacyVo>> getLegacy() {\n"
         "        return null;\n"
         "    }\n"
         "}\n"
     )
     findings = check_java.check_java_file(
-        "backend-iam-service/src/main/java/com/example/RoleController.java",
+        "backend-external-api-service/src/main/java/com/example/LegacyController.java",
         content,
     )
     rules = [item["rule"] for item in findings]

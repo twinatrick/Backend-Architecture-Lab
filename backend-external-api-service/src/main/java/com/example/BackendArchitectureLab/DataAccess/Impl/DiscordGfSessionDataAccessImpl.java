@@ -1,9 +1,15 @@
 package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IDiscordGfSessionDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.specification.DiscordGfSessionSpecification;
 import com.example.BackendArchitectureLab.Entity.DiscordGfSession;
 import com.example.BackendArchitectureLab.Repository.DiscordGfSessionRepository;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,6 +71,23 @@ public class DiscordGfSessionDataAccessImpl implements IDiscordGfSessionDataAcce
     @Override
     public List<DiscordGfSession> findAll() {
         return discordGfSessionRepository.findAll();
+    }
+
+    @Override
+    public Page<DiscordGfSession> findAllPaged(Pageable pageable) {
+        return discordGfSessionRepository.findAll(pageable);
+    }
+
+    @Override
+    public Page<DiscordGfSession> searchSessions(DiscordGfSessionSearchQuery query) {
+        Sort sort = Sort.by(
+                "asc".equalsIgnoreCase(query.getNormalizedSortDir())
+                        ? Sort.Direction.ASC
+                        : Sort.Direction.DESC,
+                query.getSortBy()
+        );
+        PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
+        return discordGfSessionRepository.findAll(DiscordGfSessionSpecification.buildSpecification(query), pageRequest);
     }
 
     @Override

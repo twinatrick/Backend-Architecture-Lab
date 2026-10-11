@@ -5,19 +5,29 @@ import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FunctionQueryService implements IFunctionQueryService {
@@ -28,6 +38,7 @@ public class FunctionQueryService implements IFunctionQueryService {
 
     private final IFunctionDataAccess functionDataAccess;
     private final FunctionMapper functionMapper;
+    private final TransactionExecutor transactionExecutor;
 
     @Lazy
     private final IFunctionQueryService self;
@@ -102,6 +113,81 @@ public class FunctionQueryService implements IFunctionQueryService {
 
         // 返回分頁結果
         return PageResult.of(functionPage, functionVos);
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<FunctionVo>>> streamFunctionsChunked(int chunkSize) {
+        int safeChunkSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<FunctionVo>>> dataFlux = Flux.<ServerSentEvent<List<FunctionVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<FunctionVo> functionPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<Function> entityPage = functionDataAccess.findAllPaged(
+                                    PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
+                            );
+
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<FunctionVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
+
+                            List<FunctionVo> voList = entityPage.getContent().stream()
+                                    .map(functionMapper::toVo)
+                                    .toList();
+
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (functionPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<FunctionVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(functionPage.getContent())
+                                .build());
+
+                        if (!functionPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("功能 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        ).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<FunctionVo>> completeEvent = ServerSentEvent.<List<FunctionVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<FunctionVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+
+        Flux<ServerSentEvent<List<FunctionVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<FunctionVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷功能 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("功能 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<FunctionVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .build()
+                    );
+                });
     }
 
     private UUID mapUuid(String id) {

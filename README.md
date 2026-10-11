@@ -341,6 +341,9 @@ erDiagram
 erDiagram
     USER_VOICE_UPLOAD ||--o{ VOICE_TRANSLATION: "translated_to"
 
+    LINE_GF_SESSION ||--o{ LINE_GF_MESSAGE : "records"
+    DISCORD_GF_SESSION ||--o{ DISCORD_GF_MESSAGE : "records"
+
     BOT_CONFIG {
         uuid id PK
         string platform "平台類型 (LINE/Discord)"
@@ -364,7 +367,18 @@ erDiagram
         boolean active "啟用對話狀態"
         string prompt "專屬 System Prompt"
         boolean voice_enabled "是否啟用 TTS 語音回覆"
-        text conversation_history "歷史對話記憶 (JSON)"
+        string voice_sample_key "GPT-SoVITS 參考音訊 Key"
+        string voice_sample_text "參考音訊文字"
+        string gf_name "女友自訂稱號"
+        string language "回覆語言偏好"
+    }
+
+    LINE_GF_MESSAGE {
+        uuid id PK
+        uuid session_id FK "所屬會話 ID (CASCADE)"
+        string role "發話角色 (user/assistant)"
+        text content "對話訊息內容"
+        string sender_name "發送者名稱"
     }
 
     DISCORD_GF_SESSION {
@@ -374,6 +388,30 @@ erDiagram
         string user_id "使用者 ID"
         boolean active "啟用狀態"
         string prompt "客製 Prompt"
+        boolean voice_enabled "是否啟用 TTS 語音"
+        string voice_sample_key "參考音訊 Key"
+        string voice_sample_text "參考音訊文字"
+        string gf_name "女友稱呼"
+        string gf_avatar_url "女友頭像網址"
+        string language "語系代碼"
+    }
+
+    DISCORD_GF_MESSAGE {
+        uuid id PK
+        uuid session_id FK "所屬會話 ID (CASCADE)"
+        string role "發話角色 (user/assistant)"
+        text content "對話訊息內容"
+        string sender_name "發送者名稱"
+    }
+
+    DISCORD_SUBSCRIPTION {
+        uuid id PK
+        string guild_id "Discord 伺服器 ID"
+        string channel_id "推播頻道 ID"
+        string bot_type "機器人類型 (GF/DIARY)"
+        string webhook_url "Webhook 接收網址"
+        string webhook_id "Webhook 唯一識別碼"
+        string language "播報語系 (zh-TW/en/ja)"
     }
 
     USER_VOICE_UPLOAD {
@@ -425,7 +463,7 @@ erDiagram
 * **內部端點隔離保護 (`InnerEndpointBlockFilter`)**：
   所有微服務間 RPC 調用端點一律命名為 `/inner/`（如 `/users/inner/*`、`/role/inner/*`、`/ai/inner/*`）。Gateway 在 `@Order(-100)` 攔截外部所有匹配 `.*/inner(/.*)?` 的請求並直接回傳 **HTTP 404 Not Found**，確保內部介面絕不對外暴露。
 
-### 2. 完整 62 個 API 端點清單
+### 2. 完整 API 端點清單
 
 #### (1) backend-gateway (埠號: 8000)
 | HTTP 方法與子路徑 | 內部直接存取路徑 | Gateway 對外存取路徑 | 端點類型 | 說明 |
@@ -451,7 +489,7 @@ erDiagram
 | | `GET /by-email-exists` | `/users/inner/by-email-exists` | *Gateway 阻擋* | **Internal** | Feign 檢查 Email 存在性。 |
 | `RoleController` | `POST /add` | `/role/add` | `/api/role/add` | **Protected** | `Edit` 權限。 |
 | | `POST /addWithFunctions` | `/role/addWithFunctions` | `/api/role/addWithFunctions` | **Protected** | `Edit` 權限。 |
-| | `POST /get` | `/role/get` | `/api/role/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/role/stream` | `/api/role/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /update` | `/role/update` | `/api/role/update` | **Protected** | `Edit` 權限。 |
 | | `POST /updateWithFunctions` | `/role/updateWithFunctions` | `/api/role/updateWithFunctions` | **Protected** | `Edit` 權限。 |
 | | `POST /delete` | `/role/delete` | `/api/role/delete` | **Protected** | `Edit` 權限。 |
@@ -471,19 +509,15 @@ erDiagram
 | `FunctionController` | `POST /add` | `/function/add` | `/api/function/add` | **Protected** | `Edit` 權限。 |
 | | `POST /update` | `/function/update` | `/api/function/update` | **Protected** | `Edit` 權限。 |
 | | `POST /delete` | `/function/delete` | `/api/function/delete` | **Protected** | `Edit` 權限。 |
-| | `GET /get` | `/function/get` | `/api/function/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/function/stream` | `/api/function/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /saveAllFunction` | `/function/saveAllFunction` | `/api/function/saveAllFunction` | **Protected** | `Edit` 權限。 |
 | | `POST /search` | `/function/search` | `/api/function/search` | **Protected** | `View` 權限。 |
 | `PermissionInternalController` | `GET /all` | `/role/inner/all` | *Gateway 阻擋* | **Internal** | Feign 獲取全部角色。 |
 | | `GET /by-name/{name}` | `/role/inner/by-name/{name}` | *Gateway 阻擋* | **Internal** | Feign 依名稱查詢角色。 |
 | | `POST /user-bind-role` | `/role/inner/user-bind-role` | *Gateway 阻擋* | **Internal** | Feign 使用者角色綁定。 |
 | | `POST /validate` | `/role/inner/validate` | *Gateway 阻擋* | **Internal** | Feign 動態校驗三層權限。 |
-
-#### (3) backend-competency-service (埠號: 8004, 路由: `/api/skill/**`, `/api/project/**`, `/api/user/bindings/**`)
-| Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
-|---|---|---|---|:---:|---|
 | `SkillController` | `POST /add` | `/skill/add` | `/api/skill/add` | **Protected** | `Edit` 權限。 |
-| | `GET /get` | `/skill/get` | `/api/skill/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/skill/stream` | `/api/skill/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /update` | `/skill/update` | `/api/skill/update` | **Protected** | `Edit` 權限。 |
 | | `POST /delete` | `/skill/delete` | `/api/skill/delete` | **Protected** | `Edit` 權限。 |
 | | `POST /search` | `/skill/search` | `/api/skill/search` | **Protected** | `View` 權限。 |
@@ -526,7 +560,7 @@ erDiagram
 | Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
 |---|---|---|---|:---:|---|
 | `CompanyController` | `POST /add` | `/company/add` | `/api/company/add` | **Protected** | `Edit` 權限。 |
-| | `GET /get` | `/company/get` | `/api/company/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/company/stream` | `/api/company/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `GET /get/{id}` | `/company/get/{id}` | `/api/company/get/{id}` | **Protected** | `View` 權限。 |
 | | `PUT /update` | `/company/update` | `/api/company/update` | **Protected** | `Edit` 權限。 |
 | | `POST /search` | `/company/search` | `/api/company/search` | **Protected** | `View` 權限。 |
@@ -554,11 +588,22 @@ erDiagram
 | Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
 |---|---|---|---|:---:|---|
 | `DiaryController` | `GET ` | `/external/diary` | `/api/external/diary` | **Protected** | 查詢當前使用者語音日記。 |
-| `ConfigController` | `GET ` | `/external/config` | `/api/external/config` | **Protected** | `View` 權限（機器人全域設定）。 |
+| `ConfigController` | `POST /search` | `/external/config/search` | `/api/external/config/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
+| | `GET /stream` | `/external/config/stream` | `/api/external/config/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
+| | `GET /status` | `/external/config/status` | `/api/external/config/status` | **Protected** | `View` 權限（外部平台執行時狀態探針）。 |
 | | `GET /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `View` 權限。 |
 | | `POST ` | `/external/config` | `/api/external/config` | **Protected** | `Edit` 權限。 |
 | | `PUT /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `Edit` 權限。 |
 | | `DELETE /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `Edit` 權限。 |
+| `DiscordManagementController` | `POST /sessions/search` | `/external/discord/sessions/search` | `/api/external/discord/sessions/search` | **Protected** | `View` 權限（會話動態條件分頁搜尋）。 |
+| | `GET /sessions/stream` | `/external/discord/sessions/stream` | `/api/external/discord/sessions/stream` | **Protected** | `View` 權限（會話響應式分塊 SSE 串流）。 |
+| | `GET /sessions/{id}` | `/external/discord/sessions/{id}` | `/api/external/discord/sessions/{id}` | **Protected** | `View` 權限（單筆會話明細）。 |
+| | `GET /sessions/{id}/messages` | `/external/discord/sessions/{id}/messages` | `/api/external/discord/sessions/{id}/messages` | **Protected** | `View` 權限（按需調閱歷史訊息）。 |
+| | `PATCH /sessions/{id}/toggle` | `/external/discord/sessions/{id}/toggle` | `/api/external/discord/sessions/{id}/toggle` | **Protected** | `Edit` 權限（切換啟用狀態）。 |
+| | `DELETE /sessions/{id}` | `/external/discord/sessions/{id}` | `/api/external/discord/sessions/{id}` | **Protected** | `Edit` 權限（刪除會話與歷史訊息）。 |
+| | `POST /subscriptions/search` | `/external/discord/subscriptions/search` | `/api/external/discord/subscriptions/search` | **Protected** | `View` 權限（訂閱動態條件分頁搜尋）。 |
+| | `GET /subscriptions/stream` | `/external/discord/subscriptions/stream` | `/api/external/discord/subscriptions/stream` | **Protected** | `View` 權限（訂閱響應式分塊 SSE 串流）。 |
+| | `DELETE /subscriptions/{id}` | `/external/discord/subscriptions/{id}` | `/api/external/discord/subscriptions/{id}` | **Protected** | `Edit` 權限（刪除訂閱）。 |
 | `VoiceUploadController` | `POST ` | `/api/voice-uploads` | `/api/voice-uploads` | **Protected** | 上傳使用者語音檔案。 |
 | | `GET /{id}` | `/api/voice-uploads/{id}` | `/api/voice-uploads/{id}` | **Protected** | 取得特定語音上傳狀態與明細。 |
 | | `POST /current/search` | `/api/voice-uploads/current/search` | `/api/voice-uploads/current/search` | **Protected** | 搜尋當前使用者之語音上傳紀錄。 |
@@ -579,11 +624,12 @@ erDiagram
 | Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
 |---|---|---|---|:---:|---|
 | `AlertCheckLimitController` | `POST /add` | `/alertCheckLimit/add` | `/api/alertCheckLimit/add` | **Protected** | `Edit` 權限。 |
-| | `GET /get` | `/alertCheckLimit/get` | `/api/alertCheckLimit/get` | **Protected** | `View` 權限。 |
+| | `GET /stream` | `/alertCheckLimit/stream` | `/api/alertCheckLimit/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /update` | `/alertCheckLimit/update` | `/api/alertCheckLimit/update` | **Protected** | `Edit` 權限。 |
 | | `POST /delete` | `/alertCheckLimit/delete` | `/api/alertCheckLimit/delete` | **Protected** | `Edit` 權限。 |
 | | `POST /search` | `/alertCheckLimit/search` | `/api/alertCheckLimit/search` | **Protected** | `View` 權限。 |
-| `AquarkDataController` | `POST /getData` | `/aquarkData/getData` | `/api/aquarkData/getData` | **Protected** | `View` 權限（查詢感測器時序資料）。 |
+| `AquarkDataController` | `POST /search` | `/aquarkData/search` | `/api/aquarkData/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
+| | `GET /stream` | `/aquarkData/stream` | `/api/aquarkData/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `GET /getColumnNameList` | `/aquarkData/getColumnNameList` | `/api/aquarkData/getColumnNameList` | **Protected** | `View` 權限。 |
 | | `POST /getAverage` | `/aquarkData/getAverage` | `/api/aquarkData/getAverage` | **Public** | 計算數值平均值 (`@Ignore`)。 |
 | `CacheStatsController` | `GET ` | `/cache-stats` | `/api/cache-stats` | **Protected** | 查詢全微服務聚合之快取指標與命中率。 |

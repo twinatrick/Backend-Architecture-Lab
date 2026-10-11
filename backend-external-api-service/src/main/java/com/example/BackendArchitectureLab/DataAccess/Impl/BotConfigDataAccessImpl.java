@@ -1,9 +1,15 @@
 package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IBotConfigDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.specification.BotConfigSpecification;
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Repository.BotConfigRepository;
+import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -23,6 +29,23 @@ public class BotConfigDataAccessImpl implements IBotConfigDataAccess {
     @Override
     public List<BotConfig> findAll() {
         return botConfigRepository.findAll();
+    }
+
+    @Override
+    public Page<BotConfig> findAllPaged(Pageable pageable) {
+        return botConfigRepository.findAll(pageable);
+    }
+
+    @Override
+    public Page<BotConfig> searchBotConfigs(BotConfigSearchQuery query) {
+        Sort sort = Sort.by(
+                "asc".equalsIgnoreCase(query.getNormalizedSortDir())
+                        ? Sort.Direction.ASC
+                        : Sort.Direction.DESC,
+                query.getSortBy()
+        );
+        PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
+        return botConfigRepository.findAll(BotConfigSpecification.buildSpecification(query), pageRequest);
     }
 
     @Override

@@ -10,26 +10,36 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.DiscordGfMessageMapper;
 import com.example.BackendArchitectureLab.Mapper.DiscordSubscriptionMapper;
 import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.DiscordGfMessageVo;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
 import com.example.BackendArchitectureLab.Vo.DiscordSubscriptionVo;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.test.StepVerifier;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,74 +65,159 @@ class DiscordManagementServiceTest {
     @Mock
     private DiscordSubscriptionMapper discordSubscriptionMapper;
 
+    @Mock
+    private TransactionExecutor transactionExecutor;
+
     private DiscordManagementService service;
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         service = new DiscordManagementService(
                 discordGfSessionDataAccess,
                 discordGfMessageDataAccess,
                 discordSubscriptionDataAccess,
                 gfSessionMapper,
                 discordGfMessageMapper,
-                discordSubscriptionMapper
+                discordSubscriptionMapper,
+                transactionExecutor
         );
     }
 
     @Test
-    @DisplayName("getSessions: 帶有 guildId 與 active 參數應查詢 findByGuildIdAndActive")
-    void getSessions_WithGuildIdAndActive_ShouldFilterBoth() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findByGuildIdAndActive("g1", true)).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
+    @DisplayName("searchSessions: 正常搜尋分頁")
+    void searchSessions_Success() {
+        DiscordGfSessionSearchQuery query = new DiscordGfSessionSearchQuery();
+        query.setPage(0);
+        query.setSize(10);
+        query.setSortBy("createdTime");
+        query.setSortDir("desc");
 
-        List<DiscordGfSessionVo> result = service.getSessions("g1", true);
+        DiscordGfSession entity = new DiscordGfSession();
+        DiscordGfSessionVo vo = new DiscordGfSessionVo();
+        Page<DiscordGfSession> page = new PageImpl<>(List.of(entity), PageRequest.of(0, 10), 1);
 
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findByGuildIdAndActive("g1", true);
+        when(discordGfSessionDataAccess.searchSessions(query)).thenReturn(page);
+        when(gfSessionMapper.toDiscordVoList(List.of(entity))).thenReturn(List.of(vo));
+
+        PageResult<DiscordGfSessionVo> result = service.searchSessions(query);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals(1L, result.getTotalElements());
+        verify(discordGfSessionDataAccess).searchSessions(query);
     }
 
     @Test
-    @DisplayName("getSessions: 僅有 guildId 參數應查詢 findByGuildId")
-    void getSessions_WithGuildIdOnly_ShouldFilterByGuildId() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findByGuildId("g1")).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
+    @DisplayName("searchSessions: 非法排序欄位應拋出 400")
+    void searchSessions_InvalidSortBy_ShouldThrowException() {
+        DiscordGfSessionSearchQuery query = new DiscordGfSessionSearchQuery();
+        query.setSortBy("invalidField");
 
-        List<DiscordGfSessionVo> result = service.getSessions("g1", null);
-
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findByGuildId("g1");
+        AppException ex = assertThrows(AppException.class, () -> service.searchSessions(query));
+        assertEquals(400, ex.getHttpStatus());
     }
 
     @Test
-    @DisplayName("getSessions: 僅有 active 參數應查詢 findByActive")
-    void getSessions_WithActiveOnly_ShouldFilterByActive() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findByActive(false)).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
+    @DisplayName("streamSessionsChunked: 成功串流分塊資料")
+    void streamSessionsChunked_Success() {
+        DiscordGfSession entity = new DiscordGfSession();
+        DiscordGfSessionVo vo = new DiscordGfSessionVo();
+        Page<DiscordGfSession> page = new PageImpl<>(List.of(entity), PageRequest.of(0, 250), 1);
 
-        List<DiscordGfSessionVo> result = service.getSessions(null, false);
+        when(discordGfSessionDataAccess.findAllPaged(any())).thenReturn(page);
+        when(gfSessionMapper.toVo(entity)).thenReturn(vo);
 
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findByActive(false);
+        StepVerifier.create(service.streamSessionsChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("chunk", sse.event());
+                    assertEquals("0", sse.id());
+                    assertNotNull(sse.data());
+                    assertEquals(1, sse.data().size());
+                })
+                .assertNext(sse -> assertEquals("complete", sse.event()))
+                .verifyComplete();
     }
 
     @Test
-    @DisplayName("getSessions: 無參數應查詢 findAll")
-    void getSessions_WithNoFilter_ShouldFindAll() {
-        List<DiscordGfSession> sessions = List.of(new DiscordGfSession());
-        List<DiscordGfSessionVo> vos = List.of(new DiscordGfSessionVo());
-        when(discordGfSessionDataAccess.findAll()).thenReturn(sessions);
-        when(gfSessionMapper.toDiscordVoList(sessions)).thenReturn(vos);
+    @DisplayName("streamSessionsChunked: 空資料應直接發送 complete")
+    void streamSessionsChunked_Empty() {
+        Page<DiscordGfSession> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 250), 0);
+        when(discordGfSessionDataAccess.findAllPaged(any())).thenReturn(emptyPage);
 
-        List<DiscordGfSessionVo> result = service.getSessions(null, null);
+        StepVerifier.create(service.streamSessionsChunked(250))
+                .assertNext(sse -> assertEquals("complete", sse.event()))
+                .verifyComplete();
+    }
 
-        assertEquals(1, result.size());
-        verify(discordGfSessionDataAccess).findAll();
+    @Test
+    @DisplayName("searchSubscriptions: 正常搜尋分頁")
+    void searchSubscriptions_Success() {
+        DiscordSubscriptionSearchQuery query = new DiscordSubscriptionSearchQuery();
+        query.setPage(0);
+        query.setSize(10);
+        query.setSortBy("createdTime");
+        query.setSortDir("desc");
+
+        DiscordSubscription entity = new DiscordSubscription();
+        DiscordSubscriptionVo vo = new DiscordSubscriptionVo();
+        Page<DiscordSubscription> page = new PageImpl<>(List.of(entity), PageRequest.of(0, 10), 1);
+
+        when(discordSubscriptionDataAccess.searchSubscriptions(query)).thenReturn(page);
+        when(discordSubscriptionMapper.toVoList(List.of(entity))).thenReturn(List.of(vo));
+
+        PageResult<DiscordSubscriptionVo> result = service.searchSubscriptions(query);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals(1L, result.getTotalElements());
+        verify(discordSubscriptionDataAccess).searchSubscriptions(query);
+    }
+
+    @Test
+    @DisplayName("searchSubscriptions: 非法排序欄位應拋出 400")
+    void searchSubscriptions_InvalidSortBy_ShouldThrowException() {
+        DiscordSubscriptionSearchQuery query = new DiscordSubscriptionSearchQuery();
+        query.setSortBy("invalidField");
+
+        AppException ex = assertThrows(AppException.class, () -> service.searchSubscriptions(query));
+        assertEquals(400, ex.getHttpStatus());
+    }
+
+    @Test
+    @DisplayName("streamSubscriptionsChunked: 成功串流分塊資料")
+    void streamSubscriptionsChunked_Success() {
+        DiscordSubscription entity = new DiscordSubscription();
+        DiscordSubscriptionVo vo = new DiscordSubscriptionVo();
+        Page<DiscordSubscription> page = new PageImpl<>(List.of(entity), PageRequest.of(0, 250), 1);
+
+        when(discordSubscriptionDataAccess.findAllPaged(any())).thenReturn(page);
+        when(discordSubscriptionMapper.toVo(entity)).thenReturn(vo);
+
+        StepVerifier.create(service.streamSubscriptionsChunked(250))
+                .assertNext(sse -> {
+                    assertEquals("chunk", sse.event());
+                    assertEquals("0", sse.id());
+                    assertNotNull(sse.data());
+                    assertEquals(1, sse.data().size());
+                })
+                .assertNext(sse -> assertEquals("complete", sse.event()))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("streamSubscriptionsChunked: 空資料應直接發送 complete")
+    void streamSubscriptionsChunked_Empty() {
+        Page<DiscordSubscription> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 250), 0);
+        when(discordSubscriptionDataAccess.findAllPaged(any())).thenReturn(emptyPage);
+
+        StepVerifier.create(service.streamSubscriptionsChunked(250))
+                .assertNext(sse -> assertEquals("complete", sse.event()))
+                .verifyComplete();
     }
 
     @Test
@@ -226,34 +321,6 @@ class DiscordManagementServiceTest {
 
         AppException ex = assertThrows(AppException.class, () -> service.deleteSession(id));
         assertEquals(404, ex.getHttpStatus());
-    }
-
-    @Test
-    @DisplayName("getSubscriptions: 帶有 guildId 應篩選")
-    void getSubscriptions_WithGuildId() {
-        List<DiscordSubscription> list = List.of(new DiscordSubscription());
-        List<DiscordSubscriptionVo> vos = List.of(new DiscordSubscriptionVo());
-        when(discordSubscriptionDataAccess.findByGuildId("g1")).thenReturn(list);
-        when(discordSubscriptionMapper.toVoList(list)).thenReturn(vos);
-
-        List<DiscordSubscriptionVo> result = service.getSubscriptions("g1");
-
-        assertEquals(1, result.size());
-        verify(discordSubscriptionDataAccess).findByGuildId("g1");
-    }
-
-    @Test
-    @DisplayName("getSubscriptions: 無 guildId 應查詢全部")
-    void getSubscriptions_All() {
-        List<DiscordSubscription> list = List.of(new DiscordSubscription());
-        List<DiscordSubscriptionVo> vos = List.of(new DiscordSubscriptionVo());
-        when(discordSubscriptionDataAccess.findAll()).thenReturn(list);
-        when(discordSubscriptionMapper.toVoList(list)).thenReturn(vos);
-
-        List<DiscordSubscriptionVo> result = service.getSubscriptions(null);
-
-        assertEquals(1, result.size());
-        verify(discordSubscriptionDataAccess).findAll();
     }
 
     @Test

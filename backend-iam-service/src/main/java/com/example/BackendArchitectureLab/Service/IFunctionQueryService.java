@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -35,4 +37,12 @@ public interface IFunctionQueryService {
      * @return 分頁結果
      */
     PageResult<FunctionVo> searchFunctions(FunctionSearchQuery query);
+
+    /**
+     * 串流分塊取得功能列表
+     *
+     * @param chunkSize 批次大小
+     * @return Server-Sent Events 串流
+     */
+    Flux<ServerSentEvent<List<FunctionVo>>> streamFunctionsChunked(int chunkSize);
 }

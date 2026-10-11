@@ -49,11 +49,13 @@
    - 於 CI AI Review Prompt 增強未實作與假實作語意審查，由 LLM 深度檢驗業務邏輯是否完整閉環。
 4. **雙軌遷移燃盡機制 (Dual-Rail Migration Burn-down)**：
    - 於 `check_rules.py` 維護 `PENDING_DUAL_RAIL_MIGRATION` 燃盡名單。
-   - 新增實體之 Controller 必須 100% 遵守雙軌規範，既有遺留控制器（AlertCheckLimit, Company, Skill, SkillLevel, Role, Function, BotConfig 等）隨後續專屬 PR 逐步重構並移出名單，直至完全歸零。
+   - 新增實體之 Controller 必須 100% 遵守雙軌規範。既有遺留控制器已依循 PR 4 ~ PR 10 依序重構完畢，`PENDING_DUAL_RAIL_MIGRATION` 已正式歸零（`frozenset()`），全專案 13 個全域聚合根實體 Controller 達到 100% 雙軌實體獲取合規。
+5. **非聚合根控制器白名單邊界 (Non-Aggregate Controller Boundary)**：
+   - 明確劃分全域實體與局部資源邊界：依據領域驅動設計（DDD）原則，非全域聚合根資源、父層附屬子資源及特定使用者個人端點（如 `SkillLevelController`、`DiaryController`、`UsageController`、`VoiceDiaryController`、`UsageLogController`）列入 `NON_AGGREGATE_CONTROLLERS` 白名單，豁免全域雙軌檢索要求，維持其專用之業務關聯端點。
 
 ## Consequences
 
 - **全域記憶體與閘道穩定性保障**：徹底杜絕因客戶端無心或惡意全量撈取造成的 OOM 與連線逾時崩潰。
 - **一致的前後端互動契約**：所有業務模組之清單畫面統一對接 `/search`，資料匯出與同步統一對接 `/stream`。
 - **自動化品質與代碼真實性防護**：本地 pre-commit 與 CI AI Review 聯防阻擋未實作存根與殘留 TODO，杜絕假實作與架構規範退化。
-- **重構任務清晰切分**：透過燃盡名單機制，使後續 PR 4 ~ PR 7 得以依微服務獨立推進，降低改動爆炸半徑。
+- **雙軌遷移 100% 燃盡完工**：全專案燃盡名單歸零，全域聚合根實體全數達成雙軌獲取標準，架構債徹底清除。
