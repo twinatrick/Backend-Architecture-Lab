@@ -18,6 +18,7 @@ import com.example.BackendArchitectureLab.Entity.RoleFunction;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
@@ -26,9 +27,16 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.HashMap;
@@ -40,6 +48,7 @@ import java.util.stream.Collectors;
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RoleService implements IRoleService {
@@ -586,6 +595,81 @@ public class RoleService implements IRoleService {
             // 返回分頁結果
             return PageResult.of(rolePage, roleVos);
         });
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<RoleOutVo>>> streamRolesChunked(int chunkSize) {
+        int safeChunkSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<RoleOutVo>>> dataFlux = Flux.<ServerSentEvent<List<RoleOutVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<RoleOutVo> rolePage = transactionExecutor.executeReadOnly(() -> {
+                            Page<Role> entityPage = roleDataAccess.findAllPaged(
+                                    PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
+                            );
+
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<RoleOutVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
+
+                            List<RoleOutVo> voList = entityPage.getContent().stream()
+                                    .map(roleMapper::toVo)
+                                    .toList();
+
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (rolePage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<RoleOutVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(rolePage.getContent())
+                                .build());
+
+                        if (!rolePage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("角色 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        ).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<RoleOutVo>> completeEvent = ServerSentEvent.<List<RoleOutVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<RoleOutVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+
+        Flux<ServerSentEvent<List<RoleOutVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<RoleOutVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷角色 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("角色 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<RoleOutVo>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .build()
+                    );
+                });
     }
 
     private UUID mapUuid(String id) {

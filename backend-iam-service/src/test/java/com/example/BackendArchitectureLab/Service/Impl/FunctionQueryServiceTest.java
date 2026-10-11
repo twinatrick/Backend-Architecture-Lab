@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
@@ -18,10 +19,14 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +45,9 @@ class FunctionQueryServiceTest {
     @Mock
     private FunctionMapper functionMapper;
 
+    @Mock
+    private TransactionExecutor transactionExecutor;
+
     @InjectMocks
     private FunctionQueryService functionQueryService;
 
@@ -48,6 +56,11 @@ class FunctionQueryServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+
         testId = UUID.randomUUID();
 
         testFunction = new Function();
@@ -220,5 +233,55 @@ class FunctionQueryServiceTest {
 
         // Act & Assert
         assertThrows(AppException.class, () -> functionQueryService.searchFunctions(query));
+    }
+
+    @Test
+    void testStreamFunctionsChunked_Success() {
+        // Arrange
+        FunctionVo funcVo = new FunctionVo();
+        funcVo.setId(testId.toString());
+        funcVo.setName("Test Function");
+
+        Page<Function> page0 = new PageImpl<>(List.of(testFunction), PageRequest.of(0, 10), 1);
+        when(functionDataAccess.findAllPaged(any())).thenReturn(page0);
+        when(functionMapper.toVo(testFunction)).thenReturn(funcVo);
+
+        // Act
+        Flux<ServerSentEvent<List<FunctionVo>>> stream = functionQueryService.streamFunctionsChunked(10);
+
+        // Assert
+        StepVerifier.create(stream.take(2))
+                .expectNextMatches(sse -> "chunk".equals(sse.event()) && sse.data() != null && sse.data().size() == 1)
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
+    }
+
+    @Test
+    void testStreamFunctionsChunked_Empty() {
+        // Arrange
+        Page<Function> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
+        when(functionDataAccess.findAllPaged(any())).thenReturn(emptyPage);
+
+        // Act
+        Flux<ServerSentEvent<List<FunctionVo>>> stream = functionQueryService.streamFunctionsChunked(10);
+
+        // Assert
+        StepVerifier.create(stream.take(1))
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
+    }
+
+    @Test
+    void testStreamFunctionsChunked_Error() {
+        // Arrange
+        when(functionDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("DB error"));
+
+        // Act
+        Flux<ServerSentEvent<List<FunctionVo>>> stream = functionQueryService.streamFunctionsChunked(10);
+
+        // Assert
+        StepVerifier.create(stream)
+                .expectNextMatches(sse -> "error".equals(sse.event()) && sse.data() == null)
+                .verifyComplete();
     }
 }

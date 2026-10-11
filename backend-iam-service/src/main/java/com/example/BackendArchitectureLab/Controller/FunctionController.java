@@ -14,7 +14,10 @@ import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -51,11 +54,20 @@ public class FunctionController {
         return ResponseType.Success("功能刪除成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得功能列表", description = "回傳所有功能。")
-    public ResponseType<List<FunctionVo>> getFunction() {
-        return ResponseType.Success(functionQueryService.getFunction(), "功能查詢成功");
+    @ApiOperationOk(summary = "串流分塊取得功能列表", description = "透過 SSE 串流分塊取得功能列表，每批次預設 250 筆")
+    public Flux<ServerSentEvent<List<FunctionVo>>> streamFunctions(
+            @RequestParam(name = "chunkSize", defaultValue = "250") int chunkSize) {
+        return functionQueryService.streamFunctionsChunked(chunkSize);
+    }
+
+    @PostMapping("/search")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "分頁搜尋功能", description = "搜尋功能並回傳分頁結果，支援多種查詢條件與排序")
+    public ResponseType<PageResult<FunctionVo>> searchFunctions(@Valid @RequestBody FunctionSearchQuery query) {
+        PageResult<FunctionVo> result = functionQueryService.searchFunctions(query);
+        return ResponseType.Success(result, "功能查詢成功");
     }
 
     @PostMapping("/saveAllFunction")
@@ -66,13 +78,5 @@ public class FunctionController {
         functionCommandService.saveFunction(function.getSaveMainFunction());
         functionHierarchyService.saveFunctionNewChild(function.getSaveFunctionNewChild());
         return ResponseType.Success("功能保存成功");
-    }
-    
-    @PostMapping("/search")
-    @RequirePermission("View")
-    @ApiOperationOk(summary = "分頁搜尋功能", description = "搜尋功能並回傳分頁結果，支援多種查詢條件與排序")
-    public ResponseType<PageResult<FunctionVo>> searchFunctions(@Valid @RequestBody FunctionSearchQuery query) {
-        PageResult<FunctionVo> result = functionQueryService.searchFunctions(query);
-        return ResponseType.Success(result, "功能查詢成功");
     }
 }
