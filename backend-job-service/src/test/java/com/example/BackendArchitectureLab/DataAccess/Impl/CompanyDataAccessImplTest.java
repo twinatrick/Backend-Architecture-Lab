@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -106,5 +109,21 @@ class CompanyDataAccessImplTest {
         companyDataAccess.deleteById(saved.getId());
 
         assertEquals(0, companyRepository.findAll().size());
+    }
+
+    @Test
+    @DisplayName("Should find all companies with pagination")
+    void testFindAllPaged() {
+        Company company1 = new Company();
+        company1.setName("Paged A");
+        Company company2 = new Company();
+        company2.setName("Paged B");
+        companyRepository.save(company1);
+        companyRepository.save(company2);
+
+        Page<Company> page = companyDataAccess.findAllPaged(PageRequest.of(0, 10, Sort.by("id").ascending()));
+
+        assertEquals(2, page.getTotalElements());
+        assertEquals(2, page.getContent().size());
     }
 }
