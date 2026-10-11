@@ -16,10 +16,15 @@ import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -47,11 +52,12 @@ public class RoleController {
         return ResponseType.Success(roleService.addRoleWithFunctions(role), "角色新增成功");
     }
 
-    @PostMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得角色列表", description = "回傳所有角色。")
-    public ResponseType<List<RoleOutVo>> getRole() {
-        return ResponseType.Success(roleService.getRole(), "角色查詢成功");
+    @ApiOperationOk(summary = "串流分塊取得角色列表", description = "透過 SSE 串流分塊取得角色列表，每批次預設 250 筆")
+    public Flux<ServerSentEvent<List<RoleOutVo>>> streamRoles(
+            @RequestParam(name = "chunkSize", defaultValue = "250") int chunkSize) {
+        return roleService.streamRolesChunked(chunkSize);
     }
 
     @PostMapping("/update")
