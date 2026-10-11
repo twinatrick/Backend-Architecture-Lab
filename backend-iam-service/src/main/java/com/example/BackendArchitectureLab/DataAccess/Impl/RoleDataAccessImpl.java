@@ -93,4 +93,9 @@ public class RoleDataAccessImpl implements IRoleDataAccess {
         // 執行查詢
         return roleRepository.findAll(RoleSpecification.buildSpecification(query), pageable);
     }
+
+    @Override
+    public Page<Role> findAllPaged(Pageable pageable) {
+        return roleRepository.findAll(pageable);
+    }
 }

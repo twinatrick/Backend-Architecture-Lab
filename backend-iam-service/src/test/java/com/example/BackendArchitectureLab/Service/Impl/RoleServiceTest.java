@@ -24,8 +24,11 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.test.util.ReflectionTestUtils;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import java.util.*;
@@ -761,5 +764,58 @@ class RoleServiceTest {
 
         // Act & Assert
         assertThrows(AppException.class, () -> roleService.searchRoles(query));
+    }
+
+    @Test
+    @DisplayName("Should stream roles chunked with events chunk and complete")
+    void testStreamRolesChunked_Success() {
+        // Arrange
+        RoleOutVo roleOutVo = new RoleOutVo();
+        roleOutVo.setId(testRoleKey);
+        roleOutVo.setName("ROLE_ADMIN");
+
+        Page<Role> page0 = new PageImpl<>(List.of(testRole), PageRequest.of(0, 10), 1);
+        when(roleDataAccess.findAllPaged(any())).thenReturn(page0);
+        when(roleMapper.toVo(testRole)).thenReturn(roleOutVo);
+
+        // Act
+        Flux<ServerSentEvent<List<RoleOutVo>>> stream = roleService.streamRolesChunked(10);
+
+        // Assert
+        StepVerifier.create(stream.take(2))
+                .expectNextMatches(sse -> "chunk".equals(sse.event()) && sse.data() != null && sse.data().size() == 1)
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Should stream roles chunked with empty result")
+    void testStreamRolesChunked_Empty() {
+        // Arrange
+        Page<Role> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
+        when(roleDataAccess.findAllPaged(any())).thenReturn(emptyPage);
+
+        // Act
+        Flux<ServerSentEvent<List<RoleOutVo>>> stream = roleService.streamRolesChunked(10);
+
+        // Assert
+        StepVerifier.create(stream.take(1))
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Should emit error event when database error occurs")
+    void testStreamRolesChunked_Error() {
+        // Arrange
+        when(roleDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("DB error"));
+
+        // Act
+        Flux<ServerSentEvent<List<RoleOutVo>>> stream = roleService.streamRolesChunked(10);
+
+        // Assert
+        StepVerifier.create(stream)
+                .expectNextMatches(sse -> "error".equals(sse.event()) && sse.data() == null)
+                .verifyComplete();
     }
 }

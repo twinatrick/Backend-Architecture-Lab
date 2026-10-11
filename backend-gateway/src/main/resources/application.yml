@@ -34,7 +34,7 @@ spring:
         - id: iam-stream
           uri: lb://iam-service
           predicates:
-            - Path=/api/users/stream/**,/api/users/stream
+            - Path=/api/users/stream/**,/api/users/stream,/api/role/stream/**,/api/role/stream,/api/function/stream/**,/api/function/stream
           filters:
             - StripPrefix=1
           metadata:

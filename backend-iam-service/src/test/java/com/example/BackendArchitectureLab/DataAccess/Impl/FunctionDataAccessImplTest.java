@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Example;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -393,6 +395,27 @@ class FunctionDataAccessImplTest {
 
         // Assert
         assertFalse(result.isPresent());
+    }
+
+    @Test
+    @DisplayName("Should find all functions paged")
+    void testFindAllPaged() {
+        // Arrange
+        Function func1 = new Function();
+        func1.setName("Func1");
+        functionRepository.save(func1);
+
+        Function func2 = new Function();
+        func2.setName("Func2");
+        functionRepository.save(func2);
+
+        // Act
+        Page<Function> page = functionDataAccess.findAllPaged(PageRequest.of(0, 10));
+
+        // Assert
+        assertNotNull(page);
+        assertEquals(2, page.getTotalElements());
+        assertEquals(2, page.getContent().size());
     }
 }
 
