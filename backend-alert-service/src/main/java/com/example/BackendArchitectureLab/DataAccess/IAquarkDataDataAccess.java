@@ -22,6 +22,14 @@ public interface IAquarkDataDataAccess {
     List<AquarkData> findAll();
 
     /**
+     * Find aquark data records with pagination.
+     *
+     * @param pageable pagination and sorting parameters
+     * @return page of matching entities
+     */
+    Page<AquarkData> findAllPaged(Pageable pageable);
+
+    /**
      * Find aquark data by station id and transmission time.
      *
      * @param stationId station id

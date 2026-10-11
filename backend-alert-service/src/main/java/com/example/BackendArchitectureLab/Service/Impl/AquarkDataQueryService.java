@@ -12,20 +12,27 @@ import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AquarkDataQueryService implements IAquarkDataQueryService {
@@ -42,6 +49,81 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
     @Override
     public List<AquarkDataRaw> getAquarkData() {
         return aquarkDataDataAccess.findAll().stream().map(aquarkDataMapper::toVo).toList();
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<AquarkDataRaw>>> streamAquarkDataChunked(int chunkSize) {
+        final int effectiveChunkSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<AquarkDataRaw>>> dataFlux = Flux.<ServerSentEvent<List<AquarkDataRaw>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<AquarkDataRaw> aquarkPage = transactionExecutor.executeReadOnly(() -> {
+                            Page<AquarkData> entityPage = aquarkDataDataAccess.findAllPaged(
+                                    PageRequest.of(page, effectiveChunkSize, Sort.by("id").ascending())
+                            );
+
+                            if (entityPage.isEmpty()) {
+                                return new PageImpl<>(List.<AquarkDataRaw>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                            }
+
+                            List<AquarkDataRaw> voList = entityPage.getContent().stream()
+                                    .map(aquarkDataMapper::toVo)
+                                    .toList();
+
+                            return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
+                        });
+
+                        if (aquarkPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<AquarkDataRaw>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(aquarkPage.getContent())
+                                .build());
+
+                        if (!aquarkPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("Aquark 水情資料 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        ).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<AquarkDataRaw>> completeEvent = ServerSentEvent.<List<AquarkDataRaw>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<AquarkDataRaw>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+
+        Flux<ServerSentEvent<List<AquarkDataRaw>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<AquarkDataRaw>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷 Aquark 水情資料 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("Aquark 水情資料 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(
+                            ServerSentEvent.<List<AquarkDataRaw>>builder()
+                                    .event("error")
+                                    .comment("串流處理發生異常，請聯繫管理員")
+                                    .build()
+                    );
+                });
     }
 
     @Override

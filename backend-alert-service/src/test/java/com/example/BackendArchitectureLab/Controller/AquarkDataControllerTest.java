@@ -4,7 +4,6 @@ import com.example.BackendArchitectureLab.Service.IAquarkDataCommandService;
 import com.example.BackendArchitectureLab.Service.IAquarkDataQueryService;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.TimeRange;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
@@ -12,12 +11,13 @@ import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -67,64 +67,21 @@ class AquarkDataControllerTest {
     }
 
     @Test
-    @DisplayName("getData 應將請求委派至 searchAquarkData 且強制分頁前 20 筆")
-    void testGetDataWithFilters() {
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
-        filter.setColumnName("station_id");
-        filter.setString("STATION_1");
-        List<CriteriaAPIFilter> filters = List.of(filter);
-
-        AquarkDataRaw raw = new AquarkDataRaw();
-        raw.setStation_id("STATION_1");
-        PageResult<AquarkDataRaw> pageResult = PageResult.<AquarkDataRaw>builder()
-                .content(List.of(raw))
-                .totalElements(1L)
-                .totalPages(1)
-                .currentPage(0)
-                .pageSize(20)
+    @DisplayName("streamAquarkData 應呼叫 Service 並回傳 SSE 串流")
+    void testStreamAquarkData() {
+        ServerSentEvent<List<AquarkDataRaw>> chunk = ServerSentEvent.<List<AquarkDataRaw>>builder()
+                .event("chunk")
+                .data(List.of(new AquarkDataRaw()))
                 .build();
+        when(aquarkDataQueryService.streamAquarkDataChunked(250)).thenReturn(Flux.just(chunk));
 
-        when(aquarkDataQueryService.searchAquarkData(any(AquarkDataSearchQuery.class))).thenReturn(pageResult);
+        Flux<ServerSentEvent<List<AquarkDataRaw>>> response = controller.streamAquarkData(250);
 
-        ResponseType<List<AquarkDataRaw>> response = controller.getData(filters);
+        StepVerifier.create(response)
+                .expectNext(chunk)
+                .verifyComplete();
 
-        assertNotNull(response);
-        assertEquals(200, response.getCode());
-        assertEquals(1, response.getData().size());
-        assertEquals("STATION_1", response.getData().getFirst().getStation_id());
-
-        ArgumentCaptor<AquarkDataSearchQuery> captor = ArgumentCaptor.forClass(AquarkDataSearchQuery.class);
-        verify(aquarkDataQueryService).searchAquarkData(captor.capture());
-        AquarkDataSearchQuery capturedQuery = captor.getValue();
-        assertEquals(0, capturedQuery.getPage());
-        assertEquals(20, capturedQuery.getSize());
-        assertEquals(filters, capturedQuery.getFilters());
-    }
-
-    @Test
-    @DisplayName("getData 傳入空條件時應安全委派且不引發全表查詢")
-    void testGetDataEmptyFilters() {
-        PageResult<AquarkDataRaw> pageResult = PageResult.<AquarkDataRaw>builder()
-                .content(Collections.emptyList())
-                .totalElements(0L)
-                .totalPages(0)
-                .currentPage(0)
-                .pageSize(20)
-                .build();
-        when(aquarkDataQueryService.searchAquarkData(any(AquarkDataSearchQuery.class))).thenReturn(pageResult);
-
-        ResponseType<List<AquarkDataRaw>> response = controller.getData(null);
-
-        assertNotNull(response);
-        assertEquals(200, response.getCode());
-        assertEquals(0, response.getData().size());
-
-        ArgumentCaptor<AquarkDataSearchQuery> captor = ArgumentCaptor.forClass(AquarkDataSearchQuery.class);
-        verify(aquarkDataQueryService).searchAquarkData(captor.capture());
-        AquarkDataSearchQuery capturedQuery = captor.getValue();
-        assertEquals(0, capturedQuery.getPage());
-        assertEquals(20, capturedQuery.getSize());
-        assertEquals(Collections.emptyList(), capturedQuery.getFilters());
+        verify(aquarkDataQueryService).streamAquarkDataChunked(250);
     }
 
     @Test

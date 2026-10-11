@@ -120,6 +120,16 @@ spring:
           predicates:
             - Path=/ws/**
 
+        - id: alert-stream
+          uri: lb://alert-service
+          predicates:
+            - Path=/api/aquarkData/stream/**,/api/aquarkData/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: 60000
+            connect-timeout: 10000
+
         - id: alert-service
           uri: lb://alert-service
           predicates:

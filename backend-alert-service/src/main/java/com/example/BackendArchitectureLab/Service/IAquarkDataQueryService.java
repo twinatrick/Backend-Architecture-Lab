@@ -5,6 +5,8 @@ import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.Date;
 import java.util.List;
@@ -16,6 +18,14 @@ public interface IAquarkDataQueryService {
      * @return 全部資料的 Vo 清單
      */
     List<AquarkDataRaw> getAquarkData();
+
+    /**
+     * 串流取得 Aquark 水情資料（分塊 SSE）。
+     *
+     * @param chunkSize 每個區塊的筆數大小 (10~1000)
+     * @return ServerSentEvent 串流
+     */
+    Flux<ServerSentEvent<List<AquarkDataRaw>>> streamAquarkDataChunked(int chunkSize);
 
     /**
      * 取得 Aquark 資料可用的欄位名稱清單。
