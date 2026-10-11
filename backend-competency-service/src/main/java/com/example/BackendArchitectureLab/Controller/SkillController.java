@@ -11,7 +11,10 @@ import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -29,11 +32,20 @@ public class SkillController {
         return ResponseType.Success(skillService.addSkill(skill), "技能新增成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得技能列表", description = "回傳所有技能。")
-    public ResponseType<List<SkillVo>> getSkill() {
-        return ResponseType.Success(skillService.getSkill(), "技能查詢成功");
+    @ApiOperationOk(summary = "技能分塊串流", description = "以 SSE 響應式分塊串流取得技能列表，避免萬筆級全表查詢與記憶體過載")
+    public Flux<ServerSentEvent<List<SkillVo>>> streamSkills(
+            @RequestParam(defaultValue = "250") int chunkSize
+    ) {
+        return skillService.streamSkillsChunked(chunkSize);
+    }
+
+    @PostMapping("/search")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "搜尋技能（分頁）", description = "支援 name、description、createdBy 查詢條件，預設按 createdTime 降序排序")
+    public ResponseType<PageResult<SkillVo>> searchSkills(@RequestBody SkillSearchQuery query) {
+        return ResponseType.Success(skillService.searchSkills(query), "技能查詢成功");
     }
 
     @PostMapping("/update")
@@ -50,13 +62,6 @@ public class SkillController {
     public ResponseType<String> deleteSkill(@RequestBody SkillVo skill) {
         skillService.deleteSkill(skill);
         return ResponseType.Success("技能刪除成功");
-    }
-
-    @PostMapping("/search")
-    @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "搜尋技能（分頁）", description = "支援 name、description、createdBy 查詢條件，預設按 createdTime 降序排序")
-    public ResponseType<PageResult<SkillVo>> searchSkills(@RequestBody SkillSearchQuery query) {
-        return ResponseType.Success(skillService.searchSkills(query), "技能查詢成功");
     }
 
     @GetMapping("/current")

@@ -8,6 +8,8 @@ import com.example.BackendArchitectureLab.Vo.Search.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
 import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,14 @@ public interface ISkillService {
      * @return 分頁結果
      */
     PageResult<SkillVo> searchSkills(SkillSearchQuery query);
+
+    /**
+     * 以 SSE 響應式分塊串流取得技能列表
+     *
+     * @param chunkSize 每個區塊的大小
+     * @return 響應式事件流
+     */
+    Flux<ServerSentEvent<List<SkillVo>>> streamSkillsChunked(int chunkSize);
     
     /**
      * 取得當前使用者技能（合併 USER 直接綁定 + PROJECT 專案技能）

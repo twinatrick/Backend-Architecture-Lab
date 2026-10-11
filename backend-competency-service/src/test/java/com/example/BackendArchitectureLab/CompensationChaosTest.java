@@ -138,7 +138,7 @@ class CompensationChaosTest {
         event.setAttemptCount(1);
         event.setFencingVersion(1L);
         event.setOwnerId("worker-a-stale");
-        event.setLeaseUntil(new Date(System.currentTimeMillis() - 5000L));
+        event.setLeaseUntil(new Date(System.currentTimeMillis() - 3600000L));
 
         CompensationOutboxEvent saved = outboxRepository.saveAndFlush(event);
 
