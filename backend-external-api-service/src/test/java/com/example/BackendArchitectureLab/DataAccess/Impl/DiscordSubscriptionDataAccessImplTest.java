@@ -2,12 +2,18 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
 import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +21,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,6 +116,37 @@ class DiscordSubscriptionDataAccessImplTest {
         UUID id = UUID.randomUUID();
         dataAccess.deleteById(id);
         verify(repository).deleteById(id);
+    }
+
+    @Test
+    @DisplayName("findAllPaged 應代理至 repository")
+    void findAllPaged_ShouldDelegateToRepository() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<DiscordSubscription> page = new PageImpl<>(List.of(new DiscordSubscription("g-1", "ch-1", "diary")));
+        when(repository.findAll(pageable)).thenReturn(page);
+
+        Page<DiscordSubscription> result = dataAccess.findAllPaged(pageable);
+
+        assertEquals(1, result.getContent().size());
+        verify(repository).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("searchSubscriptions 應代理至 repository")
+    void searchSubscriptions_ShouldDelegateToRepository() {
+        DiscordSubscriptionSearchQuery query = new DiscordSubscriptionSearchQuery();
+        query.setPage(0);
+        query.setSize(10);
+        query.setSortBy("createdTime");
+        query.setSortDir("desc");
+
+        Page<DiscordSubscription> page = new PageImpl<>(List.of(new DiscordSubscription("g-1", "ch-1", "diary")));
+        when(repository.findAll(nullable(Specification.class), any(Pageable.class))).thenReturn(page);
+
+        Page<DiscordSubscription> result = dataAccess.searchSubscriptions(query);
+
+        assertEquals(1, result.getContent().size());
+        verify(repository).findAll(nullable(Specification.class), any(Pageable.class));
     }
 
     @Test

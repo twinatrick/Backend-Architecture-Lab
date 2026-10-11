@@ -4,18 +4,26 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IDiscordManagementService;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.DiscordGfMessageVo;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
 import com.example.BackendArchitectureLab.Vo.DiscordSubscriptionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,13 +37,20 @@ public class DiscordManagementController {
 
     private final IDiscordManagementService discordManagementService;
 
-    @GetMapping("/sessions")
+    @PostMapping("/sessions/search")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得 Discord 會話清單", description = "可選依伺服器 ID (guildId) 與啟用狀態 (active) 篩選 Discord 會話。")
-    public ResponseType<List<DiscordGfSessionVo>> getSessions(
-            @RequestParam(required = false) String guildId,
-            @RequestParam(required = false) Boolean active) {
-        return new ResponseType<>(discordManagementService.getSessions(guildId, active));
+    @ApiOperationOk(summary = "分頁搜尋 Discord 會話", description = "依條件分頁搜尋 Discord 女友對話會話清單。")
+    public ResponseType<PageResult<DiscordGfSessionVo>> searchSessions(
+            @RequestBody DiscordGfSessionSearchQuery query) {
+        return new ResponseType<>(discordManagementService.searchSessions(query));
+    }
+
+    @GetMapping(value = "/sessions/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "串流取得 Discord 會話 (SSE)", description = "以 Server-Sent Events 分區塊串流取得 Discord 女友對話會話。")
+    public Flux<ServerSentEvent<List<DiscordGfSessionVo>>> streamSessions(
+            @RequestParam(defaultValue = "250") int chunkSize) {
+        return discordManagementService.streamSessionsChunked(chunkSize);
     }
 
     @GetMapping("/sessions/{id}")
@@ -67,12 +82,20 @@ public class DiscordManagementController {
         return new ResponseType<>(null);
     }
 
-    @GetMapping("/subscriptions")
+    @PostMapping("/subscriptions/search")
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得 Discord 頻道訂閱清單", description = "可選依伺服器 ID (guildId) 篩選語音日記等頻道訂閱。")
-    public ResponseType<List<DiscordSubscriptionVo>> getSubscriptions(
-            @RequestParam(required = false) String guildId) {
-        return new ResponseType<>(discordManagementService.getSubscriptions(guildId));
+    @ApiOperationOk(summary = "分頁搜尋 Discord 頻道訂閱", description = "依條件分頁搜尋 Discord 頻道訂閱紀錄。")
+    public ResponseType<PageResult<DiscordSubscriptionVo>> searchSubscriptions(
+            @RequestBody DiscordSubscriptionSearchQuery query) {
+        return new ResponseType<>(discordManagementService.searchSubscriptions(query));
+    }
+
+    @GetMapping(value = "/subscriptions/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "串流取得 Discord 頻道訂閱 (SSE)", description = "以 Server-Sent Events 分區塊串流取得 Discord 頻道訂閱清單。")
+    public Flux<ServerSentEvent<List<DiscordSubscriptionVo>>> streamSubscriptions(
+            @RequestParam(defaultValue = "250") int chunkSize) {
+        return discordManagementService.streamSubscriptionsChunked(chunkSize);
     }
 
     @DeleteMapping("/subscriptions/{id}")

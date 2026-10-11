@@ -35,14 +35,7 @@ RULE_UNIMPLEMENTED_METHOD_STUB = "開發規範 §6.4/§5.3 未實作存根守門
 RULE_FORBIDDEN_GETALL_ENDPOINT = "開發規範 §6.1 根除無界端點原則（嚴禁對外暴露無分頁 getAll 端點）"
 RULE_MISSING_DUAL_RAIL_RETRIEVAL = "開發規範 §6.2 雙軌實體獲取標準（必須同時提供 /search 與 /stream 端點）"
 
-PENDING_DUAL_RAIL_MIGRATION = frozenset({
-    "SkillLevelController",
-    "DiscordManagementController",
-    "DiaryController",
-    "UsageController",
-    "VoiceDiaryController",
-    "UsageLogController",
-})
+PENDING_DUAL_RAIL_MIGRATION = frozenset()
 
 NON_AGGREGATE_CONTROLLERS = frozenset({
     "AuthController",
@@ -64,6 +57,11 @@ NON_AGGREGATE_CONTROLLERS = frozenset({
     "ProjectAdminController",
     "PersonalSkillController",
     "PersonalProjectController",
+    "SkillLevelController",
+    "DiaryController",
+    "UsageController",
+    "VoiceDiaryController",
+    "UsageLogController",
 })
 
 ALLOWED_STUBS = frozenset({

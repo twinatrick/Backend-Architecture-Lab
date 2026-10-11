@@ -1,6 +1,9 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +22,10 @@ public interface IDiscordSubscriptionDataAccess {
     List<DiscordSubscription> findByGuildId(String guildId);
 
     List<DiscordSubscription> findAll();
+
+    Page<DiscordSubscription> findAllPaged(Pageable pageable);
+
+    Page<DiscordSubscription> searchSubscriptions(DiscordSubscriptionSearchQuery query);
 
     Optional<DiscordSubscription> findById(UUID id);
 
