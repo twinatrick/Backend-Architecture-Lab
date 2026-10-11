@@ -3,6 +3,8 @@ package com.example.BackendArchitectureLab.Service;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -26,4 +28,12 @@ public interface IAlertCheckLimitService {
      * @return 分頁結果
      */
     PageResult<AlertCheckLimitVo> searchAlertCheckLimits(AlertCheckLimitSearchQuery query);
+
+    /**
+     * 以分塊方式串流取得告警檢查限制（SSE 格式）
+     *
+     * @param chunkSize 每個事件包含的資料筆數
+     * @return ServerSentEvent 串流
+     */
+    Flux<ServerSentEvent<List<AlertCheckLimitVo>>> streamAlertCheckLimitsChunked(int chunkSize);
 }

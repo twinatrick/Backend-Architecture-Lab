@@ -123,7 +123,7 @@ spring:
         - id: alert-stream
           uri: lb://alert-service
           predicates:
-            - Path=/api/aquarkData/stream/**,/api/aquarkData/stream
+            - Path=/api/aquarkData/stream/**,/api/aquarkData/stream,/api/alertCheckLimit/stream/**,/api/alertCheckLimit/stream
           filters:
             - StripPrefix=1
           metadata:

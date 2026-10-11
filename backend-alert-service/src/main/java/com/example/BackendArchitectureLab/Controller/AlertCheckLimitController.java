@@ -10,7 +10,10 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 @RestController
@@ -27,11 +30,13 @@ public class AlertCheckLimitController {
         return ResponseType.Success(alertCheckLimitService.addLimit(alertCheckLimitVo), "告警限制新增成功");
     }
 
-    @GetMapping("/get")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得告警限制列表", description = "回傳所有告警限制。")
-    public ResponseType<List<AlertCheckLimitVo>> getLimit() {
-        return ResponseType.Success(alertCheckLimitService.getLimit(), "告警限制查詢成功");
+    @ApiOperationOk(summary = "串流取得告警檢查限制清單", description = "以 SSE 分塊串流方式取得告警檢查限制清單，避免大量資料阻塞並維持長連線")
+    public Flux<ServerSentEvent<List<AlertCheckLimitVo>>> streamAlertCheckLimits(
+            @RequestParam(name = "chunkSize", defaultValue = "250") int chunkSize
+    ) {
+        return alertCheckLimitService.streamAlertCheckLimitsChunked(chunkSize);
     }
 
     @PostMapping("/update")
