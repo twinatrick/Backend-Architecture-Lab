@@ -1,29 +1,123 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IBotConfigDataAccess;
-import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.BotConfigMapper;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
+import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BotConfigVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BotConfigService implements IBotConfigService {
 
+    private static final SearchSortPolicy SEARCH_SORT_POLICY = new SearchSortPolicy(
+            "id", "version", "platform", "configKey", "configValue", "description",
+            "costLimitDaily", "costAlertAt",
+            "createdBy", "updatedBy", "createdTime", "updatedTime"
+    );
+
     private final IBotConfigDataAccess botConfigDataAccess;
     private final BotConfigMapper botConfigMapper;
+    private final TransactionExecutor transactionExecutor;
 
     @Override
     public List<BotConfigVo> findAll() {
         return botConfigDataAccess.findAll().stream()
                 .map(botConfigMapper::toVo)
                 .toList();
+    }
+
+    @Override
+    public PageResult<BotConfigVo> searchBotConfigs(BotConfigSearchQuery query) {
+        return transactionExecutor.executeReadOnly(() -> {
+            SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
+
+            Page<BotConfig> page = botConfigDataAccess.searchBotConfigs(query);
+
+            List<BotConfigVo> vos = page.getContent().stream()
+                    .map(botConfigMapper::toVo)
+                    .toList();
+
+            return PageResult.of(page, vos);
+        });
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<BotConfigVo>>> streamBotConfigsChunked(int chunkSize) {
+        final int safeChunkSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<BotConfigVo>>> dataFlux = Flux.<ServerSentEvent<List<BotConfigVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<BotConfigVo> botConfigPage = transactionExecutor.executeReadOnly(() -> {
+                            PageRequest pageRequest = PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"));
+                            return botConfigDataAccess.findAllPaged(pageRequest)
+                                    .map(botConfigMapper::toVo);
+                        });
+
+                        List<BotConfigVo> content = botConfigPage.getContent();
+                        if (content.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        sink.next(ServerSentEvent.<List<BotConfigVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(content)
+                                .build());
+
+                        if (botConfigPage.isLast()) {
+                            sink.complete();
+                        }
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("Error streaming bot configs at page {}: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        );
+
+        ServerSentEvent<List<BotConfigVo>> completeEvent = ServerSentEvent.<List<BotConfigVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<BotConfigVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(sequence -> ServerSentEvent.<List<BotConfigVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(Flux.concat(dataFlux, Flux.just(completeEvent)), heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("Client cancelled bot configs stream"))
+                .onErrorResume(ex -> {
+                    log.error("Fatal error during bot configs streaming: {}", ex.getMessage(), ex);
+                    return Flux.just(ServerSentEvent.<List<BotConfigVo>>builder()
+                            .event("error")
+                            .data(List.of())
+                            .build());
+                });
     }
 
     @Override
