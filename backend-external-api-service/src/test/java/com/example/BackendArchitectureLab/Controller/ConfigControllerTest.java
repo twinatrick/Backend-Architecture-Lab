@@ -3,14 +3,19 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
 import com.example.BackendArchitectureLab.Service.IExternalPlatformStatusService;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ExternalPlatformStatusVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.util.List;
 import java.util.UUID;
@@ -34,17 +39,35 @@ class ConfigControllerTest {
     private ConfigController controller;
 
     @Test
-    @DisplayName("getAll 應回傳所有 BotConfigVo")
-    void getAll_ShouldReturnList() {
-        List<BotConfigVo> list = List.of(new BotConfigVo());
-        when(botConfigService.findAll()).thenReturn(list);
+    @DisplayName("search 應分頁回傳 BotConfigVo 清單")
+    void search_ShouldReturnPageResult() {
+        BotConfigSearchQuery query = new BotConfigSearchQuery();
+        PageResult<BotConfigVo> pageResult = PageResult.of(new org.springframework.data.domain.PageImpl<>(List.of(new BotConfigVo())));
+        when(botConfigService.searchBotConfigs(query)).thenReturn(pageResult);
 
-        ResponseType<List<BotConfigVo>> response = controller.getAll();
+        ResponseType<PageResult<BotConfigVo>> response = controller.search(query);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        assertEquals(1, response.getData().size());
-        verify(botConfigService).findAll();
+        assertEquals(1, response.getData().getContent().size());
+        verify(botConfigService).searchBotConfigs(query);
+    }
+
+    @Test
+    @DisplayName("streamBotConfigs 應回傳 SSE Flux")
+    void streamBotConfigs_ShouldReturnFlux() {
+        ServerSentEvent<List<BotConfigVo>> chunkEvent = ServerSentEvent.<List<BotConfigVo>>builder()
+                .event("chunk")
+                .data(List.of(new BotConfigVo()))
+                .build();
+        when(botConfigService.streamBotConfigsChunked(250)).thenReturn(Flux.just(chunkEvent));
+
+        Flux<ServerSentEvent<List<BotConfigVo>>> flux = controller.streamBotConfigs(250);
+
+        StepVerifier.create(flux)
+                .expectNext(chunkEvent)
+                .verifyComplete();
+        verify(botConfigService).streamBotConfigsChunked(250);
     }
 
     @Test

@@ -37,7 +37,6 @@ RULE_MISSING_DUAL_RAIL_RETRIEVAL = "開發規範 §6.2 雙軌實體獲取標準�
 
 PENDING_DUAL_RAIL_MIGRATION = frozenset({
     "SkillLevelController",
-    "ConfigController",
     "DiscordManagementController",
     "DiaryController",
     "UsageController",
