@@ -8,6 +8,7 @@ import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
@@ -58,5 +59,10 @@ public class AlertCheckLimitDataAccessImpl implements IAlertCheckLimitDataAccess
             AlertCheckLimitSpecification.buildSpecification(query),
             pageRequest
         );
+    }
+
+    @Override
+    public Page<AlertCheckLimit> findAllPaged(Pageable pageable) {
+        return alertCheckLimitRepository.findAll(pageable);
     }
 }

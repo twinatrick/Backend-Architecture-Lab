@@ -9,6 +9,7 @@ import com.example.BackendArchitectureLab.Mapper.AlertCheckLimitMapper;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -20,6 +21,9 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.util.Collections;
 import java.util.List;
@@ -291,5 +295,49 @@ class AlertCheckLimitServiceTest {
         assertNotNull(result);
         assertEquals(0, result.getContent().size());
         assertEquals(0L, result.getTotalElements());
+    }
+
+    @Test
+    @DisplayName("streamAlertCheckLimitsChunked 應正確分塊串流並在最後發送 complete 事件")
+    void testStreamAlertCheckLimitsChunked_Success() {
+        AlertCheckLimit entity = new AlertCheckLimit();
+        entity.setId(UUID.randomUUID());
+        AlertCheckLimitVo vo = new AlertCheckLimitVo();
+
+        Page<AlertCheckLimit> page0 = new PageImpl<>(List.of(entity), PageRequest.of(0, 10), 1);
+        when(alertCheckLimitDataAccess.findAllPaged(any())).thenReturn(page0);
+        when(alertCheckLimitMapper.toVo(entity)).thenReturn(vo);
+
+        Flux<ServerSentEvent<List<AlertCheckLimitVo>>> flux = alertCheckLimitService.streamAlertCheckLimitsChunked(10);
+
+        StepVerifier.create(flux)
+                .expectNextMatches(sse -> "chunk".equals(sse.event()) && sse.data() != null && sse.data().size() == 1)
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("streamAlertCheckLimitsChunked 當資料為空時應直接發送 complete 事件")
+    void testStreamAlertCheckLimitsChunked_Empty() {
+        Page<AlertCheckLimit> emptyPage = new PageImpl<>(Collections.emptyList(), PageRequest.of(0, 10), 0);
+        when(alertCheckLimitDataAccess.findAllPaged(any())).thenReturn(emptyPage);
+
+        Flux<ServerSentEvent<List<AlertCheckLimitVo>>> flux = alertCheckLimitService.streamAlertCheckLimitsChunked(10);
+
+        StepVerifier.create(flux)
+                .expectNextMatches(sse -> "complete".equals(sse.event()))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("streamAlertCheckLimitsChunked 當底層異常時應發送 error 事件並終止")
+    void testStreamAlertCheckLimitsChunked_Error() {
+        when(alertCheckLimitDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("DB Connection failed"));
+
+        Flux<ServerSentEvent<List<AlertCheckLimitVo>>> flux = alertCheckLimitService.streamAlertCheckLimitsChunked(10);
+
+        StepVerifier.create(flux)
+                .expectNextMatches(sse -> "error".equals(sse.event()))
+                .verifyComplete();
     }
 }
