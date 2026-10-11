@@ -23,6 +23,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -333,6 +336,68 @@ class AquarkDataQueryServiceTest {
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(aquarkDataDataAccess, times(1)).findByCriteriaPaged(anyList(), pageableCaptor.capture());
         assertNotNull(pageableCaptor.getValue().getSort().getOrderFor("trans_time"));
+    }
+
+    @Test
+    void testStreamAquarkDataChunked_Success() {
+        AquarkData d1 = buildAquarkData(UUID.randomUUID(), "STATION_1", baseDate, 10f, 60f, 25f, 5f, 1.2f, false);
+        AquarkData d2 = buildAquarkData(UUID.randomUUID(), "STATION_2", baseDate, 12f, 65f, 26f, 6f, 1.4f, false);
+
+        Page<AquarkData> page0 = new PageImpl<>(List.of(d1), PageRequest.of(0, 1, Sort.by("id").ascending()), 2);
+        Page<AquarkData> page1 = new PageImpl<>(List.of(d2), PageRequest.of(1, 1, Sort.by("id").ascending()), 2);
+
+        when(aquarkDataDataAccess.findAllPaged(PageRequest.of(0, 10, Sort.by("id").ascending()))).thenReturn(page0);
+        when(aquarkDataDataAccess.findAllPaged(PageRequest.of(1, 10, Sort.by("id").ascending()))).thenReturn(page1);
+
+        Flux<ServerSentEvent<List<AquarkDataRaw>>> flux = aquarkDataQueryService.streamAquarkDataChunked(10);
+
+        StepVerifier.create(flux)
+                .assertNext(event -> {
+                    assertEquals("chunk", event.event());
+                    assertEquals("0", event.id());
+                    assertEquals(1, event.data().size());
+                    assertEquals("STATION_1", event.data().getFirst().getStation_id());
+                })
+                .assertNext(event -> {
+                    assertEquals("chunk", event.event());
+                    assertEquals("1", event.id());
+                    assertEquals(1, event.data().size());
+                    assertEquals("STATION_2", event.data().getFirst().getStation_id());
+                })
+                .assertNext(event -> {
+                    assertEquals("complete", event.event());
+                    assertTrue(event.data().isEmpty());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void testStreamAquarkDataChunked_Empty() {
+        Page<AquarkData> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 10, Sort.by("id").ascending()), 0);
+        when(aquarkDataDataAccess.findAllPaged(PageRequest.of(0, 10, Sort.by("id").ascending()))).thenReturn(emptyPage);
+
+        Flux<ServerSentEvent<List<AquarkDataRaw>>> flux = aquarkDataQueryService.streamAquarkDataChunked(10);
+
+        StepVerifier.create(flux)
+                .assertNext(event -> {
+                    assertEquals("complete", event.event());
+                    assertTrue(event.data().isEmpty());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void testStreamAquarkDataChunked_Error() {
+        when(aquarkDataDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("DB Connection failed"));
+
+        Flux<ServerSentEvent<List<AquarkDataRaw>>> flux = aquarkDataQueryService.streamAquarkDataChunked(10);
+
+        StepVerifier.create(flux)
+                .assertNext(event -> {
+                    assertEquals("error", event.event());
+                    assertNotNull(event.comment());
+                })
+                .verifyComplete();
     }
 
     private AquarkData buildAquarkData(UUID key, String stationId, Date transTime, float rain, float moisture,

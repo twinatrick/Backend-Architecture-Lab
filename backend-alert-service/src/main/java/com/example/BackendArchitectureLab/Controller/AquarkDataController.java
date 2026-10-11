@@ -15,7 +15,10 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -33,17 +36,12 @@ public class AquarkDataController {
         return ResponseType.Success(aquarkDataQueryService.searchAquarkData(query), "查詢成功");
     }
 
-    @PostMapping("/getData")
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "取得 Aquark 資料（舊端點相容）", description = "舊端點強制安全截斷：若條件為空僅回傳最新 20 筆，防止全表掃描", deprecated = true)
-    public ResponseType<List<AquarkDataRaw>> getData(@RequestBody(required = false) List<CriteriaAPIFilter> filterList) {
-        // 安全防禦：轉調分頁查詢第一頁（size=20），杜絕加載全表
-        AquarkDataSearchQuery query = new AquarkDataSearchQuery();
-        query.setPage(0);
-        query.setSize(20);
-        query.setFilters(filterList != null ? filterList : List.of());
-        PageResult<AquarkDataRaw> pageResult = aquarkDataQueryService.searchAquarkData(query);
-        return new ResponseType<>(pageResult.getContent());
+    @ApiOperationOk(summary = "串流分塊取得 Aquark 水情資料", description = "透過 Server-Sent Events (SSE) 分塊串流取得 Aquark 水情時序資料，支援 chunkSize 參數 (預設 250，範圍 10~1000)")
+    public Flux<ServerSentEvent<List<AquarkDataRaw>>> streamAquarkData(
+            @RequestParam(value = "chunkSize", defaultValue = "250") int chunkSize) {
+        return aquarkDataQueryService.streamAquarkDataChunked(chunkSize);
     }
 
     @GetMapping("/getColumnNameList")

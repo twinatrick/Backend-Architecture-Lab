@@ -225,6 +225,22 @@ class AquarkDataDataAccessImplTest {
         assertEquals("S2", page.getContent().get(1).getStation_id());
     }
 
+    @Test
+    @DisplayName("Should find aquark data with pagination using findAllPaged")
+    void testFindAllPaged() {
+        AquarkData data1 = buildAquarkData("S1", baseDate, 10f, false);
+        AquarkData data2 = buildAquarkData("S2", addHours(baseDate, 1), 20f, false);
+        AquarkData data3 = buildAquarkData("S3", addHours(baseDate, 2), 30f, false);
+        aquarkDataDataAccess.saveAll(List.of(data1, data2, data3));
+
+        Pageable pageable = PageRequest.of(0, 2, Sort.by("id").ascending());
+        Page<AquarkData> page = aquarkDataDataAccess.findAllPaged(pageable);
+
+        assertNotNull(page);
+        assertEquals(3, page.getTotalElements());
+        assertEquals(2, page.getContent().size());
+    }
+
     private AquarkData buildAquarkData(String stationId, Date transTime, float rain, boolean peak) {
         AquarkData data = new AquarkData();
         data.setStation_id(stationId);
