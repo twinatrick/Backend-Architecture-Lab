@@ -2,6 +2,11 @@ import os
 import re
 from typing import Any
 
+from check_dual_rail import (
+    check_forbidden_getall_endpoints,
+    check_missing_dual_rail_endpoints,
+    check_unimplemented_stubs,
+)
 from check_java_quality import (
     check_cross_module,
     check_derived_delete_transaction,
@@ -61,6 +66,22 @@ def check_java_file(
             path, content, changed_lines=changed_lines, repo_searcher=repo_searcher
         )
     )
+
+    # 未實作存根 (Stub) 檢測
+    findings.extend(check_unimplemented_stubs(path, lines, changed_lines, is_test))
+
+    # 實體 Controller 雙軌獲取標準與禁制 getAll 端點檢測
+    if is_controller and not is_test:
+        findings.extend(
+            check_forbidden_getall_endpoints(
+                path, content, lines, changed_lines, is_test
+            )
+        )
+        findings.extend(
+            check_missing_dual_rail_endpoints(
+                path, content, changed_lines=changed_lines, is_test=is_test
+            )
+        )
 
     for idx, raw_line in enumerate(lines, start=1):
         if changed_lines is not None and idx not in changed_lines:

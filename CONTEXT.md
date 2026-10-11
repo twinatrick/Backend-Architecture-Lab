@@ -236,5 +236,22 @@ _Avoid_: Monolithic conversation JSON, Unbounded history string, JSON array colu
 在管理端點與審計調閱介面中，將會話清單查詢與詳細對話歷史解耦，會話清單僅返回元數據與摘要，而具體歷史訊息依會話識別碼獨立按需調閱，以杜絕 BigKey 傳輸與多餘網路負擔的存取模式。
 _Avoid_: Heavy session list payload, All-in-one conversation dump.
 
+**Dual-Rail Retrieval (雙軌實體獲取標準)**:
+在系統微服務架構中，針對全域聚合根實體，強制且僅提供「分頁搜尋軌（POST /search）」與「非阻塞串流軌（GET /stream?chunkSize=250）」兩種標準端點，徹底根除無界 getAll 的雙軌存取模型。
+_Avoid_: Monolithic getAll, Unbounded findAll endpoint, Inconsistent listing APIs.
+
+**Unbounded Endpoint Eradication (無界端點根除紀律)**:
+在對外 Controller 層級嚴格禁止公開無條件、無上限之全量撈取 API，杜絕大資料量導致服務記憶體耗盡（OOM）與 API 閘道逾時（Gateway 503/504）的防護紀律。
+_Avoid_: Public findAll, Memory-exhausting listing, Gateway timeout bypass.
+
+**Unimplemented Stub Guard (未實作存根守門門禁)**:
+在本地代碼稽核與 CI AI Review 中，雙管齊下自動檢測並阻擋未實作存根（如拋出 UnsupportedOperationException、殘留 TODO 存根、回傳假空物件）及架構缺失（控制器未實作雙軌端點），杜絕假實作與技術債累積。
+_Avoid_: UnsupportedOperationException stub, Fake empty return, Forgotten TODO.
+
+**Dual-Rail Migration Burn-down (雙軌遷移燃盡名單)**:
+在規範稽核規則中維護既有未遷移 Controller 的暫時容許白名單。所有新增實體控制器必須 100% 遵守雙軌規範，既有遺留控制器則隨重構進度逐一移出名單，實現無痛漸進式收斂。
+_Avoid_: Blanket rule exception, Permanent legacy immunity, Uncontrolled architectural drift.
+
+
 
 

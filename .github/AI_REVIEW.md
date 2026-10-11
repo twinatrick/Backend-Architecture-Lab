@@ -68,6 +68,7 @@ AI 必須先分析 PR diff，再依依賴關係向外追查必要 context：Cont
 - Controller 不得包含 Business Logic、Repository、EntityManager。
 - Controller 不得直接使用 Entity；Service interface 回傳 VO。
 - Mapper 僅由 Service Impl 使用。
+- 依據《開發規範.md》第 6 章檢查實體清單雙軌獲取規範（`POST /search` 分頁查詢與 `GET /stream` 串流，嚴禁公開無分頁端點）。
 
 ### API / Permission
 
@@ -81,6 +82,7 @@ AI 必須先分析 PR diff，再依依賴關係向外追查必要 context：Cont
 - 高內聚、低耦合。
 - 避免 God Service、循環依賴、重複 Business Logic、無需求抽象。
 - 遵守 Boy Scout Rule，但不得藉此擴大 PR scope。
+- 依據《開發規範.md》第 6 章檢查未實作存根殘留（如 `UnsupportedOperationException`、未實現的 TODO 標記或偽造實作）。
 
 ### Python
 

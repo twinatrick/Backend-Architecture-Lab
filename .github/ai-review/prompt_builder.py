@@ -4,13 +4,13 @@ import re
 from redaction import sanitize_diff
 
 SCOPE_SECTION_MAP: dict[str, list[int]] = {
-    "security-api": [1, 2, 3, 5],
-    "business": [1, 2, 3, 5],
-    "data": [1, 2, 3, 5],
-    "integration": [1, 2, 3, 5],
+    "security-api": [1, 2, 3, 5, 6],
+    "business": [1, 2, 3, 5, 6],
+    "data": [1, 2, 3, 5, 6],
+    "integration": [1, 2, 3, 5, 6],
     "python": [4, 5],
     "ci": [1, 2, 5],
-    "other": [1, 2, 3, 5],
+    "other": [1, 2, 3, 5, 6],
 }
 
 
@@ -118,6 +118,13 @@ def build_batch_prompt(
 不得提出與本 PR 無關的既有技術債或純風格建議。
 CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Action pinning、
 artifact/cache、fail-open 與 Review bypass。
+
+【未實作存根與雙軌實體獲取防護 (Stub & Dual-Rail Guard)】
+1. 嚴查未實作存根：丟出 UnsupportedOperationException、NotImplementedException，
+   或遺留 TODO: implement、FIXME: implement 註記。
+2. 嚴查虛假實作：方法偽造回傳 null 或空集合而無業務邏輯、或寫死假資料偽裝功能完成。
+3. 嚴查實體雙軌獲取：全域聚合根 Controller 必須提供 POST /search 分頁檢索與
+   GET /stream SSE 串流端點，嚴禁暴露無分頁 getAll/findAll 端點。
 
 【Diff 變更極性與行號絕對約束】
 1. 你只能針對以「+」開頭之新增或修改行提出 Finding，必須引用新檔案中實際存在的行號！
