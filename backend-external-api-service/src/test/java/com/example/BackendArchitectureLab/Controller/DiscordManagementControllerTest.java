@@ -1,16 +1,23 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Service.IDiscordManagementService;
+import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.DiscordGfMessageVo;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
 import com.example.BackendArchitectureLab.Vo.DiscordSubscriptionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
+import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
@@ -31,17 +38,35 @@ class DiscordManagementControllerTest {
     private DiscordManagementController controller;
 
     @Test
-    @DisplayName("getSessions 應正確呼叫 service 並回傳 200")
-    void getSessions_ShouldReturnOk() {
-        List<DiscordGfSessionVo> list = List.of(new DiscordGfSessionVo());
-        when(discordManagementService.getSessions("g1", true)).thenReturn(list);
+    @DisplayName("searchSessions 應正確呼叫 service 並回傳 200")
+    void searchSessions_ShouldReturnOk() {
+        DiscordGfSessionSearchQuery query = new DiscordGfSessionSearchQuery();
+        PageResult<DiscordGfSessionVo> pageResult = PageResult.of(
+                new PageImpl<>(List.of(new DiscordGfSessionVo()), PageRequest.of(0, 10), 1),
+                List.of(new DiscordGfSessionVo())
+        );
+        when(discordManagementService.searchSessions(query)).thenReturn(pageResult);
 
-        ResponseType<List<DiscordGfSessionVo>> response = controller.getSessions("g1", true);
+        ResponseType<PageResult<DiscordGfSessionVo>> response = controller.searchSessions(query);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        assertEquals(1, response.getData().size());
-        verify(discordManagementService).getSessions("g1", true);
+        assertEquals(1, response.getData().getContent().size());
+        verify(discordManagementService).searchSessions(query);
+    }
+
+    @Test
+    @DisplayName("streamSessions 應正確委派 service 串流 Flux")
+    void streamSessions_ShouldReturnFlux() {
+        ServerSentEvent<List<DiscordGfSessionVo>> sse = ServerSentEvent.<List<DiscordGfSessionVo>>builder()
+                .event("complete")
+                .build();
+        when(discordManagementService.streamSessionsChunked(250)).thenReturn(Flux.just(sse));
+
+        Flux<ServerSentEvent<List<DiscordGfSessionVo>>> result = controller.streamSessions(250);
+
+        assertNotNull(result);
+        verify(discordManagementService).streamSessionsChunked(250);
     }
 
     @Test
@@ -100,17 +125,35 @@ class DiscordManagementControllerTest {
     }
 
     @Test
-    @DisplayName("getSubscriptions 應正確呼叫 service 並回傳 200")
-    void getSubscriptions_ShouldReturnOk() {
-        List<DiscordSubscriptionVo> list = List.of(new DiscordSubscriptionVo());
-        when(discordManagementService.getSubscriptions("g1")).thenReturn(list);
+    @DisplayName("searchSubscriptions 應正確呼叫 service 並回傳 200")
+    void searchSubscriptions_ShouldReturnOk() {
+        DiscordSubscriptionSearchQuery query = new DiscordSubscriptionSearchQuery();
+        PageResult<DiscordSubscriptionVo> pageResult = PageResult.of(
+                new PageImpl<>(List.of(new DiscordSubscriptionVo()), PageRequest.of(0, 10), 1),
+                List.of(new DiscordSubscriptionVo())
+        );
+        when(discordManagementService.searchSubscriptions(query)).thenReturn(pageResult);
 
-        ResponseType<List<DiscordSubscriptionVo>> response = controller.getSubscriptions("g1");
+        ResponseType<PageResult<DiscordSubscriptionVo>> response = controller.searchSubscriptions(query);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        assertEquals(1, response.getData().size());
-        verify(discordManagementService).getSubscriptions("g1");
+        assertEquals(1, response.getData().getContent().size());
+        verify(discordManagementService).searchSubscriptions(query);
+    }
+
+    @Test
+    @DisplayName("streamSubscriptions 應正確委派 service 串流 Flux")
+    void streamSubscriptions_ShouldReturnFlux() {
+        ServerSentEvent<List<DiscordSubscriptionVo>> sse = ServerSentEvent.<List<DiscordSubscriptionVo>>builder()
+                .event("complete")
+                .build();
+        when(discordManagementService.streamSubscriptionsChunked(250)).thenReturn(Flux.just(sse));
+
+        Flux<ServerSentEvent<List<DiscordSubscriptionVo>>> result = controller.streamSubscriptions(250);
+
+        assertNotNull(result);
+        verify(discordManagementService).streamSubscriptionsChunked(250);
     }
 
     @Test
