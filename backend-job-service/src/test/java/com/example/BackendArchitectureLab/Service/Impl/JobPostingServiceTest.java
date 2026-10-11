@@ -82,6 +82,10 @@ class JobPostingServiceTest {
             Supplier<?> supplier = invocation.getArgument(0);
             return supplier.get();
         });
+        when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
 
         companyId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();

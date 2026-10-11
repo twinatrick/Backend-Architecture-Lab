@@ -15,6 +15,7 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
+@BatchSize(size = 50)
 @NoArgsConstructor
 
 public class User extends BaseEntity {

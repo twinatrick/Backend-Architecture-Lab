@@ -26,7 +26,7 @@ spring:
     open-in-view: false
     properties:
       hibernate:
-        default_batch_fetch_size: 16
+        default_batch_fetch_size: 64
   data:
     redis:
       host: localhost

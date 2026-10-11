@@ -58,7 +58,6 @@ public class UserJobLinkService implements IUserJobLinkService {
     private final IUserJobLinkService self;
 
     @Override
-    @Transactional
     @Caching(put = {
         @CachePut(value = "userJobLinks", key = "#result.id")
     }, evict = {
@@ -67,25 +66,30 @@ public class UserJobLinkService implements IUserJobLinkService {
         @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #userJobLinkVo.userId")
     })
     public UserJobLinkVo createUserJobLink(UserJobLinkVo userJobLinkVo) {
-        UserJobLink link = new UserJobLink();
-
+        UUID userUuid = null;
         if (userJobLinkVo.getUserId() != null) {
-            UUID userUuid = UUID.fromString(userJobLinkVo.getUserId());
+            userUuid = UUID.fromString(userJobLinkVo.getUserId());
+            // 交易外的防禦性 Feign 驗證：跨網路 RPC 呼叫不應佔用資料庫事務
             if (!userServiceFeignClient.existsUserById(userUuid)) {
                 throw new IllegalArgumentException("User not found");
             }
-            link.setUserId(userUuid);
         }
 
-        if (userJobLinkVo.getJobPostingId() != null) {
-            JobPosting jobPosting = jobPostingDataAccess.findById(UUID.fromString(userJobLinkVo.getJobPostingId()))
-                    .orElseThrow(() -> new IllegalArgumentException("Job posting not found"));
-            link.setJobPosting(jobPosting);
-        }
-
-        link.setUserNotes(userJobLinkVo.getUserNotes());
-        link = userJobLinkDataAccess.save(link);
-        return userJobLinkMapper.toVo(link);
+        final UUID finalUserUuid = userUuid;
+        return transactionExecutor.executeWritable(() -> {
+            UserJobLink link = new UserJobLink();
+            if (finalUserUuid != null) {
+                link.setUserId(finalUserUuid);
+            }
+            if (userJobLinkVo.getJobPostingId() != null) {
+                JobPosting jobPosting = jobPostingDataAccess.findById(UUID.fromString(userJobLinkVo.getJobPostingId()))
+                        .orElseThrow(() -> new IllegalArgumentException("Job posting not found"));
+                link.setJobPosting(jobPosting);
+            }
+            link.setUserNotes(userJobLinkVo.getUserNotes());
+            link = userJobLinkDataAccess.save(link);
+            return userJobLinkMapper.toVo(link);
+        });
     }
 
     @Override
@@ -259,7 +263,6 @@ public class UserJobLinkService implements IUserJobLinkService {
     }
 
     @Override
-    @Transactional
     @Caching(put = {
         @CachePut(value = "userJobLinks", key = "#result.id")
     }, evict = {
@@ -273,19 +276,23 @@ public class UserJobLinkService implements IUserJobLinkService {
         if (userUuid == null || jobUuid == null) {
             throw new IllegalArgumentException("User ID and Job Posting ID must not be null");
         }
-        if (userJobLinkDataAccess.existsByUserIdAndJobPostingId(userUuid, jobUuid)) {
-            throw new IllegalArgumentException("Job already bound to current user");
-        }
+        // 交易外的防禦性 Feign 驗證：跨網路 RPC 呼叫不應佔用資料庫事務
         if (!userServiceFeignClient.existsUserById(userUuid)) {
             throw new IllegalArgumentException("User not found");
         }
-        JobPosting jobPosting = jobPostingDataAccess.findById(jobUuid)
-                .orElseThrow(() -> new IllegalArgumentException("Job posting not found"));
-        UserJobLink link = new UserJobLink();
-        link.setUserId(userUuid);
-        link.setJobPosting(jobPosting);
-        link = userJobLinkDataAccess.save(link);
-        return userJobLinkMapper.toVo(link);
+
+        return transactionExecutor.executeWritable(() -> {
+            if (userJobLinkDataAccess.existsByUserIdAndJobPostingId(userUuid, jobUuid)) {
+                throw new IllegalArgumentException("Job already bound to current user");
+            }
+            JobPosting jobPosting = jobPostingDataAccess.findById(jobUuid)
+                    .orElseThrow(() -> new IllegalArgumentException("Job posting not found"));
+            UserJobLink link = new UserJobLink();
+            link.setUserId(userUuid);
+            link.setJobPosting(jobPosting);
+            link = userJobLinkDataAccess.save(link);
+            return userJobLinkMapper.toVo(link);
+        });
     }
 
     @Override

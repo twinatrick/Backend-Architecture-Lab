@@ -20,13 +20,13 @@ public class GatewayCircuitBreakerConfig {
                         .slidingWindowSize(20)
                         .permittedNumberOfCallsInHalfOpenState(5)
                         .failureRateThreshold(50.0f)
-                        .waitDurationInOpenState(Duration.ofSeconds(10))
+                        .waitDurationInOpenState(Duration.ofSeconds(5))
                         .slowCallRateThreshold(50.0f)
-                        .slowCallDurationThreshold(Duration.ofSeconds(2))
+                        .slowCallDurationThreshold(Duration.ofSeconds(5))
                         .minimumNumberOfCalls(5)
                         .build())
                 .timeLimiterConfig(TimeLimiterConfig.custom()
-                        .timeoutDuration(Duration.ofSeconds(3))
+                        .timeoutDuration(Duration.ofSeconds(10))
                         .build())
                 .build());
     }

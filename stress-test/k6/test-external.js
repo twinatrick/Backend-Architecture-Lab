@@ -32,11 +32,11 @@ export default function (data) {
     const params = buildHeaders(data.token);
     const baseUrl = DEFAULT_BASE_URL;
 
-    // 1. 取得所有 Bot 配置清單 (GET /api/external/config)
-    const resConfig = http.get(`${baseUrl}/api/external/config`, params);
+    // 1. 取得 Bot 配置清單 (POST /api/external/config/search)
+    const resConfig = http.post(`${baseUrl}/api/external/config/search`, JSON.stringify({}), params);
     externalLatency.add(resConfig.timings.duration);
     check(resConfig, {
-        'Bot Config List 200': (r) => r.status === 200,
+        'Bot Config Search 200': (r) => r.status === 200,
     });
 
     // 2. 查詢 API 使用量統計摘要 (GET /api/external/usage/summary)

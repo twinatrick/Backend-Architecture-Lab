@@ -262,7 +262,6 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "jobPostings", key = "'bycompany:' + #companyId"),
         @CacheEvict(value = "companies", key = "'all'")
@@ -289,6 +288,7 @@ public class JobPostingService implements IJobPostingService {
             String url = companyWebsite.getUrl();
             log.info("Crawling website: {}", url);
 
+            // 1. 外部慢速爬蟲 I/O 位於資料庫交易外部執行，避免長時間霸佔連線池
             String htmlContent;
             try {
                 htmlContent = jobCrawler.crawl(url);
@@ -297,47 +297,57 @@ public class JobPostingService implements IJobPostingService {
                 continue;
             }
 
+            // 2. 外部慢速 AI 推理 Feign 呼叫位於資料庫交易外部執行
             List<AiJobPostingVo> analyzedJobs = aiServiceFeignClient.analyzeJobPostings(company.getName(), htmlContent);
             log.info("AI service returned {} jobs from URL: {}", analyzedJobs.size(), url);
 
-            List<JobPosting> existingJobs = jobPostingDataAccess.findByCompanyId(uuid);
+            // 3. 資料庫寫入使用獨立短事務執行
+            List<JobPostingVo> savedForWebsite = transactionExecutor.executeWritable(() -> {
+                List<JobPostingVo> batchSaved = new ArrayList<>();
+                List<JobPosting> existingJobs = jobPostingDataAccess.findByCompanyId(uuid);
 
-            for (AiJobPostingVo jobData : analyzedJobs) {
-                try {
-                    String title = jobData.getTitle() != null && !jobData.getTitle().isBlank() ? jobData.getTitle() : "Unknown Title";
-                    String salaryRange = jobData.getSalaryRange() != null ? jobData.getSalaryRange() : "";
+                for (AiJobPostingVo jobData : analyzedJobs) {
+                    try {
+                        String title = jobData.getTitle() != null && !jobData.getTitle().isBlank() ? jobData.getTitle() : "Unknown Title";
+                        String salaryRange = jobData.getSalaryRange() != null ? jobData.getSalaryRange() : "";
 
-                    JobPosting matched = findMatch(existingJobs, title, salaryRange);
-                    if (matched != null) {
-                        boolean updated = updateIfChanged(matched, jobData);
-                        if (updated) {
-                            jobPostingDataAccess.save(matched);
-                            allSavedJobs.add(jobPostingMapper.toVo(matched));
-                            log.info("Updated job: {} for company: {}", title, company.getName());
+                        JobPosting matched = findMatch(existingJobs, title, salaryRange);
+                        if (matched != null) {
+                            boolean updated = updateIfChanged(matched, jobData);
+                            if (updated) {
+                                jobPostingDataAccess.save(matched);
+                                batchSaved.add(jobPostingMapper.toVo(matched));
+                                log.info("Updated job: {} for company: {}", title, company.getName());
+                            }
+                            continue;
                         }
-                        continue;
+
+                        JobPosting jobPosting = new JobPosting();
+                        jobPosting.setCompany(company);
+                        jobPosting.setTitle(title);
+                        jobPosting.setUrl(jobData.getUrl() != null ? jobData.getUrl() : "");
+                        jobPosting.setDescription(jobData.getDescription() != null ? jobData.getDescription() : "");
+                        jobPosting.setRequirements(jobData.getRequirements() != null ? jobData.getRequirements() : "");
+                        jobPosting.setResponsibilities(jobData.getResponsibilities() != null ? jobData.getResponsibilities() : "");
+                        jobPosting.setSalaryRange(salaryRange);
+
+                        jobPosting = jobPostingDataAccess.save(jobPosting);
+                        batchSaved.add(jobPostingMapper.toVo(jobPosting));
+                        log.info("Created new job: {} for company: {}", title, company.getName());
+                    } catch (Exception e) {
+                        log.error("Failed to process job posting for company: {}: {}", company.getName(), e.toString());
                     }
-
-                    JobPosting jobPosting = new JobPosting();
-                    jobPosting.setCompany(company);
-                    jobPosting.setTitle(title);
-                    jobPosting.setUrl(jobData.getUrl() != null ? jobData.getUrl() : "");
-                    jobPosting.setDescription(jobData.getDescription() != null ? jobData.getDescription() : "");
-                    jobPosting.setRequirements(jobData.getRequirements() != null ? jobData.getRequirements() : "");
-                    jobPosting.setResponsibilities(jobData.getResponsibilities() != null ? jobData.getResponsibilities() : "");
-                    jobPosting.setSalaryRange(salaryRange);
-
-                    jobPosting = jobPostingDataAccess.save(jobPosting);
-                    allSavedJobs.add(jobPostingMapper.toVo(jobPosting));
-                    log.info("Created new job: {} for company: {}", title, company.getName());
-                } catch (Exception e) {
-                    log.error("Failed to process job posting for company: {}: {}", company.getName(), e.toString());
                 }
-            }
+                return batchSaved;
+            });
+            allSavedJobs.addAll(savedForWebsite);
         }
 
-        company.setLastScrapedAt(LocalDate.now());
-        companyDataAccess.save(company);
+        transactionExecutor.executeWritable(() -> {
+            company.setLastScrapedAt(LocalDate.now());
+            companyDataAccess.save(company);
+            return null;
+        });
         if (cacheManager != null) {
             Cache companiesCache = cacheManager.getCache("companies");
             if (companiesCache != null) {
@@ -351,7 +361,6 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
-    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "jobPostings", allEntries = true),
         @CacheEvict(value = "companies", allEntries = true)
