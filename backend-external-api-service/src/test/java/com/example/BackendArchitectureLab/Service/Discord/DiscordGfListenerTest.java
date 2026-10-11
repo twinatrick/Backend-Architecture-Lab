@@ -38,6 +38,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -210,7 +211,7 @@ class DiscordGfListenerTest {
         when(author.getId()).thenReturn("u-300");
         when(slashEvent.getName()).thenReturn("女友提示詞");
 
-        OptionMapping option = org.mockito.Mockito.mock(OptionMapping.class);
+        OptionMapping option = mock(OptionMapping.class);
         when(option.getAsString()).thenReturn("新的人設提示詞");
         when(slashEvent.getOption("內容")).thenReturn(option);
 

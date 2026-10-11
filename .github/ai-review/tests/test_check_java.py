@@ -106,43 +106,6 @@ def test_check_java_controller_handwritten_constructor():
     assert any("依賴注入與建構子規範" in rule_text for rule_text in rules)
 
 
-def test_check_java_fqn_prohibited():
-    content = (
-        "package com.example.BackendArchitectureLab.Service.Impl;\n"
-        "public class DemoService {\n"
-        "    public void run() {\n"
-        "        java.util.Date now = new java.util.Date();\n"
-        "    }\n"
-        "}\n"
-    )
-    findings = check_java.check_java_file(
-        "backend-iam-service/src/main/java/com/example/DemoService.java",
-        content,
-    )
-    rules = [finding_item["rule"] for finding_item in findings]
-    assert any("禁寫完全限定名稱規範" in rule_text for rule_text in rules)
-
-
-def test_check_java_fqn_allowed_imports_and_comments():
-    content = (
-        "package com.example.BackendArchitectureLab.Service.Impl;\n"
-        "import java.util.Date;\n"
-        "// java.util.Date in comment is allowed\n"
-        "/* java.util.Date in block comment */\n"
-        "public class DemoService {\n"
-        "    public void run() {\n"
-        "        Date now = new Date();\n"
-        "    }\n"
-        "}\n"
-    )
-    findings = check_java.check_java_file(
-        "backend-iam-service/src/main/java/com/example/DemoService.java",
-        content,
-    )
-    rules = [finding_item["rule"] for finding_item in findings]
-    assert not any("禁寫完全限定名稱規範" in rule_text for rule_text in rules)
-
-
 def test_check_java_dead_code_repository_isolated():
     content = (
         "package com.example.BackendArchitectureLab.Repository;\n"

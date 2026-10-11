@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -148,7 +149,7 @@ class SeleniumJobCrawlerTest {
     @DisplayName("Should handle sleepQuietly and restore interrupted flag when thread is interrupted")
     void sleepQuietly_whenInterrupted_shouldRestoreInterruptFlag() {
         Thread.currentThread().interrupt();
-        org.springframework.test.util.ReflectionTestUtils.invokeMethod(seleniumJobCrawler, "sleepQuietly", 100L);
+        ReflectionTestUtils.invokeMethod(seleniumJobCrawler, "sleepQuietly", 100L);
         assertTrue(Thread.interrupted(), "Interrupted status should be preserved");
     }
 
