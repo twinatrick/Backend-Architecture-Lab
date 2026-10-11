@@ -36,8 +36,6 @@ RULE_FORBIDDEN_GETALL_ENDPOINT = "開發規範 §6.1 根除無界端點原則（
 RULE_MISSING_DUAL_RAIL_RETRIEVAL = "開發規範 §6.2 雙軌實體獲取標準（必須同時提供 /search 與 /stream 端點）"
 
 PENDING_DUAL_RAIL_MIGRATION = frozenset({
-    "AquarkDataController",
-    "AlertCheckLimitController",
     "CompanyController",
     "SkillController",
     "SkillLevelController",

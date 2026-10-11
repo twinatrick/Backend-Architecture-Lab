@@ -38,6 +38,11 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
     }
 
     @Override
+    public Page<AquarkData> findAllPaged(Pageable pageable) {
+        return aquarkDataRepository.findAll(pageable);
+    }
+
+    @Override
     public List<AquarkData> findByStationIdAndTransTime(String stationId, Date transTime) {
         return aquarkDataRepository.findAquarkDataByStation_idAndTrans_time(stationId, transTime);
     }

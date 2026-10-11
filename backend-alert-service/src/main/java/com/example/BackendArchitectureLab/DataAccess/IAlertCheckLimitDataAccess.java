@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.DataAccess;
 import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -50,4 +51,12 @@ public interface IAlertCheckLimitDataAccess {
      * @return 分頁結果
      */
     Page<AlertCheckLimit> searchAlertCheckLimits(AlertCheckLimitSearchQuery query);
+
+    /**
+     * 分頁查詢告警檢查限制（供分塊串流使用）
+     *
+     * @param pageable 分頁與排序參數
+     * @return 分頁結果
+     */
+    Page<AlertCheckLimit> findAllPaged(Pageable pageable);
 }

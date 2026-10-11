@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -113,6 +114,20 @@ class AlertCheckLimitDataAccessImplTest {
         assertEquals(2, page.getTotalElements());
         assertEquals("moisture", page.getContent().get(0).getColumnName());
         assertEquals("rain_d", page.getContent().get(1).getColumnName());
+    }
+
+    @Test
+    @DisplayName("Should find all alert check limits paged")
+    void testFindAllPaged() {
+        alertCheckLimitRepository.save(buildLimit("aquark_data", "rain_d", 10.5));
+        alertCheckLimitRepository.save(buildLimit("aquark_data", "moisture", 5.0));
+        alertCheckLimitRepository.save(buildLimit("aquark_data", "csq", 1.0));
+
+        Page<AlertCheckLimit> page = alertCheckLimitDataAccess.findAllPaged(PageRequest.of(0, 2));
+
+        assertNotNull(page);
+        assertEquals(3, page.getTotalElements());
+        assertEquals(2, page.getContent().size());
     }
 
     private AlertCheckLimit buildLimit(String tableName, String columnName, double limitValue) {

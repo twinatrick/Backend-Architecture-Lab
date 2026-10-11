@@ -9,16 +9,24 @@ import com.example.BackendArchitectureLab.Mapper.AlertCheckLimitMapper;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.util.List;
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AlertCheckLimitService implements IAlertCheckLimitService {
@@ -100,6 +108,71 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
                 .toList();
         
         return PageResult.of(page, content);
+    }
+
+    @Override
+    public Flux<ServerSentEvent<List<AlertCheckLimitVo>>> streamAlertCheckLimitsChunked(int chunkSize) {
+        final int effectiveChunkSize = Math.max(10, Math.min(chunkSize, 1000));
+
+        Flux<ServerSentEvent<List<AlertCheckLimitVo>>> dataFlux = Flux.<ServerSentEvent<List<AlertCheckLimitVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
+                    try {
+                        Page<AlertCheckLimit> alertPage = transactionExecutor.executeReadOnly(() ->
+                                alertCheckLimitDataAccess.findAllPaged(PageRequest.of(page, effectiveChunkSize, Sort.by("id").ascending()))
+                        );
+
+                        if (alertPage.isEmpty()) {
+                            sink.complete();
+                            return page;
+                        }
+
+                        List<AlertCheckLimitVo> voList = alertPage.getContent().stream()
+                                .map(alertCheckLimitMapper::toVo)
+                                .toList();
+
+                        sink.next(ServerSentEvent.<List<AlertCheckLimitVo>>builder()
+                                .event("chunk")
+                                .id(String.valueOf(page))
+                                .data(voList)
+                                .build());
+
+                        if (!alertPage.hasNext()) {
+                            sink.complete();
+                            return page;
+                        }
+                        return page + 1;
+                    } catch (Exception ex) {
+                        log.error("告警檢查限制 SSE 資料串流查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
+                        sink.error(ex);
+                        return page;
+                    }
+                }
+        ).subscribeOn(Schedulers.boundedElastic());
+
+        ServerSentEvent<List<AlertCheckLimitVo>> completeEvent = ServerSentEvent.<List<AlertCheckLimitVo>>builder()
+                .event("complete")
+                .data(List.of())
+                .build();
+
+        Flux<ServerSentEvent<List<AlertCheckLimitVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+
+        Flux<ServerSentEvent<List<AlertCheckLimitVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(sequence -> ServerSentEvent.<List<AlertCheckLimitVo>>builder()
+                        .comment("keep-alive")
+                        .build());
+
+        return Flux.merge(streamWithComplete, heartbeatFlux)
+                .takeUntil(event -> "complete".equals(event.event()))
+                .doOnCancel(() -> log.info("客戶端中斷告警檢查限制 SSE 串流連線"))
+                .onErrorResume(ex -> {
+                    log.error("告警檢查限制 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
+                    return Flux.just(ServerSentEvent.<List<AlertCheckLimitVo>>builder()
+                            .event("error")
+                            .comment(ex.getMessage() != null ? ex.getMessage() : "Unknown streaming error")
+                            .data(List.of())
+                            .build());
+                });
     }
 
     @CachePut(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
