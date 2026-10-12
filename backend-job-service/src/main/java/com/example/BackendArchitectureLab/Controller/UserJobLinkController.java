@@ -62,7 +62,7 @@ public class UserJobLinkController {
         return userJobLinkService.streamUserJobLinksChunked(chunkSize);
     }
 
-    @GetMapping("/get/{id}")
+    @GetMapping({"/get/{id}", "/{id}"})
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得連結詳情", description = "根據 ID 取得使用者職缺連結資訊。")
     public ResponseType<UserJobLinkVo> getUserJobLinkById(@PathVariable String id) {

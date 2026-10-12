@@ -1,8 +1,11 @@
 package com.example.BackendArchitectureLab.Feign;
 
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.Set;
 
 @FeignClient(name = "iam-service", contextId = "permissionCheckClient")
 public interface PermissionCheckFeignClient {
@@ -12,4 +15,7 @@ public interface PermissionCheckFeignClient {
                                @RequestParam("one") String one,
                                @RequestParam("two") String two,
                                @RequestParam("three") String three);
+
+    @GetMapping("/role/inner/user-permissions")
+    Set<String> getUserPermissions(@RequestParam("email") String email);
 }

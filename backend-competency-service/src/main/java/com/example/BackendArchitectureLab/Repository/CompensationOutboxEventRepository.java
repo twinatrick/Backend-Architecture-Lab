@@ -33,7 +33,7 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
      * 同時遞增 attemptCount、更新 ownerId 與 fencingVersion（COALESCE + 1）並寫入處理時間與新租約。
      * 回傳 1 表示取得處理權、0 表示他人處理中或未到期。
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e
@@ -84,7 +84,7 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     /**
      * 原子標記已送達（僅 PROCESSING 狀態且持有一致的 ownerId 與 fencingVersion 可轉換；SENT + 清除租約）。
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e
@@ -104,7 +104,7 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     /**
      * 原子標記失敗（僅 PROCESSING 狀態且持有一致的 ownerId 與 fencingVersion 可轉換；FAILED + 記錄錯誤 + 排定下次重試 + 清除租約）。
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e
@@ -126,7 +126,7 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     /**
      * 原子標記死亡（僅 PROCESSING 狀態且持有一致的 ownerId 與 fencingVersion 可轉換；DEAD + 記錄錯誤 + 清除租約）。
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e
@@ -146,7 +146,7 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     /**
      * 原子標記失敗（當 fencingVersion 未知或實體讀取失敗時，依 ownerId 與 processing 狀態進行 CAS 恢復；FAILED + 記錄錯誤 + 排定下次重試 + 清除租約）。
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e
@@ -166,7 +166,7 @@ public interface CompensationOutboxEventRepository extends JpaRepository<Compens
     /**
      * 原子標記死亡（當 fencingVersion 未知或實體讀取失敗時，依 ownerId 與 processing 狀態進行 CAS 恢復；DEAD + 記錄錯誤 + 清除租約）。
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Transactional
     @Query("""
             UPDATE CompensationOutboxEvent e

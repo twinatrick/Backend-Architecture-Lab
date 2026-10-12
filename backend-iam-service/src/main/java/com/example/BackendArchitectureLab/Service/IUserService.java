@@ -41,7 +41,7 @@ public interface IUserService {
     PageResult<UserVo> searchUsers(UserSearchQuery query);
 
     /**
-     * 響應式分塊串流推播所有使用者 (Reactive Chunked Streaming)
+     * 響應式分塊串流推播使用者 (Reactive Chunked Streaming)
      *
      * @param chunkSize 每一批次分塊數量 (建議 50~1000)
      * @return ServerSentEvent 分塊串流 Flux

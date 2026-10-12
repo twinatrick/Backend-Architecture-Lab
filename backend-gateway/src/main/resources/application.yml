@@ -37,8 +37,9 @@ spring:
             - Path=/api/users/stream/**,/api/users/stream,/api/role/stream/**,/api/role/stream,/api/function/stream/**,/api/function/stream
           filters:
             - StripPrefix=1
+            - AddResponseHeader=X-Accel-Buffering, no
           metadata:
-            response-timeout: 60000
+            response-timeout: 120000
             connect-timeout: 10000
 
         - id: iam-service
@@ -58,8 +59,9 @@ spring:
             - Path=/api/job-posting/stream/**,/api/job-posting/stream,/api/user-job-link/stream/**,/api/user-job-link/stream,/api/company/stream/**,/api/company/stream
           filters:
             - StripPrefix=1
+            - AddResponseHeader=X-Accel-Buffering, no
           metadata:
-            response-timeout: 60000
+            response-timeout: 120000
             connect-timeout: 10000
 
         - id: job-service
@@ -79,8 +81,9 @@ spring:
             - Path=/api/project/stream/**,/api/project/stream,/api/skill/stream/**,/api/skill/stream
           filters:
             - StripPrefix=1
+            - AddResponseHeader=X-Accel-Buffering, no
           metadata:
-            response-timeout: 60000
+            response-timeout: 120000
             connect-timeout: 10000
 
         - id: competency-service
@@ -100,8 +103,9 @@ spring:
             - Path=/api/ai/stream/**,/api/external/config/stream/**,/api/external/config/stream,/api/external/discord/sessions/stream/**,/api/external/discord/sessions/stream,/api/external/discord/subscriptions/stream/**,/api/external/discord/subscriptions/stream
           filters:
             - StripPrefix=1
+            - AddResponseHeader=X-Accel-Buffering, no
           metadata:
-            response-timeout: 60000
+            response-timeout: 120000
             connect-timeout: 10000
 
         - id: external-api-service
@@ -126,8 +130,9 @@ spring:
             - Path=/api/aquarkData/stream/**,/api/aquarkData/stream,/api/alertCheckLimit/stream/**,/api/alertCheckLimit/stream
           filters:
             - StripPrefix=1
+            - AddResponseHeader=X-Accel-Buffering, no
           metadata:
-            response-timeout: 60000
+            response-timeout: 120000
             connect-timeout: 10000
 
         - id: alert-service

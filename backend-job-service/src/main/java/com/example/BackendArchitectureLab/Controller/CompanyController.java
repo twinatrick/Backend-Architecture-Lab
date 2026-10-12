@@ -51,7 +51,7 @@ public class CompanyController {
         return companyService.streamCompaniesChunked(chunkSize);
     }
 
-    @GetMapping("/get/{id}")
+    @GetMapping({"/get/{id}", "/{id}"})
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得公司詳情", description = "根據 ID 取得公司資訊。")
     public ResponseType<CompanyVo> getCompanyById(@PathVariable String id) {

@@ -62,6 +62,13 @@ public class FunctionController {
         return functionQueryService.streamFunctionsChunked(chunkSize);
     }
 
+    @GetMapping("/{id}")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "依 ID 取得功能", description = "根據功能 ID 取得功能詳細資訊。")
+    public ResponseType<FunctionVo> getFunctionById(@PathVariable String id) {
+        return ResponseType.Success(functionQueryService.getFunctionById(id), "功能查詢成功");
+    }
+
     @PostMapping("/search")
     @RequirePermission("View")
     @ApiOperationOk(summary = "分頁搜尋功能", description = "搜尋功能並回傳分頁結果，支援多種查詢條件與排序")

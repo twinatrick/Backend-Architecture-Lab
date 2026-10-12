@@ -23,6 +23,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
@@ -38,6 +39,15 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     private final TransactionExecutor transactionExecutor;
     private final IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
     private final AlertCheckLimitMapper alertCheckLimitMapper;
+
+    @Override
+    public AlertCheckLimitVo getLimitById(UUID id) {
+        return transactionExecutor.executeReadOnly(() ->
+                alertCheckLimitDataAccess.findById(id)
+                        .map(alertCheckLimitMapper::toVo)
+                        .orElseThrow(() -> new IllegalArgumentException("找不到指定的告警限制：" + id))
+        );
+    }
 
     @Override
     @Cacheable(value = "alertCheckLimit", key = "#tableName + '.' + #column", sync = true)

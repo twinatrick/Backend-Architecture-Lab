@@ -214,10 +214,11 @@ public class UserService implements IUserService {
                             return page;
                         }
 
+                        List<UserVo> content = userPage.getContent();
                         sink.next(ServerSentEvent.<List<UserVo>>builder()
                                 .event("chunk")
                                 .id(String.valueOf(page))
-                                .data(userPage.getContent())
+                                .data(content)
                                 .build());
 
                         if (!userPage.hasNext()) {
