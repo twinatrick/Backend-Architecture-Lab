@@ -17,11 +17,11 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class UserRole extends BaseEntity {
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JsonIgnore
     @JoinColumn(name = "role_id")
     private Role role;
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JsonIgnore
     @JoinColumn(name = "user_id")
     private User user;

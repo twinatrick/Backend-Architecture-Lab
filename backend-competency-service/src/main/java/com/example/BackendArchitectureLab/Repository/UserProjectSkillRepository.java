@@ -1,6 +1,9 @@
 package com.example.BackendArchitectureLab.Repository;
 
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -12,12 +15,28 @@ import java.util.UUID;
 
 public interface UserProjectSkillRepository extends JpaRepository<UserProjectSkill, UUID> {
 
+    @Override
+    @EntityGraph(attributePaths = {"project", "skill", "skillLevel"})
+    List<UserProjectSkill> findAll();
+
+    @Override
+    @EntityGraph(attributePaths = {"project", "skill", "skillLevel"})
+    Page<UserProjectSkill> findAll(Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"project", "skill", "skillLevel"})
+    Optional<UserProjectSkill> findById(UUID id);
+
+    @EntityGraph(attributePaths = {"project", "skill", "skillLevel"})
     List<UserProjectSkill> findByUserIdAndProjectId(UUID userId, UUID projectId);
 
+    @EntityGraph(attributePaths = {"project", "skill", "skillLevel"})
     List<UserProjectSkill> findByProjectId(UUID projectId);
 
+    @EntityGraph(attributePaths = {"project", "skill", "skillLevel"})
     List<UserProjectSkill> findByUserId(UUID userId);
 
+    @EntityGraph(attributePaths = {"project", "skill", "skillLevel"})
     Optional<UserProjectSkill> findByUserIdAndProjectIdAndSkillId(
             UUID userId, UUID projectId, UUID skillId
     );
