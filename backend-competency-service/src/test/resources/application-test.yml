@@ -42,3 +42,11 @@ logging:
   level:
     com.example.BackendArchitectureLab: INFO
     org.springframework.test: INFO
+
+compensation:
+  outbox:
+    flush-delay-ms: 3600000
+
+external-sync:
+  flush-delay-ms: 3600000
+
