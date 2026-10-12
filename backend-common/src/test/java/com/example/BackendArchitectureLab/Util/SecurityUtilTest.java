@@ -2,6 +2,8 @@ package com.example.BackendArchitectureLab.Util;
 
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
+import com.example.BackendArchitectureLab.Security.AuthenticatedUser;
+import com.example.BackendArchitectureLab.Security.JwtAuthenticationDetails;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -142,5 +145,36 @@ class SecurityUtilTest {
         UUID result = securityUtil.requireCurrentUserId();
 
         assertEquals(expectedUuid, result);
+    }
+
+    @Test
+    void requireCurrentUserId_shouldReturnUuidDirectly_whenPrincipalIsAuthenticatedUser() {
+        UUID expectedUuid = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser("test@example.com", expectedUuid.toString(), List.of());
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(user);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        UUID result = securityUtil.requireCurrentUserId();
+
+        assertEquals(expectedUuid, result);
+        verifyNoInteractions(userServiceFeignClient);
+    }
+
+    @Test
+    void requireCurrentUserId_shouldReturnUuidDirectly_whenDetailsIsJwtAuthenticationDetails() {
+        UUID expectedUuid = UUID.randomUUID();
+        JwtAuthenticationDetails details = mock(JwtAuthenticationDetails.class);
+        when(details.getUserId()).thenReturn(expectedUuid.toString());
+
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(new Object());
+        when(auth.getDetails()).thenReturn(details);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        UUID result = securityUtil.requireCurrentUserId();
+
+        assertEquals(expectedUuid, result);
+        verifyNoInteractions(userServiceFeignClient);
     }
 }

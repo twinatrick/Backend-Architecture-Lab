@@ -49,6 +49,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -719,29 +720,45 @@ public class SkillService implements ISkillService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "currentUserSkills", key = "'currentsearch:' + #currentUserId + ':' + #query.toString()", sync = true)
     public PageResult<CurrentUserSkillVo> searchCurrentUserSkillsCache(String currentUserId, SkillSearchQuery query) {
         // 驗證排序欄位與方向
         SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
-        
-        // 先取得所有當前使用者技能（已合併）
-        List<CurrentUserSkillVo> allSkills = getCurrentUserSkills();
-        
+
+        // 從使用者的全量快取中取得技能（避免重入解析 SecurityContext）
+        CacheListWrapper<CurrentUserSkillVo> wrapper = self.getCurrentUserSkillsCache(currentUserId);
+        List<CurrentUserSkillVo> allSkills = (wrapper != null && wrapper.getData() != null)
+                ? wrapper.getData()
+                : Collections.emptyList();
+
+        if (allSkills.isEmpty()) {
+            return PageResult.<CurrentUserSkillVo>builder()
+                    .content(Collections.emptyList())
+                    .totalElements(0L)
+                    .totalPages(0)
+                    .currentPage(query.getPage())
+                    .pageSize(query.getSize())
+                    .hasNext(false)
+                    .hasPrevious(query.getPage() > 0)
+                    .isFirst(query.getPage() == 0)
+                    .isLast(true)
+                    .build();
+        }
+
         // 套用搜尋條件
         List<CurrentUserSkillVo> filteredSkills = allSkills.stream()
                 .filter(skill -> matchesQuery(skill, query))
                 .toList();
-        
+
         // 套用排序
         filteredSkills = applySorting(filteredSkills, query);
-        
+
         // 套用分頁
         int start = query.getPage() * query.getSize();
         int end = Math.min(start + query.getSize(), filteredSkills.size());
-        List<CurrentUserSkillVo> pageContent = (start < filteredSkills.size()) 
-                ? filteredSkills.subList(start, end) 
+        List<CurrentUserSkillVo> pageContent = (start < filteredSkills.size())
+                ? filteredSkills.subList(start, end)
                 : new ArrayList<>();
-        
+
         // 建立分頁結果
         return PageResult.<CurrentUserSkillVo>builder()
                 .content(pageContent)

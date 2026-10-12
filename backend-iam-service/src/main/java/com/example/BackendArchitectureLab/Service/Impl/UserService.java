@@ -204,7 +204,7 @@ public class UserService implements IUserService {
                             }
 
                             List<UserVo> voList = entityPage.getContent().stream()
-                                    .map(userMapper::toVo)
+                                    .map(userMapper::toStreamVo)
                                     .toList();
 
                             return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());
