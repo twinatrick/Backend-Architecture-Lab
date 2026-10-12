@@ -15,6 +15,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_SERVER_ADDR:${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:localhost:8848}}
+        fail-fast: false
     gateway:
       routes:
         - id: ai-py-health

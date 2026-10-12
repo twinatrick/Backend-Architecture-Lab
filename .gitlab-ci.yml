@@ -120,12 +120,13 @@ deploy-cluster:
   script:
     - echo "===> 啟動中介軟體 (PostgreSQL, Redis, Kafka, Zookeeper, Nacos, MinIO)..."
     - docker compose -f compose.prototype.yaml up -d postgres redis nacos zookeeper kafka minio
-    - echo "===> 等候 PostgreSQL 就緒並建立業務資料庫..."
+    - echo "===> 等候 PostgreSQL 與 Nacos 就緒並建立業務資料庫..."
     - |
-      for i in $(seq 1 30); do
+      for i in $(seq 1 45); do
         PG_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-postgres 2>/dev/null || echo "starting")
-        if [ "$PG_STATUS" = "healthy" ]; then
-          echo "PostgreSQL 已就緒！確認 5 個業務資料庫建立..."
+        NACOS_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-nacos 2>/dev/null || echo "starting")
+        if [ "$PG_STATUS" = "healthy" ] && [ "$NACOS_STATUS" = "healthy" ]; then
+          echo "PostgreSQL 與 Nacos 已就緒！確認 5 個業務資料庫建立..."
           docker exec -i backend-architecture-lab-postgres createdb -U postgres iam_service || true
           docker exec -i backend-architecture-lab-postgres createdb -U postgres competency_service || true
           docker exec -i backend-architecture-lab-postgres createdb -U postgres job_service || true
@@ -136,16 +137,16 @@ deploy-cluster:
         sleep 2
       done
     - echo "===> 啟動全量微服務 (IAM, Competency, Job, External-API, Alert, Gateway)..."
-    - docker compose -f compose.prototype.yaml up -d --force-recreate --remove-orphans
-    - echo "===> 等候 Gateway 就緒..."
+    - docker compose -f compose.prototype.yaml up -d --force-recreate gateway iam-service competency-service job-service external-api-service alert-service
+    - echo "===> 等候 Gateway 健康端點就緒..."
     - |
-      for i in $(seq 1 30); do
-        GW_STATUS=$(docker inspect -f '{{.State.Status}}' backend-architecture-lab-gateway 2>/dev/null || echo "down")
-        if [ "$GW_STATUS" = "running" ]; then
-          echo "backend-architecture-lab-gateway 容器已啟動！"
+      for i in $(seq 1 45); do
+        GW_CODE=$(docker exec backend-architecture-lab-gateway curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/actuator/health 2>/dev/null || echo "000")
+        if [ "$GW_CODE" = "200" ]; then
+          echo "Gateway /actuator/health 已回傳 200 OK！"
           break
         fi
-        sleep 1
+        sleep 2
       done
     - docker ps --filter "name=backend-architecture-lab-"
     - echo "===> 服務日誌摘要："
