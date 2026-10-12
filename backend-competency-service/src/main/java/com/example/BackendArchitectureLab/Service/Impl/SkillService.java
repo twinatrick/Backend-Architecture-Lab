@@ -556,10 +556,15 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    public SkillVo getSkillById(Long id) {
-        Skill skill = skillDataAccess.findById(UUID.fromString(String.valueOf(id)))
+    public SkillVo getSkillById(UUID id) {
+        Skill skill = skillDataAccess.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
         return skillMapper.toVo(skill);
+    }
+
+    @Override
+    public SkillVo getSkillById(Long id) {
+        return getSkillById(UUID.fromString(String.valueOf(id)));
     }
 
     @Override
@@ -571,7 +576,6 @@ public class SkillService implements ISkillService {
     
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "skills", key = "'search:' + #query.toString()", sync = true)
     public PageResult<SkillVo> searchSkills(SkillSearchQuery query) {
         // 驗證排序欄位與方向
         SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
@@ -818,7 +822,6 @@ public class SkillService implements ISkillService {
     
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "skills", key = "'levelsearch:' + #query.toString()", sync = true)
     public PageResult<SkillLevelVo> searchSkillLevels(SkillLevelSearchQuery query) {
         // 驗證排序欄位與方向
         SKILL_LEVEL_SEARCH_POLICY.validate(query.getSortBy(), query.getSortDir());

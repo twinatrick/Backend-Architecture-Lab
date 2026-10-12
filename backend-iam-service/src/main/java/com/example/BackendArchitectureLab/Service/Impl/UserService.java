@@ -171,7 +171,6 @@ public class UserService implements IUserService {
     }
     
     @Override
-    @Cacheable(value = "users", key = "'search:' + #query.toString()", sync = true)
     public PageResult<UserVo> searchUsers(UserSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
@@ -179,7 +178,7 @@ public class UserService implements IUserService {
             Page<User> userPage = userDataAccess.searchUsers(query);
             
             List<UserVo> userVos = userPage.getContent().stream()
-                    .map(userMapper::toVo)
+                    .map(userMapper::toStreamVo)
                     .toList();
             
             return PageResult.of(userPage, userVos);

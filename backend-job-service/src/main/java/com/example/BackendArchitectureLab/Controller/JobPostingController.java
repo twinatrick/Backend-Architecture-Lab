@@ -50,7 +50,7 @@ public class JobPostingController {
         return jobPostingService.streamJobPostingsChunked(chunkSize);
     }
 
-    @GetMapping("/get/{id}")
+    @GetMapping({"/get/{id}", "/{id}"})
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得職缺詳情", description = "根據 ID 取得職缺資訊。")
     public ResponseType<JobPostingVo> getJobPostingById(@PathVariable String id) {

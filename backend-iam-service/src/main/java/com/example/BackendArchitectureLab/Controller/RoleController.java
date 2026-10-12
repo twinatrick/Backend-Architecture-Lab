@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,6 +59,13 @@ public class RoleController {
     public Flux<ServerSentEvent<List<RoleOutVo>>> streamRoles(
             @RequestParam(name = "chunkSize", defaultValue = "250") int chunkSize) {
         return roleService.streamRolesChunked(chunkSize);
+    }
+
+    @GetMapping("/{id}")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "依 ID 取得角色", description = "根據角色 ID 取得角色詳細資訊與綁定的權限列表。")
+    public ResponseType<RoleOutVo> getRoleById(@PathVariable String id) {
+        return ResponseType.Success(roleService.getRoleById(id), "角色查詢成功");
     }
 
     @PostMapping("/search")

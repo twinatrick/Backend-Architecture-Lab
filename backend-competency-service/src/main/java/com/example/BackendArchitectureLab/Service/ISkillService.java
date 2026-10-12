@@ -117,6 +117,8 @@ public interface ISkillService {
      */
     void deletePersonalSkill(UUID skillId);
 
+    SkillVo getSkillById(UUID id);
+
     SkillVo getSkillById(Long id);
 
     SkillLevelVo getSkillLevelById(Long id);

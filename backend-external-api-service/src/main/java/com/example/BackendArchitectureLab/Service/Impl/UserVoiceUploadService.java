@@ -74,7 +74,6 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
     }
 
     @Override
-    @Cacheable(value = "userVoiceUploads", key = "'search:' + #userId + ':' + #query.toString()", sync = true)
     public PageResult<UserVoiceUploadVo> searchUserUploads(String userId, VoiceUploadSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             // 驗證排序欄位與方向

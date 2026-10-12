@@ -124,7 +124,6 @@ public class ProjectQueryService implements IProjectQueryService {
     }
 
     @Override
-    @Cacheable(value = "projects", key = "'search:' + #query.toString()", sync = true)
     public PageResult<ProjectVo> searchProjects(ProjectSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
