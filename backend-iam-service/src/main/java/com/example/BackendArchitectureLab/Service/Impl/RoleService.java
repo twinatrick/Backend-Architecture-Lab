@@ -583,7 +583,6 @@ public class RoleService implements IRoleService {
     }
     
     @Override
-    @Cacheable(value = "roles", key = "'search:' + #query.toString()", sync = true)
     public PageResult<RoleOutVo> searchRoles(RoleSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             // 驗證排序欄位與方向

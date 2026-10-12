@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/skill")
@@ -39,6 +40,13 @@ public class SkillController {
             @RequestParam(defaultValue = "250") int chunkSize
     ) {
         return skillService.streamSkillsChunked(chunkSize);
+    }
+
+    @GetMapping("/{id}")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "取得技能詳情", description = "根據技能 ID 取得技能詳細資訊。")
+    public ResponseType<SkillVo> getSkillById(@PathVariable UUID id) {
+        return ResponseType.Success(skillService.getSkillById(id), "技能查詢成功");
     }
 
     @PostMapping("/search")

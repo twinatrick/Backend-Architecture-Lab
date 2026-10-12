@@ -63,6 +63,14 @@ public class ProjectController {
         return ResponseType.Success("專案刪除成功");
     }
 
+    @GetMapping("/{id}")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "取得專案詳情", description = "根據專案 ID 取得專案詳細資訊。")
+    public ResponseType<ProjectVo> getProjectById(@PathVariable UUID id) {
+        ProjectVo project = projectQueryService.getProjectById(id);
+        return ResponseType.Success(project, "專案查詢成功");
+    }
+
     @GetMapping("/{projectId}/skills")
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得專案技能", description = "獲取指定專案綁定的所有技能與等級詳細資訊")
