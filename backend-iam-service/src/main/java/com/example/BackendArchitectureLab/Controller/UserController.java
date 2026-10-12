@@ -61,11 +61,12 @@ public class UserController {
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission("View")
-    @ApiOperationOk(summary = "串流分塊取得使用者清單", description = "透過 Server-Sent Events (SSE) 分塊串流推播使用者清單，支援心跳保活與非阻塞背壓。")
+    @ApiOperationOk(summary = "串流分塊取得使用者清單", description = "透過 Server-Sent Events (SSE) 分塊串流推播使用者清單，支援心跳保活、限制最大筆數與非阻塞背壓。")
     public Flux<ServerSentEvent<List<UserVo>>> streamUsers(
-            @RequestParam(defaultValue = "250") int chunkSize
+            @RequestParam(defaultValue = "250") int chunkSize,
+            @RequestParam(defaultValue = "1000") int limit
     ) {
-        return userService.streamUsersChunked(chunkSize);
+        return userService.streamUsersChunked(chunkSize, limit);
     }
 
     @PostMapping("/saveUser")

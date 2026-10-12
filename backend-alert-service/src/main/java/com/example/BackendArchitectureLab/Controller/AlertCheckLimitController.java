@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/alertCheckLimit")
 @RequiredArgsConstructor
@@ -23,6 +25,14 @@ import java.util.List;
 @ApiControllerTag(name = "Alert Limits", description = "告警門檻管理相關 API")
 public class AlertCheckLimitController {
     private final IAlertCheckLimitService alertCheckLimitService;
+
+    @GetMapping("/{id}")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "取得告警限制詳情", description = "根據 ID 取得指定告警限制資訊。")
+    public ResponseType<AlertCheckLimitVo> getLimitById(@PathVariable UUID id) {
+        return ResponseType.Success(alertCheckLimitService.getLimitById(id), "告警限制查詢成功");
+    }
+
     @PostMapping("/add")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "新增告警限制", description = "為資料表欄位建立或更新一筆告警限制。")

@@ -121,5 +121,7 @@ public interface ISkillService {
 
     SkillVo getSkillById(Long id);
 
+    SkillLevelVo getSkillLevelById(UUID id);
+
     SkillLevelVo getSkillLevelById(Long id);
 }

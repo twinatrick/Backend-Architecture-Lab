@@ -6,12 +6,22 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Data access interface for AlertCheckLimit entity operations.
  * Abstracts AlertCheckLimitRepository operations for service layer.
  */
 public interface IAlertCheckLimitDataAccess {
+
+    /**
+     * Find alert check limit by ID.
+     *
+     * @param id limit UUID
+     * @return optional containing matching limit if found
+     */
+    Optional<AlertCheckLimit> findById(UUID id);
 
     /**
      * Find all alert check limits.

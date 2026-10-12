@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/skill/level")
@@ -20,6 +21,13 @@ import java.util.List;
 @ApiControllerTag(name = "Skill Levels", description = "技能等級管理相關 API")
 public class SkillLevelController {
     private final ISkillService skillService;
+
+    @GetMapping("/{id}")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "取得技能等級詳情", description = "根據 ID 取得指定技能等級資訊。")
+    public ResponseType<SkillLevelVo> getSkillLevelById(@PathVariable UUID id) {
+        return ResponseType.Success(skillService.getSkillLevelById(id), "技能等級查詢成功");
+    }
 
     @PostMapping("/add")
     @RequirePermission("Edit")

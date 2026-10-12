@@ -13,6 +13,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Implementation of IAlertCheckLimitDataAccess.
@@ -23,6 +25,11 @@ import java.util.List;
 public class AlertCheckLimitDataAccessImpl implements IAlertCheckLimitDataAccess {
 
     private final AlertCheckLimitRepository alertCheckLimitRepository;
+
+    @Override
+    public Optional<AlertCheckLimit> findById(UUID id) {
+        return alertCheckLimitRepository.findById(id);
+    }
 
     @Override
     public List<AlertCheckLimit> findAll() {

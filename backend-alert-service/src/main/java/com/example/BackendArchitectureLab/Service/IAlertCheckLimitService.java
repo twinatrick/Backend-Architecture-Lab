@@ -7,8 +7,11 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface IAlertCheckLimitService {
+    AlertCheckLimitVo getLimitById(UUID id);
+
     AlertCheckLimitVo getLimit(String tableName, String column);
 
     AlertCheckLimitVo insertLimit(String tableName, String column, double limitValue);

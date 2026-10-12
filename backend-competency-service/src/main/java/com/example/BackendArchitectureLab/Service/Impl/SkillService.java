@@ -568,10 +568,15 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    public SkillLevelVo getSkillLevelById(Long id) {
-        SkillLevel skillLevel = skillLevelDataAccess.findById(UUID.fromString(String.valueOf(id)))
+    public SkillLevelVo getSkillLevelById(UUID id) {
+        SkillLevel skillLevel = skillLevelDataAccess.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Skill level not found"));
         return mapSkillLevelVo(skillLevel);
+    }
+
+    @Override
+    public SkillLevelVo getSkillLevelById(Long id) {
+        return getSkillLevelById(UUID.fromString(String.valueOf(id)));
     }
     
     @Override
