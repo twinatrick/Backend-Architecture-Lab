@@ -101,7 +101,7 @@ docker-images-build:
     - when: manual
       allow_failure: true
   script:
-    - echo "===> 使用 Docker Compose 構建全量微服務映像檔 (Gateway + 5 微服務)..."
+    - echo "===> Building all microservice Docker images (Gateway + 5 microservices)..."
     - docker compose -f compose.prototype.yaml build
     - docker images | grep backend-architecture-lab-
 
@@ -118,14 +118,14 @@ deploy-cluster:
     - when: manual
       allow_failure: true
   script:
-    - echo "===> 啟動中介軟體 (PostgreSQL, Redis, Kafka, Zookeeper, Nacos, MinIO)..."
+    - echo "===> Starting middleware services (PostgreSQL, Redis, Kafka, Zookeeper, Nacos, MinIO)..."
     - docker compose -f compose.prototype.yaml up -d postgres redis nacos zookeeper kafka minio
-    - echo "===> 等候 PostgreSQL 就緒並建立業務資料庫..."
+    - echo "===> Waiting for PostgreSQL readiness and ensuring business databases exist..."
     - |
       for i in $(seq 1 30); do
         PG_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-postgres 2>/dev/null || echo "starting")
         if [ "$PG_STATUS" = "healthy" ]; then
-          echo "PostgreSQL 已就緒！確認 5 個業務資料庫建立..."
+          echo "PostgreSQL is ready! Ensuring 5 business databases exist..."
           docker exec -i backend-architecture-lab-postgres createdb -U postgres iam_service || true
           docker exec -i backend-architecture-lab-postgres createdb -U postgres competency_service || true
           docker exec -i backend-architecture-lab-postgres createdb -U postgres job_service || true
@@ -135,19 +135,30 @@ deploy-cluster:
         fi
         sleep 2
       done
-    - echo "===> 啟動全量微服務 (IAM, Competency, Job, External-API, Alert, Gateway)..."
-    - docker compose -f compose.prototype.yaml up -d --force-recreate --remove-orphans
-    - echo "===> 等候 Gateway 就緒..."
+    - echo "===> Checking Nacos readiness..."
+    - |
+      for i in $(seq 1 30); do
+        NACOS_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-nacos 2>/dev/null || echo "starting")
+        if [ "$NACOS_STATUS" = "healthy" ] || docker exec backend-architecture-lab-nacos curl -fsS http://localhost:8848/nacos/v1/console/health/readiness >/dev/null 2>&1; then
+          echo "Nacos is healthy and ready!"
+          break
+        fi
+        echo "Waiting for Nacos readiness ($i/30)..."
+        sleep 2
+      done
+    - echo "===> Deploying microservices with latest images (force-recreate, no-deps)..."
+    - docker compose -f compose.prototype.yaml up -d --force-recreate --no-deps gateway iam-service competency-service job-service external-api-service alert-service
+    - echo "===> Waiting for Gateway readiness..."
     - |
       for i in $(seq 1 30); do
         GW_STATUS=$(docker inspect -f '{{.State.Status}}' backend-architecture-lab-gateway 2>/dev/null || echo "down")
         if [ "$GW_STATUS" = "running" ]; then
-          echo "backend-architecture-lab-gateway 容器已啟動！"
+          echo "backend-architecture-lab-gateway container is running!"
           break
         fi
         sleep 1
       done
     - docker ps --filter "name=backend-architecture-lab-"
-    - echo "===> 服務日誌摘要："
+    - echo "===> Service log summary (Gateway):"
     - docker logs --tail 25 backend-architecture-lab-gateway
-    - echo "===> 微服務叢集部署完成！"
+    - echo "===> Microservice cluster deployment complete!"
