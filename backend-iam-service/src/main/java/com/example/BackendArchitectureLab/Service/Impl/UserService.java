@@ -103,6 +103,7 @@ public class UserService implements IUserService {
         @CachePut(value = "users", key = "#result.email")
     })
     @Override
+    @Transactional
     public UserVo saveUser(UserVo userVo) {
         User user = userMapper.toEntity(userVo);
         encodePasswordIfNecessary(user);
