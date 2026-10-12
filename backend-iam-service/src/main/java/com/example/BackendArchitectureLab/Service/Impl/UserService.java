@@ -187,32 +187,15 @@ public class UserService implements IUserService {
 
     @Override
     public Flux<ServerSentEvent<List<UserVo>>> streamUsersChunked(int chunkSize) {
-        return streamUsersChunked(chunkSize, 1000);
-    }
-
-    @Override
-    public Flux<ServerSentEvent<List<UserVo>>> streamUsersChunked(int chunkSize, int limit) {
         int safeChunkSize = Math.max(10, Math.min(chunkSize, 1000));
-        int effectiveLimit = limit > 0 ? limit : Integer.MAX_VALUE;
 
-        Flux<ServerSentEvent<List<UserVo>>> dataFlux = Flux.<ServerSentEvent<List<UserVo>>, int[]>generate(
-                () -> new int[]{0, 0},
-                (state, sink) -> {
-                    int page = state[0];
-                    int totalEmitted = state[1];
-
-                    if (totalEmitted >= effectiveLimit) {
-                        sink.complete();
-                        return state;
-                    }
-
-                    int remaining = effectiveLimit - totalEmitted;
-                    int currentFetchSize = Math.min(safeChunkSize, remaining);
-
+        Flux<ServerSentEvent<List<UserVo>>> dataFlux = Flux.<ServerSentEvent<List<UserVo>>, Integer>generate(
+                () -> 0,
+                (page, sink) -> {
                     try {
                         Page<UserVo> userPage = transactionExecutor.executeReadOnly(() -> {
                             Page<User> entityPage = userDataAccess.findAllPaged(
-                                    PageRequest.of(page, currentFetchSize, Sort.by(Sort.Direction.ASC, "id"))
+                                    PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
                             );
 
                             if (entityPage.isEmpty()) {
@@ -228,7 +211,7 @@ public class UserService implements IUserService {
 
                         if (userPage.isEmpty()) {
                             sink.complete();
-                            return state;
+                            return page;
                         }
 
                         List<UserVo> content = userPage.getContent();
@@ -238,20 +221,16 @@ public class UserService implements IUserService {
                                 .data(content)
                                 .build());
 
-                        int newEmitted = totalEmitted + content.size();
-                        state[1] = newEmitted;
-                        state[0] = page + 1;
-
-                        if (!userPage.hasNext() || newEmitted >= effectiveLimit) {
+                        if (!userPage.hasNext()) {
                             sink.complete();
-                            return state;
+                            return page;
                         }
 
-                        return state;
+                        return page + 1;
                     } catch (Exception ex) {
                         log.error("使用者 SSE 分塊串流分頁查詢失敗 [page={}]: {}", page, ex.getMessage(), ex);
                         sink.error(ex);
-                        return state;
+                        return page;
                     }
                 }
         ).subscribeOn(Schedulers.boundedElastic());

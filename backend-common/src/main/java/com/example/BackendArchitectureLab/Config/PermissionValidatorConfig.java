@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * 權限驗證器自動配置：當容器中不存在 LocalPermissionValidator（非 IAM 服務）時，
@@ -43,7 +44,12 @@ public class PermissionValidatorConfig {
                     .expireAfterWrite(DEFAULT_TTL)
                     .recordStats()
                     .build();
-            return new DefaultPermissionValidator(permissionCheckFeignClient, circuitBreaker, permissionCache);
+            Cache<String, Set<String>> userPermissionsCache = Caffeine.newBuilder()
+                    .maximumSize(2000)
+                    .expireAfterWrite(DEFAULT_TTL)
+                    .recordStats()
+                    .build();
+            return new DefaultPermissionValidator(permissionCheckFeignClient, circuitBreaker, permissionCache, userPermissionsCache);
         }
         return (email, one, two, three) -> false;
     }

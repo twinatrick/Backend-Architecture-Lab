@@ -44,18 +44,7 @@ public interface IUserService {
      * 響應式分塊串流推播使用者 (Reactive Chunked Streaming)
      *
      * @param chunkSize 每一批次分塊數量 (建議 50~1000)
-     * @param limit 最大回傳筆數上限，<= 0 表示不限制全量推播
      * @return ServerSentEvent 分塊串流 Flux
      */
-    Flux<ServerSentEvent<List<UserVo>>> streamUsersChunked(int chunkSize, int limit);
-
-    /**
-     * 響應式分塊串流推播使用者 (預設上限 1000 筆保護)
-     *
-     * @param chunkSize 每一批次分塊數量
-     * @return ServerSentEvent 分塊串流 Flux
-     */
-    default Flux<ServerSentEvent<List<UserVo>>> streamUsersChunked(int chunkSize) {
-        return streamUsersChunked(chunkSize, 1000);
-    }
+    Flux<ServerSentEvent<List<UserVo>>> streamUsersChunked(int chunkSize);
 }

@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -46,7 +47,11 @@ class DefaultPermissionValidatorTest {
                 .maximumSize(100)
                 .expireAfterWrite(Duration.ofSeconds(30))
                 .build();
-        validator = new DefaultPermissionValidator(permissionCheckFeignClient, circuitBreaker, cache);
+        Cache<String, Set<String>> userPermissionsCache = Caffeine.newBuilder()
+                .maximumSize(100)
+                .expireAfterWrite(Duration.ofSeconds(30))
+                .build();
+        validator = new DefaultPermissionValidator(permissionCheckFeignClient, circuitBreaker, cache, userPermissionsCache);
     }
 
     @Test

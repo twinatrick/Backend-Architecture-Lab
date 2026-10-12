@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/role/inner")
@@ -47,5 +48,11 @@ public class PermissionInternalController {
             log.debug("Permission granted: user={}, path={}/{}/{}", email, one, two, three);
         }
         return hasPermission;
+    }
+
+    @GetMapping("/user-permissions")
+    public Set<String> getUserPermissions(@RequestParam String email) {
+        log.debug("Getting user permissions: email={}", email);
+        return localPermissionValidator.getUserPermissions(email);
     }
 }
