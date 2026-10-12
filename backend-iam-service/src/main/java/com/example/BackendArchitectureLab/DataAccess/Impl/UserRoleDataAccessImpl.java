@@ -8,6 +8,7 @@ import com.example.BackendArchitectureLab.Entity.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,6 +35,11 @@ public class UserRoleDataAccessImpl implements IUserRoleDataAccess {
     @Override
     public List<UserRole> findByUserId(UUID userId) {
         return userRoleRepository.findByUserId(userId);
+    }
+
+    @Override
+    public List<UserRole> findByUserIdIn(Collection<UUID> userIds) {
+        return userRoleRepository.findByUserIdIn(userIds);
     }
 
     @Override

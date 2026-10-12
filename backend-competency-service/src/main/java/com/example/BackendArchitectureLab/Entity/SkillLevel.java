@@ -25,7 +25,7 @@ import java.util.List;
         uniqueConstraints = @UniqueConstraint(columnNames = {"skill_id", "level_value"})
 )
 public class SkillLevel extends BaseEntity {
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "skill_id", nullable = false)
     @JsonIgnore
     private Skill skill;

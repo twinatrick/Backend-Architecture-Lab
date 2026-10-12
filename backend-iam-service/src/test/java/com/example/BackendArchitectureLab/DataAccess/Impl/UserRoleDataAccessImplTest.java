@@ -196,6 +196,29 @@ class UserRoleDataAccessImplTest {
     }
 
     @Test
+    @DisplayName("Should find user roles by user ids")
+    void testFindByUserIdIn() {
+        User user = new User();
+        user.setEmail("findin@example.com");
+        user.setPassword("password");
+        user.setDisabled(false);
+        userRepository.save(user);
+
+        Role role = new Role();
+        role.setName("ROLE_FIND_IN");
+        roleRepository.save(role);
+
+        UserRole userRole = new UserRole();
+        userRole.setUser(user);
+        userRole.setRole(role);
+        userRoleRepository.save(userRole);
+
+        List<UserRole> result = userRoleDataAccess.findByUserIdIn(List.of(user.getId()));
+        assertEquals(1, result.size());
+        assertEquals(user.getId(), result.get(0).getUser().getId());
+    }
+
+    @Test
     @DisplayName("Should delete all user roles by user id")
     void testDeleteByUserId() {
         User user = new User();

@@ -455,7 +455,7 @@ class RoleServiceTest {
         // Arrange
         when(roleDataAccess.findById(testRoleKey)).thenReturn(Optional.of(testRole));
         when(userDataAccess.findAllById(anyList())).thenReturn(List.of(testUser));
-        when(userRoleDataAccess.findByUserId(testUserKey)).thenReturn(List.of());
+        when(userRoleDataAccess.findByUserIdIn(anyList())).thenReturn(List.of());
         doNothing().when(userRoleDataAccess).deleteByUserIdAndRoleId(any(), any());
         when(userRoleDataAccess.saveAll(anyList())).thenReturn(new ArrayList<>());
 

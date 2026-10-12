@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,6 +33,8 @@ public interface IUserRoleDataAccess {
     List<UserRole> saveAll(List<UserRole> userRoles);
 
     List<UserRole> findByUserId(UUID userId);
+
+    List<UserRole> findByUserIdIn(Collection<UUID> userIds);
 
     void deleteByUserId(UUID userId);
 

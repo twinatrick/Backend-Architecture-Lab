@@ -25,7 +25,7 @@ public class UserProject extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 }

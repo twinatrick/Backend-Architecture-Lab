@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -21,7 +22,7 @@ public class UserJobLink extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_posting_id", nullable = false)
     private JobPosting jobPosting;
 

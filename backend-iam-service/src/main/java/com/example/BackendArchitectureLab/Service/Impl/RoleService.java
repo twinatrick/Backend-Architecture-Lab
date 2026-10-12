@@ -259,9 +259,14 @@ public class RoleService implements IRoleService {
             throw new IllegalArgumentException("User not found");
         }
 
+        List<UserRole> existingAllRoles = userRoleDataAccess.findByUserIdIn(userUuids);
+        Map<UUID, List<UserRole>> existingRolesByUser = existingAllRoles.stream()
+                .filter(ur -> ur.getUser() != null)
+                .collect(Collectors.groupingBy(ur -> ur.getUser().getId()));
+
         List<UserRole> userRoles = new ArrayList<>();
         for (User user : users) {
-            List<UserRole> existingRoles = userRoleDataAccess.findByUserId(user.getId());
+            List<UserRole> existingRoles = existingRolesByUser.getOrDefault(user.getId(), List.of());
             long existingBindingCount = existingRoles.stream()
                     .filter(existing -> existing.getRole() != null && roleUuid.equals(existing.getRole().getId()))
                     .count();

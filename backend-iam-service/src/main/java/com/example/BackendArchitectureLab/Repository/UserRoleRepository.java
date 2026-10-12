@@ -3,11 +3,13 @@ package com.example.BackendArchitectureLab.Repository;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,7 +22,11 @@ public interface UserRoleRepository extends JpaRepository<UserRole, UUID> {
 //
     void deleteAllByUserInAndRoleIn(List<User> userKey, List<Role> roleKey);
 
+    @EntityGraph(attributePaths = {"role", "user"})
     List<UserRole> findByUserId(UUID userId);
+
+    @EntityGraph(attributePaths = {"role", "user"})
+    List<UserRole> findByUserIdIn(Collection<UUID> userIds);
 
     @Modifying
     @Query("delete from UserRole ur where ur.user.id = :userId")
