@@ -5,12 +5,14 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Exception.AppException;
+import com.example.BackendArchitectureLab.Security.CustomUserDetails;
 import com.example.BackendArchitectureLab.Security.JwtAuthenticationToken;
 import com.example.BackendArchitectureLab.Service.IAuthService;
 import com.example.BackendArchitectureLab.Vo.LoginRequest;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SignupRequest;
 import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
+import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Vo.Response.Token;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -45,9 +47,10 @@ public class AuthController {
     @PostMapping("/signup")
     @ApiOperationBadRequest(summary = "註冊新使用者", description = "建立使用者帳號並回傳 JWT access token。")
     public ResponseType<Token> signup(@RequestBody SignupRequest request) throws JoseException {
-        authService.signup(request);
+        UserVo userVo = authService.signup(request);
+        String userId = userVo != null ? userVo.getId() : null;
 
-        String token = jwtUtils.generateJWT(request.getEmail());
+        String token = jwtUtils.generateJWT(request.getEmail(), userId);
 
         httpResponse.addHeader("Authorization", "Bearer " + token);
         Token res = new Token();
@@ -59,8 +62,9 @@ public class AuthController {
     @PostMapping("/login")
     @ApiOperationAuth(summary = "使用者登入", description = "驗證使用者憑證並回傳 JWT access token。")
     public ResponseType<Token> login(@RequestBody LoginRequest request) throws JoseException {
+        Authentication authentication;
         try {
-            Authentication authentication = authenticationManager.authenticate(
+            authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -68,7 +72,14 @@ public class AuthController {
             throw new AppException("AUTH_ERROR", "Invalid username or password", 401);
         }
 
-        String token = jwtUtils.generateJWT(request.getEmail());
+        String userId = null;
+        if (authentication.getPrincipal() instanceof CustomUserDetails userDetails
+                && userDetails.getUser() != null
+                && userDetails.getUser().getId() != null) {
+            userId = userDetails.getUser().getId().toString();
+        }
+
+        String token = jwtUtils.generateJWT(request.getEmail(), userId);
 
         httpResponse.addHeader("Authorization", "Bearer " + token);
         Token res = new Token();

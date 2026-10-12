@@ -62,18 +62,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 token = token.replaceFirst("^Bearer\\s+", "").trim();
                 JwtClaims claims = jwtAuthenticationToken.verifyJWT(token);
                 String email = (String) claims.getClaimValue("email");
+                String userId = (String) claims.getClaimValue("userId");
 
-                    if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails;
                     if (userDetailsService != null) {
                         userDetails = userDetailsService.loadUserByUsername(email);
                     } else {
-                        userDetails = new User(email, "", List.of());
+                        userDetails = new AuthenticatedUser(email, userId, List.of());
                     }
 
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    authentication.setDetails(new JwtAuthenticationDetails(request, userId));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }

@@ -35,8 +35,15 @@ public class JwtAuthenticationToken {
     }
 
     public String generateJWT(String user) throws JoseException {
+        return generateJWT(user, null);
+    }
+
+    public String generateJWT(String user, String userId) throws JoseException {
         HashMap<String, String> map = new HashMap<>();
         map.put("email", user);
+        if (userId != null && !userId.isBlank()) {
+            map.put("userId", userId);
+        }
         JwtClaims claims = generateClaims(map, expirationMinutes);
         JsonWebSignature jws = new JsonWebSignature();
         jws.setKey(secretKey);

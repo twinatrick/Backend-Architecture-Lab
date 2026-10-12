@@ -168,7 +168,6 @@ public class ProjectQueryService implements IProjectQueryService {
     }
 
     @Override
-    @Cacheable(value = "projects", key = "'currentsearch:' + #currentUserId + ':' + #query.toString()", sync = true)
     public PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             UUID currentUserIdUuid = UUID.fromString(currentUserId);
