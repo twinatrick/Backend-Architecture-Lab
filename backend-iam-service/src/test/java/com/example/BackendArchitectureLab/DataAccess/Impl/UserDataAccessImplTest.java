@@ -3,7 +3,10 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Repository.UserRepository;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
+import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.User;
+import com.example.BackendArchitectureLab.Entity.UserRole;
+import com.example.BackendArchitectureLab.Security.CustomUserDetails;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -372,6 +375,48 @@ class UserDataAccessImplTest {
             userDataAccess.save(tx1User);
             testEntityManager.flush();
         });
+    }
+
+    @Test
+    @DisplayName("Should find user by email with roles and access role details without lazy initialization exception")
+    void testFindByEmailWithRoles_LoadsRolesAndRoleEntity() {
+        // Arrange
+        User user = new User();
+        user.setEmail("auth@example.com");
+        user.setName("Auth User");
+        user.setPassword("password");
+        user.setDisabled(false);
+        user = testEntityManager.persistAndFlush(user);
+
+        Role role = new Role();
+        role.setName("manager");
+        role = testEntityManager.persistAndFlush(role);
+
+        UserRole userRole = new UserRole();
+        userRole.setUser(user);
+        userRole.setRole(role);
+        testEntityManager.persistAndFlush(userRole);
+
+        testEntityManager.clear();
+
+        // Act
+        Optional<User> result = userDataAccess.findByEmailWithRoles("auth@example.com");
+
+        // Assert
+        assertTrue(result.isPresent());
+        User loadedUser = result.get();
+        assertEquals("auth@example.com", loadedUser.getEmail());
+        assertNotNull(loadedUser.getRoles());
+        assertEquals(1, loadedUser.getRoles().size());
+
+        testEntityManager.clear();
+        UserRole loadedUserRole = loadedUser.getRoles().iterator().next();
+        assertNotNull(loadedUserRole.getRole());
+        assertEquals("manager", loadedUserRole.getRole().getName());
+
+        CustomUserDetails userDetails = new CustomUserDetails(loadedUser);
+        assertTrue(userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER")));
     }
 }
 
