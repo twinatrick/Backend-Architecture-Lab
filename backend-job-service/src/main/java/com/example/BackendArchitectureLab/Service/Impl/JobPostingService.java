@@ -383,7 +383,6 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
-    @Cacheable(value = "jobPostings", key = "'search:' + #query.toString()", sync = true)
     public PageResult<JobPostingVo> searchJobPostings(JobPostingSearchQuery query) {
         Page<JobPosting> page = jobPostingDataAccess.searchJobPostings(query);
         List<JobPostingVo> content = page.getContent().stream()

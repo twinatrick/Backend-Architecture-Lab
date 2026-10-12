@@ -136,7 +136,7 @@ deploy-cluster:
         sleep 2
       done
     - echo "===> 啟動全量微服務 (IAM, Competency, Job, External-API, Alert, Gateway)..."
-    - docker compose -f compose.prototype.yaml up -d --remove-orphans
+    - docker compose -f compose.prototype.yaml up -d --force-recreate --remove-orphans
     - echo "===> 等候 Gateway 就緒..."
     - |
       for i in $(seq 1 30); do

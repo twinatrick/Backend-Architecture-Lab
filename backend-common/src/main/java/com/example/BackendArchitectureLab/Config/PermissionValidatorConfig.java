@@ -25,7 +25,7 @@ import java.time.Duration;
 public class PermissionValidatorConfig {
 
     private static final long DEFAULT_MAX_SIZE = 10_000L;
-    private static final Duration DEFAULT_TTL = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_TTL = Duration.ofMinutes(10);
 
     @Bean
     @ConditionalOnMissingBean(LocalPermissionValidator.class)

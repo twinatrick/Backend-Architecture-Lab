@@ -143,7 +143,6 @@ public class CompanyService implements ICompanyService {
     }
 
     @Override
-    @Cacheable(value = "companies", key = "'search:' + #query.toString()", sync = true)
     public PageResult<CompanyVo> searchCompanies(CompanySearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
