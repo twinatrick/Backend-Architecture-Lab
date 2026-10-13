@@ -48,6 +48,7 @@ public interface RoleMapper {
                 .map(UUID::toString)
                 .toList();
         vo.setFunctionIds(ids);
+        vo.setFunctionCount(ids.size());
     }
 
     @Named("emptyFunctionIds")
@@ -57,5 +58,6 @@ public interface RoleMapper {
             return;
         }
         vo.setFunctionIds(Collections.emptyList());
+        vo.setFunctionCount(role.getRoleFunctions() != null ? role.getRoleFunctions().size() : 0);
     }
 }
