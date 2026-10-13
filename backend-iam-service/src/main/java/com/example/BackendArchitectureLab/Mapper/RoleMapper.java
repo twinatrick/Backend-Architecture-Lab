@@ -5,17 +5,27 @@ import com.example.BackendArchitectureLab.Entity.BaseEntity;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.RoleFunction;
 import org.mapstruct.AfterMapping;
+import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 @Mapper(componentModel = "spring", uses = {FunctionMapper.class})
 public interface RoleMapper {
+    @Named("toVo")
+    @BeanMapping(qualifiedByName = "fillFunctionIds")
     @Mapping(target = "functionIds", ignore = true)
     RoleOutVo toVo(Role role);
+
+    @Named("toSearchVo")
+    @BeanMapping(qualifiedByName = "emptyFunctionIds")
+    @Mapping(target = "functionIds", ignore = true)
+    RoleOutVo toSearchVo(Role role);
 
     @Mapping(target = "userRoles", ignore = true)
     @Mapping(target = "roleFunctions", ignore = true)
@@ -26,6 +36,7 @@ public interface RoleMapper {
      * It MUST be called within an active @Transactional context.
      * If called on a detached entity outside a transaction, LazyInitializationException will be thrown.
      */
+    @Named("fillFunctionIds")
     @AfterMapping
     default void fillFunctionIds(Role role, @MappingTarget RoleOutVo vo) {
         if (role == null) {
@@ -37,5 +48,14 @@ public interface RoleMapper {
                 .map(UUID::toString)
                 .toList();
         vo.setFunctionIds(ids);
+    }
+
+    @Named("emptyFunctionIds")
+    @AfterMapping
+    default void emptyFunctionIds(Role role, @MappingTarget RoleOutVo vo) {
+        if (role == null) {
+            return;
+        }
+        vo.setFunctionIds(Collections.emptyList());
     }
 }

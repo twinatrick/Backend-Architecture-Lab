@@ -17,6 +17,8 @@ import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,9 @@ public class AuthService implements IAuthService {
     private final IRoleService roleService;
     private final UserMapper userMapper;
     private final FunctionMapper functionMapper;
+
+    @Lazy
+    private final IAuthService self;
 
     @Value("${superuser.key}")
     private String superUserKey;
@@ -65,7 +70,14 @@ public class AuthService implements IAuthService {
     @Transactional(readOnly = true)
     public UserVo getCurrentUserInfo() {
         String email = getCurrentUserEmail();
-        User user = userDataAccess.findByEmail(email).orElseThrow(
+        return self.getUserInfoByEmail(email);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "userInfo", key = "#email")
+    public UserVo getUserInfoByEmail(String email) {
+        User user = userDataAccess.findByEmailWithRoles(email).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
         );
         UserVo userVo = userMapper.toVo(user);

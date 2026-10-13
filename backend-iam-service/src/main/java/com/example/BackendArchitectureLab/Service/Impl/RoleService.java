@@ -593,7 +593,7 @@ public class RoleService implements IRoleService {
             
             // 轉換為 VO
             List<RoleOutVo> roleVos = rolePage.getContent().stream()
-                    .map(roleMapper::toVo)
+                    .map(roleMapper::toSearchVo)
                     .toList();
             
             // 返回分頁結果

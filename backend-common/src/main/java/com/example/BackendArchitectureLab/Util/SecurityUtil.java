@@ -79,4 +79,25 @@ public class SecurityUtil {
         }
         return UUID.fromString(userVo.getId());
     }
+
+    public Optional<String> getCurrentAuditor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            return Optional.empty();
+        }
+
+        try {
+            UUID userId = requireCurrentUserId();
+            return Optional.of(userId.toString());
+        } catch (Exception ignored) {
+            // 若無法解析為 UUID，降級嘗試使用 name (email / username)
+        }
+
+        String name = auth.getName();
+        if (name != null && !name.isBlank() && !"anonymousUser".equalsIgnoreCase(name)) {
+            return Optional.of(name);
+        }
+
+        return Optional.empty();
+    }
 }
