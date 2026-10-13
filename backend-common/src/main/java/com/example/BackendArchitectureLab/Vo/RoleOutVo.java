@@ -18,5 +18,6 @@ public class RoleOutVo {
     private String updatedBy;
     private Date createdTime;
     private Date updatedTime;
+    private Integer functionCount;
     private List<String> functionIds;
 }
