@@ -1,7 +1,8 @@
 package com.example.BackendArchitectureLab.Vo.Search;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import com.example.BackendArchitectureLab.Vo.Common.BaseSearchQuery;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,21 +15,21 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "Discord 頻道訂閱搜尋查詢參數")
+@ApiDto(description = "Discord 頻道訂閱搜尋查詢參數")
 public class DiscordSubscriptionSearchQuery extends BaseSearchQuery {
 
-    @Schema(description = "關鍵字（模糊搜尋 guildId、channelId、botType、webhookUrl、webhookId）")
+    @ApiField(description = "關鍵字（模糊搜尋 guildId、channelId、botType、webhookUrl、webhookId）", example = "DIARY")
     private String keyword;
 
-    @Schema(description = "伺服器 ID（模糊查詢）")
+    @ApiField(description = "伺服器 ID（模糊查詢）", example = "123456789012345678")
     private String guildId;
 
-    @Schema(description = "頻道 ID（精確或模糊查詢）")
+    @ApiField(description = "頻道 ID（精確或模糊查詢）", example = "123456789012345678")
     private String channelId;
 
-    @Schema(description = "機器人類型（如 DIARY）")
+    @ApiField(description = "機器人類型（如 DIARY）", example = "DIARY")
     private String botType;
 
-    @Schema(description = "語言設定（如 zh、en）")
+    @ApiField(description = "語言設定（如 zh、en）", example = "zh")
     private String language;
 }

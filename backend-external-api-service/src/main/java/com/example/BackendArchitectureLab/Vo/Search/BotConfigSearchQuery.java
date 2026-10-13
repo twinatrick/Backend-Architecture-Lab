@@ -1,7 +1,8 @@
 package com.example.BackendArchitectureLab.Vo.Search;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import com.example.BackendArchitectureLab.Vo.Common.BaseSearchQuery;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,18 +15,18 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "Bot 設定搜尋查詢參數")
+@ApiDto(description = "Bot 設定搜尋查詢參數")
 public class BotConfigSearchQuery extends BaseSearchQuery {
 
-    @Schema(description = "關鍵字（模糊搜尋 platform、configKey、description、configValue）")
+    @ApiField(description = "關鍵字（模糊搜尋 platform、configKey、description、configValue）", example = "DISCORD")
     private String keyword;
 
-    @Schema(description = "平台代碼（模糊查詢，如 DISCORD、LINE）")
+    @ApiField(description = "平台代碼（模糊查詢，如 DISCORD、LINE）", example = "DISCORD")
     private String platform;
 
-    @Schema(description = "設定鍵（模糊查詢）")
+    @ApiField(description = "設定鍵（模糊查詢）", example = "DISCORD_TOKEN")
     private String configKey;
 
-    @Schema(description = "描述說明（模糊查詢）")
+    @ApiField(description = "描述說明（模糊查詢）", example = "Bot 連線設定")
     private String description;
 }

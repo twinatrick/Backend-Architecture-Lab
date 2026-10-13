@@ -22,12 +22,14 @@ public interface UserMapper {
     @Named("toVo")
     @BeanMapping(qualifiedByName = "fillPermissions")
     @Mapping(target = "id", expression = "java(user.getId() == null ? null : user.getId().toString())")
+    @Mapping(target = "roles", ignore = true)
     @Mapping(target = "roleNames", ignore = true)
     UserVo toVo(User user);
 
     @Named("toStreamVo")
     @BeanMapping(qualifiedByName = "fillStreamRolesOnly")
     @Mapping(target = "id", expression = "java(user.getId() == null ? null : user.getId().toString())")
+    @Mapping(target = "roles", ignore = true)
     @Mapping(target = "roleNames", ignore = true)
     @Mapping(target = "permissions", ignore = true)
     UserVo toStreamVo(User user);
@@ -76,12 +78,12 @@ public interface UserMapper {
         if (user.getRoles() == null) {
             return;
         }
-        List<String> roleArr = user.getRoles().stream()
+        List<String> roleIds = user.getRoles().stream()
                 .map(UserRole::getRole)
                 .filter(role -> role != null && role.getId() != null)
                 .map(role -> role.getId().toString())
                 .toList();
-        vo.setRoleArr(roleArr);
+        vo.setRoles(roleIds);
 
         List<String> roleNames = user.getRoles().stream()
                 .map(UserRole::getRole)

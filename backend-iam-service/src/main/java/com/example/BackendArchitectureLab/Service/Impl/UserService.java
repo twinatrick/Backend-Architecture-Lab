@@ -115,7 +115,7 @@ public class UserService implements IUserService {
     @Transactional
     @CacheEvict(value = "users", allEntries = true)
     public void saveUserWithRole(UserVo userVo) {
-        if (userVo.getRoleArr() == null) {
+        if (userVo.getRoles() == null) {
             throw new IllegalArgumentException("Role list is required");
         }
         if(userVo.getId() == null|| userVo.getId().isEmpty()){
@@ -125,7 +125,7 @@ public class UserService implements IUserService {
             encodePasswordIfNecessary(user);
             user.setDisabled(userVo.isDisabled());
             userDataAccess.save(user);
-            roleService.userBindRole(user.getId().toString(), userVo.getRoleArr());
+            roleService.userBindRole(user.getId().toString(), userVo.getRoles());
             return;
         }
         User u = userDataAccess.findByEmail(userVo.getEmail()).orElseThrow(
@@ -137,7 +137,7 @@ public class UserService implements IUserService {
             encodePasswordIfNecessary(u);
         }
         userDataAccess.save(u);
-        roleService.userBindRole(u.getId().toString(), userVo.getRoleArr());
+        roleService.userBindRole(u.getId().toString(), userVo.getRoles());
 
     }
 

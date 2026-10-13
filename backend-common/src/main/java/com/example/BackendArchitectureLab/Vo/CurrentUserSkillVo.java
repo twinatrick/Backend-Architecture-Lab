@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Vo;
 
-import io.swagger.v3.oas.annotations.media.Schema;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -15,38 +16,38 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-@Schema(description = "當前使用者技能資訊（含來源）")
+@ApiDto(description = "當前使用者技能資訊（含來源）")
 public class CurrentUserSkillVo {
-    @Schema(description = "技能ID")
+    @ApiField(description = "技能 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid")
     private UUID id;
-    
-    @Schema(description = "技能名稱")
+
+    @ApiField(description = "技能名稱", example = "Java")
     private String name;
-    
-    @Schema(description = "技能描述")
+
+    @ApiField(description = "技能描述", example = "後端主力語言")
     private String description;
-    
-    @Schema(description = "創建者")
+
+    @ApiField(description = "建立者 UUID", example = "00000000-0000-0000-0000-000000000001", format = "uuid")
     private String createdBy;
-    
-    @Schema(description = "更新者")
+
+    @ApiField(description = "更新者 UUID", example = "00000000-0000-0000-0000-000000000001", format = "uuid")
     private String updatedBy;
-    
-    @Schema(description = "創建時間")
+
+    @ApiField(description = "建立時間戳記")
     private Date createdTime;
-    
-    @Schema(description = "更新時間")
+
+    @ApiField(description = "更新時間戳記")
     private Date updatedTime;
-    
-    @Schema(description = "來源類型：USER（直接綁定）或 PROJECT（專案技能）。管理者指派到使用者的技能屬於 USER 來源但視為唯讀（不可透過個人技能 API 修改內容）；可依權限進行綁定關聯。")
+
+    @ApiField(description = "來源類型 (USER: 直接綁定, PROJECT: 專案技能)", example = "USER")
     private String sourceType;
-    
-    @Schema(description = "專案ID（當 sourceType 為 PROJECT 時有值）")
+
+    @ApiField(description = "專案 UUID（當 sourceType 為 PROJECT 時有值）", example = "6ba7b810-9dad-11d1-80b4-00c04fd430c8", format = "uuid")
     private UUID projectId;
-    
-    @Schema(description = "專案名稱（當 sourceType 為 PROJECT 時有值）")
+
+    @ApiField(description = "專案名稱（當 sourceType 為 PROJECT 時有值）", example = "微服務重構專案")
     private String projectName;
-    
+
     /**
      * 從 SkillVo 建立 CurrentUserSkillVo（USER 來源）
      */
@@ -62,7 +63,7 @@ public class CurrentUserSkillVo {
         vo.setSourceType("USER");
         return vo;
     }
-    
+
     /**
      * 從 SkillVo 建立 CurrentUserSkillVo（PROJECT 來源）
      */

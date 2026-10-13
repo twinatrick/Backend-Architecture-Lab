@@ -156,7 +156,7 @@ class AquarkDataQueryServiceTest {
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);
-        filter.setString("S2");
+        filter.setStringValue("S2");
 
         when(aquarkDataDataAccess.findByCriteria(List.of(filter))).thenReturn(List.of(data));
 
@@ -309,7 +309,7 @@ class AquarkDataQueryServiceTest {
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);
-        filter.setString("S1");
+        filter.setStringValue("S1");
 
         AquarkDataSearchQuery query = new AquarkDataSearchQuery();
         query.setFilters(List.of(filter));

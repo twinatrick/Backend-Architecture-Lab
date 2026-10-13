@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Vo;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -11,14 +13,11 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@ApiDto(description = "個人專案新增與異動請求物件")
 public class PersonalProjectRequest {
-    /**
-     * 專案名稱
-     */
+    @ApiField(description = "專案名稱", example = "微服務重構專案", required = true)
     private String name;
-    
-    /**
-     * 專案描述
-     */
+
+    @ApiField(description = "專案描述", example = "將單體架構拆分為分散式微服務")
     private String description;
 }

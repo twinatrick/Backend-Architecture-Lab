@@ -304,7 +304,7 @@ class AuthServiceTest {
     void testCreateSuperUser_Success() {
         // Arrange
         SuperUserRequest request = new SuperUserRequest();
-        request.setKey("test-super-key");
+        request.setBootstrapSecret("test-super-key");
         request.setEmail("admin@example.com");
 
         when(userService.getUserByEmail("admin@example.com")).thenReturn(List.of());
@@ -335,7 +335,7 @@ class AuthServiceTest {
     void testCreateSuperUser_AdminRoleNotExists() {
         // Arrange
         SuperUserRequest request = new SuperUserRequest();
-        request.setKey("test-super-key");
+        request.setBootstrapSecret("test-super-key");
         request.setEmail("admin@example.com");
 
         when(userService.getUserByEmail("admin@example.com")).thenReturn(List.of());
@@ -366,7 +366,7 @@ class AuthServiceTest {
     void testCreateSuperUser_DefaultEmail() {
         // Arrange
         SuperUserRequest request = new SuperUserRequest();
-        request.setKey("test-super-key");
+        request.setBootstrapSecret("test-super-key");
         request.setEmail("  ");
 
         when(userService.getUserByEmail("admin")).thenReturn(List.of());
@@ -395,13 +395,13 @@ class AuthServiceTest {
     void testCreateSuperUser_InvalidKey() {
         // Arrange
         SuperUserRequest request = new SuperUserRequest();
-        request.setKey("wrong-key");
+        request.setBootstrapSecret("wrong-key");
         request.setEmail("admin@example.com");
 
         // Act & Assert
         AppException exception = assertThrows(AppException.class,
                 () -> authService.createSuperUser(request));
-        assertEquals("Invalid key", exception.getMessage());
+        assertEquals("Invalid bootstrap secret", exception.getMessage());
         verify(userService, never()).createUser(any(UserVo.class));
     }
 
@@ -410,7 +410,7 @@ class AuthServiceTest {
     void testCreateSuperUser_DuplicateEmail() {
         // Arrange
         SuperUserRequest request = new SuperUserRequest();
-        request.setKey("test-super-key");
+        request.setBootstrapSecret("test-super-key");
         request.setEmail("admin@example.com");
 
         UserVo existing = new UserVo();

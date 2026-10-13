@@ -200,7 +200,7 @@ class UserServiceTest {
         userVo.setEmail("newuser@example.com");
         userVo.setPassword("plainPassword");
         userVo.setDisabled(false);
-        userVo.setRoleArr(List.of(UUID.randomUUID().toString()));
+        userVo.setRoles(List.of(UUID.randomUUID().toString()));
 
         doAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -225,7 +225,7 @@ class UserServiceTest {
         userVo.setId("existing-id");
         userVo.setEmail("test@example.com");
         userVo.setPassword("newPassword");
-        userVo.setRoleArr(List.of(UUID.randomUUID().toString()));
+        userVo.setRoles(List.of(UUID.randomUUID().toString()));
 
         when(userDataAccess.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
         doNothing().when(userDataAccess).save(any(User.class));
@@ -247,7 +247,7 @@ class UserServiceTest {
         UserVo userVo = new UserVo();
         userVo.setEmail("test@example.com");
         userVo.setPassword("password");
-        userVo.setRoleArr(null);
+        userVo.setRoles(null);
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
@@ -421,7 +421,7 @@ class UserServiceTest {
         userVo.setId("existing-id");
         userVo.setEmail("notfound@example.com");
         userVo.setPassword("newPassword");
-        userVo.setRoleArr(List.of(UUID.randomUUID().toString()));
+        userVo.setRoles(List.of(UUID.randomUUID().toString()));
 
         when(userDataAccess.findByEmail("notfound@example.com")).thenReturn(Optional.empty());
 

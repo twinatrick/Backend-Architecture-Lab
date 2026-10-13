@@ -1,7 +1,8 @@
 package com.example.BackendArchitectureLab.Vo.Search;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import com.example.BackendArchitectureLab.Vo.Common.BaseSearchQuery;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -16,21 +17,21 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "技能等級搜尋查詢參數")
+@ApiDto(description = "技能等級搜尋查詢參數")
 public class SkillLevelSearchQuery extends BaseSearchQuery {
     
-    @Schema(description = "技能ID（精確查詢）", example = "550e8400-e29b-41d4-a716-446655440000")
+    @ApiField(description = "技能ID（精確查詢）", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid")
     private UUID skillId;
     
-    @Schema(description = "等級數值（精確查詢）", example = "3")
+    @ApiField(description = "等級數值（精確查詢）", example = "3")
     private Integer levelValue;
     
-    @Schema(description = "等級標題（模糊查詢）", example = "高級")
+    @ApiField(description = "等級標題（模糊查詢）", example = "高級")
     private String title;
     
-    @Schema(description = "等級描述（模糊查詢）", example = "精通")
+    @ApiField(description = "等級描述（模糊查詢）", example = "精通")
     private String description;
     
-    @Schema(description = "創建者（精確查詢）", example = "admin")
+    @ApiField(description = "創建者 UUID（精確查詢）", example = "00000000-0000-0000-0000-000000000001", format = "uuid")
     private String createdBy;
 }

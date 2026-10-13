@@ -114,7 +114,7 @@ class AquarkDataDataAccessImplTest {
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);
-        filter.setString("S1");
+        filter.setStringValue("S1");
 
         List<AquarkData> results = aquarkDataDataAccess.findByCriteria(List.of(filter));
 
@@ -132,7 +132,7 @@ class AquarkDataDataAccessImplTest {
         CriteriaAPIFilter filter = new CriteriaAPIFilter();
         filter.setColumnName("rain_d");
         filter.setType(1);
-        filter.setLarge(true);
+        filter.setGreaterThan(true);
         filter.setEqual(false);
         filter.setDoubleValue(15d);
 
@@ -154,7 +154,7 @@ class AquarkDataDataAccessImplTest {
         CriteriaAPIFilter filter = new CriteriaAPIFilter();
         filter.setColumnName("trans_time");
         filter.setType(2);
-        filter.setSmall(true);
+        filter.setLessThan(true);
         filter.setEqual(true);
         filter.setDate(time1);
 
@@ -195,7 +195,7 @@ class AquarkDataDataAccessImplTest {
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);
-        filter.setString("S1");
+        filter.setStringValue("S1");
 
         Pageable pageable = PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "trans_time"));
         Page<AquarkData> page = aquarkDataDataAccess.findByCriteriaPaged(List.of(filter), pageable);

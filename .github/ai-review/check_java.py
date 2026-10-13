@@ -7,6 +7,10 @@ from check_dual_rail import (
     check_missing_dual_rail_endpoints,
     check_unimplemented_stubs,
 )
+from check_openapi_dto import (
+    check_controller_openapi_contract,
+    check_dto_field_and_schema_contract,
+)
 from check_java_quality import (
     check_cross_module,
     check_derived_delete_transaction,
@@ -80,6 +84,19 @@ def check_java_file(
         findings.extend(
             check_missing_dual_rail_endpoints(
                 path, content, changed_lines=changed_lines, is_test=is_test
+            )
+        )
+        findings.extend(
+            check_controller_openapi_contract(
+                path, content, lines, changed_lines=changed_lines
+            )
+        )
+
+    # DTO / VO 輸入參數與欄位契約檢測 (§3.2)
+    if not is_test:
+        findings.extend(
+            check_dto_field_and_schema_contract(
+                path, content, lines, changed_lines=changed_lines
             )
         )
 

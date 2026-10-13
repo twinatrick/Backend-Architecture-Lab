@@ -16,9 +16,11 @@ import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,14 +54,16 @@ class AlertCheckLimitControllerTest {
     @Test
     @DisplayName("updateLimit 應呼叫 Service 並回傳更新結果")
     void testUpdateLimit() {
+        UUID id = UUID.randomUUID();
         AlertCheckLimitVo vo = new AlertCheckLimitVo();
+        vo.setId(id);
         vo.setTableName("aquark_data");
         vo.setColumnName("rain_d");
         vo.setLimitValue(20.0);
 
         when(alertCheckLimitService.updateLimit(vo)).thenReturn(vo);
 
-        ResponseType<AlertCheckLimitVo> response = controller.updateLimit(vo);
+        ResponseType<AlertCheckLimitVo> response = controller.updateLimit(id, vo);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -70,15 +74,13 @@ class AlertCheckLimitControllerTest {
     @Test
     @DisplayName("deleteLimit 應呼叫 Service 執行刪除")
     void testDeleteLimit() {
-        AlertCheckLimitVo vo = new AlertCheckLimitVo();
-        vo.setTableName("aquark_data");
-        vo.setColumnName("rain_d");
+        UUID id = UUID.randomUUID();
 
-        ResponseType<String> response = controller.deleteLimit(vo);
+        ResponseType<String> response = controller.deleteLimit(id);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        verify(alertCheckLimitService).deleteLimit(vo);
+        verify(alertCheckLimitService).deleteLimit(any(AlertCheckLimitVo.class));
     }
 
     @Test

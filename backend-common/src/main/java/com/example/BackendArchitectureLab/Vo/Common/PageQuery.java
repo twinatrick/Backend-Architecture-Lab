@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Vo.Common;
-import io.swagger.v3.oas.annotations.media.Schema;
+
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;
@@ -12,22 +14,22 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "分頁查詢參數")
+@ApiDto(description = "分頁查詢參數")
 public class PageQuery {
     
-    @Schema(description = "頁碼，從0開始", example = "0")
+    @ApiField(description = "頁碼，從0開始", example = "0")
     @Min(value = 0, message = "頁碼必須大於等於0")
     private Integer page = 0;
     
-    @Schema(description = "每頁大小", example = "20")
+    @ApiField(description = "每頁大小", example = "20")
     @Min(value = 1, message = "每頁大小必須大於0")
     @Max(value = 100, message = "每頁大小不能超過100")
     private Integer size = 20;
     
-    @Schema(description = "排序欄位", example = "createdTime")
+    @ApiField(description = "排序欄位", example = "createdTime")
     private String sortBy = "createdTime";
     
-    @Schema(description = "排序方向：asc/desc", example = "desc")
+    @ApiField(description = "排序方向：asc/desc", example = "desc")
     private String sortDir = "desc";
     
     /**
