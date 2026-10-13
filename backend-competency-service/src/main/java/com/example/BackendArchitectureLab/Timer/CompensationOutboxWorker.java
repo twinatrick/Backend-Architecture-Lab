@@ -106,7 +106,9 @@ public class CompensationOutboxWorker {
      * （上限為 {@code compensation.outbox.publish-parallelism}），確保高併發下不衝擊下游 Broker 與資料庫；
      * 依批次大小與許可數估算最壞完成時間作為批次整體等待的保守逾時。
      */
-    @Scheduled(fixedDelayString = "${compensation.outbox.flush-delay-ms:5000}")
+    @Scheduled(
+            initialDelayString = "${compensation.outbox.initial-delay-ms:0}",
+            fixedDelayString = "${compensation.outbox.flush-delay-ms:5000}")
     public void flushPendingEvents() {
         if (!isFlushing.compareAndSet(false, true)) {
             log.debug("上一次 Outbox 批次發布仍在執行中，略過本次排程");

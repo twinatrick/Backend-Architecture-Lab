@@ -70,7 +70,9 @@ public class CompensationChaosIT extends BaseChaosIntegrationTest {
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
         registry.add("spring.kafka.listener.auto-startup", () -> "false");
+        registry.add("compensation.outbox.initial-delay-ms", () -> "3600000");
         registry.add("compensation.outbox.flush-delay-ms", () -> "3600000");
+        registry.add("external-sync.initial-delay-ms", () -> "3600000");
         registry.add("external-sync.flush-delay-ms", () -> "3600000");
     }
 

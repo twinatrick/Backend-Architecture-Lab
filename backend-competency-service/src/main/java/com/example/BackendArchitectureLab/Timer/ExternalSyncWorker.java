@@ -77,7 +77,9 @@ public class ExternalSyncWorker {
     /**
      * 批次執行尚未同步的命令（預設每 5 秒執行一次）。
      */
-    @Scheduled(fixedDelayString = "${external-sync.flush-delay-ms:5000}")
+    @Scheduled(
+            initialDelayString = "${external-sync.initial-delay-ms:0}",
+            fixedDelayString = "${external-sync.flush-delay-ms:5000}")
     public void flushPendingCommands() {
         if (!externalSyncCommandService.isEnabled()) {
             return;

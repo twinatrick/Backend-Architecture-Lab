@@ -45,8 +45,10 @@ logging:
 
 compensation:
   outbox:
+    initial-delay-ms: 3600000
     flush-delay-ms: 3600000
 
 external-sync:
+  initial-delay-ms: 3600000
   flush-delay-ms: 3600000
 
