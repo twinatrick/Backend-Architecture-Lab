@@ -134,4 +134,12 @@ public interface IFunctionDataAccess {
      * @return 分頁功能實體清單
      */
     Page<Function> findAllPaged(Pageable pageable);
+
+    /**
+     * 一次查出指定子節點之硬性三層父層與祖父層功能清單
+     *
+     * @param childIds 子節點 UUID 清單
+     * @return 父層與祖父層功能清單
+     */
+    List<Function> findAllParentHierarchyByChildIds(List<UUID> childIds);
 }

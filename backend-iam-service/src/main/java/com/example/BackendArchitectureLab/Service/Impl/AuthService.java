@@ -48,22 +48,18 @@ public class AuthService implements IAuthService {
     @Override
     @Transactional(readOnly = true)
     public List<FunctionVo> getAllParent(List<String> child) {
-        List<UUID> childUUID = child.stream().map(UUID::fromString).toList();
-        List<Function> functions = functionDataAccess.findAllById(childUUID);
-        List<UUID> parentUUID = functions.stream()
-                .map(Function::getParent)
-                .filter(parent -> parent != null && !parent.isEmpty())
+        if (child == null || child.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> childUUIDs = child.stream()
+                .filter(id -> id != null && !id.isBlank())
                 .map(UUID::fromString)
                 .toList();
-        List<Function> parentFunctions = functionDataAccess.findAllById(parentUUID);
-
-        List<String> result = new ArrayList<>(parentFunctions.stream().map(Function::getId).map(UUID::toString).toList());
-        parentFunctions.stream().map(Function::getParent).forEach(result::add);
-        List<Function> parentParentFunctions = functionDataAccess.findAllById(
-                result.stream().filter(x -> x != null && !x.isEmpty()).map(UUID::fromString).toList()
-        );
-
-        return parentParentFunctions.stream().map(functionMapper::toVo).toList();
+        if (childUUIDs.isEmpty()) {
+            return List.of();
+        }
+        List<Function> parentFunctions = functionDataAccess.findAllParentHierarchyByChildIds(childUUIDs);
+        return parentFunctions.stream().map(functionMapper::toVo).toList();
     }
 
     @Override
@@ -75,7 +71,7 @@ public class AuthService implements IAuthService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "userInfo", key = "#email")
+    @Cacheable(value = "userInfo", key = "#email", sync = true)
     public UserVo getUserInfoByEmail(String email) {
         User user = userDataAccess.findByEmailWithRoles(email).orElseThrow(
                 () -> new IllegalArgumentException("User not found")

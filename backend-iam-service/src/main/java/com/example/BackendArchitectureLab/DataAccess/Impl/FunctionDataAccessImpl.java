@@ -113,4 +113,12 @@ public class FunctionDataAccessImpl implements IFunctionDataAccess {
     public Page<Function> findAllPaged(Pageable pageable) {
         return functionRepository.findAll(pageable);
     }
+
+    @Override
+    public List<Function> findAllParentHierarchyByChildIds(List<UUID> childIds) {
+        if (childIds == null || childIds.isEmpty()) {
+            return List.of();
+        }
+        return functionRepository.findAllParentHierarchyByChildIds(childIds);
+    }
 }
