@@ -177,4 +177,36 @@ class SecurityUtilTest {
         assertEquals(expectedUuid, result);
         verifyNoInteractions(userServiceFeignClient);
     }
+
+    @Test
+    void getCurrentAuditor_shouldReturnEmpty_whenNoAuthentication() {
+        SecurityContextHolder.clearContext();
+        Optional<String> auditor = securityUtil.getCurrentAuditor();
+        assertTrue(auditor.isEmpty());
+    }
+
+    @Test
+    void getCurrentAuditor_shouldReturnUserId_whenAuthenticatedUserPresent() {
+        UUID expectedUuid = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser("test@example.com", expectedUuid.toString(), List.of());
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(user);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        Optional<String> auditor = securityUtil.getCurrentAuditor();
+        assertTrue(auditor.isPresent());
+        assertEquals(expectedUuid.toString(), auditor.get());
+    }
+
+    @Test
+    void getCurrentAuditor_shouldFallbackToName_whenUserIdThrowsException() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(new Object());
+        when(auth.getName()).thenReturn("fallback-user@example.com");
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        Optional<String> auditor = securityUtil.getCurrentAuditor();
+        assertTrue(auditor.isPresent());
+        assertEquals("fallback-user@example.com", auditor.get());
+    }
 }

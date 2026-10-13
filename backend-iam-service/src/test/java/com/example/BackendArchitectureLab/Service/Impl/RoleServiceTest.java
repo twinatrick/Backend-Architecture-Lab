@@ -721,8 +721,8 @@ class RoleServiceTest {
         roleVo2.setDescription("User Role");
 
         when(roleDataAccess.searchRoles(any(RoleSearchQuery.class))).thenReturn(rolePage);
-        when(roleMapper.toVo(role1)).thenReturn(roleVo1);
-        when(roleMapper.toVo(role2)).thenReturn(roleVo2);
+        when(roleMapper.toSearchVo(role1)).thenReturn(roleVo1);
+        when(roleMapper.toSearchVo(role2)).thenReturn(roleVo2);
 
         // Act
         PageResult<RoleOutVo> result = roleService.searchRoles(query);

@@ -21,6 +21,14 @@ public interface IAuthService {
     UserVo getCurrentUserInfo();
 
     /**
+     * 依 Email 取得使用者完整資訊（含父層權限補全，支援快取）。
+     *
+     * @param email 使用者 Email
+     * @return 使用者資訊
+     */
+    UserVo getUserInfoByEmail(String email);
+
+    /**
      * 依子權限清單補全父層權限。
      *
      * @param child 子權限 ID 清單

@@ -70,6 +70,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "superUserKey", "test-super-key");
+        ReflectionTestUtils.setField(authService, "self", authService);
 
         testUser = new User();
         testUser.setId(UUID.randomUUID());
@@ -176,7 +177,7 @@ class AuthServiceTest {
 
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("test@example.com", null));
-        when(userDataAccess.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userDataAccess.findByEmailWithRoles("test@example.com")).thenReturn(Optional.of(testUser));
 
         FunctionVo functionVo = new FunctionVo();
         functionVo.setId(functionId.toString());
@@ -211,7 +212,7 @@ class AuthServiceTest {
         assertNotNull(result);
         assertEquals("test@example.com", result.getEmail());
         assertTrue(result.getPermissions().size() >= 1);
-        verify(userDataAccess).findByEmail("test@example.com");
+        verify(userDataAccess).findByEmailWithRoles("test@example.com");
     }
 
     @Test
@@ -220,12 +221,28 @@ class AuthServiceTest {
         // Arrange
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("notfound@example.com", null));
-        when(userDataAccess.findByEmail("notfound@example.com")).thenReturn(Optional.empty());
+        when(userDataAccess.findByEmailWithRoles("notfound@example.com")).thenReturn(Optional.empty());
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> authService.getCurrentUserInfo());
         assertEquals("User not found", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("Should get user info by email directly")
+    void testGetUserInfoByEmail() {
+        when(userDataAccess.findByEmailWithRoles("test@example.com")).thenReturn(Optional.of(testUser));
+        UserVo userVo = new UserVo();
+        userVo.setEmail("test@example.com");
+        userVo.setPermissions(new ArrayList<>());
+        when(userMapper.toVo(testUser)).thenReturn(userVo);
+
+        UserVo result = authService.getUserInfoByEmail("test@example.com");
+
+        assertNotNull(result);
+        assertEquals("test@example.com", result.getEmail());
+        verify(userDataAccess).findByEmailWithRoles("test@example.com");
     }
 
     @Test
