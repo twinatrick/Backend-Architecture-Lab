@@ -417,5 +417,46 @@ class FunctionDataAccessImplTest {
         assertEquals(2, page.getTotalElements());
         assertEquals(2, page.getContent().size());
     }
+
+    @Test
+    @DisplayName("Should find parent and grand-parent hierarchy in a single query")
+    void testFindAllParentHierarchyByChildIds() {
+        // Arrange: 建立三層功能樹
+        // GrandParent (Level 1)
+        Function grandParent = new Function();
+        grandParent.setName("GrandParent");
+        grandParent.setParent("");
+        grandParent.setType(1);
+        functionRepository.save(grandParent);
+
+        // Parent (Level 2)
+        Function parent = new Function();
+        parent.setName("Parent");
+        parent.setParent(grandParent.getId().toString());
+        parent.setType(2);
+        functionRepository.save(parent);
+
+        // Child (Level 3 - 按鈕/權限)
+        Function child = new Function();
+        child.setName("Child");
+        child.setParent(parent.getId().toString());
+        child.setType(3);
+        functionRepository.save(child);
+
+        // Act: 透過 childId 一次查詢完整父層階層
+        List<Function> parents = functionDataAccess.findAllParentHierarchyByChildIds(List.of(child.getId()));
+
+        // Assert: 應同時包含 Parent (Level 2) 與 GrandParent (Level 1)
+        assertEquals(2, parents.size());
+        assertTrue(parents.stream().anyMatch(f -> f.getName().equals("Parent")));
+        assertTrue(parents.stream().anyMatch(f -> f.getName().equals("GrandParent")));
+    }
+
+    @Test
+    @DisplayName("Should return empty list for findAllParentHierarchyByChildIds when input is empty or null")
+    void testFindAllParentHierarchyByChildIds_Empty() {
+        assertTrue(functionDataAccess.findAllParentHierarchyByChildIds(List.of()).isEmpty());
+        assertTrue(functionDataAccess.findAllParentHierarchyByChildIds(null).isEmpty());
+    }
 }
 

@@ -29,4 +29,17 @@ public interface FunctionRepository extends JpaRepository<Function, UUID>, JpaSp
 
     @Query("SELECT f FROM Function f LEFT JOIN FETCH f.roleFunctions rf LEFT JOIN FETCH rf.role WHERE f.id = :id")
     Optional<Function> findByIdWithRoleFunctions(@Param("id") UUID id);
+
+    @Query("""
+            SELECT DISTINCT f FROM Function f 
+            WHERE CAST(f.id AS string) IN (
+                SELECT c.parent FROM Function c WHERE c.id IN :childIds
+            ) 
+            OR CAST(f.id AS string) IN (
+                SELECT p.parent FROM Function p WHERE CAST(p.id AS string) IN (
+                    SELECT c2.parent FROM Function c2 WHERE c2.id IN :childIds
+                )
+            )
+            """)
+    List<Function> findAllParentHierarchyByChildIds(@Param("childIds") List<UUID> childIds);
 }

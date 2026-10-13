@@ -94,16 +94,12 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Should get all parent functions successfully")
+    @DisplayName("Should get all parent functions successfully via single hierarchy query")
     void testGetAllParent() {
         // Arrange
         UUID childId = UUID.randomUUID();
         UUID parentId = UUID.randomUUID();
         UUID grandParentId = UUID.randomUUID();
-
-        Function childFunction = new Function();
-        childFunction.setId(childId);
-        childFunction.setParent(parentId.toString());
 
         Function parentFunction = new Function();
         parentFunction.setId(parentId);
@@ -113,36 +109,30 @@ class AuthServiceTest {
         grandParentFunction.setId(grandParentId);
         grandParentFunction.setParent("");
 
-        when(functionDataAccess.findAllById(List.of(childId)))
-                .thenReturn(List.of(childFunction));
-        when(functionDataAccess.findAllById(List.of(parentId)))
-                .thenReturn(List.of(parentFunction));
-        when(functionDataAccess.findAllById(argThat(list ->
-                list.contains(parentId) && list.contains(grandParentId)
-        ))).thenReturn(List.of(grandParentFunction));
+        when(functionDataAccess.findAllParentHierarchyByChildIds(List.of(childId)))
+                .thenReturn(List.of(parentFunction, grandParentFunction));
+        when(functionMapper.toVo(parentFunction)).thenReturn(new FunctionVo());
+        when(functionMapper.toVo(grandParentFunction)).thenReturn(new FunctionVo());
 
         // Act
         List<FunctionVo> result = authService.getAllParent(List.of(childId.toString()));
 
         // Assert
         assertNotNull(result);
-        assertEquals(1, result.size());
-        verify(functionDataAccess, times(3)).findAllById(anyList());
+        assertEquals(2, result.size());
+        verify(functionDataAccess, times(1)).findAllParentHierarchyByChildIds(List.of(childId));
     }
 
     @Test
     @DisplayName("Should handle empty child list in getAllParent")
     void testGetAllParent_EmptyList() {
-        // Arrange
-        when(functionDataAccess.findAllById(anyList())).thenReturn(new ArrayList<>());
-
         // Act
         List<FunctionVo> result = authService.getAllParent(new ArrayList<>());
 
         // Assert
         assertNotNull(result);
         assertTrue(result.isEmpty());
-        verify(functionDataAccess, atLeastOnce()).findAllById(anyList());
+        verify(functionDataAccess, never()).findAllParentHierarchyByChildIds(anyList());
     }
 
     @Test
@@ -150,13 +140,7 @@ class AuthServiceTest {
     void testGetAllParent_NoParents() {
         // Arrange
         UUID childId = UUID.randomUUID();
-        Function childFunction = new Function();
-        childFunction.setId(childId);
-        childFunction.setParent("");
-
-        when(functionDataAccess.findAllById(List.of(childId)))
-                .thenReturn(List.of(childFunction));
-        when(functionDataAccess.findAllById(new ArrayList<>()))
+        when(functionDataAccess.findAllParentHierarchyByChildIds(List.of(childId)))
                 .thenReturn(new ArrayList<>());
 
         // Act
@@ -165,7 +149,7 @@ class AuthServiceTest {
         // Assert
         assertNotNull(result);
         assertTrue(result.isEmpty());
-        verify(functionDataAccess, times(3)).findAllById(anyList());
+        verify(functionDataAccess, times(1)).findAllParentHierarchyByChildIds(List.of(childId));
     }
 
     @Test
@@ -189,17 +173,12 @@ class AuthServiceTest {
 
         when(userMapper.toVo(testUser)).thenReturn(userVo);
 
-        Function childFunction = new Function();
-        childFunction.setId(functionId);
-        childFunction.setParent(parentId.toString());
-
         Function parentFunction = new Function();
         parentFunction.setId(parentId);
         parentFunction.setParent("");
 
-        when(functionDataAccess.findAllById(List.of(functionId))).thenReturn(List.of(childFunction));
-        when(functionDataAccess.findAllById(List.of(parentId))).thenReturn(List.of(parentFunction));
-        when(functionDataAccess.findAllById(argThat(list -> list.contains(parentId)))).thenReturn(List.of(parentFunction));
+        when(functionDataAccess.findAllParentHierarchyByChildIds(List.of(functionId)))
+                .thenReturn(List.of(parentFunction));
 
         FunctionVo parentVo = new FunctionVo();
         parentVo.setId(parentId.toString());
@@ -213,6 +192,7 @@ class AuthServiceTest {
         assertEquals("test@example.com", result.getEmail());
         assertTrue(result.getPermissions().size() >= 1);
         verify(userDataAccess).findByEmailWithRoles("test@example.com");
+        verify(functionDataAccess).findAllParentHierarchyByChildIds(List.of(functionId));
     }
 
     @Test
