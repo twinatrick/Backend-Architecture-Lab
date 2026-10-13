@@ -252,6 +252,14 @@ _Avoid_: UnsupportedOperationException stub, Fake empty return, Forgotten TODO.
 在規範稽核規則中維護既有未遷移 Controller 的暫時容許白名單。所有新增實體控制器必須 100% 遵守雙軌規範，既有遺留控制器則隨重構進度逐一移出名單，實現無痛漸進式收斂。
 _Avoid_: Blanket rule exception, Permanent legacy immunity, Uncontrolled architectural drift.
 
+**In-Memory Pagination (記憶體假分頁)**:
+當 ORM（如 Hibernate）查詢同時包含一對多集合抓取（Collection Fetch）與分頁參數時，資料庫端無法下達 LIMIT，被迫載入全表資料於應用層記憶體切片的分頁反模式。
+_Avoid_: Memory slicing, Client-side paging, False pagination.
+
+**Batch Fetching (實體批次抓取)**:
+透過 ORM 批次抓取機制（如 @BatchSize）在存取延遲載入集合時自動以 WHERE id IN (...) 聚合為單一批量查詢，既維持資料庫原生 LIMIT 分頁，又根除 N+1 延遲載入的治理模式。
+_Avoid_: Multi-fetch, In-query loading, Ad-hoc loop query.
+
 
 
 
