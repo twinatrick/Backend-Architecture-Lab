@@ -19,6 +19,8 @@ public interface IJobPostingDataAccess {
 
     Optional<JobPosting> findById(UUID id);
 
+    List<JobPosting> findAllById(List<UUID> ids);
+
     boolean existsById(UUID id);
 
     void deleteById(UUID id);

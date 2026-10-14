@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Service;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Vo.PersonalSkillRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Search.SkillLevelSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Search.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
@@ -124,4 +125,8 @@ public interface ISkillService {
     SkillLevelVo getSkillLevelById(UUID id);
 
     SkillLevelVo getSkillLevelById(Long id);
+
+    BatchResultVo<SkillVo> getSkillsByIds(List<UUID> ids);
+
+    BatchResultVo<SkillLevelVo> getSkillLevelsByIds(List<UUID> ids);
 }

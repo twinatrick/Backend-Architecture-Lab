@@ -5,6 +5,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Vo.Search.SkillLevelSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
@@ -36,6 +38,14 @@ public class SkillLevelController {
     public ResponseType<SkillLevelVo> getSkillLevelById(
             @ApiPath(description = "技能等級唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") UUID id) {
         return ResponseType.Success(skillService.getSkillLevelById(id), "技能等級查詢成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "批次依 ID 取得技能等級清單", description = "傳入技能等級 ID 清單（最多 100 筆），優先命中細粒度快取，未命中批次查庫並回填快取。")
+    public ResponseType<BatchResultVo<SkillLevelVo>> getSkillLevelsByIds(
+            @ApiBody(description = "批次技能等級 ID 請求") BatchIdsRequest request) {
+        return ResponseType.Success(skillService.getSkillLevelsByIds(request.getIds()), "批次技能等級查詢成功");
     }
 
     @PostMapping

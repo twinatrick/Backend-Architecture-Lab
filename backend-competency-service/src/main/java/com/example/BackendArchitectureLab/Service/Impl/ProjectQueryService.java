@@ -6,15 +6,18 @@ import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
 import com.example.BackendArchitectureLab.Service.IProjectQueryService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -26,6 +29,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,6 +51,7 @@ public class ProjectQueryService implements IProjectQueryService {
     private final IUserProjectDataAccess userProjectDataAccess;
     private final SecurityUtil securityUtil;
     private final ProjectMapper projectMapper;
+    private final CacheManager cacheManager;
 
     @Override
     public Flux<ServerSentEvent<List<ProjectVo>>> streamProjectsChunked(int chunkSize) {
@@ -190,9 +195,23 @@ public class ProjectQueryService implements IProjectQueryService {
     }
 
     @Override
+    @Cacheable(value = "projects", key = "#id")
     public ProjectVo getProjectById(UUID id) {
         Project project = projectDataAccess.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
         return projectMapper.toVo(project);
+    }
+
+    @Override
+    public BatchResultVo<ProjectVo> getProjectsByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "projects",
+                ids,
+                missingIds -> projectDataAccess.findAllById(new ArrayList<>(missingIds)).stream()
+                        .map(projectMapper::toVo)
+                        .toList(),
+                ProjectVo::getId
+        );
     }
 }

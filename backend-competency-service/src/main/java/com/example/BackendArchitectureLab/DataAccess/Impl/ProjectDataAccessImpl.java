@@ -45,6 +45,11 @@ public class ProjectDataAccessImpl implements IProjectDataAccess {
     public List<Project> findAll() {
         return projectRepository.findAll();
     }
+
+    @Override
+    public List<Project> findAllById(List<UUID> ids) {
+        return projectRepository.findAllById(ids);
+    }
     
     @Override
     public Optional<Project> findById(UUID id) {

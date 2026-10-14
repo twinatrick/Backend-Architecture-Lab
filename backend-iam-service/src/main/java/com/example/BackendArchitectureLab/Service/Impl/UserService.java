@@ -22,11 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.cache.CacheManager;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -49,6 +53,7 @@ public class UserService implements IUserService {
     private final IRoleService roleService;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final CacheManager cacheManager;
     @Transactional
     @Caching(put = {
         @CachePut(value = "users", key = "#result.id"),
@@ -96,6 +101,24 @@ public class UserService implements IUserService {
             );
             return userMapper.toVo(user);
         });
+    }
+
+    @Override
+    public BatchResultVo<UserVo> getUsersByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "users",
+                ids,
+                missingUuids -> transactionExecutor.executeReadOnly(() -> {
+                    List<User> users = userDataAccess.findAllById(new ArrayList<>(missingUuids));
+                    List<UserVo> list = new ArrayList<>();
+                    for (User user : users) {
+                        list.add(userMapper.toVo(user));
+                    }
+                    return list;
+                }),
+                vo -> vo.getId() == null ? null : UUID.fromString(vo.getId())
+        );
     }
 
     @Caching(put = {

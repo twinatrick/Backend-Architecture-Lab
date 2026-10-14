@@ -16,8 +16,10 @@ import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserSkill;
 import com.example.BackendArchitectureLab.Service.ISkillService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IProjectSkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
@@ -556,6 +558,7 @@ public class SkillService implements ISkillService {
     }
 
     @Override
+    @Cacheable(value = "skills", key = "#id")
     public SkillVo getSkillById(UUID id) {
         Skill skill = skillDataAccess.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
@@ -568,6 +571,7 @@ public class SkillService implements ISkillService {
     }
 
     @Override
+    @Cacheable(value = "skillLevels", key = "#id")
     public SkillLevelVo getSkillLevelById(UUID id) {
         SkillLevel skillLevel = skillLevelDataAccess.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Skill level not found"));
@@ -577,6 +581,32 @@ public class SkillService implements ISkillService {
     @Override
     public SkillLevelVo getSkillLevelById(Long id) {
         return getSkillLevelById(UUID.fromString(String.valueOf(id)));
+    }
+
+    @Override
+    public BatchResultVo<SkillVo> getSkillsByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "skills",
+                ids,
+                missingIds -> skillDataAccess.findAllById(new ArrayList<>(missingIds)).stream()
+                        .map(skillMapper::toVo)
+                        .toList(),
+                SkillVo::getId
+        );
+    }
+
+    @Override
+    public BatchResultVo<SkillLevelVo> getSkillLevelsByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "skillLevels",
+                ids,
+                missingIds -> skillLevelDataAccess.findAllById(new ArrayList<>(missingIds)).stream()
+                        .map(this::mapSkillLevelVo)
+                        .toList(),
+                vo -> vo.getId() != null ? UUID.fromString(vo.getId()) : null
+        );
     }
     
     @Override

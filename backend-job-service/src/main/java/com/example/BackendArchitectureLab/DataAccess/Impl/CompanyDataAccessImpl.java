@@ -47,6 +47,11 @@ public class CompanyDataAccessImpl implements ICompanyDataAccess {
     }
 
     @Override
+    public List<Company> findAllById(List<UUID> ids) {
+        return companyRepository.findAllById(ids);
+    }
+
+    @Override
     public boolean existsById(UUID id) {
         return companyRepository.existsById(id);
     }

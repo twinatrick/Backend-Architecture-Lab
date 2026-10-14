@@ -24,6 +24,14 @@ public interface IAlertCheckLimitDataAccess {
     Optional<AlertCheckLimit> findById(UUID id);
 
     /**
+     * Batch find alert check limits by IDs.
+     *
+     * @param ids list of limit UUIDs
+     * @return list of matching limits
+     */
+    List<AlertCheckLimit> findAllById(List<UUID> ids);
+
+    /**
      * Find all alert check limits.
      *
      * @return list of all alert check limits

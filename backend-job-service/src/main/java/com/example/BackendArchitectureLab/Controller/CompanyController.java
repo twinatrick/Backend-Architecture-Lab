@@ -7,6 +7,8 @@ import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.CreateCompanyRequest;
@@ -77,6 +79,14 @@ public class CompanyController {
     public ResponseType<PageResult<CompanyVo>> searchCompanies(
             @ApiBody(description = "分頁搜尋條件") CompanySearchQuery query) {
         return ResponseType.Success(companyService.searchCompanies(query), "公司搜尋成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationBadRequest(summary = "批次查詢公司", description = "依據 ID 清單批次獲取公司資料，結合細粒度快取加速。")
+    public ResponseType<BatchResultVo<CompanyVo>> getCompaniesBatch(
+            @ApiBody(description = "批次 ID 請求") BatchIdsRequest request) {
+        return ResponseType.Success(companyService.getCompaniesByIds(request.getIds()), "批次查詢成功");
     }
 
     @DeleteMapping("/{id}")

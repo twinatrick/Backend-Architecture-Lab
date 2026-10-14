@@ -5,13 +5,17 @@ import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.BotConfigMapper;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -21,6 +25,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +43,7 @@ public class BotConfigService implements IBotConfigService {
     private final IBotConfigDataAccess botConfigDataAccess;
     private final BotConfigMapper botConfigMapper;
     private final TransactionExecutor transactionExecutor;
+    private final CacheManager cacheManager;
 
     @Override
     public List<BotConfigVo> findAll() {
@@ -122,10 +128,29 @@ public class BotConfigService implements IBotConfigService {
     }
 
     @Override
+    @Cacheable(value = "botConfigs", key = "#id")
     public BotConfigVo findById(UUID id) {
         return botConfigDataAccess.findById(id)
                 .map(botConfigMapper::toVo)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "BotConfig not found", 404));
+    }
+
+    @Override
+    public BatchResultVo<BotConfigVo> getConfigsByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "botConfigs",
+                ids,
+                missingIds -> transactionExecutor.executeReadOnly(() -> {
+                    List<BotConfig> entities = botConfigDataAccess.findAllById(new ArrayList<>(missingIds));
+                    List<BotConfigVo> vos = new ArrayList<>();
+                    for (BotConfig entity : entities) {
+                        vos.add(botConfigMapper.toVo(entity));
+                    }
+                    return vos;
+                }),
+                BotConfigVo::getId
+        );
     }
 
     @Override
