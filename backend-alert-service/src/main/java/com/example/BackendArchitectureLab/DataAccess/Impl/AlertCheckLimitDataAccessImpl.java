@@ -32,6 +32,14 @@ public class AlertCheckLimitDataAccessImpl implements IAlertCheckLimitDataAccess
     }
 
     @Override
+    public List<AlertCheckLimit> findAllById(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return alertCheckLimitRepository.findAllById(ids);
+    }
+
+    @Override
     public List<AlertCheckLimit> findAll() {
         return alertCheckLimitRepository.findAll();
     }

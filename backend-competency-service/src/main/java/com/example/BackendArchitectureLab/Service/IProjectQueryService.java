@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Service;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
@@ -50,4 +51,6 @@ public interface IProjectQueryService {
     PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query);
 
     ProjectVo getProjectById(UUID id);
+
+    BatchResultVo<ProjectVo> getProjectsByIds(List<UUID> ids);
 }

@@ -9,6 +9,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
@@ -44,10 +46,18 @@ public class UserJobLinkController {
 
     @PostMapping("/search")
     @RequirePermission("View")
-    @ApiOperationBadRequest(summary = "分頁搜尋使用者職缺連結", description = "根據條件分頁搜尋使用者職缺連結。")
+    @ApiOperationBadRequest(summary = "搜尋使用者職缺連結", description = "分頁搜尋使用者職缺連結資料。")
     public ResponseType<PageResult<UserJobLinkVo>> searchUserJobLinks(
-            @ApiBody(description = "分頁搜尋條件") UserJobLinkSearchQuery query) {
+            @ApiBody(description = "搜尋條件") UserJobLinkSearchQuery query) {
         return ResponseType.Success(userJobLinkService.searchUserJobLinks(query), "使用者職缺連結搜尋成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationBadRequest(summary = "批次查詢使用者職缺連結", description = "依據 ID 清單批次獲取使用者職缺連結資料，結合細粒度快取加速。")
+    public ResponseType<BatchResultVo<UserJobLinkVo>> getUserJobLinksBatch(
+            @ApiBody(description = "批次 ID 請求") BatchIdsRequest request) {
+        return ResponseType.Success(userJobLinkService.getUserJobLinksByIds(request.getIds()), "批次查詢成功");
     }
 
     @PutMapping("/{id}")

@@ -11,6 +11,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -41,6 +43,14 @@ public class AlertCheckLimitController {
     public ResponseType<AlertCheckLimitVo> getLimitById(
             @ApiPath(description = "告警限制唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") UUID id) {
         return ResponseType.Success(alertCheckLimitService.getLimitById(id), "告警限制查詢成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationBadRequest(summary = "批次取得告警限制詳情", description = "依據 ID 列表批次取得告警限制清單，支援細粒度快取並回傳缺失 ID")
+    public ResponseType<BatchResultVo<AlertCheckLimitVo>> getLimitsByIds(
+            @ApiBody(description = "批次 ID 請求") BatchIdsRequest request) {
+        return ResponseType.Success(alertCheckLimitService.getLimitsByIds(request.getIds()), "批次告警限制查詢成功");
     }
 
     @PostMapping

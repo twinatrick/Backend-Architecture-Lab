@@ -1,5 +1,8 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
+import org.springframework.cache.CacheManager;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
@@ -24,6 +27,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,6 +43,7 @@ public class FunctionQueryService implements IFunctionQueryService {
     private final IFunctionDataAccess functionDataAccess;
     private final FunctionMapper functionMapper;
     private final TransactionExecutor transactionExecutor;
+    private final CacheManager cacheManager;
 
     @Lazy
     private final IFunctionQueryService self;
@@ -66,6 +71,24 @@ public class FunctionQueryService implements IFunctionQueryService {
                 () -> new IllegalArgumentException("Function not found")
         );
         return functionMapper.toVo(function);
+    }
+
+    @Override
+    public BatchResultVo<FunctionVo> getFunctionsByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "functions",
+                ids,
+                missingUuids -> transactionExecutor.executeReadOnly(() -> {
+                    List<Function> functions = functionDataAccess.findAllById(new ArrayList<>(missingUuids));
+                    List<FunctionVo> list = new ArrayList<>();
+                    for (Function function : functions) {
+                        list.add(functionMapper.toVo(function));
+                    }
+                    return list;
+                }),
+                vo -> vo.getId() == null ? null : UUID.fromString(vo.getId())
+        );
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
@@ -19,6 +20,14 @@ public interface IUserService {
     UserVo getOnlyUserByEmail(String email);
 
     UserVo getUserById(String id);
+
+    /**
+     * 批次依 ID 清單取得使用者（細粒度多鍵快取優先，未命中批次查庫並回填）
+     *
+     * @param ids 使用者 UUID 清單
+     * @return 雙視角批次查詢結果
+     */
+    BatchResultVo<UserVo> getUsersByIds(List<UUID> ids);
 
     UserVo saveUser(UserVo user);
 

@@ -265,8 +265,16 @@ _Avoid_: Multi-fetch, In-query loading, Ad-hoc loop query.
 _Avoid_: Undocumented parameter, Weak schema, Fuzzy example value.
 
 **RESTful Resource Mapping (RESTful 資源映射規範)**:
-在 HTTP API 路由設計中，嚴格廢除 URL 路徑中的動詞後綴（如 /add、/update、/delete），統一採用標準 HTTP 動詞（POST 建立、PUT /{id} 更新、DELETE /{id} 刪除、GET /{id} 取得單筆）映射實體生命週期的架構紀律。
+In HTTP API routing design, strictly eradicate verb suffixes in URL paths (such as /add, /update, /delete), uniformly adopting standard HTTP methods (POST create, PUT /{id} update, DELETE /{id} delete, GET /{id} retrieve single entity) to map entity lifecycle.
 _Avoid_: RPC verb path, Action-based URL, Inconsistent HTTP method.
+
+**Batch Query (批次識別碼查詢)**:
+在 HTTP API 設計中，以 `POST /api/{resource}/batch-query` 傳入識別碼集合，單次取得多筆實體並同時回傳陣列、字典視角與遺失清單的端點架構，徹底消除前端 N+1 查詢與 URL 長度限制。
+_Avoid_: In-loop single query, Query string ID joining, Multi-GET loop.
+
+**Granular Multi-Key Cache (細粒度多鍵快取)**:
+在執行批次查詢時，複用單筆 `GET /{id}` 之細粒度快取 Key 逐筆檢查命中，僅對未命中 ID 聚合單次 SQL 批次載入並回填各自快取，兼顧零快取鍵組合爆炸與高命中率的快取架構。
+_Avoid_: Coarse-grained list cache, Serialized collection key, Multi-key combinatorial explosion.
 
 
 

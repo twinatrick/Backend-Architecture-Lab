@@ -9,6 +9,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
 import com.example.BackendArchitectureLab.Service.IExternalPlatformStatusService;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ExternalPlatformStatusVo;
@@ -65,6 +67,13 @@ public class ConfigController {
     @ApiOperationOk(summary = "依 ID 取得 Bot 設定", description = "依 ID 取得單筆 Bot 設定。")
     public ResponseType<BotConfigVo> getById(@ApiPath(description = "Bot 設定 ID", format = "uuid", example = "00000000-0000-0000-0000-000000000001") UUID id) {
         return new ResponseType<>(botConfigService.findById(id));
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationBadRequest(summary = "批次取得 Bot 設定詳情", description = "依據 ID 列表批次取得 Bot 設定清單，支援細粒度快取並回傳缺失 ID")
+    public ResponseType<BatchResultVo<BotConfigVo>> getByIds(@ApiBody(description = "批次 ID 請求") BatchIdsRequest request) {
+        return new ResponseType<>(botConfigService.getConfigsByIds(request.getIds()));
     }
 
     @PostMapping

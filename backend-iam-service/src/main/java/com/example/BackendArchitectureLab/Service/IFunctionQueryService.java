@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
@@ -8,6 +9,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface IFunctionQueryService {
     List<FunctionVo> getFunction();
@@ -15,6 +17,14 @@ public interface IFunctionQueryService {
     CacheListWrapper<FunctionVo> getFunctionListCache();
 
     FunctionVo getFunctionById(String id);
+
+    /**
+     * 批次依 ID 清單取得功能（細粒度多鍵快取優先，未命中批次查庫並回填）
+     *
+     * @param ids 功能 UUID 清單
+     * @return 雙視角批次查詢結果
+     */
+    BatchResultVo<FunctionVo> getFunctionsByIds(List<UUID> ids);
 
     FunctionVo getFunctionByName(String name);
 

@@ -23,6 +23,8 @@ public interface IBotConfigDataAccess {
 
     Optional<BotConfig> findById(UUID id);
 
+    List<BotConfig> findAllById(List<UUID> ids);
+
     BotConfig save(BotConfig entity);
 
     boolean existsById(UUID id);

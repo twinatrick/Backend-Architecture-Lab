@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IProjectCommandService;
@@ -84,6 +86,14 @@ public class ProjectController {
             @ApiPath(description = "專案唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") UUID id) {
         ProjectVo project = projectQueryService.getProjectById(id);
         return ResponseType.Success(project, "專案查詢成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "批次依 ID 取得專案清單", description = "傳入專案 ID 清單（最多 100 筆），優先命中細粒度快取，未命中批次查庫並回填快取。")
+    public ResponseType<BatchResultVo<ProjectVo>> getProjectsByIds(
+            @ApiBody(description = "批次專案 ID 請求") BatchIdsRequest request) {
+        return ResponseType.Success(projectQueryService.getProjectsByIds(request.getIds()), "批次專案查詢成功");
     }
 
     @GetMapping("/{projectId}/skills")
