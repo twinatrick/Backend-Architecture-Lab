@@ -151,13 +151,13 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
         CriteriaAPIFilter criteriaAPIFilterStart = new CriteriaAPIFilter();
         criteriaAPIFilterStart.setColumnName("trans_time");
         criteriaAPIFilterStart.setType(2);
-        criteriaAPIFilterStart.setLarge(true);
+        criteriaAPIFilterStart.setGreaterThan(true);
         criteriaAPIFilterStart.setEqual(true);
         criteriaAPIFilterStart.setDate(start);
         CriteriaAPIFilter criteriaAPIFilterEnd = new CriteriaAPIFilter();
         criteriaAPIFilterEnd.setColumnName("trans_time");
         criteriaAPIFilterEnd.setType(2);
-        criteriaAPIFilterEnd.setSmall(true);
+        criteriaAPIFilterEnd.setLessThan(true);
         criteriaAPIFilterEnd.setEqual(true);
         criteriaAPIFilterEnd.setDate(end);
         List<CriteriaAPIFilter> criteriaAPIFilterList = new ArrayList<>();

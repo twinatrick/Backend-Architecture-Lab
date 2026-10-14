@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Vo.Common;
-import io.swagger.v3.oas.annotations.media.Schema;
+
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -11,6 +12,6 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "基礎查詢參數")
+@ApiDto(description = "基礎查詢參數")
 public class BaseSearchQuery extends PageQuery {
 }

@@ -1,5 +1,8 @@
 package com.example.BackendArchitectureLab.Controller;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
@@ -12,11 +15,15 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -31,10 +38,11 @@ public class ProjectController {
     private final IProjectQueryService projectQueryService;
     private final IProjectSkillService projectSkillService;
 
-    @PostMapping("/add")
+    @PostMapping
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "新增專案", description = "建立新的專案。")
-    public ResponseType<ProjectVo> addProject(@RequestBody ProjectVo project) {
+    public ResponseType<ProjectVo> addProject(
+            @ApiBody(description = "專案資料") ProjectVo project) {
         return ResponseType.Success(projectCommandService.addProject(project), "專案新增成功");
     }
 
@@ -42,23 +50,29 @@ public class ProjectController {
     @RequirePermission("View")
     @ApiOperationOk(summary = "專案分塊串流", description = "以 SSE 響應式分塊串流取得專案列表，避免萬筆級全表查詢與記憶體過載")
     public Flux<ServerSentEvent<List<ProjectVo>>> streamProjects(
-            @RequestParam(defaultValue = "250") int chunkSize
+            @ApiQuery(name = "chunkSize", defaultValue = "250", description = "串流分塊大小", example = "250") int chunkSize
     ) {
         return projectQueryService.streamProjectsChunked(chunkSize);
     }
 
-    @PostMapping("/update")
+    @PutMapping("/{id}")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "更新專案", description = "更新一筆既有的專案。")
-    public ResponseType<String> updateProject(@RequestBody ProjectVo project) {
+    @ApiOperationBadRequest(summary = "更新專案", description = "更新指定 ID 之既有專案。")
+    public ResponseType<String> updateProject(
+            @ApiPath(description = "專案唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") UUID id,
+            @ApiBody(description = "專案更新資料") ProjectVo project) {
+        project.setId(id);
         projectCommandService.updateProject(project);
         return ResponseType.Success("專案更新成功");
     }
 
-    @PostMapping("/delete")
+    @DeleteMapping("/{id}")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "刪除專案", description = "刪除一筆專案。")
-    public ResponseType<String> deleteProject(@RequestBody ProjectVo project) {
+    @ApiOperationBadRequest(summary = "刪除專案", description = "刪除指定 ID 之專案。")
+    public ResponseType<String> deleteProject(
+            @ApiPath(description = "專案唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") UUID id) {
+        ProjectVo project = new ProjectVo();
+        project.setId(id);
         projectCommandService.deleteProject(project);
         return ResponseType.Success("專案刪除成功");
     }
@@ -66,7 +80,8 @@ public class ProjectController {
     @GetMapping("/{id}")
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得專案詳情", description = "根據專案 ID 取得專案詳細資訊。")
-    public ResponseType<ProjectVo> getProjectById(@PathVariable UUID id) {
+    public ResponseType<ProjectVo> getProjectById(
+            @ApiPath(description = "專案唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") UUID id) {
         ProjectVo project = projectQueryService.getProjectById(id);
         return ResponseType.Success(project, "專案查詢成功");
     }
@@ -74,7 +89,8 @@ public class ProjectController {
     @GetMapping("/{projectId}/skills")
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得專案技能", description = "獲取指定專案綁定的所有技能與等級詳細資訊")
-    public ResponseType<List<ProjectSkillVo>> getProjectSkills(@PathVariable UUID projectId) {
+    public ResponseType<List<ProjectSkillVo>> getProjectSkills(
+            @ApiPath(description = "專案唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") UUID projectId) {
         List<ProjectSkillVo> skills = projectSkillService.getProjectSkills(projectId);
         return ResponseType.Success(skills, "專案技能查詢成功");
     }
@@ -82,7 +98,8 @@ public class ProjectController {
     @PostMapping("/search")
     @RequirePermission("View")
     @ApiOperationOk(summary = "分頁搜尋專案", description = "搜尋專案並回傳分頁結果，支援多種查詢條件與排序")
-    public ResponseType<PageResult<ProjectVo>> searchProjects(@Valid @RequestBody ProjectSearchQuery query) {
+    public ResponseType<PageResult<ProjectVo>> searchProjects(
+            @ApiBody(description = "分頁搜尋條件") ProjectSearchQuery query) {
         PageResult<ProjectVo> result = projectQueryService.searchProjects(query);
         return ResponseType.Success(result, "專案查詢成功");
     }
@@ -98,7 +115,8 @@ public class ProjectController {
     @PostMapping("/current/search")
     @RequirePermission("View")
     @ApiOperationOk(summary = "分頁搜尋當前使用者專案", description = "搜尋當前使用者的專案並回傳分頁結果，支援多種查詢條件與排序")
-    public ResponseType<PageResult<ProjectVo>> searchCurrentUserProjects(@Valid @RequestBody ProjectSearchQuery query) {
+    public ResponseType<PageResult<ProjectVo>> searchCurrentUserProjects(
+            @ApiBody(description = "分頁搜尋條件") ProjectSearchQuery query) {
         PageResult<ProjectVo> result = projectQueryService.searchCurrentUserProjects(query);
         return ResponseType.Success(result, "當前使用者專案查詢成功");
     }

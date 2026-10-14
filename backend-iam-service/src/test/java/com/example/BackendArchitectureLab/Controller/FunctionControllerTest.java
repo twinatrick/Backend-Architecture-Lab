@@ -68,7 +68,7 @@ class FunctionControllerTest {
     @Test
     @DisplayName("Should update function successfully")
     void testUpdateFunction() {
-        ResponseType<String> response = functionController.updateFunction(testFunction);
+        ResponseType<String> response = functionController.updateFunction(testId, testFunction);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -78,11 +78,11 @@ class FunctionControllerTest {
     @Test
     @DisplayName("Should delete function successfully")
     void testDeleteFunction() {
-        ResponseType<String> response = functionController.deleteFunction(testFunction);
+        ResponseType<String> response = functionController.deleteFunction(testId);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        verify(functionCommandService).deleteFunction(testFunction);
+        verify(functionCommandService).deleteFunction(any(FunctionVo.class));
     }
 
     @Test
@@ -113,17 +113,17 @@ class FunctionControllerTest {
     @DisplayName("Should save all functions successfully")
     void testSaveAllFunction() {
         FunctionTransVo transVo = new FunctionTransVo();
-        transVo.setDeleteFunction(List.of());
-        transVo.setSaveMainFunction(List.of());
-        transVo.setSaveFunctionNewChild(List.of());
+        transVo.setToDelete(List.of());
+        transVo.setToSave(List.of());
+        transVo.setToSaveChildren(List.of());
 
         ResponseType<?> response = functionController.saveAllFunction(transVo);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        verify(functionCommandService).deleteFunction(transVo.getDeleteFunction());
-        verify(functionCommandService).saveFunction(transVo.getSaveMainFunction());
-        verify(functionHierarchyService).saveFunctionNewChild(transVo.getSaveFunctionNewChild());
+        verify(functionCommandService).deleteFunction(transVo.getToDelete());
+        verify(functionCommandService).saveFunction(transVo.getToSave());
+        verify(functionHierarchyService).saveFunctionNewChild(transVo.getToSaveChildren());
     }
 
     @Test

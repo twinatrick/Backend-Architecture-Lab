@@ -108,7 +108,7 @@ class CompanyControllerTest {
 
         when(companyService.updateCompany(request)).thenReturn(vo);
 
-        ResponseType<CompanyVo> response = controller.updateCompany(request);
+        ResponseType<CompanyVo> response = controller.updateCompany(request.getId().toString(), request);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());

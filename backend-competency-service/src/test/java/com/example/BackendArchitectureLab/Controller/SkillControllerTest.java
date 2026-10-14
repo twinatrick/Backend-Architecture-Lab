@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,10 +76,11 @@ class SkillControllerTest {
     @DisplayName("updateSkill 應呼叫 Service 更新技能")
     void testUpdateSkill() {
         SkillVo request = new SkillVo();
-        request.setId(UUID.randomUUID());
+        UUID id = UUID.randomUUID();
+        request.setId(id);
         request.setName("Updated");
 
-        ResponseType<String> response = controller.updateSkill(request);
+        ResponseType<String> response = controller.updateSkill(id, request);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -89,15 +91,14 @@ class SkillControllerTest {
     @Test
     @DisplayName("deleteSkill 應呼叫 Service 刪除技能")
     void testDeleteSkill() {
-        SkillVo request = new SkillVo();
-        request.setId(UUID.randomUUID());
+        UUID id = UUID.randomUUID();
 
-        ResponseType<String> response = controller.deleteSkill(request);
+        ResponseType<String> response = controller.deleteSkill(id);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
         assertEquals("技能刪除成功", response.getData());
-        verify(skillService).deleteSkill(request);
+        verify(skillService).deleteSkill(any(SkillVo.class));
     }
 
     @Test

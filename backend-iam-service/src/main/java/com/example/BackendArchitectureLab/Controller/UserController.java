@@ -1,5 +1,8 @@
 package com.example.BackendArchitectureLab.Controller;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IAuthService;
@@ -12,7 +15,6 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.UserRoleRebindRequest;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,10 +40,10 @@ public class UserController {
     private final IAuthService authService;
 
 
-    @PostMapping(value = "/create")
+    @PostMapping
     @RequirePermission("Create")
     @ApiOperationBadRequest(summary = "新增使用者", description = "建立新的使用者帳號。")
-    public boolean createUser(@RequestBody UserVo user) {
+    public boolean createUser(@ApiBody(description = "使用者資料") UserVo user) {
         userService.createUser(user);
         return true;
     }
@@ -55,7 +57,8 @@ public class UserController {
     @GetMapping("/{id}")
     @RequirePermission("View")
     @ApiOperationOk(summary = "依 ID 取得使用者", description = "根據 ID 取得使用者資訊。")
-    public ResponseType<UserVo> getUserById(@PathVariable String id) {
+    public ResponseType<UserVo> getUserById(
+            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
         return ResponseType.Success(userService.getUserById(id), "使用者查詢成功");
     }
 
@@ -63,15 +66,18 @@ public class UserController {
     @RequirePermission("View")
     @ApiOperationOk(summary = "串流分塊取得使用者清單", description = "透過 Server-Sent Events (SSE) 分塊串流推播使用者清單，支援心跳保活與非阻塞背壓。")
     public Flux<ServerSentEvent<List<UserVo>>> streamUsers(
-            @RequestParam(defaultValue = "250") int chunkSize
+            @ApiQuery(description = "串流分塊大小", defaultValue = "250", example = "250") int chunkSize
     ) {
         return userService.streamUsersChunked(chunkSize);
     }
 
-    @PostMapping("/saveUser")
+    @PutMapping("/{id}")
     @RequirePermission("Edit")
-    @ApiOperationBadRequest(summary = "儲存使用者與角色", description = "更新使用者及其角色綁定。")
-    public ResponseType<String> saveUser(@RequestBody UserVo user) {
+    @ApiOperationBadRequest(summary = "更新使用者與角色", description = "更新指定 ID 之使用者及其角色綁定。")
+    public ResponseType<String> updateUser(
+            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id,
+            @ApiBody(description = "使用者更新資料") UserVo user) {
+        user.setId(id);
         userService.saveUserWithRole(user);
         return new ResponseType<>(0, "使用者更新成功");
     }
@@ -83,8 +89,8 @@ public class UserController {
             description = "完整覆蓋式綁定使用者角色。空清單清空所有角色，null 清單拋出異常。"
     )
     public ResponseType<String> rebindUserRoles(
-            @PathVariable String userId,
-            @Valid @RequestBody UserRoleRebindRequest request) {
+            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String userId,
+            @ApiBody(description = "角色重新綁定請求") UserRoleRebindRequest request) {
         UUID userUuid = UUID.fromString(userId);
         List<String> roleIds = request.getRoleIds() == null
                 ? List.of()
@@ -98,7 +104,7 @@ public class UserController {
     @PostMapping("/search")
     @RequirePermission("View")
     @ApiOperationOk(summary = "分頁搜尋使用者", description = "搜尋使用者並回傳分頁結果，支援多種查詢條件與排序")
-    public ResponseType<PageResult<UserVo>> searchUsers(@Valid @RequestBody UserSearchQuery query) {
+    public ResponseType<PageResult<UserVo>> searchUsers(@ApiBody(description = "分頁搜尋條件") UserSearchQuery query) {
         PageResult<UserVo> result = userService.searchUsers(query);
         return new ResponseType<>(result);
     }

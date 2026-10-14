@@ -39,9 +39,6 @@ public class User extends BaseEntity {
     @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<UserRole> roles =new ArrayList<>();
 
-    @Transient
-    private List<String> roleArr;
-
     @JsonIgnore
     @Transient
     private List<FunctionVo> permissions;

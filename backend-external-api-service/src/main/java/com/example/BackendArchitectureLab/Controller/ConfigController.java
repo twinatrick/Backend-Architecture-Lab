@@ -1,8 +1,11 @@
 package com.example.BackendArchitectureLab.Controller;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Service.IBotConfigService;
 import com.example.BackendArchitectureLab.Service.IExternalPlatformStatusService;
@@ -16,12 +19,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
@@ -41,7 +41,7 @@ public class ConfigController {
     @PostMapping("/search")
     @RequirePermission("View")
     @ApiOperationBadRequest(summary = "分頁搜尋 Bot 設定", description = "依條件分頁搜尋 Bot 設定。")
-    public ResponseType<PageResult<BotConfigVo>> search(@RequestBody BotConfigSearchQuery query) {
+    public ResponseType<PageResult<BotConfigVo>> search(@ApiBody(description = "Bot 設定搜尋條件") BotConfigSearchQuery query) {
         return new ResponseType<>(botConfigService.searchBotConfigs(query));
     }
 
@@ -49,7 +49,7 @@ public class ConfigController {
     @RequirePermission("View")
     @ApiOperationOk(summary = "分塊串流獲取 Bot 設定", description = "以 SSE 分塊串流方式獲取 Bot 設定清單。")
     public Flux<ServerSentEvent<List<BotConfigVo>>> streamBotConfigs(
-            @RequestParam(defaultValue = "250") int chunkSize) {
+            @ApiQuery(name = "chunkSize", defaultValue = "250", description = "串流分塊大小", example = "250") int chunkSize) {
         return botConfigService.streamBotConfigsChunked(chunkSize);
     }
 
@@ -63,28 +63,30 @@ public class ConfigController {
     @GetMapping("/{id}")
     @RequirePermission("View")
     @ApiOperationOk(summary = "依 ID 取得 Bot 設定", description = "依 ID 取得單筆 Bot 設定。")
-    public ResponseType<BotConfigVo> getById(@PathVariable UUID id) {
+    public ResponseType<BotConfigVo> getById(@ApiPath(description = "Bot 設定 ID", format = "uuid", example = "00000000-0000-0000-0000-000000000001") UUID id) {
         return new ResponseType<>(botConfigService.findById(id));
     }
 
     @PostMapping
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "新增 Bot 設定", description = "建立新的 Bot 設定。")
-    public ResponseType<BotConfigVo> create(@RequestBody BotConfigVo vo) {
+    public ResponseType<BotConfigVo> create(@ApiBody(description = "新增 Bot 設定內容") BotConfigVo vo) {
         return new ResponseType<>(botConfigService.create(vo));
     }
 
     @PutMapping("/{id}")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "更新 Bot 設定", description = "依 ID 更新 Bot 設定。")
-    public ResponseType<BotConfigVo> update(@PathVariable UUID id, @RequestBody BotConfigVo vo) {
+    public ResponseType<BotConfigVo> update(
+            @ApiPath(description = "Bot 設定 ID", format = "uuid", example = "00000000-0000-0000-0000-000000000001") UUID id,
+            @ApiBody(description = "更新 Bot 設定內容") BotConfigVo vo) {
         return new ResponseType<>(botConfigService.update(id, vo));
     }
 
     @DeleteMapping("/{id}")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "刪除 Bot 設定", description = "依 ID 刪除 Bot 設定。")
-    public ResponseType<Void> delete(@PathVariable UUID id) {
+    public ResponseType<Void> delete(@ApiPath(description = "Bot 設定 ID", format = "uuid", example = "00000000-0000-0000-0000-000000000001") UUID id) {
         botConfigService.delete(id);
         return new ResponseType<>(null);
     }

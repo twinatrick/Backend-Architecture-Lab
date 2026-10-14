@@ -1,7 +1,8 @@
 package com.example.BackendArchitectureLab.Vo.Search;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import com.example.BackendArchitectureLab.Vo.Common.BaseSearchQuery;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,21 +15,21 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "告警檢查限制搜尋查詢參數")
+@ApiDto(description = "告警檢查限制搜尋查詢參數")
 public class AlertCheckLimitSearchQuery extends BaseSearchQuery {
     
-    @Schema(description = "表名（模糊查詢）", example = "user")
+    @ApiField(description = "表名（模糊查詢）", example = "user")
     private String tableName;
     
-    @Schema(description = "欄位名（模糊查詢）", example = "age")
+    @ApiField(description = "欄位名（模糊查詢）", example = "age")
     private String columnName;
     
-    @Schema(description = "限制值最小值（範圍查詢）", example = "0.0")
+    @ApiField(description = "限制值最小值（範圍查詢）", example = "0.0")
     private Double limitValueMin;
     
-    @Schema(description = "限制值最大值（範圍查詢）", example = "100.0")
+    @ApiField(description = "限制值最大值（範圍查詢）", example = "100.0")
     private Double limitValueMax;
     
-    @Schema(description = "創建者（精確查詢）", example = "admin")
+    @ApiField(description = "創建者 UUID（精確查詢）", example = "00000000-0000-0000-0000-000000000001", format = "uuid")
     private String createdBy;
 }

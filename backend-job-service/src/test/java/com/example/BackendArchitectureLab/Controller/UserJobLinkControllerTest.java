@@ -82,7 +82,7 @@ class UserJobLinkControllerTest {
         vo.setId(UUID.randomUUID().toString());
         when(userJobLinkService.updateUserJobLink(vo)).thenReturn(vo);
 
-        ResponseType<UserJobLinkVo> response = controller.updateUserJobLink(vo);
+        ResponseType<UserJobLinkVo> response = controller.updateUserJobLink(vo.getId(), vo);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());

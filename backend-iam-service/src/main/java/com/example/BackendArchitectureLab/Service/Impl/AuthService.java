@@ -110,8 +110,8 @@ public class AuthService implements IAuthService {
     @Override
     @Transactional
     public UserVo createSuperUser(SuperUserRequest request) {
-        if (request.getKey() == null || !request.getKey().equals(superUserKey)) {
-            throw new AppException("VALIDATION_ERROR", "Invalid key", 400);
+        if (request.getBootstrapSecret() == null || !request.getBootstrapSecret().equals(superUserKey)) {
+            throw new AppException("VALIDATION_ERROR", "Invalid bootstrap secret", 400);
         }
         String email = (request.getEmail() == null || request.getEmail().isBlank()) ? "admin" : request.getEmail();
         List<UserVo> existingUsers = userService.getUserByEmail(email);

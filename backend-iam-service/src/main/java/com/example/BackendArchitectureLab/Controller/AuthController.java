@@ -1,31 +1,31 @@
 package com.example.BackendArchitectureLab.Controller;
 
+import com.example.BackendArchitectureLab.Annotation.Ignore;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
-import com.example.BackendArchitectureLab.Annotation.Ignore;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Security.CustomUserDetails;
 import com.example.BackendArchitectureLab.Security.JwtAuthenticationToken;
 import com.example.BackendArchitectureLab.Service.IAuthService;
 import com.example.BackendArchitectureLab.Vo.LoginRequest;
+import com.example.BackendArchitectureLab.Vo.Response.Token;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.SignupRequest;
 import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import com.example.BackendArchitectureLab.Vo.Response.Token;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jose4j.lang.JoseException;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 
@@ -46,7 +46,7 @@ public class AuthController {
     @Ignore
     @PostMapping("/signup")
     @ApiOperationBadRequest(summary = "註冊新使用者", description = "建立使用者帳號並回傳 JWT access token。")
-    public ResponseType<Token> signup(@RequestBody SignupRequest request) throws JoseException {
+    public ResponseType<Token> signup(@ApiBody(description = "使用者註冊資訊") SignupRequest request) throws JoseException {
         UserVo userVo = authService.signup(request);
         String userId = userVo != null ? userVo.getId() : null;
 
@@ -61,7 +61,7 @@ public class AuthController {
     @Ignore
     @PostMapping("/login")
     @ApiOperationAuth(summary = "使用者登入", description = "驗證使用者憑證並回傳 JWT access token。")
-    public ResponseType<Token> login(@RequestBody LoginRequest request) throws JoseException {
+    public ResponseType<Token> login(@ApiBody(description = "使用者登入憑證") LoginRequest request) throws JoseException {
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
@@ -90,7 +90,7 @@ public class AuthController {
     @Ignore
     @PostMapping("/superuser")
     @ApiOperationBadRequest(summary = "建立超級使用者", description = "當提供的金鑰符合設定時建立管理員帳號。")
-    public ResponseType<?> createSuperUser(@RequestBody SuperUserRequest request) {
+    public ResponseType<?> createSuperUser(@ApiBody(description = "建立超級使用者請求") SuperUserRequest request) {
         authService.createSuperUser(request);
 
         String email = (request.getEmail() == null || request.getEmail().isBlank()) ? "admin" : request.getEmail();

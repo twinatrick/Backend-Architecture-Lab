@@ -1,7 +1,8 @@
 package com.example.BackendArchitectureLab.Vo.Search;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import com.example.BackendArchitectureLab.Vo.Common.BaseSearchQuery;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,15 +15,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "技能搜尋查詢參數")
+@ApiDto(description = "技能搜尋查詢參數")
 public class SkillSearchQuery extends BaseSearchQuery {
     
-    @Schema(description = "技能名稱（模糊查詢）", example = "Java")
+    @ApiField(description = "技能名稱（模糊查詢）", example = "Java")
     private String name;
     
-    @Schema(description = "技能描述（模糊查詢）", example = "程式語言")
+    @ApiField(description = "技能描述（模糊查詢）", example = "程式語言")
     private String description;
     
-    @Schema(description = "創建者（精確查詢）", example = "admin")
+    @ApiField(description = "創建者 UUID（精確查詢）", example = "00000000-0000-0000-0000-000000000001", format = "uuid")
     private String createdBy;
 }

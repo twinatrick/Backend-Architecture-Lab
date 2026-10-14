@@ -125,18 +125,18 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
             }
             if (f.getType() == 0) {
                 if (f.isLike()) {
-                    predicates.add(cb.like(root.get(colName), "%" + f.getString() + "%"));
+                    predicates.add(cb.like(root.get(colName), "%" + f.getStringValue() + "%"));
                 } else if (f.isEqual()) {
-                    predicates.add(cb.equal(root.get(colName), f.getString()));
+                    predicates.add(cb.equal(root.get(colName), f.getStringValue()));
                 }
             } else if (f.getType() == 1) {
-                if (f.isLarge() && f.isEqual()) {
+                if (f.isGreaterThan() && f.isEqual()) {
                     predicates.add(cb.greaterThanOrEqualTo(root.get(colName), f.getDoubleValue()));
-                } else if (f.isLarge()) {
+                } else if (f.isGreaterThan()) {
                     predicates.add(cb.greaterThan(root.get(colName), f.getDoubleValue()));
-                } else if (f.isSmall() && f.isEqual()) {
+                } else if (f.isLessThan() && f.isEqual()) {
                     predicates.add(cb.lessThanOrEqualTo(root.get(colName), f.getDoubleValue()));
-                } else if (f.isSmall()) {
+                } else if (f.isLessThan()) {
                     predicates.add(cb.lessThan(root.get(colName), f.getDoubleValue()));
                 } else if (f.isEqual()) {
                     predicates.add(cb.equal(root.get(colName), f.getDoubleValue()));
@@ -144,13 +144,13 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
                     predicates.add(cb.notEqual(root.get(colName), f.getDoubleValue()));
                 }
             } else if (f.getType() == 2) {
-                if (f.isLarge() && f.isEqual()) {
+                if (f.isGreaterThan() && f.isEqual()) {
                     predicates.add(cb.greaterThanOrEqualTo(root.get(colName), f.getDate()));
-                } else if (f.isLarge()) {
+                } else if (f.isGreaterThan()) {
                     predicates.add(cb.greaterThan(root.get(colName), f.getDate()));
-                } else if (f.isSmall() && f.isEqual()) {
+                } else if (f.isLessThan() && f.isEqual()) {
                     predicates.add(cb.lessThanOrEqualTo(root.get(colName), f.getDate()));
-                } else if (f.isSmall()) {
+                } else if (f.isLessThan()) {
                     predicates.add(cb.lessThan(root.get(colName), f.getDate()));
                 } else if (f.isEqual()) {
                     predicates.add(cb.equal(root.get(colName), f.getDate()));

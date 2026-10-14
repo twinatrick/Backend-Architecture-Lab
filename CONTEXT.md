@@ -260,6 +260,14 @@ _Avoid_: Memory slicing, Client-side paging, False pagination.
 透過 ORM 批次抓取機制（如 @BatchSize）在存取延遲載入集合時自動以 WHERE id IN (...) 聚合為單一批量查詢，既維持資料庫原生 LIMIT 分頁，又根除 N+1 延遲載入的治理模式。
 _Avoid_: Multi-fetch, In-query loading, Ad-hoc loop query.
 
+**Swagger Contract Discipline (Swagger 契約紀律)**:
+在對外 API 控制器與資料傳輸模型中，強制要求所有路徑參數、查詢參數、DTO 類別與欄位顯式標註 @Parameter 與 @Schema，嚴格定義 UUID 格式、必填約束與真實範例值，杜絕模糊或未文件化欄位的規範。
+_Avoid_: Undocumented parameter, Weak schema, Fuzzy example value.
+
+**RESTful Resource Mapping (RESTful 資源映射規範)**:
+在 HTTP API 路由設計中，嚴格廢除 URL 路徑中的動詞後綴（如 /add、/update、/delete），統一採用標準 HTTP 動詞（POST 建立、PUT /{id} 更新、DELETE /{id} 刪除、GET /{id} 取得單筆）映射實體生命週期的架構紀律。
+_Avoid_: RPC verb path, Action-based URL, Inconsistent HTTP method.
+
 
 
 

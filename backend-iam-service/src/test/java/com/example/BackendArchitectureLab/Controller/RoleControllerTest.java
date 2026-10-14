@@ -59,24 +59,11 @@ class RoleControllerTest {
     }
 
     @Test
-    @DisplayName("Should add role successfully")
-    void testAddRole() {
-        when(roleService.addRole(any(RoleOutVo.class))).thenReturn(testRole);
-
-        ResponseType<RoleOutVo> response = roleController.addRole(testRole);
-
-        assertNotNull(response);
-        assertEquals(200, response.getCode());
-        assertEquals(testRole, response.getData());
-        verify(roleService).addRole(testRole);
-    }
-
-    @Test
-    @DisplayName("Should add role with functions successfully")
-    void testAddRoleWithFunctions() {
+    @DisplayName("Should create role with functions successfully")
+    void testCreateRole() {
         when(roleService.addRoleWithFunctions(any(RoleOutVo.class))).thenReturn(testRole);
 
-        ResponseType<RoleOutVo> response = roleController.addRoleWithFunctions(testRole);
+        ResponseType<RoleOutVo> response = roleController.createRole(testRole);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -111,54 +98,24 @@ class RoleControllerTest {
     @Test
     @DisplayName("Should update role successfully")
     void testUpdateRole() {
-        when(roleService.updateRole(any(RoleOutVo.class))).thenReturn(testRole);
-
-        ResponseType<RoleOutVo> response = roleController.updateRole(testRole);
-
-        assertNotNull(response);
-        assertEquals(200, response.getCode());
-        assertEquals(testRole, response.getData());
-        verify(roleService).updateRole(testRole);
-    }
-
-    @Test
-    @DisplayName("Should update role with functions successfully")
-    void testUpdateRoleWithFunctions() {
         when(roleService.updateRoleWithFunctions(any(RoleOutVo.class))).thenReturn(testRole);
 
-        ResponseType<RoleOutVo> response = roleController.updateRoleWithFunctions(testRole);
+        ResponseType<RoleOutVo> response = roleController.updateRole(testId.toString(), testRole);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
         assertEquals(testRole, response.getData());
-        verify(roleService).updateRoleWithFunctions(testRole);
+        verify(roleService).updateRoleWithFunctions(any(RoleOutVo.class));
     }
 
     @Test
     @DisplayName("Should delete role successfully")
     void testDeleteRole() {
-        ResponseType<RoleOutVo> response = roleController.deleteRole(testRole);
+        ResponseType<String> response = roleController.deleteRole(testId.toString());
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        assertEquals(testRole, response.getData());
-        verify(roleService).deleteRole(testRole);
-    }
-
-    @Test
-    @DisplayName("Should bind functions to role")
-    void testRoleBindFunction() {
-        PermissionVo permissionVo = new PermissionVo();
-        permissionVo.setRole(testId.toString());
-        permissionVo.setFunctionList(List.of("f1"));
-
-        when(roleService.getRoleById(testId.toString())).thenReturn(testRole);
-
-        ResponseType<RoleOutVo> response = roleController.roleBindFunction(permissionVo);
-
-        assertNotNull(response);
-        assertEquals(200, response.getCode());
-        verify(roleService).roleBindFunction(testId.toString(), List.of("f1"));
+        verify(roleService).deleteRole(any(RoleOutVo.class));
     }
 
     @Test

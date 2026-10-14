@@ -1,5 +1,7 @@
 package com.example.BackendArchitectureLab.Vo;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -11,34 +13,23 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@ApiDto(description = "個人技能新增與異動請求物件")
 public class PersonalSkillRequest {
-    /**
-     * 技能名稱
-     */
+    @ApiField(description = "技能名稱", example = "Java", required = true)
     private String name;
-    
-    /**
-     * 技能描述
-     */
+
+    @ApiField(description = "技能描述", example = "後端主力語言")
     private String description;
-    
-    /**
-     * 技能等級 ID
-     */
+
+    @ApiField(description = "技能等級 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid")
     private String skillLevelId;
 
-    /**
-     * 手動建立技能等級時使用：等級值
-     */
+    @ApiField(description = "手動建立等級值", example = "3")
     private Integer skillLevelValue;
 
-    /**
-     * 手動建立技能等級時使用：等級標題
-     */
+    @ApiField(description = "手動建立等級標題", example = "資深")
     private String skillLevelTitle;
 
-    /**
-     * 手動建立技能等級時使用：等級描述
-     */
+    @ApiField(description = "手動建立等級描述", example = "具備架構規劃能力")
     private String skillLevelDescription;
 }

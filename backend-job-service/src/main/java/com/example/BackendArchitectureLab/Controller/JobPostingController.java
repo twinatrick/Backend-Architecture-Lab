@@ -1,5 +1,8 @@
 package com.example.BackendArchitectureLab.Controller;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
@@ -11,7 +14,6 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
 import lombok.RequiredArgsConstructor;
-import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,9 +21,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
@@ -35,10 +35,11 @@ public class JobPostingController {
 
     private final IJobPostingService jobPostingService;
 
-    @PostMapping("/add")
+    @PostMapping
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "新增職缺", description = "手動新增一筆職缺。")
-    public ResponseType<JobPostingVo> addJobPosting(@Valid @RequestBody CreateJobPostingRequest request) {
+    public ResponseType<JobPostingVo> addJobPosting(
+            @ApiBody(description = "建立職缺請求") CreateJobPostingRequest request) {
         return ResponseType.Success(jobPostingService.createJobPosting(request), "職缺新增成功");
     }
 
@@ -46,35 +47,41 @@ public class JobPostingController {
     @RequirePermission("View")
     @ApiOperationOk(summary = "串流分塊取得所有職缺", description = "透過 Server-Sent Events (SSE) 分塊串流返回職缺數據。")
     public Flux<ServerSentEvent<List<JobPostingVo>>> streamJobPostings(
-            @RequestParam(value = "chunkSize", defaultValue = "250") int chunkSize) {
+            @ApiQuery(name = "chunkSize", defaultValue = "250", description = "串流分塊大小", example = "250") int chunkSize) {
         return jobPostingService.streamJobPostingsChunked(chunkSize);
     }
 
-    @GetMapping({"/get/{id}", "/{id}"})
+    @GetMapping("/{id}")
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得職缺詳情", description = "根據 ID 取得職缺資訊。")
-    public ResponseType<JobPostingVo> getJobPostingById(@PathVariable String id) {
+    public ResponseType<JobPostingVo> getJobPostingById(
+            @ApiPath(description = "職缺唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
         return ResponseType.Success(jobPostingService.getJobPostingById(id), "職缺查詢成功");
     }
 
     @GetMapping("/company/{companyId}")
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得公司職缺", description = "根據公司 ID 取得該公司所有職缺。")
-    public ResponseType<List<JobPostingVo>> getJobPostingsByCompanyId(@PathVariable String companyId) {
+    public ResponseType<List<JobPostingVo>> getJobPostingsByCompanyId(
+            @ApiPath(description = "公司唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String companyId) {
         return ResponseType.Success(jobPostingService.getJobPostingsByCompanyId(companyId), "公司職缺查詢成功");
     }
 
-    @PutMapping("/update")
+    @PutMapping("/{id}")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "更新職缺", description = "更新職缺資訊。")
-    public ResponseType<JobPostingVo> updateJobPosting(@RequestBody JobPostingVo jobPostingVo) {
+    public ResponseType<JobPostingVo> updateJobPosting(
+            @ApiPath(description = "職缺唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id,
+            @ApiBody(description = "職缺更新資料") JobPostingVo jobPostingVo) {
+        jobPostingVo.setId(id);
         return ResponseType.Success(jobPostingService.updateJobPosting(jobPostingVo), "職缺更新成功");
     }
 
-    @DeleteMapping("/delete/{id}")
+    @DeleteMapping("/{id}")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "刪除職缺", description = "根據 ID 刪除職缺。")
-    public ResponseType<String> deleteJobPosting(@PathVariable String id) {
+    public ResponseType<String> deleteJobPosting(
+            @ApiPath(description = "職缺唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
         jobPostingService.deleteJobPosting(id);
         return ResponseType.Success("職缺刪除成功");
     }
@@ -82,14 +89,16 @@ public class JobPostingController {
     @PostMapping("/scrape/{companyId}")
     @RequirePermission("Scrape")
     @ApiOperationBadRequest(summary = "爬取並分析職缺", description = "根據公司 ID 爬取該公司網站上的職缺並使用 Gemini 分析。")
-    public ResponseType<List<JobPostingVo>> scrapeJobs(@PathVariable String companyId) {
+    public ResponseType<List<JobPostingVo>> scrapeJobs(
+            @ApiPath(description = "公司唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String companyId) {
         return ResponseType.Success(jobPostingService.scrapeAndAnalyzeJobs(companyId), "職缺爬取與分析完成");
     }
 
     @PostMapping("/search")
     @RequirePermission("View")
     @ApiOperationBadRequest(summary = "分頁搜尋職缺", description = "根據條件分頁搜尋職缺。")
-    public ResponseType<PageResult<JobPostingVo>> searchJobPostings(@RequestBody JobPostingSearchQuery query) {
+    public ResponseType<PageResult<JobPostingVo>> searchJobPostings(
+            @ApiBody(description = "分頁搜尋條件") JobPostingSearchQuery query) {
         return ResponseType.Success(jobPostingService.searchJobPostings(query), "職缺搜尋成功");
     }
 }
