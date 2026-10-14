@@ -75,9 +75,9 @@ AI 必須先分析 PR diff，再依依賴關係向外追查必要 context：Cont
 - 檢查 `開發規範.md` 所要求的 Controller OpenAPI annotations。
 - 檢查 Permission Dictionary ↔ `@RequirePermission` 雙向一致性。
 - 檢查 permission naming 是否符合規範。
-- **@ApiBody 自動驗證審查原則**：
-  Controller 標註專案專屬 `@ApiBody` 之請求參數，底層由 `ApiBodyArgumentResolver` 自動強制執行 JSR-380 Bean Validation，DTO 內宣告之約束（如 `@Size`、`@NotEmpty`、`@NotNull`）均已全自動生效。
-  **專案嚴格禁止在 Controller 參數重複撰寫 `@Valid`，審查時嚴禁以「缺少 @Valid」或「未驗證上限」為由判定阻擋違規或提出安全漏洞警告**。
+- **@ApiBody 自動驗證審查指引**：
+  依據《開發規範.md》第 3.1 節，Controller 宣告專案專屬 `@ApiBody` 時，已由底層 `ApiBodyArgumentResolver` 自動執行 JSR-380 Bean Validation，因此 Controller 方法參數禁止重複撰寫 `@Valid`。
+  審查時請**直接檢驗 DTO 類別與欄位本身**是否宣告了必要的驗證約束（例如批次請求之集合或字串欄位是否具備 `@Size` 等長度/上限防禦約束）；若 DTO 已具備相應約束即視為合規，嚴禁單純因 Controller 方法參數未宣告 `@Valid` 而判定阻擋違規。
 
 ### Quality
 
