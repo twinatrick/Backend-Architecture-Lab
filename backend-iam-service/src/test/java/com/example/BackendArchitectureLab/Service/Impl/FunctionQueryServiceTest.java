@@ -9,6 +9,7 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,6 +17,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -47,6 +50,9 @@ class FunctionQueryServiceTest {
 
     @Mock
     private TransactionExecutor transactionExecutor;
+
+    @Mock
+    private CacheManager cacheManager;
 
     @InjectMocks
     private FunctionQueryService functionQueryService;
@@ -283,5 +289,37 @@ class FunctionQueryServiceTest {
         StepVerifier.create(stream)
                 .expectNextMatches(sse -> "error".equals(sse.event()) && sse.data() == null)
                 .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Should fetch functions by ids in batch successfully")
+    void testGetFunctionsByIds_Success() {
+        UUID id1 = UUID.randomUUID();
+        UUID id2 = UUID.randomUUID();
+        Function f1 = new Function();
+        f1.setId(id1);
+        f1.setName("Function 1");
+        Function f2 = new Function();
+        f2.setId(id2);
+        f2.setName("Function 2");
+
+        FunctionVo vo1 = new FunctionVo();
+        vo1.setId(id1.toString());
+        vo1.setName("Function 1");
+        FunctionVo vo2 = new FunctionVo();
+        vo2.setId(id2.toString());
+        vo2.setName("Function 2");
+
+        when(functionDataAccess.findAllById(anyList())).thenReturn(List.of(f1, f2));
+        when(functionMapper.toVo(f1)).thenReturn(vo1);
+        when(functionMapper.toVo(f2)).thenReturn(vo2);
+
+        BatchResultVo<FunctionVo> result = functionQueryService.getFunctionsByIds(List.of(id1, id2));
+
+        assertNotNull(result);
+        assertEquals(2, result.getTotalRequested());
+        assertEquals(2, result.getTotalFound());
+        assertEquals(2, result.getItems().size());
+        assertTrue(result.getMissingIds().isEmpty());
     }
 }

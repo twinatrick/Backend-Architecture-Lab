@@ -103,7 +103,7 @@ public class FunctionController {
         return ResponseType.Success(result, "功能查詢成功");
     }
 
-    @PostMapping("/batch-save")
+    @PostMapping("/batch")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "批次儲存功能變更", description = "套用功能刪除，並儲存新增或更新的功能。")
     public ResponseType<?> saveAllFunction(

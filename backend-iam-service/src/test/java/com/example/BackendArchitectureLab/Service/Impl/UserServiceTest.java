@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.*;
 
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 
 /**
  * Unit tests for UserService.
@@ -62,6 +64,9 @@ class UserServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private CacheManager cacheManager;
 
     @InjectMocks
     private UserService userService;
@@ -535,5 +540,37 @@ class UserServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> userService.rebindUserRoles(userId, List.of("role1")));
         assertEquals("User not found", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("Should fetch users by ids in batch successfully")
+    void testGetUsersByIds_Success() {
+        UUID id1 = UUID.randomUUID();
+        UUID id2 = UUID.randomUUID();
+        User u1 = new User();
+        u1.setId(id1);
+        u1.setName("User 1");
+        User u2 = new User();
+        u2.setId(id2);
+        u2.setName("User 2");
+
+        UserVo vo1 = new UserVo();
+        vo1.setId(id1.toString());
+        vo1.setName("User 1");
+        UserVo vo2 = new UserVo();
+        vo2.setId(id2.toString());
+        vo2.setName("User 2");
+
+        when(userDataAccess.findAllById(anyList())).thenReturn(List.of(u1, u2));
+        when(userMapper.toVo(u1)).thenReturn(vo1);
+        when(userMapper.toVo(u2)).thenReturn(vo2);
+
+        BatchResultVo<UserVo> result = userService.getUsersByIds(List.of(id1, id2));
+
+        assertNotNull(result);
+        assertEquals(2, result.getTotalRequested());
+        assertEquals(2, result.getTotalFound());
+        assertEquals(2, result.getItems().size());
+        assertTrue(result.getMissingIds().isEmpty());
     }
 }
