@@ -43,6 +43,11 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
     }
 
     @Override
+    public List<UserJobLink> findAllById(List<UUID> ids) {
+        return userJobLinkRepository.findAllById(ids);
+    }
+
+    @Override
     public boolean existsById(UUID id) {
         return userJobLinkRepository.existsById(id);
     }

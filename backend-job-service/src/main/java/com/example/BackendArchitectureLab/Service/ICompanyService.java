@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
@@ -10,6 +11,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface ICompanyService {
 
@@ -19,6 +21,8 @@ public interface ICompanyService {
     CacheListWrapper<CompanyVo> getAllCompaniesCache();
 
     CompanyVo getCompanyById(String id);
+
+    BatchResultVo<CompanyVo> getCompaniesByIds(List<UUID> ids);
 
     CompanyVo updateCompany(UpdateCompanyRequest request);
 

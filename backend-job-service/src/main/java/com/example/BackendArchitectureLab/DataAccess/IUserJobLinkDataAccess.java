@@ -19,6 +19,8 @@ public interface IUserJobLinkDataAccess {
 
     Optional<UserJobLink> findById(UUID id);
 
+    List<UserJobLink> findAllById(List<UUID> ids);
+
     boolean existsById(UUID id);
 
     void deleteById(UUID id);

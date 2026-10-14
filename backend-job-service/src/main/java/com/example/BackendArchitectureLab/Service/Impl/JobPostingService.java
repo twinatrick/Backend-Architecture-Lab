@@ -16,7 +16,9 @@ import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -171,6 +173,19 @@ public class JobPostingService implements IJobPostingService {
         JobPosting jobPosting = jobPostingDataAccess.findById(uuid)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "職缺不存在", 404));
         return jobPostingMapper.toVo(jobPosting);
+    }
+
+    @Override
+    public BatchResultVo<JobPostingVo> getJobPostingsByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "jobPostings",
+                ids,
+                missingIds -> jobPostingDataAccess.findAllById(new ArrayList<>(missingIds)).stream()
+                        .map(jobPostingMapper::toVo)
+                        .toList(),
+                vo -> vo.getId() != null ? UUID.fromString(vo.getId()) : null
+        );
     }
 
     @Override

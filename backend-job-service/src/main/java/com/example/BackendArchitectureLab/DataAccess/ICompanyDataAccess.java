@@ -46,6 +46,14 @@ public interface ICompanyDataAccess {
     Optional<Company> findById(UUID id);
 
     /**
+     * Find all companies matching given IDs.
+     *
+     * @param ids the list of company UUIDs
+     * @return list of companies found
+     */
+    List<Company> findAllById(List<UUID> ids);
+
+    /**
      * Check if a company exists by its ID.
      *
      * @param id the company UUID

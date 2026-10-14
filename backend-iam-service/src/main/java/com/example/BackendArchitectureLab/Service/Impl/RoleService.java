@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.DataAccess.*;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
@@ -42,6 +44,7 @@ import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -127,6 +130,31 @@ public class RoleService implements IRoleService {
             );
             return roleMapper.toVo(role);
         });
+    }
+
+    @Override
+    public BatchResultVo<RoleOutVo> getRolesByIds(List<String> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "roles",
+                ids,
+                missingIds -> transactionExecutor.executeReadOnly(() -> {
+                    List<UUID> missingUuids = missingIds.stream()
+                            .map(this::mapUuid)
+                            .filter(Objects::nonNull)
+                            .toList();
+                    if (missingUuids.isEmpty()) {
+                        return List.of();
+                    }
+                    List<Role> roles = roleDataAccess.findAllById(missingUuids);
+                    List<RoleOutVo> list = new ArrayList<>();
+                    for (Role role : roles) {
+                        list.add(roleMapper.toVo(role));
+                    }
+                    return list;
+                }),
+                vo -> vo.getId() != null ? vo.getId().toString() : null
+        );
     }
 
     @Override

@@ -31,6 +31,8 @@ import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
+import org.springframework.cache.CacheManager;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -74,6 +76,9 @@ class RoleServiceTest {
 
     @Mock
     private UserMapper userMapper;
+
+    @Mock
+    private CacheManager cacheManager;
 
     @InjectMocks
     private RoleService roleService;
@@ -817,5 +822,37 @@ class RoleServiceTest {
         StepVerifier.create(stream)
                 .expectNextMatches(sse -> "error".equals(sse.event()) && sse.data() == null)
                 .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Should fetch roles by ids in batch successfully")
+    void testGetRolesByIds_Success() {
+        UUID id1 = UUID.randomUUID();
+        UUID id2 = UUID.randomUUID();
+        Role r1 = new Role();
+        r1.setId(id1);
+        r1.setName("ROLE_ADMIN");
+        Role r2 = new Role();
+        r2.setId(id2);
+        r2.setName("ROLE_USER");
+
+        RoleOutVo vo1 = new RoleOutVo();
+        vo1.setId(id1);
+        vo1.setName("ROLE_ADMIN");
+        RoleOutVo vo2 = new RoleOutVo();
+        vo2.setId(id2);
+        vo2.setName("ROLE_USER");
+
+        when(roleDataAccess.findAllById(anyList())).thenReturn(List.of(r1, r2));
+        when(roleMapper.toVo(r1)).thenReturn(vo1);
+        when(roleMapper.toVo(r2)).thenReturn(vo2);
+
+        BatchResultVo<RoleOutVo> result = roleService.getRolesByIds(List.of(id1.toString(), id2.toString()));
+
+        assertNotNull(result);
+        assertEquals(2, result.getTotalRequested());
+        assertEquals(2, result.getTotalFound());
+        assertEquals(2, result.getItems().size());
+        assertTrue(result.getMissingIds().isEmpty());
     }
 }

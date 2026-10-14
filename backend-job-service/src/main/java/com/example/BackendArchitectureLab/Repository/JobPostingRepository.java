@@ -24,6 +24,10 @@ public interface JobPostingRepository extends JpaRepository<JobPosting, UUID>, J
 
     @Override
     @EntityGraph(attributePaths = {"company"})
+    List<JobPosting> findAllById(Iterable<UUID> ids);
+
+    @Override
+    @EntityGraph(attributePaths = {"company"})
     Page<JobPosting> findAll(Pageable pageable);
 
     @Override

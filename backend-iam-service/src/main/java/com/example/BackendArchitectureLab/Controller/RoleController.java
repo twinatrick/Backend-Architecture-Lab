@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
+import com.example.BackendArchitectureLab.Vo.BatchStringIdsRequest;
 import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
@@ -62,6 +64,14 @@ public class RoleController {
     public ResponseType<RoleOutVo> getRoleById(
             @ApiPath(description = "角色唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
         return ResponseType.Success(roleService.getRoleById(id), "角色查詢成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "批次依 ID 取得角色清單", description = "傳入角色 ID 清單（最多 100 筆），優先命中細粒度快取，未命中批次查庫並回填快取。")
+    public ResponseType<BatchResultVo<RoleOutVo>> getRolesByIds(
+            @ApiBody(description = "批次角色 ID 請求") BatchStringIdsRequest request) {
+        return ResponseType.Success(roleService.getRolesByIds(request.getIds()), "批次角色查詢成功");
     }
 
     @PostMapping("/search")

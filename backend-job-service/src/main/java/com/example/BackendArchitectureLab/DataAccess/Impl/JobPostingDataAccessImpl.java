@@ -43,6 +43,11 @@ public class JobPostingDataAccessImpl implements IJobPostingDataAccess {
     }
 
     @Override
+    public List<JobPosting> findAllById(List<UUID> ids) {
+        return jobPostingRepository.findAllById(ids);
+    }
+
+    @Override
     public boolean existsById(UUID id) {
         return jobPostingRepository.existsById(id);
     }

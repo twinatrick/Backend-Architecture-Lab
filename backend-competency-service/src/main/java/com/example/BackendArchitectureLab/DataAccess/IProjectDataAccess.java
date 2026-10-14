@@ -43,6 +43,13 @@ public interface IProjectDataAccess {
      * @return 所有專案列表
      */
     List<Project> findAll();
+
+    /**
+     * 依 ID 清單查詢專案
+     * @param ids 專案 ID 清單
+     * @return 符合條件的專案列表
+     */
+    List<Project> findAllById(List<UUID> ids);
     
     /**
      * 根據 ID 查詢 Project

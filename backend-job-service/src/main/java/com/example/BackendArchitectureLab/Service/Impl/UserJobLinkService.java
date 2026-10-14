@@ -11,8 +11,10 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -177,6 +180,19 @@ public class UserJobLinkService implements IUserJobLinkService {
         UserJobLink link = userJobLinkDataAccess.findById(uuid)
                 .orElseThrow(() -> new IllegalArgumentException("User job link not found"));
         return userJobLinkMapper.toVo(link);
+    }
+
+    @Override
+    public BatchResultVo<UserJobLinkVo> getUserJobLinksByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "userJobLinks",
+                ids,
+                missingIds -> userJobLinkDataAccess.findAllById(new ArrayList<>(missingIds)).stream()
+                        .map(userJobLinkMapper::toVo)
+                        .toList(),
+                vo -> vo.getId() != null ? UUID.fromString(vo.getId()) : null
+        );
     }
 
     @Override

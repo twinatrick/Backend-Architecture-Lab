@@ -1,5 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.RoleOutVo;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
@@ -20,6 +21,14 @@ public interface IRoleService {
     CacheListWrapper<RoleOutVo> getRoleListCache();
 
     RoleOutVo getRoleById(String roleId);
+
+    /**
+     * 批次依 ID 清單取得角色（細粒度多鍵快取優先，未命中批次查庫並回填）
+     *
+     * @param ids 角色 String ID 清單
+     * @return 雙視角批次查詢結果
+     */
+    BatchResultVo<RoleOutVo> getRolesByIds(List<String> ids);
 
     RoleOutVo updateRole(RoleOutVo role);
 

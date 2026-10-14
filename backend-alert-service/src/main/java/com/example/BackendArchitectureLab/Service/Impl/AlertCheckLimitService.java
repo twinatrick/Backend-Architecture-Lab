@@ -3,13 +3,16 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.DataAccess.IAlertCheckLimitDataAccess;
 import com.example.BackendArchitectureLab.Mapper.AlertCheckLimitMapper;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Entity.AlertCheckLimit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -22,6 +25,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,13 +43,33 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     private final TransactionExecutor transactionExecutor;
     private final IAlertCheckLimitDataAccess alertCheckLimitDataAccess;
     private final AlertCheckLimitMapper alertCheckLimitMapper;
+    private final CacheManager cacheManager;
 
     @Override
+    @Cacheable(value = "alertCheckLimits", key = "#id")
     public AlertCheckLimitVo getLimitById(UUID id) {
         return transactionExecutor.executeReadOnly(() ->
                 alertCheckLimitDataAccess.findById(id)
                         .map(alertCheckLimitMapper::toVo)
                         .orElseThrow(() -> new IllegalArgumentException("找不到指定的告警限制：" + id))
+        );
+    }
+
+    @Override
+    public BatchResultVo<AlertCheckLimitVo> getLimitsByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "alertCheckLimits",
+                ids,
+                missingIds -> transactionExecutor.executeReadOnly(() -> {
+                    List<AlertCheckLimit> entities = alertCheckLimitDataAccess.findAllById(new ArrayList<>(missingIds));
+                    List<AlertCheckLimitVo> vos = new ArrayList<>();
+                    for (AlertCheckLimit entity : entities) {
+                        vos.add(alertCheckLimitMapper.toVo(entity));
+                    }
+                    return vos;
+                }),
+                AlertCheckLimitVo::getId
         );
     }
 

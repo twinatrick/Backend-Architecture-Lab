@@ -7,6 +7,8 @@ import com.example.BackendArchitectureLab.Annotation.RequirePermission;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Vo.JobPostingVo;
@@ -100,5 +102,13 @@ public class JobPostingController {
     public ResponseType<PageResult<JobPostingVo>> searchJobPostings(
             @ApiBody(description = "分頁搜尋條件") JobPostingSearchQuery query) {
         return ResponseType.Success(jobPostingService.searchJobPostings(query), "職缺搜尋成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationBadRequest(summary = "批次查詢職缺", description = "依據 ID 清單批次獲取職缺詳情，結合細粒度快取加速。")
+    public ResponseType<BatchResultVo<JobPostingVo>> getJobPostingsBatch(
+            @ApiBody(description = "批次 ID 請求") BatchIdsRequest request) {
+        return ResponseType.Success(jobPostingService.getJobPostingsByIds(request.getIds()), "批次查詢成功");
     }
 }

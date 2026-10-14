@@ -4,6 +4,8 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
+import com.example.BackendArchitectureLab.Vo.BatchIdsRequest;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IFunctionCommandService;
@@ -82,6 +84,14 @@ public class FunctionController {
     public ResponseType<FunctionVo> getFunctionById(
             @ApiPath(description = "功能唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
         return ResponseType.Success(functionQueryService.getFunctionById(id), "功能查詢成功");
+    }
+
+    @PostMapping("/batch-query")
+    @RequirePermission("View")
+    @ApiOperationOk(summary = "批次依 ID 取得功能清單", description = "傳入功能 ID 清單（最多 100 筆），優先命中細粒度快取，未命中批次查庫並回填快取。")
+    public ResponseType<BatchResultVo<FunctionVo>> getFunctionsByIds(
+            @ApiBody(description = "批次功能 ID 請求") BatchIdsRequest request) {
+        return ResponseType.Success(functionQueryService.getFunctionsByIds(request.getIds()), "批次功能查詢成功");
     }
 
     @PostMapping("/search")

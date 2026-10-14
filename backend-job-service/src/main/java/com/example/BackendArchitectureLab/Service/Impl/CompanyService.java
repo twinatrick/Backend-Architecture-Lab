@@ -10,8 +10,10 @@ import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Mapper.CompanyMapper;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
+import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
+import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -31,6 +33,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -94,6 +97,19 @@ public class CompanyService implements ICompanyService {
                     .orElseThrow(() -> new IllegalArgumentException("Company not found"));
             return companyMapper.toVo(company);
         });
+    }
+
+    @Override
+    public BatchResultVo<CompanyVo> getCompaniesByIds(List<UUID> ids) {
+        return BatchCacheHelper.fetchBatchWithCache(
+                cacheManager,
+                "companies",
+                ids,
+                missingIds -> companyDataAccess.findAllById(new ArrayList<>(missingIds)).stream()
+                        .map(companyMapper::toVo)
+                        .toList(),
+                vo -> vo.getId() != null ? UUID.fromString(vo.getId()) : null
+        );
     }
 
     @Override

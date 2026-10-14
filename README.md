@@ -10,9 +10,14 @@
 
 ## 系統核心亮點 (Architecture Highlights)
 
-- 🛡️ **安全與權限**：Spring Security + JWT 雙來源解析（Header + Cookie）+ 宣告式動態三層 RBAC 權限模型（`@RequirePermission`）+ Caffeine 本機近端快取（Near-Cache）與 Fail-Closed 授權防雪崩機制 + IAM 防自我 Feign 死鎖本地校驗。
-- 🚪 **網關與隔離**：Spring Cloud Gateway 統一入口 + 動態 OpenAPI 聚合器（`/v3/api-docs-merged`）+ 內部端點防護過濾器（阻擋外部直連 `/inner/`）+ Resilience4j 斷路降級回退（`/fallback` 阻絕跨服務雪崩）。
-- 🗄️ **資料庫遷移與併發控制**：全面導入 **Liquibase 5 DB 宣告式遷移治理**（Baseline + 增量 YAML 鏈，強制可回滾宣告，`ddl-auto: validate`）+ 核心聚合根（`User`, `BotConfig`）**JPA `@Version` 樂觀鎖併發控制**（防範覆蓋遺失 Lost Update）。
+- 🛡️ **安全與權限**：Spring Security + JWT 雙來源解析（Header + Cookie，內嵌 `userId` Claim 達成 0ms 本地解析）+ 宣告式動態三層 RBAC 權限模型（`@RequirePermission`）+ Caffeine 本機近端快取（Near-Cache，10 分鐘自適應延長）與 Fail-Closed 授權防雪崩機制 + IAM 防自我 Feign 死鎖本地校驗。
+- 🚪 **網關與隔離**：Spring Cloud Gateway 統一入口 + 動態 OpenAPI 聚合器（`/v3/api-docs-merged`）+ 內部端點防護過濾器（阻擋外部直連 `/inner/`）+ Resilience4j 斷路降級回退（`/fallback` 阻絕跨服務雪崩）+ **SSE 串流專用路由徹底隔離於 CircuitBreaker 之外**（長超時 120s、禁用緩衝，杜絕長連線誤殺）。
+- 📝 **自研複合註解與 RESTful 紀律**：全面自研三大 Spring MVC 複合參數註解（`@ApiBody` 自動反序列化與 JSR-380 自動校驗、`@ApiPath`、`@ApiQuery`）+ 全專案 Request DTO/Vo 100% 覆蓋專屬 `@ApiDto` 與 `@ApiField` + 徹底淘汰 RPC 動詞路由，轉正為標準 RESTful 動詞（POST, PUT /{id}, DELETE /{id}, GET /{id}）。
+- 🚀 **高效能實體檢索與細粒度快取**：
+  - **實體檢索雙軌制**：`POST /search` 資料庫原生分頁（徹底拔除偽快取互斥鎖，以 `@BatchSize` 自動聚合批次載入消除 N+1）+ `GET /stream` 輕量反應式分塊串流。
+  - **全系統 11 大實體批次查詢 (`POST /batch-query`)**：傳入 `BatchIdsRequest`（上限 100 筆防禦）單次獲取多筆實體，回應雙視角 `BatchResultVo`（清單 + 外鍵字典 + 遺失清單）。
+  - **細粒度多鍵快取旁路模式 (Granular Multi-Key Cache-Aside with `BatchCacheHelper`)**：複用單筆 `GET /{id}` 快取 Key 逐筆命中，未命中者單次 SQL `WHERE id IN (...)` 批量補查並回填單筆快取，消除快取組合膨脹與前端 N+1 查詢。
+- 🗄️ **資料庫遷移與併發控制**：全面導入 **Liquibase 5 DB 宣告式遷移治理**（Baseline + 增量 YAML 鏈，強制可回滾宣告，`ddl-auto: validate`）+ 核心聚合根（`User`, `BotConfig`）**JPA `@Version` 樂觀鎖併發控制**（防範覆蓋遺失 Lost Update）+ 全域 `CommonSecurityAuditorAware` 自動注入不可變 UUID 審計識別碼。
 - ⚡ **快取防穿透**：六層快取防禦機制（Null Marker + Redisson 布隆過濾器 + 本機公平信號量 + 請求合併 Request Collapsing + Redisson 分散式互斥鎖 + 隨機 Jitter 抖動），涵蓋 19 個 Cache Names。
 - 🔄 **分散式事務與補償**：Durable Command + Transactional Outbox + Lease/Fencing Token + SAGA 補償機制，具備原子 CAS 領取、指數退避重試、死信佇列（DLT）與自動還原閉環。
 - 📬 **事件驅動架構**：Kafka 4 大主題（告警推播 `socketSend`、分散式補償 `transaction-compensation`、死信隔離 `transaction-compensation.DLT`、快取統計 `cache-stats`）。

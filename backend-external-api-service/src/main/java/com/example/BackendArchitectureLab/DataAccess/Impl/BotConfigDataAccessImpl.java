@@ -54,6 +54,14 @@ public class BotConfigDataAccessImpl implements IBotConfigDataAccess {
     }
 
     @Override
+    public List<BotConfig> findAllById(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return botConfigRepository.findAllById(ids);
+    }
+
+    @Override
     public BotConfig save(BotConfig entity) {
         return botConfigRepository.save(entity);
     }
