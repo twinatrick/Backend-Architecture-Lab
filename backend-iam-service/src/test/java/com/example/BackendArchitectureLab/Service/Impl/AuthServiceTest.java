@@ -171,7 +171,7 @@ class AuthServiceTest {
         userVo.setEmail("test@example.com");
         userVo.setPermissions(new ArrayList<>(List.of(functionVo)));
 
-        when(userMapper.toVo(testUser)).thenReturn(userVo);
+        when(userMapper.toVoWithPermissions(testUser)).thenReturn(userVo);
 
         Function parentFunction = new Function();
         parentFunction.setId(parentId);
@@ -216,7 +216,7 @@ class AuthServiceTest {
         UserVo userVo = new UserVo();
         userVo.setEmail("test@example.com");
         userVo.setPermissions(new ArrayList<>());
-        when(userMapper.toVo(testUser)).thenReturn(userVo);
+        when(userMapper.toVoWithPermissions(testUser)).thenReturn(userVo);
 
         UserVo result = authService.getUserInfoByEmail("test@example.com");
 

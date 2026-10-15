@@ -126,7 +126,12 @@ public class SkillService implements ISkillService {
             bindUsersToSkill(savedSkill.getId(), skillVo.getUserIds(), skillVo.getSkillLevelId());
         }
         
-        return skillMapper.toVo(savedSkill);
+        SkillVo result = skillMapper.toVo(savedSkill);
+        if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
+            result.setUserIds(skillVo.getUserIds());
+            result.setSkillLevelId(skillVo.getSkillLevelId());
+        }
+        return result;
     }
 
     @Override
@@ -247,6 +252,7 @@ public class SkillService implements ISkillService {
     }
 
     @Override
+    @Transactional
     @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
     public SkillLevelVo addSkillLevel(SkillLevelVo skillLevelVo) {
         if (skillLevelVo.getId() != null && !skillLevelVo.getId().isBlank()) {
@@ -277,6 +283,7 @@ public class SkillService implements ISkillService {
     }
 
     @Override
+    @Transactional
     @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
     public void updateSkillLevel(SkillLevelVo skillLevelVo) {
         UUID skillLevelId = mapUuid(skillLevelVo.getId());
@@ -326,6 +333,7 @@ public class SkillService implements ISkillService {
     }
 
     @Override
+    @Transactional
     public void deleteSkillLevel(String skillLevelId) {
         UUID skillLevelUuid = mapUuid(skillLevelId);
         if (skillLevelUuid == null) {

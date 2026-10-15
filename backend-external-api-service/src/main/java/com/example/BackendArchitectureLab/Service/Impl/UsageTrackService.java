@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Entity.ApiUsageLog;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -29,6 +30,7 @@ public class UsageTrackService implements IUsageTrackService {
     );
 
     @Override
+    @Transactional
     public boolean track(String service, String callType, String inputUnit, Long inputAmount) {
         BigDecimal unitCost = COST_PER_UNIT.getOrDefault(callType, BigDecimal.ZERO);
         BigDecimal estimatedCost = unitCost.multiply(BigDecimal.valueOf(inputAmount))

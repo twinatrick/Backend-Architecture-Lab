@@ -158,6 +158,7 @@ public class RoleService implements IRoleService {
     }
 
     @Override
+    @Transactional
     @Caching(put = {
         @CachePut(value = "roles", key = "#roleOutVo.id"),
         @CachePut(value = "roles", key = "'byname:' + #roleOutVo.name")
@@ -647,7 +648,7 @@ public class RoleService implements IRoleService {
                             }
 
                             List<RoleOutVo> voList = entityPage.getContent().stream()
-                                    .map(roleMapper::toVo)
+                                    .map(roleMapper::toSearchVo)
                                     .toList();
 
                             return new PageImpl<>(voList, entityPage.getPageable(), entityPage.getTotalElements());

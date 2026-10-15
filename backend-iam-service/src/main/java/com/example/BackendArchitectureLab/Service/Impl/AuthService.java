@@ -76,7 +76,7 @@ public class AuthService implements IAuthService {
         User user = userDataAccess.findByEmailWithRoles(email).orElseThrow(
                 () -> new IllegalArgumentException("User not found")
         );
-        UserVo userVo = userMapper.toVo(user);
+        UserVo userVo = userMapper.toVoWithPermissions(user);
         List<FunctionVo> parent = getAllParent(userVo.getPermissions().stream().map(FunctionVo::getId).toList());
         userVo.getPermissions().addAll(parent);
         return userVo;

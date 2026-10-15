@@ -12,6 +12,7 @@ import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Vo.JobPostingVo;
 import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
+import com.example.BackendArchitectureLab.Entity.CompanyWebsite;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
@@ -164,6 +165,7 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "jobPostings", key = "#id", sync = true)
     public JobPostingVo getJobPostingById(String id) {
         UUID uuid = mapUuid(id);
@@ -176,6 +178,7 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BatchResultVo<JobPostingVo> getJobPostingsByIds(List<UUID> ids) {
         return BatchCacheHelper.fetchBatchWithCache(
                 cacheManager,
@@ -264,6 +267,7 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "jobPostings", key = "'bycompany:' + #companyId", sync = true)
     public CacheListWrapper<JobPostingVo> getJobPostingsByCompanyIdCache(String companyId) {
         UUID uuid = mapUuid(companyId);
@@ -287,20 +291,27 @@ public class JobPostingService implements IJobPostingService {
             throw new IllegalArgumentException("Company ID must not be null");
         }
 
-        Company company = companyDataAccess.findById(uuid)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        var companyInfo = transactionExecutor.executeReadOnly(() -> {
+            Company company = companyDataAccess.findById(uuid)
+                    .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+            List<String> urls = company.getWebsites() == null ? List.<String>of() :
+                    company.getWebsites().stream().map(CompanyWebsite::getUrl).toList();
+            return Map.entry(company.getName(), urls);
+        });
 
-        if (company.getWebsites() == null || company.getWebsites().isEmpty()) {
-            log.warn("Company {} has no websites to scrape", company.getName());
+        String companyName = companyInfo.getKey();
+        List<String> websiteUrls = companyInfo.getValue();
+
+        if (websiteUrls.isEmpty()) {
+            log.warn("Company {} has no websites to scrape", companyName);
             return List.of();
         }
 
-        log.info("Starting job scraping for company: {} ({} websites)", company.getName(), company.getWebsites().size());
+        log.info("Starting job scraping for company: {} ({} websites)", companyName, websiteUrls.size());
 
         List<JobPostingVo> allSavedJobs = new ArrayList<>();
 
-        for (var companyWebsite : company.getWebsites()) {
-            String url = companyWebsite.getUrl();
+        for (String url : websiteUrls) {
             log.info("Crawling website: {}", url);
 
             // 1. 外部慢速爬蟲 I/O 位於資料庫交易外部執行，避免長時間霸佔連線池
@@ -313,11 +324,13 @@ public class JobPostingService implements IJobPostingService {
             }
 
             // 2. 外部慢速 AI 推理 Feign 呼叫位於資料庫交易外部執行
-            List<AiJobPostingVo> analyzedJobs = aiServiceFeignClient.analyzeJobPostings(company.getName(), htmlContent);
+            List<AiJobPostingVo> analyzedJobs = aiServiceFeignClient.analyzeJobPostings(companyName, htmlContent);
             log.info("AI service returned {} jobs from URL: {}", analyzedJobs.size(), url);
 
             // 3. 資料庫寫入使用獨立短事務執行
             List<JobPostingVo> savedForWebsite = transactionExecutor.executeWritable(() -> {
+                Company managedCompany = companyDataAccess.findById(uuid)
+                        .orElseThrow(() -> new IllegalArgumentException("Company not found"));
                 List<JobPostingVo> batchSaved = new ArrayList<>();
                 List<JobPosting> existingJobs = jobPostingDataAccess.findByCompanyId(uuid);
 
@@ -332,13 +345,13 @@ public class JobPostingService implements IJobPostingService {
                             if (updated) {
                                 jobPostingDataAccess.save(matched);
                                 batchSaved.add(jobPostingMapper.toVo(matched));
-                                log.info("Updated job: {} for company: {}", title, company.getName());
+                                log.info("Updated job: {} for company: {}", title, companyName);
                             }
                             continue;
                         }
 
                         JobPosting jobPosting = new JobPosting();
-                        jobPosting.setCompany(company);
+                        jobPosting.setCompany(managedCompany);
                         jobPosting.setTitle(title);
                         jobPosting.setUrl(jobData.getUrl() != null ? jobData.getUrl() : "");
                         jobPosting.setDescription(jobData.getDescription() != null ? jobData.getDescription() : "");
@@ -348,9 +361,9 @@ public class JobPostingService implements IJobPostingService {
 
                         jobPosting = jobPostingDataAccess.save(jobPosting);
                         batchSaved.add(jobPostingMapper.toVo(jobPosting));
-                        log.info("Created new job: {} for company: {}", title, company.getName());
+                        log.info("Created new job: {} for company: {}", title, companyName);
                     } catch (Exception e) {
-                        log.error("Failed to process job posting for company: {}: {}", company.getName(), e.toString());
+                        log.error("Failed to process job posting for company: {}: {}", companyName, e.toString());
                     }
                 }
                 return batchSaved;
@@ -359,19 +372,21 @@ public class JobPostingService implements IJobPostingService {
         }
 
         transactionExecutor.executeWritable(() -> {
-            company.setLastScrapedAt(LocalDate.now());
-            companyDataAccess.save(company);
+            Company companyToUpdate = companyDataAccess.findById(uuid)
+                    .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+            companyToUpdate.setLastScrapedAt(LocalDate.now());
+            companyDataAccess.save(companyToUpdate);
             return null;
         });
         if (cacheManager != null) {
             Cache companiesCache = cacheManager.getCache("companies");
             if (companiesCache != null) {
-                companiesCache.evict(company.getId().toString());
+                companiesCache.evict(uuid.toString());
             }
         }
 
         evictJobPostingsSearchCache();
-        log.info("Completed scraping for company: {}, total saved/updated: {}", company.getName(), allSavedJobs.size());
+        log.info("Completed scraping for company: {}, total saved/updated: {}", companyName, allSavedJobs.size());
         return allSavedJobs;
     }
 
@@ -398,6 +413,7 @@ public class JobPostingService implements IJobPostingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PageResult<JobPostingVo> searchJobPostings(JobPostingSearchQuery query) {
         Page<JobPosting> page = jobPostingDataAccess.searchJobPostings(query);
         List<JobPostingVo> content = page.getContent().stream()

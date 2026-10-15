@@ -100,6 +100,7 @@ public class CompanyService implements ICompanyService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BatchResultVo<CompanyVo> getCompaniesByIds(List<UUID> ids) {
         return BatchCacheHelper.fetchBatchWithCache(
                 cacheManager,

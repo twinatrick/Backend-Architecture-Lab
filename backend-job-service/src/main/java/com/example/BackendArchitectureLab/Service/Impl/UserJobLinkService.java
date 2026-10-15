@@ -90,6 +90,9 @@ public class UserJobLinkService implements IUserJobLinkService {
                 link.setJobPosting(jobPosting);
             }
             link.setUserNotes(userJobLinkVo.getUserNotes());
+            if (userJobLinkVo.getGeminiFeedback() != null) {
+                link.setGeminiFeedback(userJobLinkVo.getGeminiFeedback());
+            }
             link = userJobLinkDataAccess.save(link);
             return userJobLinkMapper.toVo(link);
         });
@@ -171,6 +174,7 @@ public class UserJobLinkService implements IUserJobLinkService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "userJobLinks", key = "#id", sync = true)
     public UserJobLinkVo getUserJobLinkById(String id) {
         UUID uuid = mapUuid(id);
@@ -183,6 +187,7 @@ public class UserJobLinkService implements IUserJobLinkService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BatchResultVo<UserJobLinkVo> getUserJobLinksByIds(List<UUID> ids) {
         return BatchCacheHelper.fetchBatchWithCache(
                 cacheManager,
@@ -222,6 +227,7 @@ public class UserJobLinkService implements IUserJobLinkService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "userJobLinks", key = "'byuser:' + #userId", sync = true)
     public CacheListWrapper<UserJobLinkVo> getUserJobLinksByUserIdCache(String userId) {
         UUID uuid = mapUuid(userId);
@@ -240,6 +246,7 @@ public class UserJobLinkService implements IUserJobLinkService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "userJobLinks", key = "'byjob:' + #jobPostingId", sync = true)
     public CacheListWrapper<UserJobLinkVo> getUserJobLinksByJobPostingIdCache(String jobPostingId) {
         UUID uuid = mapUuid(jobPostingId);

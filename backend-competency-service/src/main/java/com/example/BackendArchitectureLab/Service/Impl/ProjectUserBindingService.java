@@ -306,6 +306,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "projectMemberSkills", key = "#projectId", sync = true)
     public List<ProjectMemberSkillVo> getProjectMemberSkills(UUID projectId) {
         if (projectId == null) {

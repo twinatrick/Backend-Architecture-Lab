@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Repository.VoiceDiaryRepository;
 import com.example.BackendArchitectureLab.Service.IVoiceDiaryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,6 +18,7 @@ public class VoiceDiaryService implements IVoiceDiaryService {
     private final VoiceDiaryMapper voiceDiaryMapper;
 
     @Override
+    @Transactional(readOnly = true)
     public List<VoiceDiaryVo> findByUserId(String userId) {
         return voiceDiaryRepository.findByUserIdOrderByCreatedTimeDesc(userId).stream()
                 .map(voiceDiaryMapper::toVo)

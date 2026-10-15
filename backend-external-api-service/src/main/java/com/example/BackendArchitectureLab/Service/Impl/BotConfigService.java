@@ -21,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
@@ -46,6 +47,7 @@ public class BotConfigService implements IBotConfigService {
     private final CacheManager cacheManager;
 
     @Override
+    @Transactional(readOnly = true)
     public List<BotConfigVo> findAll() {
         return botConfigDataAccess.findAll().stream()
                 .map(botConfigMapper::toVo)
@@ -128,6 +130,7 @@ public class BotConfigService implements IBotConfigService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "botConfigs", key = "#id")
     public BotConfigVo findById(UUID id) {
         return botConfigDataAccess.findById(id)
@@ -136,6 +139,7 @@ public class BotConfigService implements IBotConfigService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BatchResultVo<BotConfigVo> getConfigsByIds(List<UUID> ids) {
         return BatchCacheHelper.fetchBatchWithCache(
                 cacheManager,
@@ -154,12 +158,14 @@ public class BotConfigService implements IBotConfigService {
     }
 
     @Override
+    @Transactional
     public BotConfigVo create(BotConfigVo vo) {
         BotConfig entity = botConfigMapper.toEntity(vo);
         return botConfigMapper.toVo(botConfigDataAccess.save(entity));
     }
 
     @Override
+    @Transactional
     public BotConfigVo update(UUID id, BotConfigVo vo) {
         BotConfig existing = botConfigDataAccess.findById(id)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "BotConfig not found", 404));
@@ -174,6 +180,7 @@ public class BotConfigService implements IBotConfigService {
     }
 
     @Override
+    @Transactional
     public void delete(UUID id) {
         if (!botConfigDataAccess.existsById(id)) {
             throw new AppException("NOT_FOUND", "BotConfig not found", 404);

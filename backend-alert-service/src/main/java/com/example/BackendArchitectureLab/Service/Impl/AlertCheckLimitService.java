@@ -21,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
@@ -83,6 +84,7 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     }
 
     @Override
+    @Transactional
     @CachePut(value = "alertCheckLimit", key = "#tableName + '.' + #column")
     public AlertCheckLimitVo insertLimit(String tableName, String column, double limitValue) {
         AlertCheckLimit alertCheckLimit = new AlertCheckLimit();
@@ -104,6 +106,7 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     }
 
     @Override
+    @Transactional
     public AlertCheckLimitVo addLimit(AlertCheckLimitVo alertCheckLimitVo) {
         return insertLimit(
                 alertCheckLimitVo.getTableName(),
@@ -113,22 +116,26 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     }
 
     @Override
+    @Transactional
     public AlertCheckLimitVo updateLimit(AlertCheckLimitVo alertCheckLimitVo) {
         AlertCheckLimit updated = updateEntity(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
         return alertCheckLimitMapper.toVo(updated);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<AlertCheckLimitVo> getLimit() {
         return alertCheckLimitDataAccess.findAll().stream().map(alertCheckLimitMapper::toVo).toList();
     }
 
     @Override
+    @Transactional
     public void deleteLimit(AlertCheckLimitVo alertCheckLimitVo) {
         deleteLimitEntity(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
     }
     
     @Override
+    @Transactional(readOnly = true)
     public PageResult<AlertCheckLimitVo> searchAlertCheckLimits(AlertCheckLimitSearchQuery query) {
         // 驗證排序欄位與方向
         SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
@@ -209,11 +216,13 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
                 });
     }
 
+    @Transactional
     @CachePut(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
     public AlertCheckLimit updateEntity(AlertCheckLimit alertCheckLimit) {
         return alertCheckLimitDataAccess.save(alertCheckLimit);
     }
 
+    @Transactional
     @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
     public void deleteLimitEntity(AlertCheckLimit alertCheckLimit) {
         alertCheckLimitDataAccess.delete(alertCheckLimit);

@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
@@ -47,6 +48,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
     private final AquarkDataMapper aquarkDataMapper;
 
     @Override
+    @Transactional(readOnly = true)
     public List<AquarkDataRaw> getAquarkData() {
         return aquarkDataDataAccess.findAll().stream().map(aquarkDataMapper::toVo).toList();
     }
@@ -190,6 +192,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<AquarkDataRaw> getAquarkDataWithFilter(List<CriteriaAPIFilter> fillterList) {
         if (fillterList.isEmpty()) {
             return getAquarkData();
