@@ -193,9 +193,9 @@ public class JobPostingService implements IJobPostingService {
 
     @Override
     @Transactional
-    @Caching(put = {
-        @CachePut(value = "jobPostings", key = "#jobPostingVo.id")
-    }, evict = {
+    @Caching(evict = {
+        @CacheEvict(value = "jobPostings", key = "#jobPostingVo.id"),
+        @CacheEvict(value = "jobPostings", key = "T(java.util.UUID).fromString(#jobPostingVo.id)"),
         @CacheEvict(value = "jobPostings", key = "'bycompany:' + #jobPostingVo.companyId")
     })
     public JobPostingVo updateJobPosting(JobPostingVo jobPostingVo) {
@@ -255,6 +255,7 @@ public class JobPostingService implements IJobPostingService {
             Cache cache = cacheManager.getCache("jobPostings");
             if (cache != null) {
                 cache.evict(id);
+                cache.evict(uuid);
                 cache.evict("bycompany:" + companyId);
             }
         }

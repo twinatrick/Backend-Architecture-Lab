@@ -15,6 +15,7 @@ import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -166,6 +167,7 @@ public class BotConfigService implements IBotConfigService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "botConfigs", key = "#id")
     public BotConfigVo update(UUID id, BotConfigVo vo) {
         BotConfig existing = botConfigDataAccess.findById(id)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "BotConfig not found", 404));
@@ -181,6 +183,7 @@ public class BotConfigService implements IBotConfigService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "botConfigs", key = "#id")
     public void delete(UUID id) {
         if (!botConfigDataAccess.existsById(id)) {
             throw new AppException("NOT_FOUND", "BotConfig not found", 404);

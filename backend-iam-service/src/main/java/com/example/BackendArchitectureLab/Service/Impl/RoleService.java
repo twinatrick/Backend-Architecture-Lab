@@ -73,9 +73,9 @@ public class RoleService implements IRoleService {
 
     @Override
     @Transactional
-    @Caching(put = {
-        @CachePut(value = "roles", key = "#result.id"),
-        @CachePut(value = "roles", key = "'byname:' + #result.name")
+    @Caching(evict = {
+        @CacheEvict(value = "roles", key = "'all'"),
+        @CacheEvict(value = "roles", key = "'byname:' + #roleOutVo.name")
     })
     public RoleOutVo addRole(RoleOutVo roleOutVo) {
         Role role = roleMapper.toEntity(roleOutVo);
@@ -96,9 +96,14 @@ public class RoleService implements IRoleService {
 
     @Transactional
     @Override
+    @Caching(evict = {
+        @CacheEvict(value = "roles", key = "'all'"),
+        @CacheEvict(value = "roles", key = "#roleOutVo.id", condition = "#roleOutVo.id != null")
+    })
     public RoleOutVo addRoleWithFunctions(RoleOutVo roleOutVo) {
         RoleOutVo savedRole = addRole(roleOutVo);
         syncRoleFunctions(savedRole.getId(), roleOutVo.getFunctionIds());
+        evictCache("roles", savedRole.getId().toString());
         return getRoleById(savedRole.getId().toString());
     }
 
@@ -159,9 +164,12 @@ public class RoleService implements IRoleService {
 
     @Override
     @Transactional
-    @Caching(put = {
-        @CachePut(value = "roles", key = "#roleOutVo.id"),
-        @CachePut(value = "roles", key = "'byname:' + #roleOutVo.name")
+    @Caching(evict = {
+        @CacheEvict(value = "roles", key = "#roleOutVo.id"),
+        @CacheEvict(value = "roles", key = "'byname:' + #roleOutVo.name"),
+        @CacheEvict(value = "roles", key = "'all'"),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
     })
     public RoleOutVo updateRole(RoleOutVo roleOutVo) {
         Role role = roleMapper.toEntity(roleOutVo);
@@ -181,11 +189,23 @@ public class RoleService implements IRoleService {
     @Transactional
     @Override
     @Caching(evict = {
-        @CacheEvict(value = "roleFunctions", key = "#roleOutVo.id")
+        @CacheEvict(value = "roles", key = "#roleOutVo.id"),
+        @CacheEvict(value = "roles", key = "'byname:' + #roleOutVo.name"),
+        @CacheEvict(value = "roles", key = "'all'"),
+        @CacheEvict(value = "roleFunctions", key = "#roleOutVo.id"),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
     })
     public RoleOutVo updateRoleWithFunctions(RoleOutVo roleOutVo) {
         RoleOutVo updatedRole = updateRole(roleOutVo);
         syncRoleFunctions(updatedRole.getId(), roleOutVo.getFunctionIds());
+        evictCache("roles", updatedRole.getId().toString());
+        evictCache("roles", "all");
+        if (roleOutVo.getName() != null) {
+            evictCache("roles", "byname:" + roleOutVo.getName());
+        }
+        clearCache("userPermissionsVo");
+        clearCache("userInfo");
         return getRoleById(updatedRole.getId().toString());
     }
 
@@ -193,7 +213,11 @@ public class RoleService implements IRoleService {
     @Override
     @Caching(evict = {
         @CacheEvict(value = "roles", key = "#roleOutVo.id"),
-        @CacheEvict(value = "roleFunctions", key = "#roleOutVo.id")
+        @CacheEvict(value = "roles", key = "'byname:' + #roleOutVo.name"),
+        @CacheEvict(value = "roles", key = "'all'"),
+        @CacheEvict(value = "roleFunctions", key = "#roleOutVo.id"),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
     })
     public void deleteRole(RoleOutVo roleOutVo) {
         Role role = roleMapper.toEntity(roleOutVo);
@@ -213,7 +237,13 @@ public class RoleService implements IRoleService {
     }
     @Transactional
     @Override
-    @CacheEvict(value = "roleFunctions", key = "#roleId")
+    @Caching(evict = {
+        @CacheEvict(value = "roles", key = "#roleId"),
+        @CacheEvict(value = "roles", key = "'all'"),
+        @CacheEvict(value = "roleFunctions", key = "#roleId"),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     public void roleBindFunction(String roleId, List<String> functionIds) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
@@ -238,6 +268,12 @@ public class RoleService implements IRoleService {
 
     @Transactional
     @Override
+    @Caching(evict = {
+        @CacheEvict(value = "roles", allEntries = true),
+        @CacheEvict(value = "roleFunctions", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     public void functionBindRole(String functionId, List<String> roleIds) {
         UUID functionUuid = mapUuid(functionId);
         if (functionUuid == null) {
@@ -262,12 +298,22 @@ public class RoleService implements IRoleService {
 
         evictCache("roles", "byfunction:" + functionId);
         for (String roleId : roleIds) {
+            evictCache("roles", roleId);
             evictCache("roleFunctions", roleId);
         }
+        clearCache("userPermissionsVo");
+        clearCache("userInfo");
     }
 
     @Transactional
     @Override
+    @Caching(evict = {
+        @CacheEvict(value = "roles", allEntries = true),
+        @CacheEvict(value = "userRoles", allEntries = true),
+        @CacheEvict(value = "users", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     public void roleBindUser(String roleId, List<String> userIds) {
         UUID roleUuid = mapUuid(roleId);
         if (roleUuid == null) {
@@ -322,11 +368,20 @@ public class RoleService implements IRoleService {
             evictCache("roles", "byuser:" + userId);
         }
         evictCache("userRoles", "byrole:" + roleId);
+        clearCache("userPermissionsVo");
+        clearCache("userInfo");
+        clearCache("users");
     }
 
     @Transactional
     @Override
-    @CacheEvict(value = "roles", key = "'byuser:' + #userId")
+    @Caching(evict = {
+        @CacheEvict(value = "roles", key = "'byuser:' + #userId"),
+        @CacheEvict(value = "userRoles", allEntries = true),
+        @CacheEvict(value = "users", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     public void userBindRole(String userId, List<String> roleIds) {
         UUID userUuid = mapUuid(userId);
         if (userUuid == null) {
@@ -716,6 +771,16 @@ public class RoleService implements IRoleService {
         Cache cache = cacheManager.getCache(cacheName);
         if (cache != null) {
             cache.evict(key);
+        }
+    }
+
+    private void clearCache(String cacheName) {
+        if (cacheManager == null) {
+            return;
+        }
+        Cache cache = cacheManager.getCache(cacheName);
+        if (cache != null) {
+            cache.clear();
         }
     }
 

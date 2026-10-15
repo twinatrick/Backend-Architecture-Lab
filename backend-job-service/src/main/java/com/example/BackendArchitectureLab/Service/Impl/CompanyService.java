@@ -115,9 +115,9 @@ public class CompanyService implements ICompanyService {
 
     @Override
     @Transactional
-    @Caching(put = {
-        @CachePut(value = "companies", key = "#request.id")
-    }, evict = {
+    @Caching(evict = {
+        @CacheEvict(value = "companies", key = "#request.id"),
+        @CacheEvict(value = "companies", key = "#request.id.toString()"),
         @CacheEvict(value = "companies", key = "'all'")
     })
     public CompanyVo updateCompany(UpdateCompanyRequest request) {
@@ -146,6 +146,7 @@ public class CompanyService implements ICompanyService {
     @Transactional
     @Caching(evict = {
         @CacheEvict(value = "companies", key = "#id"),
+        @CacheEvict(value = "companies", key = "T(java.util.UUID).fromString(#id)"),
         @CacheEvict(value = "companies", key = "'all'")
     })
     public void deleteCompany(String id) {

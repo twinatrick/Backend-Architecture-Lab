@@ -146,9 +146,8 @@ public class SkillService implements ISkillService {
      * 交易內更新技能（由 updateSkill 在交易外的 Feign 驗證後呼叫）
      */
     @Transactional
-    @Caching(put = {
-            @CachePut(value = "skills", key = "#skillVo.id")
-    }, evict = {
+    @Caching(evict = {
+            @CacheEvict(value = "skills", key = "#skillVo.id"),
             @CacheEvict(value = "skills", key = "'all'")
     })
     public void doUpdateSkill(SkillVo skillVo) {
@@ -284,7 +283,10 @@ public class SkillService implements ISkillService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId")
+    @Caching(evict = {
+            @CacheEvict(value = "skillLevels", key = "#skillLevelVo.skillId"),
+            @CacheEvict(value = "skillLevels", key = "#skillLevelVo.id")
+    })
     public void updateSkillLevel(SkillLevelVo skillLevelVo) {
         UUID skillLevelId = mapUuid(skillLevelVo.getId());
         if (skillLevelId == null) {
@@ -350,6 +352,7 @@ public class SkillService implements ISkillService {
         Cache cache = cacheManager.getCache("skillLevels");
         if (cache != null) {
             cache.evict(skillId);
+            cache.evict(skillLevelId);
         }
         Cache skillsCache = cacheManager.getCache("skills");
         if (skillsCache != null) {
