@@ -95,6 +95,17 @@ public class UserService implements IUserService {
         });
     }
 
+    @Cacheable(value = "userPermissionsVo", key = "#email", sync = true)
+    @Override
+    public UserVo getUserWithFullPermissionsByEmail(String email) {
+        return transactionExecutor.executeReadOnly(() -> {
+            User user = userDataAccess.findByEmailWithRoles(email).orElseThrow(
+                    () -> new IllegalArgumentException("User not found")
+            );
+            return userMapper.toVoWithPermissions(user);
+        });
+    }
+
     @Cacheable(value = "users", key = "#id", sync = true)
     @Override
     public UserVo getUserById(String id) {
@@ -148,9 +159,13 @@ public class UserService implements IUserService {
         return result;
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "users", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     @Override
     @Transactional
-    @CacheEvict(value = "users", allEntries = true)
     public void saveUserWithRole(UserVo userVo) {
         if (userVo.getRoles() == null) {
             throw new IllegalArgumentException("Role list is required");
@@ -189,9 +204,13 @@ public class UserService implements IUserService {
         roleService.userBindRole(u.getId().toString(), userVo.getRoles());
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "users", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     @Override
     @Transactional
-    @CacheEvict(value = "users", key = "#userId")
     public void rebindUserRoles(UUID userId, List<String> roleIds) {
         if (userId == null) {
             throw new IllegalArgumentException("User ID must not be null");

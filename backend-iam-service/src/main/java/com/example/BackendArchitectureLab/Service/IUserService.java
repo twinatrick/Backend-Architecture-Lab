@@ -19,6 +19,14 @@ public interface IUserService {
 
     UserVo getOnlyUserByEmail(String email);
 
+    /**
+     * 取得完整權限與角色之使用者資訊（供權限驗證核心使用）
+     *
+     * @param email 使用者電子郵件
+     * @return 包含完整角色與功能權限樹之 UserVo
+     */
+    UserVo getUserWithFullPermissionsByEmail(String email);
+
     UserVo getUserById(String id);
 
     /**
