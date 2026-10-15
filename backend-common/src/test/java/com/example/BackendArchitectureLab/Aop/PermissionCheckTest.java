@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Aop;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
-import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
@@ -26,7 +26,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,14 +69,13 @@ class PermissionCheckTest {
     }
 
     @Test
-    @DisplayName("當 CircuitBreaker OPEN 拋出 CallNotPermittedException 時，應回傳 503 CIRCUIT_BREAKER_OPEN")
+    @DisplayName("當 CircuitBreaker OPEN 拋出 CallNotPermittedException 時，應拋出 503 CIRCUIT_BREAKER_OPEN AppException")
     void around_circuitBreakerOpen_returns503CircuitBreakerOpen() throws Throwable {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("user@example.com", "credentials", Collections.emptyList()));
 
         SampleController controller = new SampleController();
         Method method = SampleController.class.getMethod("viewEndpoint");
-        RequirePermission requirePermission = method.getAnnotation(RequirePermission.class);
 
         when(joinPoint.getTarget()).thenReturn(controller);
         when(joinPoint.getSignature()).thenReturn(methodSignature);
@@ -89,13 +88,59 @@ class PermissionCheckTest {
         when(localPermissionValidator.validate("user@example.com", "Competency", "Sample", "View"))
                 .thenThrow(exception);
 
-        Object response = permissionCheck.around(joinPoint);
+        assertThatThrownBy(() -> permissionCheck.around(joinPoint))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getErrorType()).isEqualTo("CIRCUIT_BREAKER_OPEN");
+                    assertThat(appEx.getHttpStatus()).isEqualTo(503);
+                });
+    }
 
-        assertThat(response).isInstanceOf(ResponseType.class);
-        ResponseType<?> fail = (ResponseType<?>) response;
-        assertThat(fail.getErrorType()).isEqualTo("CIRCUIT_BREAKER_OPEN");
-        assertThat(fail.getCode()).isEqualTo(503);
-        assertThat(httpServletResponse.getStatus()).isEqualTo(503);
+    @Test
+    @DisplayName("當權限不符合時，應拋出 403 FORBIDDEN AppException")
+    void around_permissionDenied_throws403AppException() throws Throwable {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("user@example.com", "credentials", Collections.emptyList()));
+
+        SampleController controller = new SampleController();
+        Method method = SampleController.class.getMethod("viewEndpoint");
+
+        when(joinPoint.getTarget()).thenReturn(controller);
+        when(joinPoint.getSignature()).thenReturn(methodSignature);
+        when(methodSignature.toShortString()).thenReturn("SampleController.viewEndpoint()");
+        when(methodSignature.getMethod()).thenReturn(method);
+
+        when(localPermissionValidator.validate("user@example.com", "Competency", "Sample", "View"))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> permissionCheck.around(joinPoint))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getErrorType()).isEqualTo("FORBIDDEN");
+                    assertThat(appEx.getHttpStatus()).isEqualTo(403);
+                });
+    }
+
+    @Test
+    @DisplayName("當未通過身分驗證時，應拋出 401 AUTH_ERROR AppException")
+    void around_unauthenticated_throws401AppException() throws Throwable {
+        SampleController controller = new SampleController();
+        Method method = SampleController.class.getMethod("viewEndpoint");
+
+        when(joinPoint.getTarget()).thenReturn(controller);
+        when(joinPoint.getSignature()).thenReturn(methodSignature);
+        when(methodSignature.toShortString()).thenReturn("SampleController.viewEndpoint()");
+        when(methodSignature.getMethod()).thenReturn(method);
+
+        assertThatThrownBy(() -> permissionCheck.around(joinPoint))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getErrorType()).isEqualTo("AUTH_ERROR");
+                    assertThat(appEx.getHttpStatus()).isEqualTo(401);
+                });
     }
 
     @Test

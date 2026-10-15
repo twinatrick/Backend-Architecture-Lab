@@ -75,25 +75,25 @@ class LocalPermissionValidatorImplTest {
     @Test
     @DisplayName("Validate should return false when user not found")
     void testValidate_UserNotFound() {
-        when(userService.getOnlyUserByEmail("unknown@example.com")).thenReturn(null);
+        when(userService.getUserWithFullPermissionsByEmail("unknown@example.com")).thenReturn(null);
         assertFalse(validator.validate("unknown@example.com", "1", "2", "3"));
     }
 
     @Test
     @DisplayName("Validate should return true for admin user and cache result")
     void testValidate_AdminUser() {
-        when(userService.getOnlyUserByEmail("admin@example.com")).thenReturn(adminUser);
+        when(userService.getUserWithFullPermissionsByEmail("admin@example.com")).thenReturn(adminUser);
 
         assertTrue(validator.validate("admin@example.com", "Module", "Layer", "Action"));
         // 第二次呼叫走快取
         assertTrue(validator.validate("admin@example.com", "Module", "Layer", "Action"));
-        verify(userService).getOnlyUserByEmail("admin@example.com");
+        verify(userService).getUserWithFullPermissionsByEmail("admin@example.com");
     }
 
     @Test
     @DisplayName("Validate should return true when normal user has matching permission")
     void testValidate_NormalUser_Match() {
-        when(userService.getOnlyUserByEmail("user@example.com")).thenReturn(normalUser);
+        when(userService.getUserWithFullPermissionsByEmail("user@example.com")).thenReturn(normalUser);
         when(functionQueryService.getFunctionByPath("Module", "Layer", "Action")).thenReturn(func3);
 
         assertTrue(validator.validate("user@example.com", "Module", "Layer", "Action"));
@@ -102,7 +102,7 @@ class LocalPermissionValidatorImplTest {
     @Test
     @DisplayName("Validate should return false when normal user does not have permission")
     void testValidate_NormalUser_NoMatch() {
-        when(userService.getOnlyUserByEmail("user@example.com")).thenReturn(normalUser);
+        when(userService.getUserWithFullPermissionsByEmail("user@example.com")).thenReturn(normalUser);
         FunctionVo otherFunc = new FunctionVo();
         otherFunc.setId("other");
         when(functionQueryService.getFunctionByPath("Module", "Layer", "Other")).thenReturn(otherFunc);
@@ -113,7 +113,7 @@ class LocalPermissionValidatorImplTest {
     @Test
     @DisplayName("GetUserPermissions should return wild card for admin")
     void testGetUserPermissions_Admin() {
-        when(userService.getOnlyUserByEmail("admin@example.com")).thenReturn(adminUser);
+        when(userService.getUserWithFullPermissionsByEmail("admin@example.com")).thenReturn(adminUser);
 
         Set<String> perms = validator.getUserPermissions("admin@example.com");
         assertTrue(perms.contains("*"));
@@ -122,7 +122,7 @@ class LocalPermissionValidatorImplTest {
     @Test
     @DisplayName("GetUserPermissions should return formatted permission paths for normal user")
     void testGetUserPermissions_NormalUser() {
-        when(userService.getOnlyUserByEmail("user@example.com")).thenReturn(normalUser);
+        when(userService.getUserWithFullPermissionsByEmail("user@example.com")).thenReturn(normalUser);
         when(functionQueryService.getFunction()).thenReturn(List.of(func1, func2, func3));
 
         Set<String> perms = validator.getUserPermissions("user@example.com");
@@ -133,7 +133,7 @@ class LocalPermissionValidatorImplTest {
     @DisplayName("GetUserPermissions should return empty set for blank email or missing user")
     void testGetUserPermissions_EmptyOrMissing() {
         assertTrue(validator.getUserPermissions("").isEmpty());
-        when(userService.getOnlyUserByEmail(anyString())).thenReturn(null);
+        when(userService.getUserWithFullPermissionsByEmail(anyString())).thenReturn(null);
         assertTrue(validator.getUserPermissions("missing@example.com").isEmpty());
     }
 }

@@ -1,10 +1,9 @@
 package com.example.BackendArchitectureLab.Aop;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
-import com.example.BackendArchitectureLab.Vo.ResponseType;
+import com.example.BackendArchitectureLab.Exception.AppException;
 import feign.FeignException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -20,13 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestAttributes;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.List;
 
 /**
  * 權限檢查切面：動態解析三層權限路徑 {@code {微服務層, 資源層, 動作層}}。
@@ -65,13 +59,13 @@ public class PermissionCheck {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || auth.getPrincipal() == null) {
             log.warn("Unauthorized access: no authentication for {}", methodName);
-            return unauthorizedResponse();
+            throw new AppException("AUTH_ERROR", "Unauthorized", HttpStatus.UNAUTHORIZED.value());
         }
 
         String email = auth.getName();
         if (email == null || email.isBlank()) {
             log.warn("Unauthorized access: blank email for {}", methodName);
-            return unauthorizedResponse();
+            throw new AppException("AUTH_ERROR", "Unauthorized", HttpStatus.UNAUTHORIZED.value());
         }
 
         String module = toPascalCase(resolveModuleName(applicationName));
@@ -81,7 +75,7 @@ public class PermissionCheck {
 
         if (module.isBlank() || layer.isBlank() || action == null || action.isBlank()) {
             log.warn("Invalid permission for {}: module={}, layer={}, action={}", methodName, module, layer, action);
-            return forbiddenResponse();
+            throw new AppException("FORBIDDEN", "Forbidden", HttpStatus.FORBIDDEN.value());
         }
 
         log.debug("Checking permission: user={}, path={}/{}/{}, method={}", email, module, layer, action, methodName);
@@ -94,21 +88,18 @@ public class PermissionCheck {
             if (cause instanceof CallNotPermittedException cb) {
                 log.error("Permission check CircuitBreaker OPEN for user={}, path={}/{}/{}: {}",
                         email, module, layer, action, cb.getMessage());
-                setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
-                return ResponseType.Fail("CIRCUIT_BREAKER_OPEN",
-                        "Permission service unavailable: circuit breaker open", 503);
+                throw new AppException("CIRCUIT_BREAKER_OPEN",
+                        "Permission service unavailable: circuit breaker open", HttpStatus.SERVICE_UNAVAILABLE.value());
             } else if (cause instanceof FeignException fe) {
                 log.error("Permission check Feign call failed for user={}, path={}/{}/{}: status={}, message={}",
                         email, module, layer, action, fe.status(), fe.getMessage());
-                setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
-                return ResponseType.Fail("FEIGN_ERROR",
-                        "Permission service unavailable: " + fe.getMessage(), 503);
+                throw new AppException("FEIGN_ERROR",
+                        "Permission service unavailable: " + fe.getMessage(), HttpStatus.SERVICE_UNAVAILABLE.value());
             } else {
                 log.error("Permission check local call failed for user={}, path={}/{}/{}: message={}",
                         email, module, layer, action, cause.getMessage());
-                setResponseStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
-                return ResponseType.Fail("PERMISSION_ERROR",
-                        "Permission service unavailable: " + cause.getMessage(), 503);
+                throw new AppException("PERMISSION_ERROR",
+                        "Permission service unavailable: " + cause.getMessage(), HttpStatus.SERVICE_UNAVAILABLE.value());
             }
         }
 
@@ -117,7 +108,7 @@ public class PermissionCheck {
         }
 
         log.warn("Permission denied for user={}, path={}/{}/{}", email, module, layer, action);
-        return forbiddenResponse();
+        throw new AppException("FORBIDDEN", "Forbidden", HttpStatus.FORBIDDEN.value());
     }
 
     private RequirePermission resolveMethodAnnotation(ProceedingJoinPoint joinPoint) {
@@ -189,25 +180,5 @@ public class PermissionCheck {
             }
         }
         return null;
-    }
-
-    private Object unauthorizedResponse() {
-        setResponseStatus(HttpStatus.UNAUTHORIZED.value());
-        return ResponseType.Fail("AUTH_ERROR", "Unauthorized", 401);
-    }
-
-    private Object forbiddenResponse() {
-        setResponseStatus(HttpStatus.FORBIDDEN.value());
-        return ResponseType.Fail("FORBIDDEN", "Forbidden", 403);
-    }
-
-    private void setResponseStatus(int status) {
-        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
-        if (requestAttributes instanceof ServletRequestAttributes servletRequestAttributes) {
-            HttpServletResponse response = servletRequestAttributes.getResponse();
-            if (response != null) {
-                response.setStatus(status);
-            }
-        }
     }
 }

@@ -573,4 +573,28 @@ class UserServiceTest {
         assertEquals(2, result.getItems().size());
         assertTrue(result.getMissingIds().isEmpty());
     }
+
+    @Test
+    @DisplayName("Should fetch user with full permissions by email successfully")
+    void testGetUserWithFullPermissionsByEmail_Success() {
+        String email = "full@example.com";
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail(email);
+
+        UserVo vo = new UserVo();
+        vo.setId(user.getId().toString());
+        vo.setEmail(email);
+        vo.setRoleNames(List.of("ROLE_ADMIN"));
+
+        when(userDataAccess.findByEmailWithRoles(email)).thenReturn(Optional.of(user));
+        when(userMapper.toVoWithPermissions(user)).thenReturn(vo);
+
+        UserVo result = userService.getUserWithFullPermissionsByEmail(email);
+
+        assertNotNull(result);
+        assertEquals(email, result.getEmail());
+        verify(userDataAccess).findByEmailWithRoles(email);
+        verify(userMapper).toVoWithPermissions(user);
+    }
 }

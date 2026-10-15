@@ -53,7 +53,7 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
             return cached;
         }
 
-        UserVo user = userService.getOnlyUserByEmail(email);
+        UserVo user = userService.getUserWithFullPermissionsByEmail(email);
         if (user == null) {
             localCache.put(cacheKey, false);
             return false;
@@ -93,7 +93,7 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
             return cached;
         }
 
-        UserVo user = userService.getOnlyUserByEmail(email);
+        UserVo user = userService.getUserWithFullPermissionsByEmail(email);
         if (user == null) {
             return Collections.emptySet();
         }
