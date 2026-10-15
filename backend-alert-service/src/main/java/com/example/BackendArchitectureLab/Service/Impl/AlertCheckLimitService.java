@@ -16,6 +16,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -117,6 +118,10 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "alertCheckLimits", key = "#alertCheckLimitVo.id", condition = "#alertCheckLimitVo.id != null"),
+        @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimitVo.tableName + '.' + #alertCheckLimitVo.columnName")
+    })
     public AlertCheckLimitVo updateLimit(AlertCheckLimitVo alertCheckLimitVo) {
         AlertCheckLimit updated = updateEntity(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
         return alertCheckLimitMapper.toVo(updated);
@@ -130,6 +135,10 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "alertCheckLimits", key = "#alertCheckLimitVo.id", condition = "#alertCheckLimitVo.id != null"),
+        @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimitVo.tableName + '.' + #alertCheckLimitVo.columnName")
+    })
     public void deleteLimit(AlertCheckLimitVo alertCheckLimitVo) {
         deleteLimitEntity(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
     }
@@ -217,13 +226,19 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     }
 
     @Transactional
-    @CachePut(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
+    @Caching(evict = {
+        @CacheEvict(value = "alertCheckLimits", key = "#alertCheckLimit.id", condition = "#alertCheckLimit.id != null"),
+        @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
+    })
     public AlertCheckLimit updateEntity(AlertCheckLimit alertCheckLimit) {
         return alertCheckLimitDataAccess.save(alertCheckLimit);
     }
 
     @Transactional
-    @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
+    @Caching(evict = {
+        @CacheEvict(value = "alertCheckLimits", key = "#alertCheckLimit.id", condition = "#alertCheckLimit.id != null"),
+        @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
+    })
     public void deleteLimitEntity(AlertCheckLimit alertCheckLimit) {
         alertCheckLimitDataAccess.delete(alertCheckLimit);
     }

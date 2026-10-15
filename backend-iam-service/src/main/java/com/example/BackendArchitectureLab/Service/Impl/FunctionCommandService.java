@@ -57,7 +57,11 @@ public class FunctionCommandService implements IFunctionCommandService {
         @CacheEvict(value = "functions", key = "#functionVo.id"),
         @CacheEvict(value = "functions", key = "'byname:' + #functionVo.name"),
         @CacheEvict(value = "functions", key = "'bynameparent:' + #functionVo.name + ':' + (#functionVo.parent != null ? #functionVo.parent : '')"),
-        @CacheEvict(value = "functions", key = "'all'")
+        @CacheEvict(value = "functions", key = "'all'"),
+        @CacheEvict(value = "roles", allEntries = true),
+        @CacheEvict(value = "roleFunctions", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
     })
     public void updateFunction(FunctionVo functionVo) {
         Function function = functionMapper.toEntity(functionVo);
@@ -77,7 +81,11 @@ public class FunctionCommandService implements IFunctionCommandService {
     @Transactional
     @Caching(evict = {
         @CacheEvict(value = "functions", key = "#functionVo.id"),
-        @CacheEvict(value = "functions", key = "'all'")
+        @CacheEvict(value = "functions", key = "'all'"),
+        @CacheEvict(value = "roles", allEntries = true),
+        @CacheEvict(value = "roleFunctions", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
     })
     public void deleteFunction(FunctionVo functionVo) {
         Function function = functionMapper.toEntity(functionVo);
@@ -90,7 +98,13 @@ public class FunctionCommandService implements IFunctionCommandService {
     }
     @Transactional
     @Override
-    @CacheEvict(value = "functions", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "functions", allEntries = true),
+        @CacheEvict(value = "roles", allEntries = true),
+        @CacheEvict(value = "roleFunctions", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     public void deleteFunction(List<FunctionVo> function) {
         // 批次刪除無法精確反推 key，保留全量清除
         if (function.isEmpty()) {
@@ -105,7 +119,13 @@ public class FunctionCommandService implements IFunctionCommandService {
 
     @Transactional
     @Override
-    @CacheEvict(value = "functions", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "functions", allEntries = true),
+        @CacheEvict(value = "roles", allEntries = true),
+        @CacheEvict(value = "roleFunctions", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
     public void saveFunction(List<FunctionVo> function) {
         // 批次儲存無法精確反推 key，保留全量清除
         if (function.isEmpty()) {

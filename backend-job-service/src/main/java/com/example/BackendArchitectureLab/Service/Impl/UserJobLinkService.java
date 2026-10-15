@@ -215,6 +215,7 @@ public class UserJobLinkService implements IUserJobLinkService {
         Cache cache = cacheManager.getCache("userJobLinks");
         if (cache != null) {
             cache.evict(id);
+            cache.evict(uuid);
             cache.evict("byuser:" + userId);
             cache.evict("byjob:" + jobPostingId);
             cache.evict("currentuser:" + userId);
@@ -261,9 +262,9 @@ public class UserJobLinkService implements IUserJobLinkService {
 
     @Override
     @Transactional
-    @Caching(put = {
-        @CachePut(value = "userJobLinks", key = "#result.id")
-    }, evict = {
+    @Caching(evict = {
+        @CacheEvict(value = "userJobLinks", key = "#userJobLinkVo.id"),
+        @CacheEvict(value = "userJobLinks", key = "T(java.util.UUID).fromString(#userJobLinkVo.id)"),
         @CacheEvict(value = "userJobLinks", key = "'byuser:' + #userJobLinkVo.userId"),
         @CacheEvict(value = "userJobLinks", key = "'byjob:' + #userJobLinkVo.jobPostingId"),
         @CacheEvict(value = "userJobLinks", key = "'currentuser:' + #userJobLinkVo.userId")

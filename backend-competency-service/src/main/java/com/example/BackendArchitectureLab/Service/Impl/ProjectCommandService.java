@@ -99,7 +99,10 @@ public class ProjectCommandService implements IProjectCommandService {
      * 交易內更新專案（由 updateProject 在交易外的 Feign 驗證後呼叫）
      */
     @Transactional
-    @CacheEvict(value = "projectMemberSkills", key = "#projectVo.id")
+    @Caching(evict = {
+            @CacheEvict(value = "projects", key = "#projectVo.id"),
+            @CacheEvict(value = "projectMemberSkills", key = "#projectVo.id")
+    })
     public void doUpdateProject(ProjectVo projectVo) {
         Project project = projectMapper.toEntity(projectVo);
         if (project.getId() == null) {
@@ -132,6 +135,7 @@ public class ProjectCommandService implements IProjectCommandService {
     @Transactional
     @Override
     @Caching(evict = {
+            @CacheEvict(value = "projects", key = "#projectVo.id"),
             @CacheEvict(value = "projectSkills", key = "#projectVo.id"),
             @CacheEvict(value = "projectMemberSkills", key = "#projectVo.id")
     })
