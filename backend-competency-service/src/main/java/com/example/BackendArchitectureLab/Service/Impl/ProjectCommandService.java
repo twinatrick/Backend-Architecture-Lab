@@ -75,7 +75,11 @@ public class ProjectCommandService implements IProjectCommandService {
             }
         }
 
-        return projectMapper.toVo(savedProject);
+        ProjectVo result = projectMapper.toVo(savedProject);
+        if (projectVo.getUserIds() != null && !projectVo.getUserIds().isEmpty()) {
+            result.setUserIds(projectVo.getUserIds());
+        }
+        return result;
     }
 
     /**

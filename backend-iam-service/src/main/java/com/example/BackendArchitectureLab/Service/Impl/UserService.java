@@ -64,7 +64,14 @@ public class UserService implements IUserService {
         User user = userMapper.toEntity(userVo);
         encodePasswordIfNecessary(user);
         userDataAccess.save(user);
-        return userMapper.toVo(user);
+        if (userVo.getRoles() != null && !userVo.getRoles().isEmpty()) {
+            roleService.userBindRole(user.getId().toString(), userVo.getRoles());
+        }
+        UserVo result = userMapper.toVo(user);
+        if (userVo.getRoles() != null) {
+            result.setRoles(userVo.getRoles());
+        }
+        return result;
     }
 
     @Override
@@ -131,7 +138,14 @@ public class UserService implements IUserService {
         User user = userMapper.toEntity(userVo);
         encodePasswordIfNecessary(user);
         userDataAccess.save(user);
-        return userMapper.toVo(user);
+        if (userVo.getRoles() != null && !userVo.getRoles().isEmpty()) {
+            roleService.userBindRole(user.getId().toString(), userVo.getRoles());
+        }
+        UserVo result = userMapper.toVo(user);
+        if (userVo.getRoles() != null) {
+            result.setRoles(userVo.getRoles());
+        }
+        return result;
     }
 
     @Override
@@ -141,27 +155,38 @@ public class UserService implements IUserService {
         if (userVo.getRoles() == null) {
             throw new IllegalArgumentException("Role list is required");
         }
-        if(userVo.getId() == null|| userVo.getId().isEmpty()){
+        if (userVo.getId() == null || userVo.getId().isEmpty()) {
             User user = new User();
             user.setEmail(userVo.getEmail());
             user.setPassword(userVo.getPassword());
+            user.setName(userVo.getName());
+            user.setPhone(userVo.getPhone());
             encodePasswordIfNecessary(user);
             user.setDisabled(userVo.isDisabled());
             userDataAccess.save(user);
             roleService.userBindRole(user.getId().toString(), userVo.getRoles());
             return;
         }
-        User u = userDataAccess.findByEmail(userVo.getEmail()).orElseThrow(
-                () -> new IllegalArgumentException("User not found")
-        );
+        User u = null;
+        UUID uuid = mapUuid(userVo.getId());
+        if (uuid != null) {
+            u = userDataAccess.findById(uuid).orElse(null);
+        }
+        if (u == null && userVo.getEmail() != null) {
+            u = userDataAccess.findByEmail(userVo.getEmail()).orElse(null);
+        }
+        if (u == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+        u.setName(userVo.getName());
+        u.setPhone(userVo.getPhone());
         u.setDisabled(userVo.isDisabled());
-        if (userVo.getPassword() != null) {
+        if (userVo.getPassword() != null && !userVo.getPassword().isBlank()) {
             u.setPassword(userVo.getPassword());
             encodePasswordIfNecessary(u);
         }
         userDataAccess.save(u);
         roleService.userBindRole(u.getId().toString(), userVo.getRoles());
-
     }
 
     @Override
@@ -183,7 +208,14 @@ public class UserService implements IUserService {
     }
 
     private UUID mapUuid(String id) {
-        return id == null || id.isBlank() ? null : UUID.fromString(id);
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private void encodePasswordIfNecessary(User user) {

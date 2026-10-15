@@ -52,6 +52,7 @@ public class FunctionCommandService implements IFunctionCommandService {
     }
 
     @Override
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "functions", key = "#functionVo.id"),
         @CacheEvict(value = "functions", key = "'byname:' + #functionVo.name"),

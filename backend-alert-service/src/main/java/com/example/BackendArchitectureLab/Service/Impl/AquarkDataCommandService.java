@@ -8,6 +8,7 @@ import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -18,6 +19,7 @@ public class AquarkDataCommandService implements IAquarkDataCommandService {
     private final AquarkDataMapper aquarkDataMapper;
 
     @Override
+    @Transactional
     public boolean insertAquarkData(List<AquarkDataRaw> aquarkDataList) {
         // 更新數據庫
         List<AquarkData> entities = aquarkDataList.stream().map(aquarkDataMapper::toEntity).toList();
@@ -26,6 +28,7 @@ public class AquarkDataCommandService implements IAquarkDataCommandService {
     }
 
     @Override
+    @Transactional
     public AquarkDataRaw insertAquarkData(AquarkDataRaw aquarkDataRaw) {
         AquarkData aquarkData = aquarkDataMapper.toEntity(aquarkDataRaw);
 
@@ -57,6 +60,7 @@ public class AquarkDataCommandService implements IAquarkDataCommandService {
     }
 
     // 更新數據庫
+    @Transactional
     @CachePut(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", unless = "#result == null")
     @Override
     public AquarkDataRaw updateAquarkData(AquarkDataRaw aquarkDataRaw) {

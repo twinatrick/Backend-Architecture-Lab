@@ -20,11 +20,19 @@ import java.util.List;
 @Mapper(componentModel = "spring", uses = {FunctionMapper.class})
 public interface UserMapper {
     @Named("toVo")
+    @BeanMapping(qualifiedByName = "fillStreamRolesOnly")
+    @Mapping(target = "id", expression = "java(user.getId() == null ? null : user.getId().toString())")
+    @Mapping(target = "roles", ignore = true)
+    @Mapping(target = "roleNames", ignore = true)
+    @Mapping(target = "permissions", ignore = true)
+    UserVo toVo(User user);
+
+    @Named("toVoWithPermissions")
     @BeanMapping(qualifiedByName = "fillPermissions")
     @Mapping(target = "id", expression = "java(user.getId() == null ? null : user.getId().toString())")
     @Mapping(target = "roles", ignore = true)
     @Mapping(target = "roleNames", ignore = true)
-    UserVo toVo(User user);
+    UserVo toVoWithPermissions(User user);
 
     @Named("toStreamVo")
     @BeanMapping(qualifiedByName = "fillStreamRolesOnly")

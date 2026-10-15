@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
@@ -128,6 +129,7 @@ public class DiscordManagementService implements IDiscordManagementService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public DiscordGfSessionVo getSessionById(UUID id) {
         return discordGfSessionDataAccess.findById(id)
                 .map(gfSessionMapper::toVo)
@@ -135,6 +137,7 @@ public class DiscordManagementService implements IDiscordManagementService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<DiscordGfMessageVo> getSessionMessages(UUID id) {
         if (discordGfSessionDataAccess.findById(id).isEmpty()) {
             throw new AppException("NOT_FOUND", "Discord session not found", 404);
@@ -144,6 +147,7 @@ public class DiscordManagementService implements IDiscordManagementService {
     }
 
     @Override
+    @Transactional
     public DiscordGfSessionVo toggleSessionActive(UUID id) {
         DiscordGfSession session = discordGfSessionDataAccess.findById(id)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "Discord session not found", 404));
@@ -153,9 +157,11 @@ public class DiscordManagementService implements IDiscordManagementService {
     }
 
     @Override
+    @Transactional
     public void deleteSession(UUID id) {
         DiscordGfSession session = discordGfSessionDataAccess.findById(id)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "Discord session not found", 404));
+        discordGfMessageDataAccess.deleteBySessionId(id);
         discordGfSessionDataAccess.delete(session);
     }
 
@@ -230,6 +236,7 @@ public class DiscordManagementService implements IDiscordManagementService {
     }
 
     @Override
+    @Transactional
     public void deleteSubscription(UUID id) {
         DiscordSubscription sub = discordSubscriptionDataAccess.findById(id)
                 .orElseThrow(() -> new AppException("NOT_FOUND", "Discord subscription not found", 404));

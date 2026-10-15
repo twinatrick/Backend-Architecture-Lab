@@ -302,7 +302,7 @@ class DiscordManagementServiceTest {
     }
 
     @Test
-    @DisplayName("deleteSession: 成功刪除會話")
+    @DisplayName("deleteSession: 成功刪除會話並級聯清理歷史訊息")
     void deleteSession_Success() {
         UUID id = UUID.randomUUID();
         DiscordGfSession session = new DiscordGfSession();
@@ -310,6 +310,7 @@ class DiscordManagementServiceTest {
 
         service.deleteSession(id);
 
+        verify(discordGfMessageDataAccess).deleteBySessionId(id);
         verify(discordGfSessionDataAccess).delete(session);
     }
 
