@@ -189,7 +189,7 @@ class FunctionQueryServiceTest {
         FunctionSearchQuery query = new FunctionSearchQuery();
         query.setPage(0);
         query.setSize(20);
-        query.setSortBy("createdTime");
+        query.setSortBy("id");
         query.setSortDir("desc");
         query.setName("Test");
 
@@ -204,7 +204,6 @@ class FunctionQueryServiceTest {
         func2.setParent("");
 
         List<Function> funcList = List.of(func1, func2);
-        Page<Function> funcPage = new PageImpl<>(funcList, PageRequest.of(0, 20), 2);
 
         FunctionVo funcVo1 = new FunctionVo();
         funcVo1.setName("Test Function 1");
@@ -212,7 +211,8 @@ class FunctionQueryServiceTest {
         FunctionVo funcVo2 = new FunctionVo();
         funcVo2.setName("Test Function 2");
 
-        when(functionDataAccess.searchFunctions(any(FunctionSearchQuery.class))).thenReturn(funcPage);
+        // searchFunctions 現在走快取：呼叫 getFunctionListCache() → findAll()
+        when(functionDataAccess.findAll()).thenReturn(funcList);
         when(functionMapper.toVo(func1)).thenReturn(funcVo1);
         when(functionMapper.toVo(func2)).thenReturn(funcVo2);
 
@@ -225,7 +225,8 @@ class FunctionQueryServiceTest {
         assertEquals(2L, result.getTotalElements());
         assertEquals(0, result.getCurrentPage());
         assertEquals(20, result.getPageSize());
-        verify(functionDataAccess).searchFunctions(any(FunctionSearchQuery.class));
+        verify(functionDataAccess).findAll();
+        verify(functionDataAccess, never()).searchFunctions(any());
     }
 
     @Test

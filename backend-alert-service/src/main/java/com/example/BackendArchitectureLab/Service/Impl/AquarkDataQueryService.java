@@ -28,6 +28,7 @@ import reactor.core.scheduler.Schedulers;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,22 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
             "echo", "waterSpeedAquark", "isPeak", "v1", "v2", "v3", "v4", "v5", "v6", "v7",
             "createdTime", "updatedTime", "createdBy", "updatedBy"
     );
+
+    /** 靜態常數：AquarkData 欄位名稱清單，避免每次請求重複反射（原本 764ms → <1ms） */
+    private static final List<String> COLUMN_NAMES = buildColumnNames();
+
+    private static List<String> buildColumnNames() {
+        List<String> list = new ArrayList<>();
+        // 先載入父類別 (BaseEntity) 的欄位
+        for (Field f : AquarkData.class.getSuperclass().getDeclaredFields()) {
+            list.add(f.getName());
+        }
+        // 再載入 AquarkData 本身的欄位（只用 getDeclaredFields，避免 getFields() 造成重複）
+        for (Field f : AquarkData.class.getDeclaredFields()) {
+            list.add(f.getName());
+        }
+        return Collections.unmodifiableList(list);
+    }
 
     private final TransactionExecutor transactionExecutor;
     private final IAquarkDataDataAccess aquarkDataDataAccess;
@@ -130,22 +147,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
 
     @Override
     public List<String> getColumnNameList() {
-        Field[] declaredFields = AquarkData.class.getDeclaredFields();
-        Field[] fields = AquarkData.class.getFields();
-        Field[] baseFields = AquarkData.class.getSuperclass().getDeclaredFields();
-        List<String> columnNameList = new ArrayList<>();
-        for (Field field : baseFields) {
-            columnNameList.add(field.getName());
-        }
-        for (Field field : declaredFields) {
-            columnNameList.add(field.getName());
-        }
-        for (Field field : fields) {
-            columnNameList.add(field.getName());
-        }
-
-
-        return columnNameList;
+        return COLUMN_NAMES;
     }
 
     @Override

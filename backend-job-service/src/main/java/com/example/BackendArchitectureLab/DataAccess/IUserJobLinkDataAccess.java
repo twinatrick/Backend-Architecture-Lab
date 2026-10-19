@@ -35,5 +35,13 @@ public interface IUserJobLinkDataAccess {
 
     boolean existsByUserIdAndJobPostingId(UUID userId, UUID jobPostingId);
 
+    /**
+     * 批次查詢含 jobPosting 與 company 的 UserJobLink 清單（用於解決二次批量查詢 N+1 問題）
+     *
+     * @param ids UserJobLink UUID 清單
+     * @return 含關聯資料的清單
+     */
+    List<UserJobLink> findAllByIdsWithJobPosting(List<UUID> ids);
+
     Page<UserJobLink> searchUserJobLinks(UserJobLinkSearchQuery query);
 }

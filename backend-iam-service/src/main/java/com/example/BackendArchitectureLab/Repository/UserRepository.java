@@ -1,7 +1,6 @@
 package com.example.BackendArchitectureLab.Repository;
 
 import com.example.BackendArchitectureLab.Entity.User;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -15,10 +14,6 @@ import java.util.UUID;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
 
-    @Override
-    @EntityGraph(attributePaths = {"roles", "roles.role"})
-    Optional<User> findById(UUID id);
-
     Optional<User> findByEmail(String email);
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.role WHERE u.email = :email")
@@ -29,4 +24,7 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.role WHERE u.id = :id")
     Optional<User> findByIdWithRoles(@Param("id") UUID id);
+
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.role WHERE u.id IN :ids")
+    List<User> findAllByIdsWithRoles(@Param("ids") List<UUID> ids);
 }
