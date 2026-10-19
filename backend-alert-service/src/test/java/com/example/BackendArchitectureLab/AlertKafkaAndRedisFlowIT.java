@@ -65,9 +65,9 @@ public class AlertKafkaAndRedisFlowIT extends BaseTestcontainersIntegrationTest 
     void testCacheStatsKafkaToRedisStream() {
         String cacheName = "alert-test-cache-" + UUID.randomUUID();
 
-        cacheStatsKafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, "hit"));
-        cacheStatsKafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, "hit"));
-        cacheStatsKafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, "miss"));
+        cacheStatsKafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, "hit", 1L));
+        cacheStatsKafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, "hit", 1L));
+        cacheStatsKafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, "miss", 1L));
 
         String redisKey = "cache:stats:" + cacheName;
 

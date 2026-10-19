@@ -23,7 +23,7 @@ import java.io.IOException;
 @Order(Ordered.HIGHEST_PRECEDENCE + 5)
 @RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-public class DiagnosticTraceFilter extends OncePerRequestFilter {
+public class DiagnosticTraceInterceptor extends OncePerRequestFilter {
 
     private static final String DIAGNOSTIC_HEADER = "X-Diagnostic-Trace";
 

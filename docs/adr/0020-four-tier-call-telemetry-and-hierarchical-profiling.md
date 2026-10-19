@@ -19,7 +19,7 @@
 
 評估方案：
 1. **方案 A（Grafana + Loki + Tempo 雙軌視覺化 + 結構化 JSON 單筆輸出 + 診斷模式 - 推薦）**：
-   - 由 `backend-common` 統一提供 `FourTierTelemetryAspect` 與 `DiagnosticTraceFilter`。
+   - 由 `backend-common` 統一提供 `FourTierTelemetryAspect` 與 `DiagnosticTraceInterceptor`。
    - 請求處理完成時，於 `finally` 區塊輸出單筆包含階層呼叫樹（時序視角）與各父節點下方法聚合（統計視角）的結構化 JSON 日誌至 Loki。
    - 支援 HTTP 標頭 `X-Diagnostic-Trace: true` 即時觸發 100% 診斷追蹤，平時維持低開銷；底層以 W3C TraceContext 與 Tempo 保持跨服務鏈路關聯。
    - 採用介面階層切點 `target(org.springframework.data.repository.Repository)` 確保完整攔截 JPA 繼承方法。

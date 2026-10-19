@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
-class DiagnosticTraceFilterTest {
+class DiagnosticTraceInterceptorTest {
 
     @Mock
     private FilterChain filterChain;
@@ -35,7 +35,7 @@ class DiagnosticTraceFilterTest {
     @DisplayName("當帶有 X-Diagnostic-Trace 標頭時應開啟診斷模式並於結束時清理 ThreadLocal")
     void doFilterInternal_WhenHeaderPresent_EnablesDiagnosticAndCleansUp() throws ServletException, IOException {
         ObjectMapper objectMapper = new ObjectMapper();
-        DiagnosticTraceFilter filter = new DiagnosticTraceFilter(objectMapper);
+        DiagnosticTraceInterceptor filter = new DiagnosticTraceInterceptor(objectMapper);
         ReflectionTestUtils.setField(filter, "globalDiagnosticEnabled", false);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/users/infoVo");
@@ -64,7 +64,7 @@ class DiagnosticTraceFilterTest {
     @DisplayName("無標頭且未開啟全域設定時應保持關閉")
     void doFilterInternal_WhenNoHeader_DiagnosticDisabled() throws ServletException, IOException {
         ObjectMapper objectMapper = new ObjectMapper();
-        DiagnosticTraceFilter filter = new DiagnosticTraceFilter(objectMapper);
+        DiagnosticTraceInterceptor filter = new DiagnosticTraceInterceptor(objectMapper);
         ReflectionTestUtils.setField(filter, "globalDiagnosticEnabled", false);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/users/infoVo");
