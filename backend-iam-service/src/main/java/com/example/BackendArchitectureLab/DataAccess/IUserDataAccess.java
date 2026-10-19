@@ -86,4 +86,12 @@ public interface IUserDataAccess {
      * @return 分頁結果
      */
     Page<User> findAllPaged(Pageable pageable);
+
+    /**
+     * 批量查詢使用者並預載 roles（用於 search 二次批量查詢解決 N+1）
+     *
+     * @param ids 使用者 UUID 清單
+     * @return 含 roles 的使用者清單
+     */
+    List<User> findAllByIdsWithRoles(List<UUID> ids);
 }

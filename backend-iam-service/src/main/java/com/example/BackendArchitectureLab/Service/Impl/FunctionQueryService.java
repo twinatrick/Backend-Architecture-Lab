@@ -28,6 +28,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -126,16 +127,42 @@ public class FunctionQueryService implements IFunctionQueryService {
         // 驗證排序欄位與方向
         SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
 
-        // 執行分頁查詢
-        Page<Function> functionPage = functionDataAccess.searchFunctions(query);
+        // 從快取取得所有 functions，避免重複 DB 查詢（解決 6s N+1/full-scan 問題）
+        List<FunctionVo> allFunctions = self.getFunctionListCache().getData();
 
-        // 轉換為 VO
-        List<FunctionVo> functionVos = functionPage.getContent().stream()
-                .map(functionMapper::toVo)
+        // 記憶體篩選
+        List<FunctionVo> filtered = allFunctions.stream()
+                .filter(f -> query.getName() == null || query.getName().isBlank()
+                        || (f.getName() != null && f.getName().contains(query.getName())))
+                .filter(f -> query.getParent() == null || query.getParent().isBlank()
+                        || query.getParent().equals(f.getParent()))
+                .filter(f -> query.getType() == null
+                        || (f.getType() != null && f.getType().equals(query.getType())))
                 .toList();
 
-        // 返回分頁結果
-        return PageResult.of(functionPage, functionVos);
+        // 記憶體排序
+        boolean isAsc = "asc".equalsIgnoreCase(query.getNormalizedSortDir());
+        String sortBy = query.getSortBy();
+        Comparator<FunctionVo> comparator = switch (sortBy) {
+            case "name" -> Comparator.comparing(FunctionVo::getName, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "type" -> Comparator.comparing(f -> f.getType() == null ? Integer.MAX_VALUE : f.getType());
+            case "sort" -> Comparator.comparing(FunctionVo::getSort, Comparator.nullsLast(Comparator.naturalOrder()));
+            default     -> Comparator.comparing(FunctionVo::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+        };
+        if (!isAsc) comparator = comparator.reversed();
+        List<FunctionVo> sorted = filtered.stream().sorted(comparator).toList();
+
+        // 記憶體分頁
+        int page = query.getPage();
+        int size = query.getSize();
+        int totalElements = sorted.size();
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+        List<FunctionVo> pageContent = sorted.subList(fromIndex, toIndex);
+
+        Page<FunctionVo> functionPage = new PageImpl<>(pageContent,
+                PageRequest.of(page, size), totalElements);
+        return PageResult.of(functionPage, pageContent);
     }
 
     @Override

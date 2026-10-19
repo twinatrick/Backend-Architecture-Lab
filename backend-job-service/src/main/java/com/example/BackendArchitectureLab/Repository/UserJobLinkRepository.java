@@ -7,6 +7,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -28,9 +30,11 @@ public interface UserJobLinkRepository extends JpaRepository<UserJobLink, UUID>,
     @EntityGraph(attributePaths = {"jobPosting", "jobPosting.company"})
     Page<UserJobLink> findAll(Pageable pageable);
 
-    @Override
-    @EntityGraph(attributePaths = {"jobPosting", "jobPosting.company"})
-    Page<UserJobLink> findAll(Specification<UserJobLink> spec, Pageable pageable);
+    // 移除原本帶 @EntityGraph 的 findAll(Specification, Pageable)，避免 in-memory pagination 問題
+    // searchUserJobLinks 改為二次批量查詢模式
+
+    @Query("SELECT u FROM UserJobLink u LEFT JOIN FETCH u.jobPosting jp LEFT JOIN FETCH jp.company WHERE u.id IN :ids")
+    List<UserJobLink> findAllByIdsWithJobPosting(@Param("ids") List<UUID> ids);
 
     @Override
     @EntityGraph(attributePaths = {"jobPosting", "jobPosting.company"})

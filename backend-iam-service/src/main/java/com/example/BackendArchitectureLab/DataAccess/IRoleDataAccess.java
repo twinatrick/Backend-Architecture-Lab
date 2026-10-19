@@ -95,6 +95,14 @@ public interface IRoleDataAccess {
     Optional<Role> findByIdWithUserRoles(UUID key);
 
     /**
+     * 批次查詢含 roleFunctions 與 function 的角色清單（用於解決 N+1 問題）
+     *
+     * @param ids 角色 UUID 清單
+     * @return 含關聯資料的角色清單
+     */
+    List<Role> findAllByIdsWithFunctions(List<UUID> ids);
+
+    /**
      * 分頁查詢角色
      *
      * @param query 查詢參數

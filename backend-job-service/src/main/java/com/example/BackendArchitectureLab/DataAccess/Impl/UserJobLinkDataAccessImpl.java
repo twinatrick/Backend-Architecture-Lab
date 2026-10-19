@@ -7,14 +7,17 @@ import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
 import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -84,6 +87,11 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
     }
 
     @Override
+    public List<UserJobLink> findAllByIdsWithJobPosting(List<UUID> ids) {
+        return userJobLinkRepository.findAllByIdsWithJobPosting(ids);
+    }
+
+    @Override
     public Page<UserJobLink> searchUserJobLinks(UserJobLinkSearchQuery query) {
         Sort sort = Sort.by(
                 "asc".equalsIgnoreCase(query.getNormalizedSortDir())
@@ -91,6 +99,23 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
                 query.getSortBy()
         );
         PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
-        return userJobLinkRepository.findAll(UserJobLinkSpecification.buildSpecification(query), pageRequest);
+
+        // 第一次查詢：分頁取得 ID（無 EntityGraph，避免 in-memory pagination）
+        Page<UserJobLink> page = userJobLinkRepository.findAll(UserJobLinkSpecification.buildSpecification(query), pageRequest);
+
+        if (page.isEmpty()) {
+            return page;
+        }
+
+        // 第二次查詢：批量載入含 jobPosting + company 的完整資料
+        List<UUID> ids = page.getContent().stream().map(UserJobLink::getId).toList();
+        Map<UUID, UserJobLink> linkMap = userJobLinkRepository.findAllByIdsWithJobPosting(ids)
+                .stream().collect(Collectors.toMap(UserJobLink::getId, l -> l));
+
+        List<UserJobLink> enriched = page.getContent().stream()
+                .map(l -> linkMap.getOrDefault(l.getId(), l))
+                .toList();
+
+        return new PageImpl<>(enriched, pageRequest, page.getTotalElements());
     }
 }
