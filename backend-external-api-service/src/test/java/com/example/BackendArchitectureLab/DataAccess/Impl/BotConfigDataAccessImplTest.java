@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Repository.BotConfigRepository;
-import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.BotConfigSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -67,7 +67,7 @@ class ChatServiceTest {
     void chat_shouldInvokeFeignAndTrackUsage() {
         ChatResponseVo mockResponse = new ChatResponseVo();
         mockResponse.setContent("哈囉！");
-        when(aiPyServiceFeignClient.chat(any(ChatRequestVo.class))).thenReturn(mockResponse);
+        when(aiPyServiceFeignClient.chat(any(ChatRequest.class))).thenReturn(mockResponse);
 
         ChatResponseVo result = chatService.chat(List.of(Map.of("role", "user", "content", "hi")), 0.7);
 

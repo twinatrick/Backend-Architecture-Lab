@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
 import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;
-import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.DiscordSubscriptionSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

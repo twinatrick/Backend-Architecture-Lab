@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.BotConfigVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.BotConfigSearchQuery;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 

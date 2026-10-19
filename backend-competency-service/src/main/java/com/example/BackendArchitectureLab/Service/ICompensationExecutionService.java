@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 
 /**

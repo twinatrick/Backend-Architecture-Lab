@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Entity.BotConfig;
-import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.BotConfigSearchQuery;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

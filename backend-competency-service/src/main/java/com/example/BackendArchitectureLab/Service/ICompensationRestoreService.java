@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
 import com.example.BackendArchitectureLab.Vo.CompensationRestoreResultVo;
 
 import java.util.List;

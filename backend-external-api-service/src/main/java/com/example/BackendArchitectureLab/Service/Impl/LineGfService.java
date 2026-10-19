@@ -10,10 +10,10 @@ import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import java.net.URI;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Vo.SttResponseVo;
-import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.TtsRequest;
 import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
 import com.example.BackendArchitectureLab.Vo.LineGfSessionVo;
@@ -249,7 +249,7 @@ public class LineGfService implements ILineGfService {
             messages.add(m);
         }
 
-        ChatRequestVo chatRequest = new ChatRequestVo(messages, null, false);
+        ChatRequest chatRequest = new ChatRequest(messages, null, false);
         ChatResponseVo chatResponse = aiPyServiceFeignClient.chat(chatRequest);
 
         String reply = chatResponse.getContent();
@@ -274,7 +274,7 @@ public class LineGfService implements ILineGfService {
                     speechText = reply; // 如果全為動作描述，則回退使用原本的回覆
                 }
 
-                TtsRequestVo ttsRequest = TtsRequestVo.builder()
+                TtsRequest ttsRequest = TtsRequest.builder()
                         .text(speechText)
                         .language(lang)
                         .voiceSampleKey(sessionVo.getVoiceSampleKey())

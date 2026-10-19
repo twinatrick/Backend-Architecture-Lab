@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
-import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.UserProject;

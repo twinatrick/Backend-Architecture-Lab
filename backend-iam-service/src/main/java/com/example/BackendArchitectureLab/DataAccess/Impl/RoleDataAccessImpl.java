@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Repository.RoleRepository;
 import com.example.BackendArchitectureLab.DataAccess.IRoleDataAccess;
 import com.example.BackendArchitectureLab.Entity.Role;

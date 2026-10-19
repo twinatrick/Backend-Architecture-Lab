@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Strategy;
 
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
 
 /**
  * CompensationStrategy - 補償執行策略（Strategy Pattern），

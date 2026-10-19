@@ -1,16 +1,16 @@
 package com.example.BackendArchitectureLab.Controller;
 
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationAuth;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Service.IChatService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
@@ -27,7 +27,7 @@ public class AiStreamController {
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @ApiOperationAuth(summary = "AI 對話串流生成", description = "透過 Server-Sent Events (SSE) 逐字串流推播 AI 生成回應，支援非阻塞背壓與客戶端取消信號傳播。")
-    public Flux<ServerSentEvent<String>> streamChat(@RequestBody ChatRequestVo request) {
+    public Flux<ServerSentEvent<String>> streamChat(@ApiBody(description = "AI 聊天串流請求內容") ChatRequest request) {
         securityUtil.requireCurrentUserId();
         if (request == null || request.getMessages() == null) {
             return Flux.empty();

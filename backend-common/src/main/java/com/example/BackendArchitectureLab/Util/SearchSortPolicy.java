@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 /**
  * 統一管理搜尋排序策略（允許的排序欄位與方向驗證）。
  * <p>
- * Default Sort（sortBy=createdTime, sortDir=desc）由 {@link com.example.BackendArchitectureLab.Vo.Common.PageQuery} 內建，
+ * Default Sort（sortBy=createdTime, sortDir=desc）由 {@link com.example.BackendArchitectureLab.Dto.Query.PageQuery} 內建，
  * 此處僅負責欄位白名單與方向驗證，避免各 Service 重複宣告 String[] allowedSortFields。
  */
 public class SearchSortPolicy {

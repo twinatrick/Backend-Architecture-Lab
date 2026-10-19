@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.Impl.AlertCheckLimitService;
 import com.example.BackendArchitectureLab.DataAccess.IAlertCheckLimitDataAccess;

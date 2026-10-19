@@ -5,7 +5,7 @@ import com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient;
 import com.example.BackendArchitectureLab.Repository.AlertCheckLimitRepository;
 import com.example.BackendArchitectureLab.TestSupport.BaseTestcontainersIntegrationTest;
 import com.example.BackendArchitectureLab.TestSupport.SharedContainers;
-import com.example.BackendArchitectureLab.Vo.CacheStatsEvent;
+import com.example.BackendArchitectureLab.Event.CacheStatsEvent;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

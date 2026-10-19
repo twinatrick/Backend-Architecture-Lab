@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
 import com.example.BackendArchitectureLab.Entity.DiscordGfSession;
-import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.DiscordGfSessionSearchQuery;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 

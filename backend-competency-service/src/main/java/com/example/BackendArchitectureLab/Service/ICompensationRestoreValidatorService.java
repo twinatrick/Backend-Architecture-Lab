@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
 
 import java.util.List;
 import java.util.UUID;

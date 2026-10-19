@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
+import com.example.BackendArchitectureLab.Dto.Request.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.UserProject;

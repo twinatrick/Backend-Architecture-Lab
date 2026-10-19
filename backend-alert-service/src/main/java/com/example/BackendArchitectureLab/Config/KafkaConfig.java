@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Config;
 
-import com.example.BackendArchitectureLab.Vo.CacheStatsEvent;
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.CacheStatsEvent;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -63,7 +63,7 @@ public class KafkaConfig {
     }
 
     @Bean
-    public ConsumerFactory<String, List<AlarmMessage>> alarmMessageConsumerFactory(ObjectMapper objectMapper) {
+    public ConsumerFactory<String, List<AlarmEvent>> alarmMessageConsumerFactory(ObjectMapper objectMapper) {
         String bootstrapServers = resolveBootstrapServers();
 
         Map<String, Object> props = new HashMap<>();
@@ -71,7 +71,7 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        JsonDeserializer<List<AlarmMessage>> deserializer = new JsonDeserializer<>(
+        JsonDeserializer<List<AlarmEvent>> deserializer = new JsonDeserializer<>(
                 new TypeReference<>() {},
                 objectMapper,
                 false
@@ -100,10 +100,10 @@ public class KafkaConfig {
     }
 
     @Bean(name = "alarmMessageKafkaListenerContainerFactory")
-    public ConcurrentKafkaListenerContainerFactory<String, List<AlarmMessage>> alarmMessageKafkaListenerContainerFactory(
-            ConsumerFactory<String, List<AlarmMessage>> alarmMessageConsumerFactory
+    public ConcurrentKafkaListenerContainerFactory<String, List<AlarmEvent>> alarmMessageKafkaListenerContainerFactory(
+            ConsumerFactory<String, List<AlarmEvent>> alarmMessageConsumerFactory
     ) {
-        ConcurrentKafkaListenerContainerFactory<String, List<AlarmMessage>> factory =
+        ConcurrentKafkaListenerContainerFactory<String, List<AlarmEvent>> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(alarmMessageConsumerFactory);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 4L)));

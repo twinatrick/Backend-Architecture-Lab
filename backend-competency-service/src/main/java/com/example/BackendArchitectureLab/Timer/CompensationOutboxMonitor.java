@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Timer;
 
 import com.example.BackendArchitectureLab.Entity.CompensationOutboxEvent;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationOutboxEventDataAccess;
-import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
+import com.example.BackendArchitectureLab.Event.CompensationOutboxDeliveryStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

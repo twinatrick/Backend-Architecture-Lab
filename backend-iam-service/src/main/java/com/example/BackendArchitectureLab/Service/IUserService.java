@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.UserSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import org.springframework.http.codec.ServerSentEvent;

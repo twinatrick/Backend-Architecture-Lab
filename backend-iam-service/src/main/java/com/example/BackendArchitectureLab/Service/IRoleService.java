@@ -1,11 +1,11 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
@@ -13,14 +13,14 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 
 public interface IRoleService {
-    RoleOutVo addRole(RoleOutVo role);
+    RoleVo addRole(RoleVo role);
 
-    RoleOutVo addRoleWithFunctions(RoleOutVo role);
+    RoleVo addRoleWithFunctions(RoleVo role);
 
-    List<RoleOutVo> getRole();
-    CacheListWrapper<RoleOutVo> getRoleListCache();
+    List<RoleVo> getRole();
+    CacheListWrapper<RoleVo> getRoleListCache();
 
-    RoleOutVo getRoleById(String roleId);
+    RoleVo getRoleById(String roleId);
 
     /**
      * 批次依 ID 清單取得角色（細粒度多鍵快取優先，未命中批次查庫並回填）
@@ -28,13 +28,13 @@ public interface IRoleService {
      * @param ids 角色 String ID 清單
      * @return 雙視角批次查詢結果
      */
-    BatchResultVo<RoleOutVo> getRolesByIds(List<String> ids);
+    BatchResultVo<RoleVo> getRolesByIds(List<String> ids);
 
-    RoleOutVo updateRole(RoleOutVo role);
+    RoleVo updateRole(RoleVo role);
 
-    RoleOutVo updateRoleWithFunctions(RoleOutVo role);
+    RoleVo updateRoleWithFunctions(RoleVo role);
 
-    void deleteRole(RoleOutVo role);
+    void deleteRole(RoleVo role);
 
     void roleBindFunction(String roleId, List<String> functionIds);
 
@@ -57,16 +57,16 @@ public interface IRoleService {
     List<FunctionVo> getFunctionByRole(String roleId);
     CacheListWrapper<FunctionVo> getFunctionByRoleCache(String roleId);
 
-    List<RoleOutVo> getRoleByFunction(String functionId);
-    CacheListWrapper<RoleOutVo> getRoleByFunctionCache(String functionId);
+    List<RoleVo> getRoleByFunction(String functionId);
+    CacheListWrapper<RoleVo> getRoleByFunctionCache(String functionId);
 
     List<UserVo> getUserByRole(String roleId);
     CacheListWrapper<UserVo> getUserByRoleCache(String roleId);
 
-    List<RoleOutVo> getRoleByUser(String userId);
-    CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId);
+    List<RoleVo> getRoleByUser(String userId);
+    CacheListWrapper<RoleVo> getRoleByUserListCache(String userId);
 
-    RoleOutVo getRoleByName(String name);
+    RoleVo getRoleByName(String name);
     
     /**
      * 分頁搜尋角色
@@ -74,7 +74,7 @@ public interface IRoleService {
      * @param query 搜尋查詢參數
      * @return 分頁結果
      */
-    PageResult<RoleOutVo> searchRoles(RoleSearchQuery query);
+    PageResult<RoleVo> searchRoles(RoleSearchQuery query);
 
     /**
      * 串流分塊取得角色列表
@@ -82,5 +82,5 @@ public interface IRoleService {
      * @param chunkSize 批次大小
      * @return Server-Sent Events 串流
      */
-    Flux<ServerSentEvent<List<RoleOutVo>>> streamRolesChunked(int chunkSize);
+    Flux<ServerSentEvent<List<RoleVo>>> streamRolesChunked(int chunkSize);
 }

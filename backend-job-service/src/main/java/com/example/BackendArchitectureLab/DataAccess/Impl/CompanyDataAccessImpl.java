@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.specification.CompanySpecification;
-import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.CompanySearchQuery;
 import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Repository.CompanyRepository;
 import lombok.RequiredArgsConstructor;

@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Timer;
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
 import com.example.BackendArchitectureLab.Service.CompensationEventProcessor;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
+import com.example.BackendArchitectureLab.Event.CompensationEventLogStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
 
 /**
  * ICompensationPayloadService - 補償事件 payload 序列化／反序列化。

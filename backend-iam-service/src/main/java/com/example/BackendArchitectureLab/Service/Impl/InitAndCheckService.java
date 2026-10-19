@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Service.*;
 import lombok.RequiredArgsConstructor;
@@ -28,22 +28,22 @@ public class InitAndCheckService implements IInitAndCheckService {
 
     @Override
     public void checkRole() {
-        List<RoleOutVo> roleList = roleService.getRole();
-        RoleOutVo role = new RoleOutVo();
+        List<RoleVo> roleList = roleService.getRole();
+        RoleVo role = new RoleVo();
         if (!roleList.isEmpty()) {
             if (roleService.getRoleByName("admin") == null) {
                 role.setName("admin");
                 roleService.addRole(role);
             }
             if (roleService.getRoleByName("user") == null) {
-                role = new RoleOutVo();
+                role = new RoleVo();
                 role.setName("user");
                 roleService.addRole(role);
             }
         }else {
             role.setName("admin");
             roleService.addRole(role);
-            role = new RoleOutVo();
+            role = new RoleVo();
             role.setName("user");
             roleService.addRole(role);
         }
@@ -118,7 +118,7 @@ public class InitAndCheckService implements IInitAndCheckService {
 
 
         List<FunctionVo> functionList = functionQueryService.getFunction();
-        RoleOutVo role = roleService.getRoleByName("admin");
+        RoleVo role = roleService.getRoleByName("admin");
         if (role != null) {
             var parentIds = functionList.stream()
                     .map(FunctionVo::getParent)

@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
-import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.UserJobLinkSearchQuery;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 

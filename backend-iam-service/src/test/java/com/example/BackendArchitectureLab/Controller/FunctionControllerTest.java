@@ -7,7 +7,7 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionTransVo;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.FunctionSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

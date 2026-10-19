@@ -7,7 +7,7 @@ import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.TimeRange;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.AquarkDataSearchQuery;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

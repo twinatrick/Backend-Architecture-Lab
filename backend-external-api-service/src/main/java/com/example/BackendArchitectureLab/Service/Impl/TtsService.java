@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.TtsRequest;
 import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.ITtsService;
@@ -31,7 +31,7 @@ public class TtsService implements ITtsService {
 
     @Override
     public TtsResponseVo synthesize(String text, String language) {
-        TtsRequestVo request = TtsRequestVo.builder()
+        TtsRequest request = TtsRequest.builder()
                 .text(text)
                 .language(language)
                 .build();

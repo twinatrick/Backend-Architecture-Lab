@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Repository.ProjectRepository;
 import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.Project;

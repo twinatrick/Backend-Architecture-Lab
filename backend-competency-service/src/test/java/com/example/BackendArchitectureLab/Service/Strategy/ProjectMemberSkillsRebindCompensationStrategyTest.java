@@ -1,10 +1,10 @@
 package com.example.BackendArchitectureLab.Service.Strategy;
 
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
-import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

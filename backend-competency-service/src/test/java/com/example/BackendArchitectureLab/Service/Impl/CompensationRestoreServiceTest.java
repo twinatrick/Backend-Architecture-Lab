@@ -13,7 +13,7 @@ import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
-import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;

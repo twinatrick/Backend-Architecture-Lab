@@ -2,10 +2,10 @@ package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
-import com.example.BackendArchitectureLab.Vo.PersonalSkillRequest;
+import com.example.BackendArchitectureLab.Dto.Request.PersonalSkillRequest;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Search.SkillLevelSearchQuery;
-import com.example.BackendArchitectureLab.Vo.Search.SkillSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.SkillLevelSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
 import com.example.BackendArchitectureLab.Vo.SkillLevelVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;

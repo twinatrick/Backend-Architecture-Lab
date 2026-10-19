@@ -14,7 +14,7 @@ import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

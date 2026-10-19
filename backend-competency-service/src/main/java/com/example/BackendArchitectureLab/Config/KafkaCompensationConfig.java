@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.Exception.CompensationConflictExceptio
 import com.example.BackendArchitectureLab.Exception.CompensationDeadEventException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActionException;
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -57,7 +57,7 @@ public class KafkaCompensationConfig {
 
         JsonDeserializer<CompensationEvent> deserializer = new JsonDeserializer<>(
                 CompensationEvent.class, objectMapper, false);
-        deserializer.addTrustedPackages("com.example.BackendArchitectureLab.Vo.Kafka");
+        deserializer.addTrustedPackages("com.example.BackendArchitectureLab.Event");
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
     }
 

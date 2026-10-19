@@ -5,8 +5,8 @@ import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActio
 import com.example.BackendArchitectureLab.Exception.UnsupportedEventVersionException;
 import com.example.BackendArchitectureLab.Service.ICompensationExecutionService;
 import com.example.BackendArchitectureLab.Service.Strategy.CompensationStrategy;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

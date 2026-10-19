@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
 
 import java.util.concurrent.CompletableFuture;
 

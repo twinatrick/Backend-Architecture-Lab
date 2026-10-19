@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.WebSocket;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class AlarmWebSocketHandlerTest {
 
     @Test
     void alarmReactiveSink_shouldEmitAndDeliverMessages() {
-        AlarmMessage message = new AlarmMessage();
+        AlarmEvent message = new AlarmEvent();
         message.setLevel("CRITICAL");
         message.setMessage("水位超標");
 
@@ -55,7 +55,7 @@ class AlarmWebSocketHandlerTest {
 
         handler.afterConnectionEstablished(session);
 
-        AlarmMessage message = new AlarmMessage();
+        AlarmEvent message = new AlarmEvent();
         message.setLevel("WARN");
         message.setMessage("水流過快");
 
@@ -74,7 +74,7 @@ class AlarmWebSocketHandlerTest {
         handler.afterConnectionClosed(session, CloseStatus.NORMAL);
 
         // Subsequent message should not attempt to send to closed session
-        AlarmMessage message = new AlarmMessage();
+        AlarmEvent message = new AlarmEvent();
         message.setLevel("INFO");
         alarmReactiveSink.tryEmitNext(message);
 
@@ -85,7 +85,7 @@ class AlarmWebSocketHandlerTest {
     void alarmReactiveSink_tryEmitNext_shouldEmitToFlux() {
         StepVerifier.create(alarmReactiveSink.asFlux())
                 .then(() -> {
-                    AlarmMessage message = new AlarmMessage();
+                    AlarmEvent message = new AlarmEvent();
                     message.setLevel("EMERGENCY");
                     message.setMessage("測試緊急告警");
                     alarmReactiveSink.tryEmitNext(message);

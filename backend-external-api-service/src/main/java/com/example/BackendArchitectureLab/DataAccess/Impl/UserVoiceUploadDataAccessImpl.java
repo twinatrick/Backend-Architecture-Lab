@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserVoiceUploadDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.specification.VoiceUploadSpecification;
 import com.example.BackendArchitectureLab.Entity.UserVoiceUpload;
 import com.example.BackendArchitectureLab.Repository.UserVoiceUploadRepository;
-import com.example.BackendArchitectureLab.Vo.Search.VoiceUploadSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.VoiceUploadSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

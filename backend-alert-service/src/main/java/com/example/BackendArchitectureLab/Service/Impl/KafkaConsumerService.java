@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.example.BackendArchitectureLab.Service.IKafkaConsumerService;
 import com.example.BackendArchitectureLab.WebSocket.AlarmReactiveSink;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ public class KafkaConsumerService implements IKafkaConsumerService {
 
     @KafkaListener(topics = "socketSend", containerFactory = "alarmMessageKafkaListenerContainerFactory")
     @Override
-    public void listen(List<AlarmMessage> messages) {
+    public void listen(List<AlarmEvent> messages) {
         if (messages == null || messages.isEmpty()) {
             log.warn("Received empty alarm message list");
             return;

@@ -11,9 +11,9 @@ import com.example.BackendArchitectureLab.Mapper.UserMapper;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
-import com.example.BackendArchitectureLab.Vo.SignupRequest;
-import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
+import com.example.BackendArchitectureLab.Dto.Request.SignupRequest;
+import com.example.BackendArchitectureLab.Dto.Request.SuperUserRequest;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -96,8 +96,8 @@ public class AuthService implements IAuthService {
         userVo.setName(request.getEmail());
         UserVo savedUser = userService.createUser(userVo);
 
-        List<RoleOutVo> roles = roleService.getRole();
-        RoleOutVo defaultRole = roles.stream()
+        List<RoleVo> roles = roleService.getRole();
+        RoleVo defaultRole = roles.stream()
                 .filter(role -> "user".equalsIgnoreCase(role.getName()))
                 .findFirst()
                 .orElse(null);
@@ -125,9 +125,9 @@ public class AuthService implements IAuthService {
         userVo.setName(email);
         UserVo savedUser = userService.createUser(userVo);
 
-        RoleOutVo adminRole = roleService.getRoleByName("admin");
+        RoleVo adminRole = roleService.getRoleByName("admin");
         if (adminRole == null) {
-            RoleOutVo role = new RoleOutVo();
+            RoleVo role = new RoleVo();
             role.setName("admin");
             adminRole = roleService.addRole(role);
         }

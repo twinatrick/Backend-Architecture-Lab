@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Vo.Search.SkillSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.SkillSearchQuery;
 import com.example.BackendArchitectureLab.Vo.SkillVo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

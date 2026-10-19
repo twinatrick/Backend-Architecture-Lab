@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.Repository.AquarkDataRepository;
 import com.example.BackendArchitectureLab.DataAccess.IAquarkDataDataAccess;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.DataAccess.specification.CriteriaApiFilter;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
@@ -58,7 +58,7 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
     }
 
     @Override
-    public List<AquarkData> findByCriteria(List<CriteriaAPIFilter> filterList) {
+    public List<AquarkData> findByCriteria(List<CriteriaApiFilter> filterList) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<AquarkData> query = cb.createQuery(AquarkData.class);
         Root<AquarkData> root = query.from(AquarkData.class);
@@ -70,7 +70,7 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
     }
 
     @Override
-    public Page<AquarkData> findByCriteriaPaged(List<CriteriaAPIFilter> filterList, Pageable pageable) {
+    public Page<AquarkData> findByCriteriaPaged(List<CriteriaApiFilter> filterList, Pageable pageable) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
 
         // 1. 查詢資料 (Data Query)
@@ -113,7 +113,7 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
         return new PageImpl<>(content, pageable, total != null ? total : 0L);
     }
 
-    private List<Predicate> buildPredicates(CriteriaBuilder cb, Root<AquarkData> root, List<CriteriaAPIFilter> filterList) {
+    private List<Predicate> buildPredicates(CriteriaBuilder cb, Root<AquarkData> root, List<CriteriaApiFilter> filterList) {
         List<Predicate> predicates = new ArrayList<>();
         if (filterList == null || filterList.isEmpty()) {
             return predicates;

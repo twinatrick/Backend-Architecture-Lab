@@ -2,9 +2,9 @@ package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.DataAccess.specification.CriteriaApiFilter;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.AquarkDataSearchQuery;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
@@ -49,7 +49,7 @@ public interface IAquarkDataQueryService {
      * @param fillterList 條件清單
      * @return 符合條件的 Vo 清單
      */
-    List<AquarkDataRaw> getAquarkDataWithFilter(List<CriteriaAPIFilter> fillterList);
+    List<AquarkDataRaw> getAquarkDataWithFilter(List<CriteriaApiFilter> fillterList);
 
     /**
      * 依測站與時間查詢單筆資料。

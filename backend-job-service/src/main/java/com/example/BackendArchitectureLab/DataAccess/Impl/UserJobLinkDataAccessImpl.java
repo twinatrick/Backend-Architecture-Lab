@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.specification.UserJobLinkSpecification;
 import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
-import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.UserJobLinkSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

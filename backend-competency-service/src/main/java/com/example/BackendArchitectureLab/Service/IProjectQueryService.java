@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.ProjectSearchQuery;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 

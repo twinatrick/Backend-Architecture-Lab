@@ -3,9 +3,9 @@ package com.example.BackendArchitectureLab.Service;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.CreateJobPostingRequest;
+import com.example.BackendArchitectureLab.Dto.Request.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Vo.JobPostingVo;
-import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.JobPostingSearchQuery;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 

@@ -6,9 +6,9 @@ import com.example.BackendArchitectureLab.Exception.UnsupportedCompensationActio
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Exception.CompensationDeadEventException;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationEventLogStatus;
+import com.example.BackendArchitectureLab.Event.CompensationStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;

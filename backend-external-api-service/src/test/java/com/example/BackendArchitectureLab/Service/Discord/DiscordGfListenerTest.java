@@ -9,7 +9,7 @@ import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
 import io.minio.MinioClient;
@@ -146,7 +146,7 @@ class DiscordGfListenerTest {
         when(sessionDataAccess.findByChannelIdAndUserId("ch-100", "u-100")).thenReturn(Optional.of(session));
         when(gfSessionMapper.toVo(session)).thenReturn(DiscordGfSessionVo.builder().gfName("小茜").build());
         when(messageDataAccess.findRecentMessages(sessionId, 20)).thenReturn(Collections.emptyList());
-        when(aiPyServiceFeignClient.chat(any(ChatRequestVo.class))).thenReturn(ChatResponseVo.builder().content("哈囉！今天過得好嗎？").build());
+        when(aiPyServiceFeignClient.chat(any(ChatRequest.class))).thenReturn(ChatResponseVo.builder().content("哈囉！今天過得好嗎？").build());
 
         when(channelUnion.sendMessage(anyString())).thenReturn(messageCreateAction);
 

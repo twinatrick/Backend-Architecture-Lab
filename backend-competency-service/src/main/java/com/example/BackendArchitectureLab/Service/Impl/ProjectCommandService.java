@@ -9,7 +9,7 @@ import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
 import com.example.BackendArchitectureLab.Service.IProjectCommandService;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
-import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
+import com.example.BackendArchitectureLab.Dto.Request.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;

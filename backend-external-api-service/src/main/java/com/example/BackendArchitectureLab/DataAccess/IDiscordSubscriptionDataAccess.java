@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
-import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.DiscordSubscriptionSearchQuery;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

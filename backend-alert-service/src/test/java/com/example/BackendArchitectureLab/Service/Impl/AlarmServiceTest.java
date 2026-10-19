@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.example.BackendArchitectureLab.Service.IAlarmPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,8 +27,8 @@ class AlarmServiceTest {
 
     @Test
     void processAlarm_whenPublishSucceeds_shouldNotModifyMessage() {
-        List<AlarmMessage> messages = List.of(
-                createAlarmMessage("ERROR", "test-source", "test message"));
+        List<AlarmEvent> messages = List.of(
+                createAlarmEvent("ERROR", "test-source", "test message"));
 
         alarmService.processAlarm(messages);
 
@@ -38,8 +38,8 @@ class AlarmServiceTest {
 
     @Test
     void processAlarm_whenPublishThrowsException_shouldSetFailureMessage() {
-        List<AlarmMessage> messages = List.of(
-                createAlarmMessage("ERROR", "test-source", "original message"));
+        List<AlarmEvent> messages = List.of(
+                createAlarmEvent("ERROR", "test-source", "original message"));
         doThrow(new RuntimeException("Kafka unavailable")).when(alarmPublisher).publish(messages);
 
         alarmService.processAlarm(messages);
@@ -50,8 +50,8 @@ class AlarmServiceTest {
 
     @Test
     void processAlarm_whenPublishThrowsRuntimeException_shouldHandleGracefully() {
-        List<AlarmMessage> messages = List.of(
-                createAlarmMessage("WARN", "api", "some warning"));
+        List<AlarmEvent> messages = List.of(
+                createAlarmEvent("WARN", "api", "some warning"));
         doThrow(new RuntimeException("connection timeout")).when(alarmPublisher).publish(messages);
 
         assertDoesNotThrow(() -> alarmService.processAlarm(messages));
@@ -61,10 +61,10 @@ class AlarmServiceTest {
 
     @Test
     void processAlarm_withMultipleMessages_shouldPublishAll() {
-        List<AlarmMessage> messages = List.of(
-                createAlarmMessage("ERROR", "src1", "msg1"),
-                createAlarmMessage("WARN", "src2", "msg2"),
-                createAlarmMessage("INFO", "src3", "msg3"));
+        List<AlarmEvent> messages = List.of(
+                createAlarmEvent("ERROR", "src1", "msg1"),
+                createAlarmEvent("WARN", "src2", "msg2"),
+                createAlarmEvent("INFO", "src3", "msg3"));
 
         alarmService.processAlarm(messages);
 
@@ -73,8 +73,8 @@ class AlarmServiceTest {
 
     @Test
     void processAlarm_whenPublishThrowsExceptionWithNullMessage_shouldHandleNullGetMessage() {
-        List<AlarmMessage> messages = List.of(
-                createAlarmMessage("ERROR", "test", "original"));
+        List<AlarmEvent> messages = List.of(
+                createAlarmEvent("ERROR", "test", "original"));
         RuntimeException ex = mock(RuntimeException.class);
         when(ex.getMessage()).thenReturn(null);
         doThrow(ex).when(alarmPublisher).publish(messages);
@@ -84,8 +84,8 @@ class AlarmServiceTest {
         assertEquals("告警消息發送失敗：null", messages.get(0).getMessage());
     }
 
-    private AlarmMessage createAlarmMessage(String level, String source, String message) {
-        AlarmMessage alarm = new AlarmMessage();
+    private AlarmEvent createAlarmEvent(String level, String source, String message) {
+        AlarmEvent alarm = new AlarmEvent();
         alarm.setLevel(level);
         alarm.setSource(source);
         alarm.setMessage(message);

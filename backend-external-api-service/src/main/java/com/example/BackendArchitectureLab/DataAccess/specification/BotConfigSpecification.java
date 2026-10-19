@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
 import com.example.BackendArchitectureLab.Entity.BotConfig;
-import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.BotConfigSearchQuery;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 

@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IBotConfigDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.specification.BotConfigSpecification;
 import com.example.BackendArchitectureLab.Entity.BotConfig;
 import com.example.BackendArchitectureLab.Repository.BotConfigRepository;
-import com.example.BackendArchitectureLab.Vo.Search.BotConfigSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.BotConfigSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;

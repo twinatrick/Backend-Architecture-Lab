@@ -8,9 +8,9 @@ import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.DataAccess.specification.CriteriaApiFilter;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.AquarkDataSearchQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -152,19 +152,19 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
 
     @Override
     public List<AverageAquark> getAverageAquark(Date start, Date end) {
-        CriteriaAPIFilter criteriaAPIFilterStart = new CriteriaAPIFilter();
+        CriteriaApiFilter criteriaAPIFilterStart = new CriteriaApiFilter();
         criteriaAPIFilterStart.setColumnName("trans_time");
         criteriaAPIFilterStart.setType(2);
         criteriaAPIFilterStart.setGreaterThan(true);
         criteriaAPIFilterStart.setEqual(true);
         criteriaAPIFilterStart.setDate(start);
-        CriteriaAPIFilter criteriaAPIFilterEnd = new CriteriaAPIFilter();
+        CriteriaApiFilter criteriaAPIFilterEnd = new CriteriaApiFilter();
         criteriaAPIFilterEnd.setColumnName("trans_time");
         criteriaAPIFilterEnd.setType(2);
         criteriaAPIFilterEnd.setLessThan(true);
         criteriaAPIFilterEnd.setEqual(true);
         criteriaAPIFilterEnd.setDate(end);
-        List<CriteriaAPIFilter> criteriaAPIFilterList = new ArrayList<>();
+        List<CriteriaApiFilter> criteriaAPIFilterList = new ArrayList<>();
         criteriaAPIFilterList.add(criteriaAPIFilterStart);
         criteriaAPIFilterList.add(criteriaAPIFilterEnd);
         List<AquarkDataRaw> rawList = getAquarkDataWithFilter(criteriaAPIFilterList);
@@ -195,7 +195,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AquarkDataRaw> getAquarkDataWithFilter(List<CriteriaAPIFilter> fillterList) {
+    public List<AquarkDataRaw> getAquarkDataWithFilter(List<CriteriaApiFilter> fillterList) {
         if (fillterList.isEmpty()) {
             return getAquarkData();
         }
@@ -227,7 +227,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
         Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
         Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(direction, sortBy));
 
-        List<CriteriaAPIFilter> filters = query.getFilters() != null ? query.getFilters() : List.of();
+        List<CriteriaApiFilter> filters = query.getFilters() != null ? query.getFilters() : List.of();
         return transactionExecutor.executeReadOnly(() -> {
             Page<AquarkData> entityPage = aquarkDataDataAccess.findByCriteriaPaged(filters, pageable);
             List<AquarkDataRaw> voList = entityPage.getContent().stream()

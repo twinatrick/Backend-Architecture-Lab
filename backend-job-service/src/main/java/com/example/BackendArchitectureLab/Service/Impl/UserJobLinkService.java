@@ -16,7 +16,7 @@ import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.UserJobLinkSearchQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;

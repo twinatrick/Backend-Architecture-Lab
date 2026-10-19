@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
 import com.example.BackendArchitectureLab.Service.IApiFetcher;
 import com.example.BackendArchitectureLab.Service.IAquarkDataCommandService;
@@ -50,7 +50,7 @@ public class CheckApiService implements ICheckApiService {
             aquarkDataRawList.addAll(aquarkApiReturnVo.getRaw().stream().map(RowData::transToDbData).toList());
 
         }
-        List<AlarmMessage> alarmMessages = new ArrayList<>();
+        List<AlarmEvent> alarmMessages = new ArrayList<>();
         for (AquarkDataRaw data : aquarkDataRawList) {
             AquarkDataRaw aquarkData = aquarkDataCommandService.insertAquarkData(data);
             alarmMessages.addAll(checkValue(aquarkData)) ;
@@ -59,9 +59,9 @@ public class CheckApiService implements ICheckApiService {
             alarmService.processAlarm(alarmMessages);
         }
     }
-    List<AlarmMessage> checkValue(AquarkDataRaw data) {
+    List<AlarmEvent> checkValue(AquarkDataRaw data) {
 
-        AlarmMessage alarmMessage = new AlarmMessage();
+        AlarmEvent alarmMessage = new AlarmEvent();
         alarmMessage.setLevel("ERROR");
         String message = data.getStation_id() + "Date:" + data.getTrans_time().toString();
         int alertLevel = 0;

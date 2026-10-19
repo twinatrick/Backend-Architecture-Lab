@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
-import com.example.BackendArchitectureLab.Vo.Search.VoiceUploadSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.VoiceUploadSearchQuery;
 import com.example.BackendArchitectureLab.Entity.UserVoiceUpload;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;

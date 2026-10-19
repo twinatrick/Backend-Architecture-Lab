@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.RowData;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkApiReturnVo;
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
 import com.example.BackendArchitectureLab.Service.IAlertCheckLimitService;
@@ -91,7 +91,7 @@ class CheckApiServiceTest {
         when(alertCheckLimitService.getLimit("aquark_data", "water_speed_aquark")).thenReturn(createLimitVo(5.0));
         when(alertCheckLimitService.getLimit("aquark_data", "echo")).thenReturn(createLimitVo(3.0));
 
-        List<AlarmMessage> result = checkApiService.checkValue(data);
+        List<AlarmEvent> result = checkApiService.checkValue(data);
 
         assertTrue(result.isEmpty());
     }
@@ -116,7 +116,7 @@ class CheckApiServiceTest {
         when(alertCheckLimitService.getLimit("aquark_data", "water_speed_aquark")).thenReturn(createLimitVo(5.0));
         when(alertCheckLimitService.getLimit("aquark_data", "echo")).thenReturn(createLimitVo(3.0));
 
-        List<AlarmMessage> result = checkApiService.checkValue(data);
+        List<AlarmEvent> result = checkApiService.checkValue(data);
 
         assertEquals(1, result.size());
         String message = result.get(0).getMessage();
@@ -155,7 +155,7 @@ class CheckApiServiceTest {
         when(alertCheckLimitService.getLimit("aquark_data", "water_speed_aquark")).thenReturn(createLimitVo(5.0));
         when(alertCheckLimitService.getLimit("aquark_data", "echo")).thenReturn(createLimitVo(3.0));
 
-        List<AlarmMessage> result = checkApiService.checkValue(data);
+        List<AlarmEvent> result = checkApiService.checkValue(data);
 
         assertEquals(1, result.size());
         String message = result.get(0).getMessage();

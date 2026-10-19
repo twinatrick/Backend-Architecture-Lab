@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.DataAccess.specification;
 
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
-import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.DiscordSubscriptionSearchQuery;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 

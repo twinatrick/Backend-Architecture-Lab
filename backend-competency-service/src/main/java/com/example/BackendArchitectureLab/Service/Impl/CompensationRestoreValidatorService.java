@@ -9,7 +9,7 @@ import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreValidatorService;
-import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
