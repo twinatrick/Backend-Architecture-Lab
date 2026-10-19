@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Config;
 
-import com.example.BackendArchitectureLab.Vo.CacheStatsEvent;
+import com.example.BackendArchitectureLab.Event.CacheStatsEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
 

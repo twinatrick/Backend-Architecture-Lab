@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
 
 import java.util.Map;
 import java.util.UUID;

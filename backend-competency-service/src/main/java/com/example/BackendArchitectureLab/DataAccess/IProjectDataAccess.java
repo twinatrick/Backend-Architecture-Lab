@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess;
 
-import com.example.BackendArchitectureLab.Vo.Search.ProjectSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.ProjectSearchQuery;
 import com.example.BackendArchitectureLab.Entity.Project;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

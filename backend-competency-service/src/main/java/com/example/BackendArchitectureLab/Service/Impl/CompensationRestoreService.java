@@ -13,7 +13,7 @@ import com.example.BackendArchitectureLab.Service.ICompensationRestoreClaimServi
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreStateService;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreValidatorService;
-import com.example.BackendArchitectureLab.Vo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
 import com.example.BackendArchitectureLab.Vo.CompensationRestoreResultVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

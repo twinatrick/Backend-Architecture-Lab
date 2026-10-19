@@ -8,7 +8,7 @@ import com.example.BackendArchitectureLab.Service.IUserVoiceUploadService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Vo.Search.VoiceUploadSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.VoiceUploadSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVoiceUploadVo;
 import com.example.BackendArchitectureLab.Vo.VoiceTranslationVo;
 import lombok.RequiredArgsConstructor;

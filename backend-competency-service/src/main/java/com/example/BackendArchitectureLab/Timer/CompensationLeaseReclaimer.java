@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Timer;
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
 import com.example.BackendArchitectureLab.Service.CompensationEventProcessor;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
+import com.example.BackendArchitectureLab.Event.CompensationEventLogStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

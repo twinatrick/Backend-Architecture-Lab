@@ -9,7 +9,7 @@ import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Vo.LineGfSessionVo;
 import com.linecorp.bot.client.LineBlobClient;
@@ -119,7 +119,7 @@ class LineGfServiceTest {
         when(sessionDataAccess.findByUserId("user-123")).thenReturn(Optional.of(session));
         when(gfSessionMapper.toVo(session)).thenReturn(LineGfSessionVo.builder().gfName("小美").build());
         when(messageDataAccess.findRecentMessages(sessionId, 20)).thenReturn(Collections.emptyList());
-        when(aiPyServiceFeignClient.chat(any(ChatRequestVo.class))).thenReturn(ChatResponseVo.builder().content("哈囉呀！").build());
+        when(aiPyServiceFeignClient.chat(any(ChatRequest.class))).thenReturn(ChatResponseVo.builder().content("哈囉呀！").build());
         when(messagingClient.replyMessage(any(ReplyMessage.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(BotApiResponse.class)));
 

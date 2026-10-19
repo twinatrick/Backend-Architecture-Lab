@@ -8,7 +8,7 @@ import com.example.BackendArchitectureLab.Service.IProjectSkillService;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Service.IUserProjectService;
-import com.example.BackendArchitectureLab.Vo.CacheStatsEvent;
+import com.example.BackendArchitectureLab.Event.CacheStatsEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RedissonClient;

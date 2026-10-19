@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Service.IFunctionCommandService;
 import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
@@ -44,8 +44,8 @@ class InitAndCheckServiceTest {
     @InjectMocks
     private InitAndCheckService initAndCheckService;
 
-    private RoleOutVo adminRole;
-    private RoleOutVo userRole;
+    private RoleVo adminRole;
+    private RoleVo userRole;
     private UserVo adminUser;
     private FunctionVo rootFunction;
     private FunctionVo childFunction;
@@ -53,11 +53,11 @@ class InitAndCheckServiceTest {
 
     @BeforeEach
     void setUp() {
-        adminRole = new RoleOutVo();
+        adminRole = new RoleVo();
         adminRole.setId(UUID.randomUUID());
         adminRole.setName("admin");
 
-        userRole = new RoleOutVo();
+        userRole = new RoleVo();
         userRole.setId(UUID.randomUUID());
         userRole.setName("user");
 
@@ -158,7 +158,7 @@ class InitAndCheckServiceTest {
 
         initAndCheckService.checkRole();
 
-        verify(roleService, times(2)).addRole(any(RoleOutVo.class));
+        verify(roleService, times(2)).addRole(any(RoleVo.class));
         verify(roleService).roleBindUser(adminRole.getId().toString(), List.of(adminUser.getId()));
     }
 

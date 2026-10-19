@@ -292,6 +292,31 @@ _Avoid_: Inclusive time, Wall-clock time only, Raw elapsed time.
 由 HTTP 標頭（X-Diagnostic-Trace）或配置中心動態開關觸發之 100% 全量階層呼叫樹日誌與耗時聚合收集機制，平時維持低開銷抽樣。
 _Avoid_: Always-on heavy tracing, Production blind debug, Global debug logging.
 
+**POJO/PO/DTO/VO/BO/DAO Separation (架構模型分層職責分離)**:
+將專案中各領域資料物件按生命週期與邊界嚴格劃分為 Persistent Object (PO/Entity)、Data Transfer Object (DTO/Request/Query)、View Object (VO)、Business Object (BO)、Messaging Event (Event) 與 Data Access Object (DAO/Repository)，澈底落實關注點分離。
+_Avoid_: Anemic monolithic model, Leaking entity to controller, Cross-layer model abuse.
+
+**Request DTO (請求傳輸物件)**:
+客戶端發起寫入或操作（POST/PUT/PATCH/DELETE）時傳遞至 API 端點之輸入結構，命名一律以 `*Request` 結尾並收納於各模組之 `Dto/Request/` 套件。
+_Avoid_: Inbound VO, Request Vo suffix, Map payload.
+
+**Query DTO (查詢參數物件)**:
+客戶端發起檢索、搜尋或分頁（GET/POST search）時傳遞之過濾參數集合，命名一律以 `*SearchQuery` 或 `*Query` 結尾並收納於各模組之 `Dto/Query/` 套件。
+_Avoid_: Ad-hoc query params, Raw filter map, Controller-bound entity spec.
+
+**View Object (呈現層視圖物件)**:
+呈現層（Web API）回傳前端渲染呈現之資料契約結構，命名一律以 `*Vo` 結尾並收納於各模組之 `Vo/` 套件。嚴禁包含資料庫內部敏感技術欄位與 Lazy 關聯集合。
+_Avoid_: Returning PO directly, Exposing internal state, OutVo naming inconsistency.
+
+**Messaging Event (非同步訊息事件)**:
+微服務間透過 Kafka 或非同步事件通道傳播之領域事件與日誌訊息載荷，命名一律以 `*Event` 結尾並收納於各模組之 `Event/` 套件。
+_Avoid_: Mixing event in Vo package, *Message suffix inconsistency, Raw string payload.
+
+**Controller Contract Traversal (控制器契約依賴遍歷)**:
+靜態分析工具透過掃描公開 Controller 端點輸入參數（`@ApiBody`、`@RequestBody`、`*Query`）與回傳值（解包 `ResponseType<T>`、`PageResult<T>` 等）及其巢狀自訂欄位，自動遞迴構建公開 API 契約白名單的機制。
+_Avoid_: Regex-only path matching, Blind Vo package tagging, Forcing docs on internal events.
+
+
 
 
 

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.example.BackendArchitectureLab.WebSocket.AlarmReactiveSink;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,15 +37,15 @@ class KafkaConsumerServiceTest {
 
     @Test
     void listen_whenMessagesIsNotEmpty_shouldBroadcastEachMessage() {
-        AlarmMessage msg1 = new AlarmMessage();
+        AlarmEvent msg1 = new AlarmEvent();
         msg1.setLevel("ERROR");
         msg1.setMessage("alarm 1");
 
-        AlarmMessage msg2 = new AlarmMessage();
+        AlarmEvent msg2 = new AlarmEvent();
         msg2.setLevel("WARN");
         msg2.setMessage("alarm 2");
 
-        List<AlarmMessage> messages = List.of(msg1, msg2);
+        List<AlarmEvent> messages = List.of(msg1, msg2);
 
         kafkaConsumerService.listen(messages);
 
@@ -55,7 +55,7 @@ class KafkaConsumerServiceTest {
 
     @Test
     void listen_whenSingleMessage_shouldBroadcastOnce() {
-        AlarmMessage msg = new AlarmMessage();
+        AlarmEvent msg = new AlarmEvent();
         msg.setLevel("INFO");
         msg.setMessage("single alarm");
 

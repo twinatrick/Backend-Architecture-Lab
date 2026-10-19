@@ -7,8 +7,8 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.PermissionVo;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
-import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
+import com.example.BackendArchitectureLab.Dto.Query.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,13 +47,13 @@ class RoleControllerTest {
     @InjectMocks
     private RoleController roleController;
 
-    private RoleOutVo testRole;
+    private RoleVo testRole;
     private UUID testId;
 
     @BeforeEach
     void setUp() {
         testId = UUID.randomUUID();
-        testRole = new RoleOutVo();
+        testRole = new RoleVo();
         testRole.setId(testId);
         testRole.setName("ROLE_ADMIN");
     }
@@ -61,9 +61,9 @@ class RoleControllerTest {
     @Test
     @DisplayName("Should create role with functions successfully")
     void testCreateRole() {
-        when(roleService.addRoleWithFunctions(any(RoleOutVo.class))).thenReturn(testRole);
+        when(roleService.addRoleWithFunctions(any(RoleVo.class))).thenReturn(testRole);
 
-        ResponseType<RoleOutVo> response = roleController.createRole(testRole);
+        ResponseType<RoleVo> response = roleController.createRole(testRole);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -74,19 +74,19 @@ class RoleControllerTest {
     @Test
     @DisplayName("Should stream roles chunked successfully")
     void testStreamRoles() {
-        ServerSentEvent<List<RoleOutVo>> chunkEvent = ServerSentEvent.<List<RoleOutVo>>builder()
+        ServerSentEvent<List<RoleVo>> chunkEvent = ServerSentEvent.<List<RoleVo>>builder()
                 .event("chunk")
                 .id("0")
                 .data(List.of(testRole))
                 .build();
-        ServerSentEvent<List<RoleOutVo>> completeEvent = ServerSentEvent.<List<RoleOutVo>>builder()
+        ServerSentEvent<List<RoleVo>> completeEvent = ServerSentEvent.<List<RoleVo>>builder()
                 .event("complete")
                 .data(List.of())
                 .build();
 
         when(roleService.streamRolesChunked(anyInt())).thenReturn(Flux.just(chunkEvent, completeEvent));
 
-        Flux<ServerSentEvent<List<RoleOutVo>>> stream = roleController.streamRoles(250);
+        Flux<ServerSentEvent<List<RoleVo>>> stream = roleController.streamRoles(250);
 
         StepVerifier.create(stream)
                 .expectNext(chunkEvent)
@@ -98,14 +98,14 @@ class RoleControllerTest {
     @Test
     @DisplayName("Should update role successfully")
     void testUpdateRole() {
-        when(roleService.updateRoleWithFunctions(any(RoleOutVo.class))).thenReturn(testRole);
+        when(roleService.updateRoleWithFunctions(any(RoleVo.class))).thenReturn(testRole);
 
-        ResponseType<RoleOutVo> response = roleController.updateRole(testId.toString(), testRole);
+        ResponseType<RoleVo> response = roleController.updateRole(testId.toString(), testRole);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
         assertEquals(testRole, response.getData());
-        verify(roleService).updateRoleWithFunctions(any(RoleOutVo.class));
+        verify(roleService).updateRoleWithFunctions(any(RoleVo.class));
     }
 
     @Test
@@ -115,7 +115,7 @@ class RoleControllerTest {
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
-        verify(roleService).deleteRole(any(RoleOutVo.class));
+        verify(roleService).deleteRole(any(RoleVo.class));
     }
 
     @Test
@@ -140,7 +140,7 @@ class RoleControllerTest {
     @DisplayName("Should search roles successfully")
     void testSearchRoles() {
         RoleSearchQuery query = new RoleSearchQuery();
-        PageResult<RoleOutVo> pageResult = PageResult.<RoleOutVo>builder()
+        PageResult<RoleVo> pageResult = PageResult.<RoleVo>builder()
                 .content(List.of(testRole))
                 .totalElements(1L)
                 .currentPage(0)
@@ -148,7 +148,7 @@ class RoleControllerTest {
                 .build();
         when(roleService.searchRoles(any(RoleSearchQuery.class))).thenReturn(pageResult);
 
-        ResponseType<PageResult<RoleOutVo>> response = roleController.searchRoles(query);
+        ResponseType<PageResult<RoleVo>> response = roleController.searchRoles(query);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());

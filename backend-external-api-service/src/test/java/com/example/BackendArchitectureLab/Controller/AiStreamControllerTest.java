@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Service.IChatService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,7 @@ class AiStreamControllerTest {
         when(chatService.streamChat(any(), anyDouble()))
                 .thenReturn(Flux.just("串流", "輸出", "測試"));
 
-        ChatRequestVo request = ChatRequestVo.builder()
+        ChatRequest request = ChatRequest.builder()
                 .messages(List.of(Map.of("role", "user", "content", "測試")))
                 .temperature(0.5)
                 .build();
@@ -69,7 +69,7 @@ class AiStreamControllerTest {
         when(securityUtil.requireCurrentUserId())
                 .thenThrow(new IllegalStateException("Current user not found - no authentication"));
 
-        ChatRequestVo request = ChatRequestVo.builder()
+        ChatRequest request = ChatRequest.builder()
                 .messages(List.of(Map.of("role", "user", "content", "測試")))
                 .temperature(0.7)
                 .build();
@@ -86,7 +86,7 @@ class AiStreamControllerTest {
         StepVerifier.create(controller.streamChat(null))
                 .verifyComplete();
 
-        ChatRequestVo emptyReq = ChatRequestVo.builder().messages(null).build();
+        ChatRequest emptyReq = ChatRequest.builder().messages(null).build();
         StepVerifier.create(controller.streamChat(emptyReq))
                 .verifyComplete();
 

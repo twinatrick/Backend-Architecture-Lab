@@ -4,9 +4,9 @@ import com.example.BackendArchitectureLab.DataAccess.IExternalSyncCommandDataAcc
 import com.example.BackendArchitectureLab.Entity.ExternalSyncCommand;
 import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
-import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
-import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationOutboxDeliveryStatus;
+import com.example.BackendArchitectureLab.Event.ExternalSyncCommandPayload;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

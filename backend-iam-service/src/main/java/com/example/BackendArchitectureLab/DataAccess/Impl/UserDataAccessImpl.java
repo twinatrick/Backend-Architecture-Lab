@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Search.UserSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.UserSearchQuery;
 import com.example.BackendArchitectureLab.Repository.UserRepository;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
 import com.example.BackendArchitectureLab.Entity.User;

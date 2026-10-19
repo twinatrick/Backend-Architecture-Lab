@@ -7,7 +7,7 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
-import com.example.BackendArchitectureLab.Vo.ProjectSkillBindRequest;
+import com.example.BackendArchitectureLab.Dto.Request.ProjectSkillBindRequest;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

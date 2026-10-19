@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Entity.*;
 import com.example.BackendArchitectureLab.Service.Impl.RoleService;
@@ -10,7 +10,7 @@ import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.RoleMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -120,8 +120,8 @@ class RoleServiceTest {
         testUser.setId(testUserKey);
         testUser.setEmail("user@example.com");
 
-        when(roleMapper.toEntity(any(RoleOutVo.class))).thenAnswer(invocation -> {
-            RoleOutVo vo = invocation.getArgument(0);
+        when(roleMapper.toEntity(any(RoleVo.class))).thenAnswer(invocation -> {
+            RoleVo vo = invocation.getArgument(0);
             Role role = new Role();
             role.setId(vo.getId());
             role.setName(vo.getName());
@@ -130,7 +130,7 @@ class RoleServiceTest {
         });
         when(roleMapper.toVo(any(Role.class))).thenAnswer(invocation -> {
             Role role = invocation.getArgument(0);
-            RoleOutVo vo = new RoleOutVo();
+            RoleVo vo = new RoleVo();
             vo.setId(role.getId());
             vo.setName(role.getName());
             vo.setDescription(role.getDescription());
@@ -159,7 +159,7 @@ class RoleServiceTest {
     @DisplayName("Should add role successfully")
     void testAddRole_Success() {
         // Arrange
-        RoleOutVo newRole = new RoleOutVo();
+        RoleVo newRole = new RoleVo();
         newRole.setName("ROLE_USER");
         Role savedRole = new Role();
         savedRole.setName("ROLE_USER");
@@ -168,7 +168,7 @@ class RoleServiceTest {
         when(roleDataAccess.save(any(Role.class))).thenReturn(savedRole);
 
         // Act
-        RoleOutVo result = roleService.addRole(newRole);
+        RoleVo result = roleService.addRole(newRole);
 
         // Assert
         assertNotNull(result);
@@ -179,7 +179,7 @@ class RoleServiceTest {
     @Test
     @DisplayName("Should add role and bind functions")
     void testAddRoleWithFunctions() {
-        RoleOutVo newRole = new RoleOutVo();
+        RoleVo newRole = new RoleVo();
         newRole.setName("ROLE_USER");
         newRole.setFunctionIds(List.of(testFunctionId.toString()));
 
@@ -194,7 +194,7 @@ class RoleServiceTest {
         doNothing().when(roleFunctionDataAccess).deleteByRoleKey(testRoleKey);
         when(roleFunctionDataAccess.saveAll(anyList())).thenReturn(List.of());
 
-        RoleOutVo result = roleService.addRoleWithFunctions(newRole);
+        RoleVo result = roleService.addRoleWithFunctions(newRole);
 
         assertNotNull(result);
         verify(roleFunctionDataAccess).deleteByRoleKey(testRoleKey);
@@ -206,7 +206,7 @@ class RoleServiceTest {
     @DisplayName("Should throw Exception when adding role with non-null key")
     void testAddRole_KeyNotNull() {
         // Arrange
-        RoleOutVo newRole = new RoleOutVo();
+        RoleVo newRole = new RoleVo();
         newRole.setId(UUID.randomUUID());
         newRole.setName("ROLE_USER");
 
@@ -221,7 +221,7 @@ class RoleServiceTest {
     @DisplayName("Should throw Exception when adding role with null name")
     void testAddRole_NameIsNull() {
         // Arrange
-        RoleOutVo newRole = new RoleOutVo();
+        RoleVo newRole = new RoleVo();
         newRole.setName(null);
 
         // Act & Assert
@@ -235,7 +235,7 @@ class RoleServiceTest {
     @DisplayName("Should throw Exception when adding role with duplicate name")
     void testAddRole_NameAlreadyExists() {
         // Arrange
-        RoleOutVo newRole = new RoleOutVo();
+        RoleVo newRole = new RoleVo();
         newRole.setName("ROLE_USER");
         
         when(roleDataAccess.exists(any(Example.class))).thenReturn(true);
@@ -248,14 +248,14 @@ class RoleServiceTest {
     }
 
     @Test
-    @DisplayName("Should get all roles as RoleOutVo")
+    @DisplayName("Should get all roles as RoleVo")
     void testGetRole() {
         // Arrange
         List<Role> roles = Arrays.asList(testRole);
         when(roleDataAccess.findAll()).thenReturn(roles);
 
         // Act
-        List<RoleOutVo> result = roleService.getRole();
+        List<RoleVo> result = roleService.getRole();
 
         // Assert
         assertNotNull(result);
@@ -270,7 +270,7 @@ class RoleServiceTest {
         when(roleDataAccess.findById(testRoleKey)).thenReturn(Optional.of(testRole));
 
         // Act
-        RoleOutVo result = roleService.getRoleById(testRoleKey.toString());
+        RoleVo result = roleService.getRoleById(testRoleKey.toString());
 
         // Assert
         assertNotNull(result);
@@ -286,7 +286,7 @@ class RoleServiceTest {
         updateRoleEntity.setId(testRoleKey);
         updateRoleEntity.setName("ROLE_ADMIN");
         updateRoleEntity.setDescription("Updated description");
-        RoleOutVo updateRole = new RoleOutVo();
+        RoleVo updateRole = new RoleVo();
         updateRole.setId(testRoleKey);
         updateRole.setName("ROLE_ADMIN");
         updateRole.setDescription("Updated description");
@@ -295,7 +295,7 @@ class RoleServiceTest {
         when(roleDataAccess.save(any(Role.class))).thenReturn(updateRoleEntity);
 
         // Act
-        RoleOutVo result = roleService.updateRole(updateRole);
+        RoleVo result = roleService.updateRole(updateRole);
 
         // Assert
         verify(roleDataAccess, times(1)).findById(testRoleKey);
@@ -306,7 +306,7 @@ class RoleServiceTest {
     @Test
     @DisplayName("Should update role and replace functions")
     void testUpdateRoleWithFunctions() {
-        RoleOutVo updateRole = new RoleOutVo();
+        RoleVo updateRole = new RoleVo();
         updateRole.setId(testRoleKey);
         updateRole.setName("ROLE_ADMIN");
         updateRole.setDescription("Updated description");
@@ -318,7 +318,7 @@ class RoleServiceTest {
         doNothing().when(roleFunctionDataAccess).deleteByRoleKey(testRoleKey);
         when(roleFunctionDataAccess.saveAll(anyList())).thenReturn(List.of());
 
-        RoleOutVo result = roleService.updateRoleWithFunctions(updateRole);
+        RoleVo result = roleService.updateRoleWithFunctions(updateRole);
 
         assertNotNull(result);
         verify(roleFunctionDataAccess).deleteByRoleKey(testRoleKey);
@@ -329,7 +329,7 @@ class RoleServiceTest {
     @Test
     @DisplayName("Should keep role functions when functionIds is null")
     void testUpdateRoleWithFunctions_NullFunctionIdsKeepsBindings() {
-        RoleOutVo updateRole = new RoleOutVo();
+        RoleVo updateRole = new RoleVo();
         updateRole.setId(testRoleKey);
         updateRole.setName("ROLE_ADMIN");
         updateRole.setFunctionIds(null);
@@ -347,7 +347,7 @@ class RoleServiceTest {
     @Test
     @DisplayName("Should clear role functions when functionIds is empty")
     void testUpdateRoleWithFunctions_EmptyFunctionIdsClearsBindings() {
-        RoleOutVo updateRole = new RoleOutVo();
+        RoleVo updateRole = new RoleVo();
         updateRole.setId(testRoleKey);
         updateRole.setName("ROLE_ADMIN");
         updateRole.setFunctionIds(List.of());
@@ -367,7 +367,7 @@ class RoleServiceTest {
     @DisplayName("Should delete role and its associated functions")
     void testDeleteRole() {
         // Arrange
-        RoleOutVo roleToDelete = new RoleOutVo();
+        RoleVo roleToDelete = new RoleVo();
         roleToDelete.setId(testRoleKey);
         
         when(roleDataAccess.findById(testRoleKey)).thenReturn(Optional.of(testRole));
@@ -623,7 +623,7 @@ class RoleServiceTest {
         when(functionDataAccess.findByIdWithRoleFunctions(testFunctionId)).thenReturn(Optional.of(testFunction));
 
         // Act
-        List<RoleOutVo> result = roleService.getRoleByFunction(testFunctionId.toString());
+        List<RoleVo> result = roleService.getRoleByFunction(testFunctionId.toString());
 
         // Assert
         assertNotNull(result);
@@ -669,7 +669,7 @@ class RoleServiceTest {
         when(userDataAccess.findByIdWithRoles(testUserKey)).thenReturn(Optional.of(testUser));
 
         // Act
-        List<RoleOutVo> result = roleService.getRoleByUser(testUserKey.toString());
+        List<RoleVo> result = roleService.getRoleByUser(testUserKey.toString());
 
         // Assert
         assertNotNull(result);
@@ -685,7 +685,7 @@ class RoleServiceTest {
         when(roleDataAccess.findRoleByName("ROLE_ADMIN")).thenReturn(testRole);
 
         // Act
-        RoleOutVo result = roleService.getRoleByName("ROLE_ADMIN");
+        RoleVo result = roleService.getRoleByName("ROLE_ADMIN");
 
         // Assert
         assertNotNull(result);
@@ -717,11 +717,11 @@ class RoleServiceTest {
         List<Role> roleList = List.of(role1, role2);
         Page<Role> rolePage = new PageImpl<>(roleList, PageRequest.of(0, 20), 2);
 
-        RoleOutVo roleVo1 = new RoleOutVo();
+        RoleVo roleVo1 = new RoleVo();
         roleVo1.setName("ROLE_ADMIN");
         roleVo1.setDescription("Admin Role");
 
-        RoleOutVo roleVo2 = new RoleOutVo();
+        RoleVo roleVo2 = new RoleVo();
         roleVo2.setName("ROLE_USER");
         roleVo2.setDescription("User Role");
 
@@ -730,7 +730,7 @@ class RoleServiceTest {
         when(roleMapper.toSearchVo(role2)).thenReturn(roleVo2);
 
         // Act
-        PageResult<RoleOutVo> result = roleService.searchRoles(query);
+        PageResult<RoleVo> result = roleService.searchRoles(query);
 
         // Assert
         assertNotNull(result);
@@ -775,7 +775,7 @@ class RoleServiceTest {
     @DisplayName("Should stream roles chunked with events chunk and complete")
     void testStreamRolesChunked_Success() {
         // Arrange
-        RoleOutVo roleOutVo = new RoleOutVo();
+        RoleVo roleOutVo = new RoleVo();
         roleOutVo.setId(testRoleKey);
         roleOutVo.setName("ROLE_ADMIN");
 
@@ -784,7 +784,7 @@ class RoleServiceTest {
         when(roleMapper.toVo(testRole)).thenReturn(roleOutVo);
 
         // Act
-        Flux<ServerSentEvent<List<RoleOutVo>>> stream = roleService.streamRolesChunked(10);
+        Flux<ServerSentEvent<List<RoleVo>>> stream = roleService.streamRolesChunked(10);
 
         // Assert
         StepVerifier.create(stream.take(2))
@@ -801,7 +801,7 @@ class RoleServiceTest {
         when(roleDataAccess.findAllPaged(any())).thenReturn(emptyPage);
 
         // Act
-        Flux<ServerSentEvent<List<RoleOutVo>>> stream = roleService.streamRolesChunked(10);
+        Flux<ServerSentEvent<List<RoleVo>>> stream = roleService.streamRolesChunked(10);
 
         // Assert
         StepVerifier.create(stream.take(1))
@@ -816,7 +816,7 @@ class RoleServiceTest {
         when(roleDataAccess.findAllPaged(any())).thenThrow(new RuntimeException("DB error"));
 
         // Act
-        Flux<ServerSentEvent<List<RoleOutVo>>> stream = roleService.streamRolesChunked(10);
+        Flux<ServerSentEvent<List<RoleVo>>> stream = roleService.streamRolesChunked(10);
 
         // Assert
         StepVerifier.create(stream)
@@ -836,10 +836,10 @@ class RoleServiceTest {
         r2.setId(id2);
         r2.setName("ROLE_USER");
 
-        RoleOutVo vo1 = new RoleOutVo();
+        RoleVo vo1 = new RoleVo();
         vo1.setId(id1);
         vo1.setName("ROLE_ADMIN");
-        RoleOutVo vo2 = new RoleOutVo();
+        RoleVo vo2 = new RoleVo();
         vo2.setId(id2);
         vo2.setName("ROLE_USER");
 
@@ -847,7 +847,7 @@ class RoleServiceTest {
         when(roleMapper.toVo(r1)).thenReturn(vo1);
         when(roleMapper.toVo(r2)).thenReturn(vo2);
 
-        BatchResultVo<RoleOutVo> result = roleService.getRolesByIds(List.of(id1.toString(), id2.toString()));
+        BatchResultVo<RoleVo> result = roleService.getRolesByIds(List.of(id1.toString(), id2.toString()));
 
         assertNotNull(result);
         assertEquals(2, result.getTotalRequested());

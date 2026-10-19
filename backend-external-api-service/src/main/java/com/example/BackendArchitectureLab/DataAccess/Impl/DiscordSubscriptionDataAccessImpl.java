@@ -4,7 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IDiscordSubscriptionDataAcc
 import com.example.BackendArchitectureLab.DataAccess.specification.DiscordSubscriptionSpecification;
 import com.example.BackendArchitectureLab.Entity.DiscordSubscription;
 import com.example.BackendArchitectureLab.Repository.DiscordSubscriptionRepository;
-import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.DiscordSubscriptionSearchQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;

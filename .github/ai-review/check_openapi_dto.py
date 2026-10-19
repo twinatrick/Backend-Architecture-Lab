@@ -2,6 +2,7 @@ import os
 import re
 from typing import Any
 
+from check_openapi_models import get_public_api_model_set, is_internal_controller
 from check_rules import (
     RULE_OPENAPI_DTO_CONTRACT,
     RULE_RESTFUL_ENDPOINT_NAMING,
@@ -13,24 +14,13 @@ UUID_REGEX = re.compile(
 )
 
 BANNED_FIELD_NAMES = frozenset({
-    "string",
-    "large",
-    "small",
-    "key",
-    "roleArr",
-    "deleteFunction",
-    "saveMainFunction",
-    "saveFunctionNewChild",
+    "string", "large", "small", "key", "roleArr",
+    "deleteFunction", "saveMainFunction", "saveFunctionNewChild",
 })
 
 BANNED_ROUTE_VERBS = frozenset({
-    "/add",
-    "/update",
-    "/delete",
-    "/create",
-    "/saveUser",
-    "/updateUser",
-    "/deleteUser",
+    "/add", "/update", "/delete", "/create",
+    "/saveUser", "/updateUser", "/deleteUser",
 })
 
 PLACEHOLDER_REGEX = re.compile(r"^(?:TODO|todo|test|xxx|placeholder|\s*)$", re.IGNORECASE)
@@ -40,14 +30,12 @@ def is_dto_or_vo_file(path: str, filename: str) -> bool:
     normalized_path = path.replace("\\", "/")
     if "src/test/java/" in normalized_path:
         return False
-    if "/Filter/" in normalized_path or "/filter/" in normalized_path:
+    filter_patterns = ("/Filter/", "/filter/", "/Interceptor/", "/interceptor/")
+    if any(pattern in normalized_path for pattern in filter_patterns):
         return False
-    if "/Vo/" in normalized_path or "/dto/" in normalized_path or "/Dto/" in normalized_path:
+    if any(keyword in normalized_path for keyword in ("/Vo/", "/dto/", "/Dto/")):
         return True
-    dto_suffixes = (
-        "Vo.java", "VO.java", "Dto.java", "DTO.java",
-        "Request.java", "Query.java", "Filter.java"
-    )
+    dto_suffixes = ("Vo.java", "VO.java", "Dto.java", "DTO.java", "Request.java", "Query.java")
     return bool(filename.endswith(dto_suffixes))
 
 
@@ -57,6 +45,8 @@ def check_controller_openapi_contract(
     lines: list[str],
     changed_lines: set[int] | None = None,
 ) -> list[dict[str, Any]]:
+    if is_internal_controller(path, content):
+        return []
     findings: list[dict[str, Any]] = []
 
     for idx, raw_line in enumerate(lines, start=1):
@@ -143,20 +133,28 @@ def check_dto_field_and_schema_contract(
     if not is_dto_or_vo_file(path, filename):
         return findings
 
-    # 檢查是否為 class / record 宣告
-    class_match = re.search(r"\bpublic\s+(?:class|record)\s+([A-Za-z0-9_]+)\b", content)
+    # 檢查是否為 class / record / enum 宣告
+    class_match = re.search(r"\bpublic\s+(?:class|record|enum)\s+([A-Za-z0-9_]+)\b", content)
     if not class_match:
         return findings
 
     class_name = class_match.group(1)
+    is_enum = bool(re.search(rf"\bpublic\s+enum\s+{class_name}\b", content))
+
+    public_models = get_public_api_model_set()
+    is_public_api_model = class_name in public_models
+    has_api_dto = "@ApiDto" in content
+
+    # 若非公開 Controller 契約模型且未主動宣告 @ApiDto，視為內部事件或模型，全面豁免
+    if not is_public_api_model and not has_api_dto:
+        return findings
 
     # 1. 檢查類別是否有 @ApiDto
-    has_api_dto = "@ApiDto" in content
     if not has_api_dto:
         # 抓取類別宣告行
         class_line_idx = 1
         for idx, line in enumerate(lines, start=1):
-            if re.search(rf"\bpublic\s+(?:class|record)\s+{class_name}\b", line):
+            if re.search(rf"\bpublic\s+(?:class|record|enum)\s+{class_name}\b", line):
                 class_line_idx = idx
                 break
         if changed_lines is None or class_line_idx in changed_lines:
@@ -187,6 +185,10 @@ def check_dto_field_and_schema_contract(
                                 "填入具體的業務領域中文描述",
                             ))
                         break
+
+    # Enum 列舉常數豁免 @ApiField 欄位檢查
+    if is_enum:
+        return findings
 
     # 2. 檢查欄位標註 @ApiField 與命名規範
     # 搜尋所有 private 欄位：private [Type] [fieldName];

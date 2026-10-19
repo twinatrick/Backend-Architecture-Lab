@@ -4,8 +4,8 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.DiscordGfMessageVo;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
 import com.example.BackendArchitectureLab.Vo.DiscordSubscriptionVo;
-import com.example.BackendArchitectureLab.Vo.Search.DiscordGfSessionSearchQuery;
-import com.example.BackendArchitectureLab.Vo.Search.DiscordSubscriptionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.DiscordGfSessionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.DiscordSubscriptionSearchQuery;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 

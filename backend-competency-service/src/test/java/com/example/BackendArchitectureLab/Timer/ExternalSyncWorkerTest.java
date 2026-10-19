@@ -4,8 +4,8 @@ import com.example.BackendArchitectureLab.DataAccess.IExternalSyncCommandDataAcc
 import com.example.BackendArchitectureLab.Entity.ExternalSyncCommand;
 import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncService;
-import com.example.BackendArchitectureLab.Vo.CompensationOutboxDeliveryStatus;
-import com.example.BackendArchitectureLab.Vo.ExternalSyncCommandPayload;
+import com.example.BackendArchitectureLab.Event.CompensationOutboxDeliveryStatus;
+import com.example.BackendArchitectureLab.Event.ExternalSyncCommandPayload;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

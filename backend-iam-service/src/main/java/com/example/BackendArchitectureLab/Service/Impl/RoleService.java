@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
-import com.example.BackendArchitectureLab.Vo.Search.RoleSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.RoleSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
@@ -12,7 +12,7 @@ import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.RoleMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.Role;
@@ -77,7 +77,7 @@ public class RoleService implements IRoleService {
         @CacheEvict(value = "roles", key = "'all'"),
         @CacheEvict(value = "roles", key = "'byname:' + #roleOutVo.name")
     })
-    public RoleOutVo addRole(RoleOutVo roleOutVo) {
+    public RoleVo addRole(RoleVo roleOutVo) {
         Role role = roleMapper.toEntity(roleOutVo);
         Role exampleRole = new Role();
         exampleRole.setName(role.getName());
@@ -100,8 +100,8 @@ public class RoleService implements IRoleService {
         @CacheEvict(value = "roles", key = "'all'"),
         @CacheEvict(value = "roles", key = "#roleOutVo.id", condition = "#roleOutVo.id != null")
     })
-    public RoleOutVo addRoleWithFunctions(RoleOutVo roleOutVo) {
-        RoleOutVo savedRole = addRole(roleOutVo);
+    public RoleVo addRoleWithFunctions(RoleVo roleOutVo) {
+        RoleVo savedRole = addRole(roleOutVo);
         syncRoleFunctions(savedRole.getId(), roleOutVo.getFunctionIds());
         evictCache("roles", savedRole.getId().toString());
         return getRoleById(savedRole.getId().toString());
@@ -109,22 +109,22 @@ public class RoleService implements IRoleService {
 
     @Transactional(readOnly = true)
     @Override
-    public List<RoleOutVo> getRole() {
+    public List<RoleVo> getRole() {
         return getRoleListCache().getData();
     }
 
     @Override
     @Cacheable(value = "roles", key = "'all'", sync = true)
-    public CacheListWrapper<RoleOutVo> getRoleListCache() {
+    public CacheListWrapper<RoleVo> getRoleListCache() {
         return transactionExecutor.executeReadOnly(() -> {
-            List<RoleOutVo> list = roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
+            List<RoleVo> list = roleDataAccess.findAll().stream().map(roleMapper::toVo).toList();
             return new CacheListWrapper<>(list);
         });
     }
 
     @Override
     @Cacheable(value = "roles", key = "#roleId", sync = true)
-    public RoleOutVo getRoleById(String roleId) {
+    public RoleVo getRoleById(String roleId) {
         return transactionExecutor.executeReadOnly(() -> {
             UUID roleUuid = mapUuid(roleId);
             if (roleUuid == null) {
@@ -138,7 +138,7 @@ public class RoleService implements IRoleService {
     }
 
     @Override
-    public BatchResultVo<RoleOutVo> getRolesByIds(List<String> ids) {
+    public BatchResultVo<RoleVo> getRolesByIds(List<String> ids) {
         return BatchCacheHelper.fetchBatchWithCache(
                 cacheManager,
                 "roles",
@@ -152,7 +152,7 @@ public class RoleService implements IRoleService {
                         return List.of();
                     }
                     List<Role> roles = roleDataAccess.findAllById(missingUuids);
-                    List<RoleOutVo> list = new ArrayList<>();
+                    List<RoleVo> list = new ArrayList<>();
                     for (Role role : roles) {
                         list.add(roleMapper.toVo(role));
                     }
@@ -171,7 +171,7 @@ public class RoleService implements IRoleService {
         @CacheEvict(value = "userPermissionsVo", allEntries = true),
         @CacheEvict(value = "userInfo", allEntries = true)
     })
-    public RoleOutVo updateRole(RoleOutVo roleOutVo) {
+    public RoleVo updateRole(RoleVo roleOutVo) {
         Role role = roleMapper.toEntity(roleOutVo);
         if (role.getId() == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -196,8 +196,8 @@ public class RoleService implements IRoleService {
         @CacheEvict(value = "userPermissionsVo", allEntries = true),
         @CacheEvict(value = "userInfo", allEntries = true)
     })
-    public RoleOutVo updateRoleWithFunctions(RoleOutVo roleOutVo) {
-        RoleOutVo updatedRole = updateRole(roleOutVo);
+    public RoleVo updateRoleWithFunctions(RoleVo roleOutVo) {
+        RoleVo updatedRole = updateRole(roleOutVo);
         syncRoleFunctions(updatedRole.getId(), roleOutVo.getFunctionIds());
         evictCache("roles", updatedRole.getId().toString());
         evictCache("roles", "all");
@@ -219,7 +219,7 @@ public class RoleService implements IRoleService {
         @CacheEvict(value = "userPermissionsVo", allEntries = true),
         @CacheEvict(value = "userInfo", allEntries = true)
     })
-    public void deleteRole(RoleOutVo roleOutVo) {
+    public void deleteRole(RoleVo roleOutVo) {
         Role role = roleMapper.toEntity(roleOutVo);
         if (role.getId() == null) {
             throw new IllegalArgumentException("Key must not be null");
@@ -584,13 +584,13 @@ public class RoleService implements IRoleService {
 
     @Transactional(readOnly = true)
     @Override
-    public List<RoleOutVo> getRoleByFunction(String functionId) {
+    public List<RoleVo> getRoleByFunction(String functionId) {
         return getRoleByFunctionCache(functionId).getData();
     }
 
     @Override
     @Cacheable(value = "roles", key = "'byfunction:' + #functionId", sync = true)
-    public CacheListWrapper<RoleOutVo> getRoleByFunctionCache(String functionId) {
+    public CacheListWrapper<RoleVo> getRoleByFunctionCache(String functionId) {
         return transactionExecutor.executeReadOnly(() -> {
             UUID functionUuid = mapUuid(functionId);
             if (functionUuid == null) {
@@ -599,7 +599,7 @@ public class RoleService implements IRoleService {
             Function function = functionDataAccess.findByIdWithRoleFunctions(functionUuid).orElseThrow(
                     () -> new IllegalArgumentException("Function not found")
             );
-            List<RoleOutVo> list = function.getRoleFunctions().stream()
+            List<RoleVo> list = function.getRoleFunctions().stream()
                     .map(RoleFunction::getRole)
                     .map(roleMapper::toVo)
                     .toList();
@@ -634,13 +634,13 @@ public class RoleService implements IRoleService {
 
     @Transactional(readOnly = true)
     @Override
-    public List<RoleOutVo> getRoleByUser(String userId) {
+    public List<RoleVo> getRoleByUser(String userId) {
         return getRoleByUserListCache(userId).getData();
     }
 
     @Override
     @Cacheable(value = "roles", key = "'byuser:' + #userId", sync = true)
-    public CacheListWrapper<RoleOutVo> getRoleByUserListCache(String userId) {
+    public CacheListWrapper<RoleVo> getRoleByUserListCache(String userId) {
         return transactionExecutor.executeReadOnly(() -> {
             UUID userUuid = mapUuid(userId);
             if (userUuid == null) {
@@ -649,7 +649,7 @@ public class RoleService implements IRoleService {
             User user = userDataAccess.findByIdWithRoles(userUuid).orElseThrow(
                     () -> new IllegalArgumentException("User not found")
             );
-            List<RoleOutVo> list = user.getRoles().stream()
+            List<RoleVo> list = user.getRoles().stream()
                     .map(UserRole::getRole)
                     .map(roleMapper::toVo)
                     .toList();
@@ -659,7 +659,7 @@ public class RoleService implements IRoleService {
 
     @Override
     @Cacheable(value = "roles", key = "'byname:' + #name", sync = true)
-    public RoleOutVo getRoleByName(String name){
+    public RoleVo getRoleByName(String name){
         return transactionExecutor.executeReadOnly(() -> {
             Role role = roleDataAccess.findRoleByName(name);
             return role == null ? null : roleMapper.toVo(role);
@@ -667,7 +667,7 @@ public class RoleService implements IRoleService {
     }
     
     @Override
-    public PageResult<RoleOutVo> searchRoles(RoleSearchQuery query) {
+    public PageResult<RoleVo> searchRoles(RoleSearchQuery query) {
         return transactionExecutor.executeReadOnly(() -> {
             // 驗證排序欄位與方向
             SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
@@ -676,7 +676,7 @@ public class RoleService implements IRoleService {
             Page<Role> rolePage = roleDataAccess.searchRoles(query);
             
             // 轉換為 VO
-            List<RoleOutVo> roleVos = rolePage.getContent().stream()
+            List<RoleVo> roleVos = rolePage.getContent().stream()
                     .map(roleMapper::toSearchVo)
                     .toList();
             
@@ -686,23 +686,23 @@ public class RoleService implements IRoleService {
     }
 
     @Override
-    public Flux<ServerSentEvent<List<RoleOutVo>>> streamRolesChunked(int chunkSize) {
+    public Flux<ServerSentEvent<List<RoleVo>>> streamRolesChunked(int chunkSize) {
         int safeChunkSize = Math.max(10, Math.min(chunkSize, 1000));
 
-        Flux<ServerSentEvent<List<RoleOutVo>>> dataFlux = Flux.<ServerSentEvent<List<RoleOutVo>>, Integer>generate(
+        Flux<ServerSentEvent<List<RoleVo>>> dataFlux = Flux.<ServerSentEvent<List<RoleVo>>, Integer>generate(
                 () -> 0,
                 (page, sink) -> {
                     try {
-                        Page<RoleOutVo> rolePage = transactionExecutor.executeReadOnly(() -> {
+                        Page<RoleVo> rolePage = transactionExecutor.executeReadOnly(() -> {
                             Page<Role> entityPage = roleDataAccess.findAllPaged(
                                     PageRequest.of(page, safeChunkSize, Sort.by(Sort.Direction.ASC, "id"))
                             );
 
                             if (entityPage.isEmpty()) {
-                                return new PageImpl<>(List.<RoleOutVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
+                                return new PageImpl<>(List.<RoleVo>of(), entityPage.getPageable(), entityPage.getTotalElements());
                             }
 
-                            List<RoleOutVo> voList = entityPage.getContent().stream()
+                            List<RoleVo> voList = entityPage.getContent().stream()
                                     .map(roleMapper::toSearchVo)
                                     .toList();
 
@@ -714,7 +714,7 @@ public class RoleService implements IRoleService {
                             return page;
                         }
 
-                        sink.next(ServerSentEvent.<List<RoleOutVo>>builder()
+                        sink.next(ServerSentEvent.<List<RoleVo>>builder()
                                 .event("chunk")
                                 .id(String.valueOf(page))
                                 .data(rolePage.getContent())
@@ -734,15 +734,15 @@ public class RoleService implements IRoleService {
                 }
         ).subscribeOn(Schedulers.boundedElastic());
 
-        ServerSentEvent<List<RoleOutVo>> completeEvent = ServerSentEvent.<List<RoleOutVo>>builder()
+        ServerSentEvent<List<RoleVo>> completeEvent = ServerSentEvent.<List<RoleVo>>builder()
                 .event("complete")
                 .data(List.of())
                 .build();
 
-        Flux<ServerSentEvent<List<RoleOutVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
+        Flux<ServerSentEvent<List<RoleVo>>> streamWithComplete = Flux.concat(dataFlux, Flux.just(completeEvent));
 
-        Flux<ServerSentEvent<List<RoleOutVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
-                .map(tick -> ServerSentEvent.<List<RoleOutVo>>builder()
+        Flux<ServerSentEvent<List<RoleVo>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
+                .map(tick -> ServerSentEvent.<List<RoleVo>>builder()
                         .comment("keep-alive")
                         .build());
 
@@ -752,7 +752,7 @@ public class RoleService implements IRoleService {
                 .onErrorResume(ex -> {
                     log.error("角色 SSE 串流處理發生異常: {}", ex.getMessage(), ex);
                     return Flux.just(
-                            ServerSentEvent.<List<RoleOutVo>>builder()
+                            ServerSentEvent.<List<RoleVo>>builder()
                                     .event("error")
                                     .comment("串流處理發生異常，請聯繫管理員")
                                     .build()

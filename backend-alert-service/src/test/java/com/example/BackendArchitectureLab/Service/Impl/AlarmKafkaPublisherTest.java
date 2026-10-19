@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ class AlarmKafkaPublisherTest {
 
     @Test
     void publish_whenSerializationSucceeds_shouldSendToKafka() throws Exception {
-        List<AlarmMessage> messages = List.of(createAlarmMessage("ERROR", "test message"));
+        List<AlarmEvent> messages = List.of(createAlarmEvent("ERROR", "test message"));
         String json = "[{\"level\":\"ERROR\",\"message\":\"test message\"}]";
         when(objectMapper.writeValueAsString(messages)).thenReturn(json);
 
@@ -45,9 +45,9 @@ class AlarmKafkaPublisherTest {
 
     @Test
     void publish_withMultipleMessages_shouldSerializeAllAndSend() throws Exception {
-        List<AlarmMessage> messages = List.of(
-                createAlarmMessage("ERROR", "msg1"),
-                createAlarmMessage("WARN", "msg2"));
+        List<AlarmEvent> messages = List.of(
+                createAlarmEvent("ERROR", "msg1"),
+                createAlarmEvent("WARN", "msg2"));
         String json = "[{\"level\":\"ERROR\",\"message\":\"msg1\"},{\"level\":\"WARN\",\"message\":\"msg2\"}]";
         when(objectMapper.writeValueAsString(messages)).thenReturn(json);
 
@@ -58,7 +58,7 @@ class AlarmKafkaPublisherTest {
 
     @Test
     void publish_whenSerializationFails_shouldThrowNullPointerException() throws Exception {
-        List<AlarmMessage> messages = List.of(createAlarmMessage("ERROR", "test"));
+        List<AlarmEvent> messages = List.of(createAlarmEvent("ERROR", "test"));
         when(objectMapper.writeValueAsString(messages)).thenThrow(new JsonProcessingException("Cannot serialize") {});
 
         assertThrows(NullPointerException.class, () -> alarmKafkaPublisher.publish(messages));
@@ -68,7 +68,7 @@ class AlarmKafkaPublisherTest {
 
     @Test
     void publish_whenObjectMapperReturnsNull_shouldThrowNullPointerException() throws Exception {
-        List<AlarmMessage> messages = List.of(createAlarmMessage("WARN", "test"));
+        List<AlarmEvent> messages = List.of(createAlarmEvent("WARN", "test"));
         when(objectMapper.writeValueAsString(messages)).thenReturn(null);
 
         assertThrows(NullPointerException.class, () -> alarmKafkaPublisher.publish(messages));
@@ -78,7 +78,7 @@ class AlarmKafkaPublisherTest {
 
     @Test
     void publish_withEmptyList_shouldSerializeEmptyArrayAndSend() throws Exception {
-        List<AlarmMessage> messages = List.of();
+        List<AlarmEvent> messages = List.of();
         String json = "[]";
         when(objectMapper.writeValueAsString(messages)).thenReturn(json);
 
@@ -87,8 +87,8 @@ class AlarmKafkaPublisherTest {
         verify(kafkaTemplate, times(1)).send("socketSend", json);
     }
 
-    private AlarmMessage createAlarmMessage(String level, String message) {
-        AlarmMessage alarm = new AlarmMessage();
+    private AlarmEvent createAlarmEvent(String level, String message) {
+        AlarmEvent alarm = new AlarmEvent();
         alarm.setLevel(level);
         alarm.setMessage(message);
         return alarm;

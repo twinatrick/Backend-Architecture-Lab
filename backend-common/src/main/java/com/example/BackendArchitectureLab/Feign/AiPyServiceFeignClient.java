@@ -1,9 +1,9 @@
 package com.example.BackendArchitectureLab.Feign;
 
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import com.example.BackendArchitectureLab.Vo.SttResponseVo;
-import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.TtsRequest;
 import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
@@ -29,8 +29,8 @@ public interface AiPyServiceFeignClient {
                                         @RequestParam("language") String language);
 
     @PostMapping("/tts")
-    TtsResponseVo synthesize(@RequestBody TtsRequestVo request);
+    TtsResponseVo synthesize(@RequestBody TtsRequest request);
 
     @PostMapping("/chat")
-    ChatResponseVo chat(@RequestBody ChatRequestVo request);
+    ChatResponseVo chat(@RequestBody ChatRequest request);
 }

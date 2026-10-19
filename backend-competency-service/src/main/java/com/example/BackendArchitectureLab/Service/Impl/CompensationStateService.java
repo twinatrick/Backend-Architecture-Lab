@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
 import com.example.BackendArchitectureLab.Service.ICompensationStateService;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
+import com.example.BackendArchitectureLab.Event.CompensationEventLogStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

@@ -10,10 +10,10 @@ import com.example.BackendArchitectureLab.Service.Impl.CompensationExecutionServ
 import com.example.BackendArchitectureLab.Service.Impl.CompensationPayloadService;
 import com.example.BackendArchitectureLab.Service.Impl.CompensationStateService;
 import com.example.BackendArchitectureLab.Service.Strategy.CompensationStrategy;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationAction;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEvent;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationStatus;
+import com.example.BackendArchitectureLab.Event.CompensationAction;
+import com.example.BackendArchitectureLab.Event.CompensationEvent;
+import com.example.BackendArchitectureLab.Event.CompensationEventLogStatus;
+import com.example.BackendArchitectureLab.Event.CompensationStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;

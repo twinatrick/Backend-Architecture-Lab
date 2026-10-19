@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.example.BackendArchitectureLab.Service.IAlarmPublisher;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,7 +21,7 @@ public class AlarmKafkaPublisher implements IAlarmPublisher {
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    private String toJsonString(List<AlarmMessage> message) {
+    private String toJsonString(List<AlarmEvent> message) {
         try {
             return objectMapper.writeValueAsString(message);
         } catch (JsonProcessingException e) {
@@ -32,7 +32,7 @@ public class AlarmKafkaPublisher implements IAlarmPublisher {
 
 
     @Override
-    public void publish(List<AlarmMessage> message)  {
+    public void publish(List<AlarmEvent> message)  {
         log.debug("Sending message: {}", message.size());
             kafkaTemplate.send(TOPIC, Objects.requireNonNull(toJsonString(message)));
 

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.WebSocket;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class AlarmWebSocketHandler extends TextWebSocketHandler {
         Disposable alarmSub = alarmReactiveSink.asFlux()
                 .onBackpressureDrop(dropped -> log.warn("慢消費者連線 (sessionId={}) 觸發背壓，已拋棄過期告警: {}",
                         session.getId(), dropped.getMessage()))
-                .subscribe(alarm -> sendAlarmMessage(session, alarm));
+                .subscribe(alarm -> sendAlarmEvent(session, alarm));
         sessionSubscriptions.put(session.getId(), alarmSub);
 
         Disposable keepAliveSub = Flux.interval(Duration.ofSeconds(30))
@@ -44,7 +44,7 @@ public class AlarmWebSocketHandler extends TextWebSocketHandler {
         keepAliveSubscriptions.put(session.getId(), keepAliveSub);
     }
 
-    private void sendAlarmMessage(WebSocketSession session, AlarmMessage alarm) {
+    private void sendAlarmEvent(WebSocketSession session, AlarmEvent alarm) {
         try {
             if (session.isOpen()) {
                 synchronized (session) {

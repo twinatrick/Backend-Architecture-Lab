@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Feign.AiPyServiceFeignClient;
 import com.example.BackendArchitectureLab.Service.IChatService;
 import com.example.BackendArchitectureLab.Service.IUsageTrackService;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ public class ChatService implements IChatService {
 
     @Override
     public ChatResponseVo chat(List<Map<String, String>> messages, Double temperature) {
-        ChatRequestVo request = ChatRequestVo.builder()
+        ChatRequest request = ChatRequest.builder()
                 .messages(messages)
                 .temperature(temperature)
                 .stream(false)
@@ -42,7 +42,7 @@ public class ChatService implements IChatService {
             return Flux.empty();
         }
 
-        ChatRequestVo request = ChatRequestVo.builder()
+        ChatRequest request = ChatRequest.builder()
                 .messages(messages)
                 .temperature(temperature)
                 .stream(true)

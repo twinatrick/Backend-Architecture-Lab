@@ -10,9 +10,9 @@ import com.example.BackendArchitectureLab.Service.IUserService;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
-import com.example.BackendArchitectureLab.Vo.SignupRequest;
-import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
+import com.example.BackendArchitectureLab.Dto.Request.SignupRequest;
+import com.example.BackendArchitectureLab.Dto.Request.SuperUserRequest;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -240,7 +240,7 @@ class AuthServiceTest {
         savedUser.setEmail("new@example.com");
         when(userService.createUser(any(UserVo.class))).thenReturn(savedUser);
 
-        RoleOutVo userRole = new RoleOutVo();
+        RoleVo userRole = new RoleVo();
         userRole.setId(UUID.randomUUID());
         userRole.setName("user");
         when(roleService.getRole()).thenReturn(List.of(userRole));
@@ -314,7 +314,7 @@ class AuthServiceTest {
             return vo;
         });
 
-        RoleOutVo adminRole = new RoleOutVo();
+        RoleVo adminRole = new RoleVo();
         adminRole.setId(UUID.randomUUID());
         adminRole.setName("admin");
         when(roleService.getRoleByName("admin")).thenReturn(adminRole);
@@ -346,10 +346,10 @@ class AuthServiceTest {
         });
 
         when(roleService.getRoleByName("admin")).thenReturn(null);
-        RoleOutVo adminRole = new RoleOutVo();
+        RoleVo adminRole = new RoleVo();
         adminRole.setId(UUID.randomUUID());
         adminRole.setName("admin");
-        when(roleService.addRole(any(RoleOutVo.class))).thenReturn(adminRole);
+        when(roleService.addRole(any(RoleVo.class))).thenReturn(adminRole);
         doNothing().when(roleService).userBindRole(anyString(), anyList());
 
         // Act
@@ -357,7 +357,7 @@ class AuthServiceTest {
 
         // Assert
         assertNotNull(result);
-        verify(roleService).addRole(any(RoleOutVo.class));
+        verify(roleService).addRole(any(RoleVo.class));
         verify(roleService).userBindRole(eq(result.getId()), anyList());
     }
 
@@ -376,7 +376,7 @@ class AuthServiceTest {
             return vo;
         });
 
-        RoleOutVo adminRole = new RoleOutVo();
+        RoleVo adminRole = new RoleVo();
         adminRole.setId(UUID.randomUUID());
         adminRole.setName("admin");
         when(roleService.getRoleByName("admin")).thenReturn(adminRole);

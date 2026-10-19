@@ -5,10 +5,10 @@ import com.example.BackendArchitectureLab.Entity.AquarkData;
 import com.example.BackendArchitectureLab.Mapper.AquarkDataMapper;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AquarkDataRaw;
 import com.example.BackendArchitectureLab.Vo.AquarkUse.AverageAquark;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.DataAccess.specification.CriteriaApiFilter;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.Search.AquarkDataSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.AquarkDataSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -152,7 +152,7 @@ class AquarkDataQueryServiceTest {
     @Test
     void testGetAquarkDataWithFilter_WithFilters() {
         AquarkData data = buildAquarkData(UUID.randomUUID(), "S2", baseDate, 10f, 30f, 20f, 1f, 2f, false);
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        CriteriaApiFilter filter = new CriteriaApiFilter();
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);
@@ -305,7 +305,7 @@ class AquarkDataQueryServiceTest {
 
     @Test
     void testSearchAquarkData_WithFilters() {
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        CriteriaApiFilter filter = new CriteriaApiFilter();
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);

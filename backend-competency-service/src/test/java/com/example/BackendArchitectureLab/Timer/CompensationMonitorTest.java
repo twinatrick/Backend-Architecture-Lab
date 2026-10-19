@@ -5,7 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.example.BackendArchitectureLab.Entity.CompensationEventLog;
 import com.example.BackendArchitectureLab.DataAccess.ICompensationEventLogDataAccess;
-import com.example.BackendArchitectureLab.Vo.Kafka.CompensationEventLogStatus;
+import com.example.BackendArchitectureLab.Event.CompensationEventLogStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

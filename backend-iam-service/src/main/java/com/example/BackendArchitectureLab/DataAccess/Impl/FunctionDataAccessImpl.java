@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.DataAccess.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Search.FunctionSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.FunctionSearchQuery;
 import com.example.BackendArchitectureLab.Repository.FunctionRepository;
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.Entity.Function;

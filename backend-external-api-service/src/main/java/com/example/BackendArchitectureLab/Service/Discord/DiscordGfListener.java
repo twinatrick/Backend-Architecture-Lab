@@ -9,9 +9,9 @@ import com.example.BackendArchitectureLab.Service.IUsageTrackService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import com.example.BackendArchitectureLab.Service.ISttService;
 import com.example.BackendArchitectureLab.Service.Impl.TtsService;
-import com.example.BackendArchitectureLab.Vo.ChatRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.ChatRequest;
 import com.example.BackendArchitectureLab.Vo.ChatResponseVo;
-import com.example.BackendArchitectureLab.Vo.TtsRequestVo;
+import com.example.BackendArchitectureLab.Dto.Request.TtsRequest;
 import com.example.BackendArchitectureLab.Vo.TtsResponseVo;
 import com.example.BackendArchitectureLab.Mapper.GfSessionMapper;
 import com.example.BackendArchitectureLab.Vo.DiscordGfSessionVo;
@@ -363,7 +363,7 @@ public class DiscordGfListener extends ListenerAdapter {
             messages.add(m);
         }
 
-        ChatRequestVo chatRequest = new ChatRequestVo(messages, null, false);
+        ChatRequest chatRequest = new ChatRequest(messages, null, false);
         ChatResponseVo chatResponse = aiPyServiceFeignClient.chat(chatRequest);
         usageTrackService.track("discord-gf", "chat", "char", (long) content.length());
 
@@ -387,7 +387,7 @@ public class DiscordGfListener extends ListenerAdapter {
                     speechText = reply; // 如果全為動作描述，則回退使用原本的回覆
                 }
 
-                TtsRequestVo ttsRequest = TtsRequestVo.builder()
+                TtsRequest ttsRequest = TtsRequest.builder()
                         .text(speechText)
                         .language(lang)
                         .voiceSampleKey(session.getVoiceSampleKey())

@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Search.VoiceUploadSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.VoiceUploadSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVoiceUploadVo;
 import com.example.BackendArchitectureLab.Vo.VoiceTranslationVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;

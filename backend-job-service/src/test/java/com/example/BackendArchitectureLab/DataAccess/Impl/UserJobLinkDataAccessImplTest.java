@@ -8,7 +8,7 @@ import com.example.BackendArchitectureLab.Entity.UserJobLink;
 import com.example.BackendArchitectureLab.Repository.CompanyRepository;
 import com.example.BackendArchitectureLab.Repository.JobPostingRepository;
 import com.example.BackendArchitectureLab.Repository.UserJobLinkRepository;
-import com.example.BackendArchitectureLab.Vo.Search.UserJobLinkSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.UserJobLinkSearchQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

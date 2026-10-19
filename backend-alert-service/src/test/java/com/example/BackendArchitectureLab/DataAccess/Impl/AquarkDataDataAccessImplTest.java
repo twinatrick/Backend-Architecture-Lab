@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.Repository.AquarkDataRepository;
 import com.example.BackendArchitectureLab.DataAccess.IAquarkDataDataAccess;
-import com.example.BackendArchitectureLab.Vo.AquarkUse.CriteriaAPIFilter;
+import com.example.BackendArchitectureLab.DataAccess.specification.CriteriaApiFilter;
 import com.example.BackendArchitectureLab.Entity.AquarkData;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,7 +110,7 @@ class AquarkDataDataAccessImplTest {
         aquarkDataRepository.save(buildAquarkData("S2", addHours(baseDate, 1), 20f, true));
         entityManager.flush();
 
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        CriteriaApiFilter filter = new CriteriaApiFilter();
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);
@@ -129,7 +129,7 @@ class AquarkDataDataAccessImplTest {
         aquarkDataRepository.save(buildAquarkData("S2", addHours(baseDate, 1), 20f, false));
         entityManager.flush();
 
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        CriteriaApiFilter filter = new CriteriaApiFilter();
         filter.setColumnName("rain_d");
         filter.setType(1);
         filter.setGreaterThan(true);
@@ -151,7 +151,7 @@ class AquarkDataDataAccessImplTest {
         aquarkDataRepository.save(buildAquarkData("S2", time2, 20f, false));
         entityManager.flush();
 
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        CriteriaApiFilter filter = new CriteriaApiFilter();
         filter.setColumnName("trans_time");
         filter.setType(2);
         filter.setLessThan(true);
@@ -171,7 +171,7 @@ class AquarkDataDataAccessImplTest {
         aquarkDataRepository.save(buildAquarkData("S2", addHours(baseDate, 1), 20f, true));
         entityManager.flush();
 
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        CriteriaApiFilter filter = new CriteriaApiFilter();
         filter.setColumnName("isPeak");
         filter.setType(3);
         filter.setEqual(true);
@@ -191,7 +191,7 @@ class AquarkDataDataAccessImplTest {
         aquarkDataRepository.save(buildAquarkData("S2", addHours(baseDate, 2), 30f, true));
         entityManager.flush();
 
-        CriteriaAPIFilter filter = new CriteriaAPIFilter();
+        CriteriaApiFilter filter = new CriteriaApiFilter();
         filter.setColumnName("station_id");
         filter.setType(0);
         filter.setEqual(true);

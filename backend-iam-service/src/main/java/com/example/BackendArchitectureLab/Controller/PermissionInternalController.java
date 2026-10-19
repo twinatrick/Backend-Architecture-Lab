@@ -1,7 +1,7 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Aop.LocalPermissionValidator;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -21,12 +21,12 @@ public class PermissionInternalController {
     private final LocalPermissionValidator localPermissionValidator;
 
     @GetMapping("/all")
-    public List<RoleOutVo> getAllRoles() {
+    public List<RoleVo> getAllRoles() {
         return roleService.getRole();
     }
 
     @GetMapping("/by-name/{name}")
-    public RoleOutVo getRoleByName(@PathVariable String name) {
+    public RoleVo getRoleByName(@PathVariable String name) {
         return roleService.getRoleByName(name);
     }
 

@@ -1,8 +1,8 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
-import com.example.BackendArchitectureLab.Vo.SignupRequest;
-import com.example.BackendArchitectureLab.Vo.SuperUserRequest;
+import com.example.BackendArchitectureLab.Dto.Request.SignupRequest;
+import com.example.BackendArchitectureLab.Dto.Request.SuperUserRequest;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 
 import java.util.List;

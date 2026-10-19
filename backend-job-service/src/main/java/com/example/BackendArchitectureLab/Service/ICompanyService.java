@@ -4,9 +4,9 @@ import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
-import com.example.BackendArchitectureLab.Vo.CreateCompanyRequest;
-import com.example.BackendArchitectureLab.Vo.Search.CompanySearchQuery;
-import com.example.BackendArchitectureLab.Vo.UpdateCompanyRequest;
+import com.example.BackendArchitectureLab.Dto.Request.CreateCompanyRequest;
+import com.example.BackendArchitectureLab.Dto.Query.CompanySearchQuery;
+import com.example.BackendArchitectureLab.Dto.Request.UpdateCompanyRequest;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 

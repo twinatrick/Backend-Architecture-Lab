@@ -3,7 +3,7 @@ package com.example.BackendArchitectureLab.Mapper;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.RoleFunction;
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,7 +57,7 @@ class RoleMapperTest {
         role.setRoleFunctions(roleFunctions);
 
         // Act
-        RoleOutVo searchVo = roleMapper.toSearchVo(role);
+        RoleVo searchVo = roleMapper.toSearchVo(role);
 
         // Assert
         assertNotNull(searchVo);
@@ -87,7 +87,7 @@ class RoleMapperTest {
         role.setRoleFunctions(List.of(rf1));
 
         // Act
-        RoleOutVo detailVo = roleMapper.toVo(role);
+        RoleVo detailVo = roleMapper.toVo(role);
 
         // Assert
         assertNotNull(detailVo);

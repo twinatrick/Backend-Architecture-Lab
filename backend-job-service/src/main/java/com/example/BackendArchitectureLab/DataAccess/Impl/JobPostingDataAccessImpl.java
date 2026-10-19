@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.DataAccess.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.specification.JobPostingSpecification;
-import com.example.BackendArchitectureLab.Vo.Search.JobPostingSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.JobPostingSearchQuery;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Repository.JobPostingRepository;
 import lombok.RequiredArgsConstructor;

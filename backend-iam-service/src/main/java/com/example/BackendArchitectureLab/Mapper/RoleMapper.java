@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Mapper;
 
-import com.example.BackendArchitectureLab.Vo.RoleOutVo;
+import com.example.BackendArchitectureLab.Vo.RoleVo;
 import com.example.BackendArchitectureLab.Entity.BaseEntity;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.RoleFunction;
@@ -20,16 +20,16 @@ public interface RoleMapper {
     @Named("toVo")
     @BeanMapping(qualifiedByName = "fillFunctionIds")
     @Mapping(target = "functionIds", ignore = true)
-    RoleOutVo toVo(Role role);
+    RoleVo toVo(Role role);
 
     @Named("toSearchVo")
     @BeanMapping(qualifiedByName = "emptyFunctionIds")
     @Mapping(target = "functionIds", ignore = true)
-    RoleOutVo toSearchVo(Role role);
+    RoleVo toSearchVo(Role role);
 
     @Mapping(target = "userRoles", ignore = true)
     @Mapping(target = "roleFunctions", ignore = true)
-    Role toEntity(RoleOutVo roleOutVo);
+    Role toEntity(RoleVo roleOutVo);
 
     /**
      * CAUTION: This method accesses LAZY-loaded collections (role.getRoleFunctions()).
@@ -38,7 +38,7 @@ public interface RoleMapper {
      */
     @Named("fillFunctionIds")
     @AfterMapping
-    default void fillFunctionIds(Role role, @MappingTarget RoleOutVo vo) {
+    default void fillFunctionIds(Role role, @MappingTarget RoleVo vo) {
         if (role == null) {
             return;
         }
@@ -53,7 +53,7 @@ public interface RoleMapper {
 
     @Named("emptyFunctionIds")
     @AfterMapping
-    default void emptyFunctionIds(Role role, @MappingTarget RoleOutVo vo) {
+    default void emptyFunctionIds(Role role, @MappingTarget RoleVo vo) {
         if (role == null) {
             return;
         }

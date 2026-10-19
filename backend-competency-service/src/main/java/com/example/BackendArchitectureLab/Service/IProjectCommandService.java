@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.PersonalProjectRequest;
+import com.example.BackendArchitectureLab.Dto.Request.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 
 import java.util.UUID;

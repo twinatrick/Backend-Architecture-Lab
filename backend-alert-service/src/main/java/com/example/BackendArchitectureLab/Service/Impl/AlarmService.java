@@ -1,6 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Common.AlarmMessage;
+import com.example.BackendArchitectureLab.Event.AlarmEvent;
 import com.example.BackendArchitectureLab.Service.IAlarmPublisher;
 import com.example.BackendArchitectureLab.Service.IAlarmService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ public class AlarmService implements IAlarmService {
     // 可以使用消息隊列、異步執行器等來處理
 
     @Override
-    public void processAlarm(List<AlarmMessage> alarmMessage) {
+    public void processAlarm(List<AlarmEvent> alarmMessage) {
         try {
             alarmPublisher.publish(alarmMessage);
         } catch (Exception e) {

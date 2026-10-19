@@ -2,7 +2,7 @@ package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.AlertCheckLimitVo;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Search.AlertCheckLimitSearchQuery;
+import com.example.BackendArchitectureLab.Dto.Query.AlertCheckLimitSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
