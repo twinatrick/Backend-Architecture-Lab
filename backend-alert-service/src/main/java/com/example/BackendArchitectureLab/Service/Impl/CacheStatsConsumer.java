@@ -22,7 +22,7 @@ public class CacheStatsConsumer {
             stringRedisTemplate.opsForHash().increment(
                 "cache:stats:" + event.cacheName(),
                 event.field(),
-                1
+                event.count() > 0 ? event.count() : 1
             );
         } catch (Exception e) {
             log.warn("寫入快取統計異常: {}", e.toString());

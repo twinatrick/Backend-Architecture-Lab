@@ -45,6 +45,9 @@ class CachePenetrationProtectionCacheTest {
     @Mock
     private CacheStatsPublisher statsPublisher;
 
+    @Mock
+    private BatchRedisCacheOperations batchRedisCacheOperations;
+
     private CachePenetrationProtectionCache cache;
 
     private final String cacheName = "test-cache";
@@ -59,7 +62,7 @@ class CachePenetrationProtectionCacheTest {
         cache = new CachePenetrationProtectionCache(
                 cacheName, delegate, stringRedisTemplate,
                 bloomFilterService, redissonClient, nullTtl,
-                statsPublisher);
+                statsPublisher, batchRedisCacheOperations);
     }
 
     @Test

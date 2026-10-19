@@ -128,7 +128,7 @@ public class UserService implements IUserService {
                 "users",
                 ids,
                 missingUuids -> transactionExecutor.executeReadOnly(() -> {
-                    List<User> users = userDataAccess.findAllById(new ArrayList<>(missingUuids));
+                    List<User> users = userDataAccess.findAllByIdsWithRoles(new ArrayList<>(missingUuids));
                     List<UserVo> list = new ArrayList<>();
                     for (User user : users) {
                         list.add(userMapper.toVo(user));

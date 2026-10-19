@@ -58,8 +58,8 @@ public class BloomFilterService implements IBloomFilterService {
             return;
         }
         RBloomFilter<String> filter = getOrCreate(cacheName);
-        for (String key : keys) {
-            filter.add(key);
+        if (!keys.isEmpty()) {
+            filter.add(keys);
         }
     }
 

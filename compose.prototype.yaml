@@ -37,6 +37,26 @@ services:
     networks:
       - backend-architecture-lab-net
 
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:3.0.0}
+    container_name: backend-architecture-lab-loki
+    restart: always
+    mem_limit: 512m
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:3100/ready >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks:
+      - backend-architecture-lab-net
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.2.1
     container_name: backend-architecture-lab-zookeeper
@@ -117,9 +137,12 @@ services:
     depends_on:
       nacos:
         condition: service_healthy
+      loki:
+        condition: service_healthy
     environment:
       NACOS_SERVER_ADDR: nacos:8848
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      LOKI_URL: http://loki:3100/loki/api/v1/push
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx256m"
     extra_hosts:
@@ -146,6 +169,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      loki:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/iam_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
@@ -154,6 +179,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      LOKI_URL: http://loki:3100/loki/api/v1/push
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
@@ -180,6 +206,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      loki:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/competency_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
@@ -188,6 +216,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      LOKI_URL: http://loki:3100/loki/api/v1/push
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
@@ -215,6 +244,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      loki:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
@@ -223,6 +254,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      LOKI_URL: http://loki:3100/loki/api/v1/push
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
@@ -250,6 +282,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      loki:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/external_api_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
@@ -258,6 +292,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      LOKI_URL: http://loki:3100/loki/api/v1/push
       MINIO_URL: ${MINIO_URL:-http://minio:9000}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
@@ -296,6 +331,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      loki:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/alert_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
@@ -304,6 +341,7 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      LOKI_URL: http://loki:3100/loki/api/v1/push
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
@@ -320,6 +358,8 @@ volumes:
     name: backend-architecture-lab-redis-data
   minio_data:
     name: backend-architecture-lab-minio-data
+  loki_data:
+    name: backend-architecture-lab-loki-data
 
 networks:
   backend-architecture-lab-net:

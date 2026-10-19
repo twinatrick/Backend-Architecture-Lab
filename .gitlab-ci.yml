@@ -118,8 +118,8 @@ deploy-cluster:
     - when: manual
       allow_failure: true
   script:
-    - echo "===> Starting middleware services (PostgreSQL, Redis, Kafka, Zookeeper, Nacos, MinIO)..."
-    - docker compose -f compose.prototype.yaml up -d postgres redis nacos zookeeper kafka minio
+    - echo "===> Starting middleware services (PostgreSQL, Redis, Kafka, Zookeeper, Nacos, MinIO, Loki)..."
+    - docker compose -f compose.prototype.yaml up -d postgres redis nacos zookeeper kafka minio loki
     - echo "===> Waiting for PostgreSQL readiness and ensuring business databases exist..."
     - |
       for i in $(seq 1 30); do
@@ -146,6 +146,24 @@ deploy-cluster:
         echo "Waiting for Nacos readiness ($i/30)..."
         sleep 2
       done
+    - echo "===> Checking Loki readiness..."
+    - |
+      LOKI_READY=false
+      for i in $(seq 1 30); do
+        LOKI_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-loki 2>/dev/null || echo "starting")
+        if [ "$LOKI_STATUS" = "healthy" ]; then
+          echo "Loki is healthy and ready!"
+          LOKI_READY=true
+          break
+        fi
+        echo "Waiting for Loki readiness ($i/30)..."
+        sleep 2
+      done
+      if [ "$LOKI_READY" != "true" ]; then
+        echo "Loki failed to become healthy within 60 seconds"
+        docker logs --tail 50 backend-architecture-lab-loki || true
+        exit 1
+      fi
     - echo "===> Deploying microservices with latest images (force-recreate, no-deps)..."
     - docker compose -f compose.prototype.yaml up -d --force-recreate --no-deps gateway iam-service competency-service job-service external-api-service alert-service
     - echo "===> Waiting for Gateway readiness..."

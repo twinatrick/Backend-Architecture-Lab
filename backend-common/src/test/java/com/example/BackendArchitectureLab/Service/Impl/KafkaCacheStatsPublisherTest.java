@@ -33,7 +33,14 @@ class KafkaCacheStatsPublisherTest {
     void publish_SendsEventToCacheStatsTopic() {
         publisher.publish("users", "id");
 
-        verify(kafkaTemplate).send("cache-stats", new CacheStatsEvent("users", "id"));
+        verify(kafkaTemplate).send("cache-stats", new CacheStatsEvent("users", "id", 1));
+    }
+
+    @Test
+    void publish_WithCount_SendsSingleAggregatedEvent() {
+        publisher.publish("users", "hits", 100);
+
+        verify(kafkaTemplate).send("cache-stats", new CacheStatsEvent("users", "hits", 100));
     }
 
     @Test

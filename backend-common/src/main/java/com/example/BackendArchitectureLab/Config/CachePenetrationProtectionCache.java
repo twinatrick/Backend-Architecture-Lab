@@ -12,6 +12,8 @@ import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -20,7 +22,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-public class CachePenetrationProtectionCache implements Cache {
+public class CachePenetrationProtectionCache implements Cache, BatchCacheOperations {
 
     private static final Logger log = LoggerFactory.getLogger(CachePenetrationProtectionCache.class);
 
@@ -32,7 +34,7 @@ public class CachePenetrationProtectionCache implements Cache {
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     );
 
-    private static boolean isUuidKey(String key) {
+    static boolean isUuidKey(String key) {
         return key != null && UUID_PATTERN.matcher(key).matches();
     }
 
@@ -54,12 +56,15 @@ public class CachePenetrationProtectionCache implements Cache {
 
     private final CacheStatsPublisher statsPublisher;
 
+    private final BatchRedisCacheOperations batchRedisCacheOperations;
+
     public CachePenetrationProtectionCache(String name, RedisCache delegate,
                                             StringRedisTemplate stringRedisTemplate,
                                             IBloomFilterService bloomFilterService,
-                                            RedissonClient redissonClient,
-                                            Duration nullValueTtl,
-                                            CacheStatsPublisher statsPublisher) {
+                                             RedissonClient redissonClient,
+                                             Duration nullValueTtl,
+                                             CacheStatsPublisher statsPublisher,
+                                             BatchRedisCacheOperations batchRedisCacheOperations) {
         this.name = name;
         this.delegate = delegate;
         this.stringRedisTemplate = stringRedisTemplate;
@@ -67,6 +72,7 @@ public class CachePenetrationProtectionCache implements Cache {
         this.redissonClient = redissonClient;
         this.nullValueTtl = nullValueTtl;
         this.statsPublisher = statsPublisher;
+        this.batchRedisCacheOperations = batchRedisCacheOperations;
     }
 
     @Override
@@ -396,6 +402,21 @@ public class CachePenetrationProtectionCache implements Cache {
         } catch (Exception e) {
             log.warn("清除 null marker 異常 [{}]: {}", name, e.toString());
         }
+    }
+
+    @Override
+    public BatchReadResult getAll(Collection<String> keys) {
+        return batchRedisCacheOperations.getAll(name, delegate, keys);
+    }
+
+    @Override
+    public void putAll(Map<String, ?> values) {
+        batchRedisCacheOperations.putAll(name, delegate, values);
+    }
+
+    @Override
+    public void putNulls(Collection<String> keys) {
+        batchRedisCacheOperations.putNulls(name, delegate, keys, nullValueTtl);
     }
 
     private boolean hasNullMarker(String cacheKey) {
