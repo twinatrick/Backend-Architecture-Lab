@@ -94,9 +94,7 @@ class BloomFilterServiceTest {
         BloomFilterService service = new BloomFilterService(redissonClient, defaultProps);
         service.addAll("test-cache", List.of("key1", "key2", "key3"));
 
-        verify(bloomFilter).add("key1");
-        verify(bloomFilter).add("key2");
-        verify(bloomFilter).add("key3");
+        verify(bloomFilter).add(List.of("key1", "key2", "key3"));
     }
 
     @Test

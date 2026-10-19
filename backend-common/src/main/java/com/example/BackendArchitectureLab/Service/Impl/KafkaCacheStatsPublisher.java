@@ -24,8 +24,13 @@ public class KafkaCacheStatsPublisher implements CacheStatsPublisher {
 
     @Override
     public void publish(String cacheName, String field) {
+        publish(cacheName, field, 1);
+    }
+
+    @Override
+    public void publish(String cacheName, String field, long count) {
         try {
-            CompletableFuture<?> future = kafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, field));
+            CompletableFuture<?> future = kafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, field, count));
             if (future != null) {
                 future.whenComplete((result, ex) -> {
                     if (ex != null) {

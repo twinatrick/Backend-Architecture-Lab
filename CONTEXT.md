@@ -276,6 +276,22 @@ _Avoid_: In-loop single query, Query string ID joining, Multi-GET loop.
 在執行批次查詢時，複用單筆 `GET /{id}` 之細粒度快取 Key 逐筆檢查命中，僅對未命中 ID 聚合單次 SQL 批次載入並回填各自快取，兼顧零快取鍵組合爆炸與高命中率的快取架構。
 _Avoid_: Coarse-grained list cache, Serialized collection key, Multi-key combinatorial explosion.
 
+**Four-Tier Call Telemetry (四層架構呼叫樹遙測)**:
+貫穿 Controller、Service、DataAccess、Repository 四層架構之階層式呼叫樹追蹤機制，精確捕捉跨層呼叫鏈與下游依賴之耗時分佈。
+_Avoid_: Flat method timer, Unscoped profiler, Ad-hoc benchmark print.
+
+**Self-Centric Relative Ratio (父級相對占比)**:
+在階層式呼叫樹中，以直接父方法之完整執行耗時為 100% 分母，計算子呼叫佔用父級時間比例的度量模型。
+_Avoid_: Global execution percentage, Root-only ratio, Flat duration share.
+
+**Execution Self-Time (節點自身耗時)**:
+單一方法內部排除所有子方法呼叫總和後的純內部運算與邏輯處理耗時（Self = Duration - Sum(Children)）。
+_Avoid_: Inclusive time, Wall-clock time only, Raw elapsed time.
+
+**Diagnostic Tracing Mode (診斷追蹤模式)**:
+由 HTTP 標頭（X-Diagnostic-Trace）或配置中心動態開關觸發之 100% 全量階層呼叫樹日誌與耗時聚合收集機制，平時維持低開銷抽樣。
+_Avoid_: Always-on heavy tracing, Production blind debug, Global debug logging.
+
 
 
 

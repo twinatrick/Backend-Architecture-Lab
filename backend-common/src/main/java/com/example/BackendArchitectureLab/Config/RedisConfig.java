@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Service.Impl.BloomFilterService;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.persistence.EntityManagerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,15 +110,7 @@ public class RedisConfig implements CachingConfigurer {
             NullValueTtlProperties nullValueTtlProperties,
             RedissonClient redissonClient,
             ObjectProvider<CacheStatsPublisher> statsPublisherProvider) {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.activateDefaultTyping(
-            LaissezFaireSubTypeValidator.instance,
-            ObjectMapper.DefaultTyping.NON_FINAL,
-            JsonTypeInfo.As.PROPERTY
-        );
-
-        GenericJackson2JsonRedisSerializer jsonSerializer =
-            new GenericJackson2JsonRedisSerializer(objectMapper);
+        GenericJackson2JsonRedisSerializer jsonSerializer = cacheValueSerializer();
 
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(withJitter(Duration.ofHours(cacheTtlHours)))
@@ -157,10 +150,13 @@ public class RedisConfig implements CachingConfigurer {
         RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(connectionFactory);
 
         CacheStatsPublisher publisher = statsPublisherProvider.getIfAvailable(() -> (cn, f) -> {});
+        BatchRedisCacheOperations batchRedisCacheOperations = new BatchRedisCacheOperations(
+                connectionFactory, bloomFilterService, publisher
+        );
         return new CachePenetrationProtectionCacheManager(
             cacheWriter, defaultConfig, cacheConfigs,
             stringRedisTemplate, bloomFilterService, nullValueTtlProperties,
-            redissonClient, publisher
+            redissonClient, publisher, batchRedisCacheOperations
         );
     }
 
@@ -180,6 +176,17 @@ public class RedisConfig implements CachingConfigurer {
             return args -> LOGGER.info("EntityManagerFactory 不可用，跳過布隆過濾器初始化");
         }
         return new BloomFilterInitializer(bloomFilterService, bloomFilterDataAccessProvider.getObject(), bloomFilterProperties);
+    }
+
+    static GenericJackson2JsonRedisSerializer cacheValueSerializer() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.activateDefaultTyping(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
+        return new GenericJackson2JsonRedisSerializer(objectMapper);
     }
 
     Duration withJitter(Duration base) {

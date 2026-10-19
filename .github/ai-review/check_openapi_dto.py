@@ -40,6 +40,8 @@ def is_dto_or_vo_file(path: str, filename: str) -> bool:
     normalized_path = path.replace("\\", "/")
     if "src/test/java/" in normalized_path:
         return False
+    if "/Filter/" in normalized_path or "/filter/" in normalized_path:
+        return False
     if "/Vo/" in normalized_path or "/dto/" in normalized_path or "/Dto/" in normalized_path:
         return True
     dto_suffixes = (

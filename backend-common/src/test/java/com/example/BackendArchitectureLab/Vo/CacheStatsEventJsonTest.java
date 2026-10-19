@@ -11,7 +11,7 @@ class CacheStatsEventJsonTest {
 
     @Test
     void testSerializationAndDeserialization_RoundTrip() throws Exception {
-        CacheStatsEvent original = new CacheStatsEvent("roles", "hit");
+        CacheStatsEvent original = new CacheStatsEvent("roles", "hit", 1);
 
         String json = objectMapper.writeValueAsString(original);
         assertNotNull(json);
@@ -22,6 +22,7 @@ class CacheStatsEventJsonTest {
         assertEquals(original, deserialized);
         assertEquals("roles", deserialized.cacheName());
         assertEquals("hit", deserialized.field());
+        assertEquals(1, deserialized.count());
     }
 
     @Test
@@ -37,5 +38,6 @@ class CacheStatsEventJsonTest {
         assertNotNull(event);
         assertEquals("projects", event.cacheName());
         assertEquals("miss", event.field());
+        assertEquals(0, event.count(), "舊事件缺少 count 時應使用 primitive 預設值，Consumer 會相容轉為 1");
     }
 }

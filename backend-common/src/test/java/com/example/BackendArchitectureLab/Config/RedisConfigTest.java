@@ -10,6 +10,10 @@ import org.mockito.quality.Strictness;
 import org.springframework.cache.Cache;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.data.redis.serializer.SerializationException;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -29,6 +33,28 @@ class RedisConfigTest {
         RedisConfig redisConfig = new RedisConfig();
         errorHandler = redisConfig.errorHandler();
         when(cache.getName()).thenReturn("test-cache");
+    }
+
+    @Test
+    void cacheValueSerializer_RoundTripsJavaTimeAndLegacyDates() {
+        GenericJackson2JsonRedisSerializer serializer = RedisConfig.cacheValueSerializer();
+        DatedValue original = new DatedValue();
+        original.postedDate = LocalDate.of(2026, 10, 19);
+        original.updatedAt = LocalDateTime.of(2026, 10, 19, 12, 30);
+        original.legacyDate = new Date(123456789L);
+
+        DatedValue restored = (DatedValue) serializer.deserialize(serializer.serialize(original));
+
+        assertNotNull(restored);
+        assertEquals(original.postedDate, restored.postedDate);
+        assertEquals(original.updatedAt, restored.updatedAt);
+        assertEquals(original.legacyDate, restored.legacyDate);
+    }
+
+    public static class DatedValue {
+        public LocalDate postedDate;
+        public LocalDateTime updatedAt;
+        public Date legacyDate;
     }
 
     @Test

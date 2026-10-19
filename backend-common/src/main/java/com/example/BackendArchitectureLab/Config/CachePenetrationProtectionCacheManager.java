@@ -31,6 +31,8 @@ public class CachePenetrationProtectionCacheManager extends RedisCacheManager {
 
     private final CacheStatsPublisher statsPublisher;
 
+    private final BatchRedisCacheOperations batchRedisCacheOperations;
+
     public CachePenetrationProtectionCacheManager(
             RedisCacheWriter cacheWriter,
             RedisCacheConfiguration defaultCacheConfiguration,
@@ -39,13 +41,15 @@ public class CachePenetrationProtectionCacheManager extends RedisCacheManager {
             IBloomFilterService bloomFilterService,
             NullValueTtlProperties nullValueTtlProperties,
             RedissonClient redissonClient,
-            CacheStatsPublisher statsPublisher) {
+            CacheStatsPublisher statsPublisher,
+            BatchRedisCacheOperations batchRedisCacheOperations) {
         super(cacheWriter, defaultCacheConfiguration, initialCacheConfigurations);
         this.stringRedisTemplate = stringRedisTemplate;
         this.bloomFilterService = bloomFilterService;
         this.nullValueTtlProperties = nullValueTtlProperties;
         this.redissonClient = redissonClient;
         this.statsPublisher = statsPublisher;
+        this.batchRedisCacheOperations = batchRedisCacheOperations;
     }
 
     @Override
@@ -61,7 +65,7 @@ public class CachePenetrationProtectionCacheManager extends RedisCacheManager {
                     name, redisCache, stringRedisTemplate,
                     bloomFilterService, redissonClient,
                     nullValueTtlProperties.getNullTtl(name),
-                    statsPublisher
+                    statsPublisher, batchRedisCacheOperations
             );
             wrappedCaches.putIfAbsent(name, wrapped);
             return wrappedCaches.get(name);

@@ -5,6 +5,7 @@ package com.example.BackendArchitectureLab.Vo;
  */
 public record CacheStatsEvent(
         String cacheName,
-        String field
+        String field,
+        long count
 ) {
 }

@@ -561,7 +561,7 @@ class UserServiceTest {
         vo2.setId(id2.toString());
         vo2.setName("User 2");
 
-        when(userDataAccess.findAllById(anyList())).thenReturn(List.of(u1, u2));
+        when(userDataAccess.findAllByIdsWithRoles(anyList())).thenReturn(List.of(u1, u2));
         when(userMapper.toVo(u1)).thenReturn(vo1);
         when(userMapper.toVo(u2)).thenReturn(vo2);
 
@@ -572,6 +572,8 @@ class UserServiceTest {
         assertEquals(2, result.getTotalFound());
         assertEquals(2, result.getItems().size());
         assertTrue(result.getMissingIds().isEmpty());
+        verify(userDataAccess).findAllByIdsWithRoles(anyList());
+        verify(userDataAccess, never()).findAllById(anyList());
     }
 
     @Test
