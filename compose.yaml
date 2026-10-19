@@ -183,13 +183,15 @@ services:
       - my_network
 
   loki:
-    image: ${LOKI_IMAGE:-grafana/loki:3.0.0}
+    build:
+      context: ./docker/loki
+      dockerfile: Dockerfile
+    image: ${LOKI_IMAGE:-backend-architecture-lab-loki:3.0.0}
     container_name: ${LOKI_CONTAINER_NAME:-gary-backend-loki}
     restart: ${RESTART_POLICY:-always}
     mem_limit: 512m
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml
       - loki_data:/loki
     ports:
       - "127.0.0.1:${LOKI_PORT:-3100}:3100"
