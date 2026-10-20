@@ -1,0 +1,629 @@
+# 開發規範（唯一規則文件）
+
+> 本文件為專案唯一規則來源，合併自：《微服務分類使用規則》、《權限與存取控制規則》、《Controller API 註記規則》、《backend-ai-py/PYTHON_RULES.md》、《專案程式碼CodeReadview.md（程式碼品質標準）》。
+> 所有 Java / Python 程式碼（新增與修改）都必須遵守。原文備份於 `docs/archive/`。
+
+## 1. 微服務職責與邊界
+
+### 1.1 每個服務只准操作自己的資料
+
+各服務**只能操作自己職責清單內的實體與資料表**，跨模組一律走 Feign + Vo，嚴禁跨模組查詢資料庫：
+
+| 服務 | 負責領域 | 核心實體 |
+|------|----------|----------|
+| backend-iam-service | 使用者認證、全局權限、使用者與角色 | User、Role、Function、UserRole、RoleFunction |
+| backend-competency-service | 專案、技能、能力綁定、補償狀態 | Project、Skill、SkillLevel、UserProject、UserSkill、UserProjectSkill、CompensationEventLog、CompensationOutboxEvent、CompensationRestoreLog、ExternalSyncCommand |
+| backend-job-service | 公司、職缺、職缺綁定 | Company、JobPosting、CompanyWebsite、UserJobLink |
+| backend-external-api-service | 外部整合（LINE/Discord/MinIO）、AI 代理、語音日記與音訊 | VoiceDiary、BotConfig、ApiUsageLog、LineGfSession、DiscordGfSession、DiscordSubscription、UserVoiceUpload、VoiceTranslation |
+| backend-alert-service | 水情資料、告警門檻、即時告警 | AquarkData、AlertCheckLimit |
+| backend-common | 共用無狀態程式碼 | Feign Client、Vo、共用 Config/Exception/Annotation |
+| backend-gateway | 統一入口 | 無（僅路由 + 過濾器） |
+| backend-ai-py | Python AI 側車（STT/TTS/Chat） | 無資料表 |
+
+- **IAM 是唯讀權限與使用者核心**，絕不能感知上層業務：禁止注入業務 Feign、操作業務快取命名空間（如 `projects`）、引用業務型別（如 `UserProjectBindRequest`）。
+- 依賴方向單向：**業務服務 → IAM**；IAM 絕對禁止依賴或呼叫業務服務（範例反例：IAM 提供 `/users/inner/rebind-projects` 回呼 competency 即造成環狀呼叫）。
+
+### 1.2 禁止的反模式（驗證法：grep 各服務內 `FeignClient` 註冊與 Controller `/inner/` 路徑）
+
+- **跨服務環狀呼叫**：competency → IAM → competency。
+- **IAM 操作業務快取**：如 `@CacheEvict(value = "projects", ...)`。
+- **同服務自我 Feign 呼叫**：服務內部邏輯應注入自己的 Service 介面，禁止用 Feign 打自己（含打到自身 instance 的 Client，如 `CompetencySkillFeignClient` 即為反例）。
+- **幽靈 Feign Client / 幽靈 Service 介面**：不得保留任何服務未注入使用的 Feign Client（如 `AlertCheckLimitFeignClient`）或無實作、無引用的 Service 介面（如 `IBloomFilterService`）。檢查方式：grep `@FeignClient` 定義後，逐一確認有消費者。
+- **權限驗證自我 Feign / 反射繞過**：IAM 內部的權限驗證實作 `com.example.BackendArchitectureLab.Aop.LocalPermissionValidator`（本機方法呼叫），禁止以反射或 Feign 自我呼叫 `/role/inner/validate`；其餘服務使用 `DefaultPermissionValidator`（Feign → IAM `/role/inner/validate`）。
+
+### 1.3 層級職責劃分（EntityManager 限制）
+
+```
+Controller → Service → DataAccess → Repository → JPA
+```
+
+| 層 | 職責 | EntityManager |
+|----|------|---------------|
+| Controller | 請求接收與回應，只能接觸 Vo 與 Service 介面 | 禁止 |
+| Service | 業務邏輯（Interface 回傳 Vo、嚴禁回傳 Entity；Mapper 僅限 Service Impl）| 禁止 |
+| DataAccess | 資料存取抽象 | 允許（內部實作細節） |
+| Repository | Spring Data JPA 介面 | 允許 |
+
+- Entity 與 Mapper 嚴格禁止出現在 Controller 層。
+- 共用 Entity 放 backend-common：僅供 JPA 映射參考，不作為跨服務資料傳輸載體（跨服務一律 Vo + Feign）。
+- 跨服務 FK：用 `new Entity()` + `setId()`（不觸發 DB 查詢，只提供 FK 值）；驗證跨服務 Entity 存在用 Feign（不得直接查對方資料表）。
+- 跨服務的 `@ManyToOne` / `@OneToMany` 不設 `cascade`；EAGER fetch 謹慎使用，避免觸發跨服務查詢。
+
+### 1.4 依賴注入規範 (Dependency Injection)
+
+- **預設建構子注入**：專案全面採用 **建構子注入 (Constructor Injection)** 作為標準注入方式。
+- **Lombok 寫法規範**：在類別上方標註 `@RequiredArgsConstructor`（`import lombok.RequiredArgsConstructor;`），並將所有欲注入的依賴宣告為 `private final <Type> <fieldName>;`，無須手寫建構子。
+- **嚴禁欄位注入**：生產程式碼中嚴禁使用 `@Autowired` 進行欄位注入。
+- **例外情況**：
+  1. **可選依賴**：當依賴在部分微服務中可能不存在時，允許使用 `@Autowired(required = false)` 或 `Optional<T>` 建構子注入。
+  2. **設定屬性**：`@Value("${...}")` 屬性宣告為非 final 欄位，由 Spring 容器在實例化後透過反射注入。
+  3. **測試類別**：JUnit / SpringBootTest 測試類別可保留 `@Autowired` 或 `@MockBean` 進行依賴注入。
+
+## 2. 權限與存取控制
+
+### 2.1 三層權限結構（存入 IAM `function` 表）
+
+```
+{第一層：微服務} / {第二層：資源層 layer()} / {第三層：動作層 value()}
+```
+
+| 層 | 來源 | 範例 |
+|----|------|------|
+| 第一層 | 由服務決定（Gateway/驗證端固定） | `Iam`、`Competency`、`Job`、`Alert`、`ExternalApi` |
+| 第二層 | `@RequirePermission(layer = "...")`；未寫時預設 = Controller 類名去除「Controller」 | `Skill`、`ProjectManagement` |
+| 第三層 | `@RequirePermission("...")`（value） | `View`、`Edit` |
+
+實作位置：`com.example.BackendArchitectureLab.Annotation.RequirePermission`（backend-common）；AOP 攔截器：`com.example.BackendArchitectureLab.Aop.PermissionCheck`。
+
+### 2.2 動作層字串規範
+
+- `View` = 讀取；`Edit` = 寫入（新增/更新/刪除/綁定/重新綁定均屬之）。
+- 唯一例外（需字典定義）：`Create`（`com.example.BackendArchitectureLab.Controller.UserController`）、`Scrape`（`com.example.BackendArchitectureLab.Controller.JobPostingController`）。
+- **禁止個人語義變體**：`PersonalEdit`、`EditAll` 不得使用，一律以 `Edit` 取代（含個人資源操作與管理員批量操作，皆兩態區分）。
+
+### 2.3 權限字典（唯一真源）
+
+- 字典位於 `com.example.BackendArchitectureLab.Service.Impl.InitAndCheckService.checkFunctionBindDefaultRole()`（backend-iam-service），以 `List.of(...)` 定義全部權限，IAM 啟動時自動補建缺失的 function。
+- **幽靈權限禁令**：字典中每筆權限必須有對應的 `@RequirePermission` 使用；新增權限時 Controller 與字典必須同時更新，不得只改一邊。
+
+### 2.4 准入策略（自助 vs 管理）
+
+| 情境 | 作法 |
+|------|------|
+| 管理層操作（CRUD、批量管理他人資料） | 方法標註 `@RequirePermission("View"/"Edit")` |
+| 自助端點（操作「當前登入使用者」自己的資料） | `com.example.BackendArchitectureLab.Util.SecurityUtil.requireCurrentUserId()` 取得目前使用者 ID 再操作（如 `/user/bindings`、`/skill/personal`）|
+
+- 自助端點可選加 `@RequirePermission`，但決定權在目前使用者身分，不能操作他人資料。
+- 管理端點一律必須驗證權限，禁止裸身分執行管理操作。
+
+### 2.5 BOLA（物件層級授權）防護
+
+- 以路徑 `{id}` 存取「個人所屬」資源時，一律驗證 `SecurityUtil.requireCurrentUserId()` 與資源擁有者一致；參考寫法：`com.example.BackendArchitectureLab.Controller.VoiceUploadController`（`requireCurrentUserId().equals(upload.getUserId())`）。
+- 驗證失敗一律拋例外（`AppException` / `IllegalStateException`），禁止直接回傳資料。
+
+### 2.6 權限對照表（現況）
+
+| 微服務 | 第二層 | 動作層 | 對應 Controller |
+|--------|--------|--------|-----------------|
+| Iam | User | View / Create / Edit | UserController |
+| Iam | Role | View / Edit | RoleController |
+| Iam | Function | View / Edit | FunctionController |
+| Competency | Skill | View / Edit | SkillController |
+| Competency | SkillLevel | View / Edit | SkillLevelController |
+| Competency | PersonalSkill | Edit | PersonalSkillController |
+| Competency | PersonalProject | View / Edit | PersonalProjectController |
+| Competency | ProjectManagement | View / Edit | ProjectAdminController、ProjectManagementController、UserBindingController（layer 覆寫） |
+| Competency | Project | View / Edit | ProjectController |
+| Job | Company | View / Edit | CompanyController |
+| Job | JobPosting | View / Edit / Scrape | JobPostingController |
+| Job | UserJobLink | View / Edit | UserJobLinkController |
+| Alert | AquarkData | View | AquarkDataController |
+| Alert | AlertLimit | View / Edit | AlertCheckLimitController（layer 覆寫） |
+| ExternalApi | VoiceUpload | View / Edit | VoiceUploadController |
+| ExternalApi | BotConfig | View / Edit | ConfigController（layer 覆寫） |
+
+禁止出現字串：`PersonalEdit`、`EditAll`、`SkillManagement`、`RolePermission`、`AquarkDataAvg`、`LimitSetting`。
+
+## 3. Controller API 註記（OpenAPI / Swagger）
+
+- Controller 文件註記**一律使用** `com.example.BackendArchitectureLab.Annotation.OpenApi`（backend-common）下的標準註記，嚴禁直接使用 `io.swagger.v3.oas.annotations.Operation`。
+
+| 註解 | 使用位置 | 預設回應碼 | 說明 |
+|------|----------|-----------|------|
+| `@ApiControllerTag` | 類別層 | - | 文件分組標籤（name/description） |
+| `@ApiOperationOk` | 方法層 | 200 / 500 | 一般成功操作 |
+| `@ApiOperationAuth` | 方法層 | 200 / 401 / 500 | 需驗證的操作（Bearer） |
+| `@ApiOperationBadRequest` | 方法層 | 200 / 400 / 500 | 可能回傳 400 的資料操作 |
+
+- `summary` / `description` 以及 `ResponseType.Success / ResponseType.Fail` 訊息字串（第二參數）**一律繁體中文**。
+- deprecated：於標準註記加 `deprecated = true`（可用原生 `@Deprecated` 標記）；不可使用原 `@Operation(deprecated = true)`。
+
+### 3.1 Controller 專屬複合註解體系 (@ApiBody, @ApiPath, @ApiQuery)
+
+專案自研三大專屬複合參數註解，由 Spring MVC `HandlerMethodArgumentResolver` 統一解析，取代原生散落註解：
+
+| 專屬複合註解 | 封裝原生註解與功能 | 使用範例 | 說明 |
+|-------------|------------------|----------|------|
+| `@ApiBody` | 整合 Swagger `@RequestBody` + 自動 JSR-380 Bean Validation | `@ApiBody(description = "批次 ID 請求") BatchIdsRequest request` | 處理 Request Body 反序列化並自動校驗 |
+| `@ApiPath` | 整合 Spring `@PathVariable` + Swagger `@Parameter(in = PATH)` | `@ApiPath(description = "使用者 ID", format = "uuid") UUID id` | 綁定路徑變數與 OpenAPI 參數宣告 |
+| `@ApiQuery` | 整合 Spring `@RequestParam` + Swagger `@Parameter(in = QUERY)` | `@ApiQuery(description = "筆數上限", defaultValue = "250") int size` | 綁定查詢參數、預設值與 OpenAPI 參數宣告 |
+
+#### 【重要架構契約】@ApiBody 自動驗證機制與禁止重複標註 @Valid
+1. **底層自動強制校驗**：
+   - `@ApiBody` 底層由 `ApiBodyArgumentResolver` 實作，已於參數解析階段全自動注入 Spring `Validator` 並強制執行 JSR-380 Bean Validation。
+   - 當傳入 Payload 違反 DTO 宣告之驗證約束（例如 `BatchIdsRequest` 內部的 `@Size(max = 100)`、`@NotEmpty`）時，底層會自動拋出 `MethodArgumentNotValidException` 阻擋請求並回傳標準 400 錯誤。
+2. **免寫且禁止 @Valid**：
+   - Controller 方法參數標註 `@ApiBody` 時已內建完整驗證，**嚴格禁止額外重複撰寫原生 `@Valid` 註解**！
+   - Controller 參數未出現 `@Valid` 屬於專案既定標準架構設計，**嚴禁靜態代碼審查或 AI Review 將其誤判為未校驗之漏洞**。
+
+### 3.2 輸入參數、模型分層與 Swagger 契約標準（強制齊備）
+
+- **POJO / PO / DTO / VO / BO / DAO 模型分層職責（嚴格分立）**：
+  - **PO (Persistent Object)**：收納於 `Entity/`，直接映射資料庫資料表，嚴禁暴露於 Controller 或 Service 介面簽名。
+  - **Request DTO**：收納於各模組 `Dto/Request/`，專用於客戶端寫入/異動操作之輸入資料載荷，命名一律以 `*Request` 結尾（如 `BatchIdsRequest`、`CreateJobPostingRequest`）。
+  - **Query DTO**：收納於各模組 `Dto/Query/`，專用於客戶端搜尋、檢索或分頁過濾參數，命名一律以 `*SearchQuery` 或 `*Query` 結尾（如 `UserSearchQuery`、`BaseSearchQuery`）。
+  - **View Object (VO)**：收納於各模組 `Vo/`，專用於 Presentation 呈現層對外響應視圖模型，命名一律以 `*Vo` 結尾（如 `UserVo`、`RoleVo`、`JobPostingVo`），嚴禁包含資料庫內部敏感技術欄位與 Lazy 關聯集合。
+  - **Messaging Event**：收納於各模組 `Event/`，專用於微服務間 Kafka 非同步事件與日誌載荷，命名一律以 `*Event` 結尾（如 `CompensationEvent`、`CacheStatsEvent`、`AlarmEvent`）。
+  - **Business Object (BO)**：收納於各模組 `Bo/`，專用於業務邏輯計算或狀態快照之中繼模型（如 `BindingSnapshot`）。
+  - **DAO (Data Access Object)**：由 `Repository/` 與 `DataAccess/` 組成，資料庫內部專用查詢過濾規格（如 `CriteriaApiFilter`）收納於 `DataAccess/specification/`。
+
+- **Controller 契約依賴與 Swagger 文件化規範**：
+  - 所有公開 Controller 方法之路徑變數必須使用 `@ApiPath(description = "繁體中文說明", format = "uuid")`。
+  - 所有公開 Controller 方法之查詢參數必須使用 `@ApiQuery(description = "繁體中文說明", defaultValue = "...")`。
+  - 路徑參數為 UUID 時，必須標註 `example = "00000000-0000-0000-0000-000000000001"` 與 `format = "uuid"`。
+  - **白名單精準稽核**：凡由公開 Controller 端點輸入參數（`@ApiBody`、`@RequestBody`、`*Query`）或輸出型別（解包 `ResponseType<T>`、`PageResult<T>`、`List<T>` 等）直接引用或巢狀遞迴引用之公開傳輸模型，必須標註專屬 `@ApiDto(description = "繁體中文模型說明")`。未於 Controller 曝光之內部事件與模型全面免檢。
+  - 所有名列契約白名單之非靜態欄位必須 100% 標註專屬 `@ApiField(description = "繁體中文欄位說明", example = "真實範例值")`。
+  - **Record 與 Enum 規範**：Java 21 `Record` 允許直接於 Record Component 上標註 `@ApiField`；`Enum` 必須標註 `@ApiDto` 說明列舉定義，其列舉常數豁免標註 `@ApiField`。
+  - 識別碼或關聯外鍵欄位（UUID）之 `@ApiField` 必須顯式宣告 `format = "uuid"`，範例值一律使用標準 UUID（如 `"00000000-0000-0000-0000-000000000001"`），嚴禁填寫 `"admin"` 或純數字。
+  - 審計欄位 `createdBy` 與 `updatedBy` 統一定位為使用者識別碼（UUID），必須標註 `format = "uuid"` 與 UUID 範例值，並由 `CommonSecurityAuditorAware` 全自動注入。
+  - 必填欄位必須明確宣告 `required = true`，並於類別欄位搭配 Bean Validation 註解（如 `@NotNull`, `@NotBlank`, `@Size`）。
+- **通用語言與命名禁令**：
+  - 嚴禁模糊、誤導或實作細節命名（如 `key` 應為 `bootstrapSecret`；`string` 應為 `stringValue`；`large`/`small` 應為 `greaterThan`/`lessThan`；`roleArr` 應為 `roles`）。
+  - 所有欄位嚴禁保留相容用包袱註解（如 `@JsonAlias`），發現異常命名一律徹底重構。
+
+### 3.3 RESTful 路由命名慣例（一刀切標準）
+
+- **標準 HTTP 動詞對齊**：
+  - 建立資源：`POST /api/{resources}`（回傳 200/201 與新建實體 Vo）。
+  - 更新資源：`PUT /api/{resources}/{id}`（Path 傳遞資源 ID，Body 傳遞更新內容）。
+  - 刪除資源：`DELETE /api/{resources}/{id}`（Path 傳遞待刪除資源 ID）。
+  - 單筆詳情：`GET /api/{resources}/{id}`（回傳單筆完整 Vo）。
+  - 批次查詢：`POST /api/{resources}/batch-query`（Body 傳遞 `BatchIdsRequest`，回傳雙視角 `BatchResultVo<T>`）。
+  - 分頁搜尋：`POST /api/{resources}/search`（Body 傳遞 SearchQuery，回傳分頁結果）。
+  - 全量串流：`GET /api/{resources}/stream`（SSE 響應，徹底隔離於 CircuitBreaker 之外避免逾時誤殺）。
+  - 批次異動：`POST /api/function/batch`（專屬於系統功能樹批次儲存維護）。
+- **廢除歷史動詞路徑（一刀切）**：
+  - 嚴格禁止在 URL Path 中出現動詞後綴（如 `/add`, `/create`, `/save`, `/update`, `/delete`, `/get/{id}`）。
+  - 既有非標準端點一律移除並由標準動詞路徑取代，前端統一經由標準 HTTP Method 呼叫。
+
+### 3.4 細粒度多鍵快取旁路規範 (Granular Multi-Key Cache-Aside)
+
+- 在執行 `POST /api/{resources}/batch-query` 批次查詢時，**嚴禁**將整個 ID 陣列序列化作為粗粒度快取 Key（避免組合爆炸與髒讀）。
+- 必須透過通用 `BatchCacheHelper`，複用既有單筆 `GET /{id}` 之細粒度快取 Key（如 `users::id`、`projects::id`）逐筆檢查快取命中。
+- 僅對快取未命中的遺漏 ID 集合，下達單次 SQL `WHERE id IN (...)` 批量載入，並將查得實體回填至各自單筆快取，兼顧零快取鍵膨脹與極致讀取效能。
+
+### 豁免（不需註記）
+
+- `/xxx/inner` 路徑的內部 Controller：僅微服務間 Feign 呼叫，不對外暴露，不寫入 Swagger（如 `com.example.BackendArchitectureLab.Controller.UserInternalController`、`PermissionInternalController`、`AiInternalController`）。
+- **注意**：標註 `@Ignore` 之端點僅代表略過 Spring Security 之身分驗證（`permitAll()`，如 `/auth/login`），仍屬於對外公開 API 契約，**絕不可豁免** Swagger 文件與 `@ApiDto` / `@ApiField` 規範。
+
+## 4. Python 語法規範（backend-ai-py）
+
+### 4.1 Import（最高優先）
+- 所有 import 置於檔案最頂端，嚴禁函數內 import；順序以空行區分：標準函式庫 → 第三方 → 本專案模組，同類內依字母序。
+- 集中規則管理：嚴禁在程式碼中逐行撰寫 `# noqa` 抑制註解。若整個專案或特定目錄（如 `tests/`）需排除特定檢查規則（如 `E402`、`N802`），必須統一於 linter 設定檔（如 `ruff.toml`）之 `per-file-ignores` 集中宣告，維持原始碼純淨無污染。
+- 可選依賴載入：模組頂部 try/except ImportError 設 None（參考 `backend-ai-py/main.py` 的 `NacosClient`），使用處檢查 None。
+
+### 4.2 命名與格式
+- 函數/變數 `snake_case`、類別 `PascalCase`、常數 `UPPER_SNAKE_CASE`；私有函數前綴 `_`；禁止單字母變數（迴圈 `i` 除外）；4 空格縮排；行長上限 100；字串優先雙引號。
+
+### 4.3 型別、註解與結構
+- 函數參數與回傳值須型別註釋；註解用**繁體中文**、解釋「為什麼」而非「做什麼」；檔案 <約 300 行且單一職責；上層模組依賴下層、禁循環依賴。
+
+### 4.4 錯誤處理
+- `try-except` 捕捉**具體例外**，禁止裸 `except:`；**禁止 `except...: pass`**（靜默吞例外）——捕捉後必須至少 `logging.warning(...)` 含例外內容（參考 `services/stt_service.py` 暫存清理的寫法），有 fallback 值時才可 return fallback。
+
+## 5. 程式碼品質標準（SOLID / DRY / KISS / YAGNI）
+
+> 源自《專案程式碼CodeReadview.md》審查基準。所有程式碼（新增與修改）必須符合下列原則；審查時以此為檢查依據。
+
+### 5.1 SRP — Single Responsibility Principle
+
+一個類別或函式應該只負責一件事，且只有一個被修改的原因。
+
+檢查重點：
+
+- Service 是否同時負責多種不同業務？
+- Class 是否存在多個互不相關的修改原因？
+- 是否出現 God Class / God Service？
+- Controller 是否包含 Business Logic？
+- Service 是否直接處理 Infrastructure 細節？
+
+### 5.2 OCP — Open/Closed Principle
+
+軟體實體應該對擴充開放，對修改封閉。
+
+檢查重點：
+
+- 新增功能是否必須修改大量既有程式？
+- 是否大量使用 `if/else` 或 `switch` 判斷不同實作？
+- 是否可以透過 Strategy / Factory / Polymorphism 擴充？
+- 是否存在大量硬編碼的 Provider / Type 判斷？
+
+### 5.3 LSP — Liskov Substitution Principle
+
+子類別必須能夠完全替換父類別，且不破壞原有功能。
+
+檢查重點：
+
+- 子類別是否改變父類別預期行為？
+- 是否出現不合理的 `UnsupportedOperationException`？
+- Override 後是否破壞原本 contract？
+- 子類別是否需要大量特殊處理才能工作？
+
+### 5.4 ISP — Interface Segregation Principle
+
+不應強迫客戶端依賴自己不使用的方法。
+
+檢查重點：
+
+- Interface 是否過度龐大？
+- Implementer 是否被迫實作不需要的方法？
+- 是否應該拆成多個專用 Interface？
+
+### 5.5 DIP — Dependency Inversion Principle
+
+高層模組不應依賴低層模組，兩者都應依賴抽象。
+
+檢查重點：
+
+- Service 是否直接依賴 Repository？
+- Domain/Application Layer 是否直接依賴 Infrastructure？
+- 是否透過 Interface / Port 隔離實作？
+- 是否可以替換外部服務而不修改核心業務邏輯？
+
+### 5.6 DRY — Don't Repeat Yourself
+
+同一項知識應該只有一個明確且權威的實作。
+
+檢查重點：
+
+- 是否存在複製貼上的 Business Logic？
+- 相同 validation 是否散落各處？
+- 相同 mapping 是否重複？
+- 相同錯誤處理是否重複？
+- 相同 configuration 是否散落各 Service？
+- 修改一個規則是否需要修改多個檔案？
+
+### 5.7 KISS — Keep It Simple, Stupid
+
+程式碼應保持簡單，避免不必要的抽象與過度工程。
+
+檢查重點：
+
+- 是否有過度複雜的流程？
+- 是否存在過深的巢狀結構？
+- 是否使用不必要的 Reflection？
+- 是否存在過度抽象？
+- 是否可以用簡單方式解決卻使用複雜設計？
+- 方法是否做太多事情？
+
+### 5.8 YAGNI — You Aren't Gonna Need It
+
+不要為了未來可能需要而提前實作現在不需要的功能。
+
+檢查重點：
+
+- 未使用的方法
+- 未使用的 Class
+- 未使用的 Interface
+- TODO / FIXME 但長期未實作
+- 預留但沒有實際需求的功能
+- 死程式碼
+- 不必要的 Extension Point
+
+### 5.9 高內聚 High Cohesion
+
+同一個 Module / Class / Service 中的功能應高度相關。
+
+檢查重點：
+
+- 一個 Service 是否處理多個 Domain？
+- 方法之間是否沒有共同目的？
+- 是否存在 God Service？
+- 是否存在 `common` / `utils` 垃圾桶式 Class？
+
+### 5.10 低耦合 Low Coupling
+
+不同模組之間應降低不必要的依賴。
+
+檢查重點：
+
+- 一個 Service 是否依賴大量其他 Service？
+- 是否直接依賴 Infrastructure？
+- 修改 A 是否容易影響 B？
+- 是否存在跨 Module implementation dependency？
+- 是否存在 circular dependency？
+
+### 5.11 Boy Scout Rule
+
+每次修改程式碼時，應讓程式碼比修改前更乾淨。
+
+檢查重點：
+
+- 發現 dead code 是否刪除？
+- 發現重複邏輯是否整理？
+- 發現錯誤命名是否修正？
+- 發現明顯 Code Smell 是否順手改善？
+- 是否避免新增更多技術債？
+
+### 5.12 禁寫完全限定名稱（Fully Qualified Name, FQN）
+
+原始碼（Java / Python）中一律禁止在方法簽名、變數宣告或實例化物件時直接寫入長路徑的
+Fully Qualified Name（例如 `java.util.Date`、`java.util.Optional`，以及微服務內部的實體或異常長路徑）。
+所有相依類別必須在檔案頂部撰寫顯式 `import`，程式碼內部僅使用簡潔的類別名稱（Simple Name），
+維持代碼美觀與高度可讀性。
+
+例外（應盡量避免）：僅當同一個檔案內同時使用同 Simple Name 的兩個不同類別
+（如 `java.util.Date` 與 `java.sql.Date` 並存）時，才允許 FQN 於程式碼中標示其一。
+
+注意：本條僅規範**原始碼**。向使用者回報、文件或文字說明中引用程式碼位置時，
+一律使用完整套件路徑（如 `com.example.BackendArchitectureLab.Service.Impl.RoleService`），嚴禁寫縮寫路徑。
+
+檢查重點：
+
+- 原始碼是否有長路徑 FQN 混入（未以 `import` + Simple Name 表達）？
+- 是否僅在「同 Simple Name 並存」的例外情境使用 FQN？
+
+### 5.13 Markdown 程式碼範例規範（IDE 語法相容）
+
+在撰寫或維護專案技術文件（`*.md`、`docs/**/*.md`）時，凡使用 ````java` 語法標籤的程式碼區塊，
+**必須宣告完整的外層 `class` 與方法結構**（例如 `public class Example { void method() { ... } }` 或 `public record ...`），
+嚴禁直接撰寫裸語句（如裸 `switch`、裸 `if`、裸賦值或局部變數宣告等），
+防止觸發 IntelliJ IDEA 等現代 IDE 的 Markdown Java Language Injection 自動解析器報錯（如 `'class' or 'interface' expected`）。
+
+若為抽象概念片段、虛擬碼或非完整程式碼對比，應採用無注入之通用標籤（如 ````text` 或 ````）以維持乾淨無報錯的閱讀體驗。
+
+檢查重點：
+
+- `*.md` 中標註 ````java` 的區塊是否具備合法外層 `class` / `interface` / `record` 與方法宣告？
+- 是否避免在 ````java` 區塊中直接撰寫無法獨立解析的頂層局部語句？
+
+## 6. 實體清單雙軌獲取標準規範 (Dual-Rail Entity Retrieval Standards)
+
+### 6.1 根除無界端點原則 (Eradication of Unpaginated Endpoints)
+
+- **對外 Controller 嚴禁暴露無分頁端點**：
+  所有全域聚合根實體（Aggregate Root）之 Controller，**絕對嚴禁**對外暴露任何無分頁、無上限之清單端點（包括方法名稱為 `getAll`, `findAll`, `getList` 且無分頁參數之 API）。
+  此項規定旨在徹底消除資料量增長引發的服務記憶體耗盡（OOM）與 API 閘道逾時（Gateway 503/504）崩潰風險。
+- **底層內部 findAll 保留範疇**：
+  Service Impl 與 DataAccess Impl 層級內部可保留無參 `findAll()` 方法，專供系統開機預熱、本機快取加載及特殊排程聚合使用，**嚴禁**直接將其穿透暴露至 HTTP API 邊界。
+
+### 6.2 雙軌存取模型 (Dual-Rail Retrieval Architecture)
+
+所有全域聚合根實體，對外僅允許提供「搜尋軌」與「串流軌」雙軌存取端點：
+
+#### 6.2.1 搜尋軌 (Search Rail)
+
+- **路徑與請求方法**：`POST <basePath>/search`
+- **請求參數結構**：
+  - 必須建立繼承 `com.example.BackendArchitectureLab.Vo.Search.BaseSearchQuery` 之查詢物件。
+  - 內建 `page`（0 起算）、`size`（分頁大小）、`sortBy`（排序欄位，預設 "createdTime"）、`sortDir`（排序方向，預設 "desc"）。
+- **回應結構**：必須統一回傳 `ResponseType<PageResult<Vo>>`。
+- **安全性與防禦規範**：
+  - Service 實作層必須宣告 `SearchSortPolicy` 排序白名單（例如白名單限制 `id`, `createdTime`, `updatedTime` 等可排序欄位），阻絕任意欄位 SQL Injection 或 JPA 非法屬性排序例外。
+  - 查詢流程必須透過 `transactionExecutor.executeReadOnly` 包裹執行，確保唯讀事務隔離與連線資源迅速釋放。
+
+#### 6.2.2 串流軌 (Stream Rail)
+
+- **路徑與請求方法**：`GET <basePath>/stream?chunkSize=250`
+- **協定與媒體型別**：`MediaType.TEXT_EVENT_STREAM_VALUE` (`text/event-stream`)
+- **方法回傳型別**：`Flux<ServerSentEvent<List<Vo>>>`
+- **規格約束與生命週期**：
+  - `chunkSize` 參數必須進行邊界校驗，預設值 250，合法範圍限制為 `10 <= chunkSize <= 1000`。
+  - 底層查詢必須以主鍵升冪（`Sort.by("id").ascending()`）作為游標分批獲取，確保串流批次穩定且不漏筆。
+  - 串流生命週期事件：
+    - `chunk` 事件：傳輸批次 Vo 清單。
+    - `complete` 事件：標記串流完成，客戶端收到後正常關閉連線。
+    - `error` 事件：串流過程發生未預期異常時發送，供客戶端捕捉處理。
+  - 閘道長連線心跳保護：每隔 15 秒主動發送 `: keep-alive\n\n` 心跳註解，防範代理伺服器或負載均衡器空閒逾時切斷連線。
+- **API Gateway 配置要求**：
+  - Gateway 必須針對串流路徑配置專屬串流路由，設定 `response-timeout: 60000`。
+  - **嚴禁**在串流路由掛載 Resilience4j `CircuitBreaker` 熔斷器，防範長連線傳輸觸發誤熔斷。
+
+### 6.3 適用範疇與邊界 (Scope & Boundaries)
+
+- **全域聚合根實體強制雙軌**：
+  凡獨立存在、資料量隨業務持續增長的全域主實體（如 User, JobPosting, UserJobLink, Company, Project, Skill, AquarkData, AlertCheckLimit, BotConfig, DiscordGfSession, DiscordSubscription 等），必須全面落實雙軌獲取標準。
+- **局部關聯與專用子集除外**：
+  特定父節點下或當前登入者專屬之有限關聯查詢（例如：`/project/{id}/member-skills`、`/external/discord/sessions/{id}/messages`、`/api/users/profile`），屬於有邊界之局部端點，不在此限。
+
+### 6.4 未實作存根守門與架構門禁 (Stub Guard & Architecture Gate)
+
+- **本地確定性秒級阻擋**：
+  Pre-commit 稽核（`check_local.py`）強制執行以下守門規則（違規等級均為 HIGH，阻擋 commit）：
+  1. `RULE_UNIMPLEMENTED_METHOD_STUB`：嚴禁拋出 `UnsupportedOperationException`、殘留 `// TODO: implement` 存根方法或空回傳虛假實作。
+  2. `RULE_FORBIDDEN_GETALL_ENDPOINT`：嚴禁 Controller 暴露無分頁之全量清單端點。
+  3. `RULE_MISSING_DUAL_RAIL_RETRIEVAL`：新增之全域聚合根 Controller 若缺少 `POST /search` 或 `GET /stream`，立即阻擋提交。
+- **雙軌遷移燃盡機制 (Burn-down)**：
+  既有未完成雙軌遷移之舊 Controller 由 `check_rules.py` 之 `PENDING_DUAL_RAIL_MIGRATION` 白名單列管，隨後續專屬 PR 逐一重構並移出名單，實現平滑燃盡。
+
+## 7. 常見稽核指令
+
+```bash
+# 幽靈 Feign：找出 @FeignClient 定義，逐一確認消費者
+rg -l "@FeignClient" backend-common/src/main/java/com/example/BackendArchitectureLab/Feign
+rg "FeignClient 名稱" --glob "*.java" -l
+
+# 權限字典 vs @RequirePermission 對照
+rg "@RequirePermission" --glob "*Controller.java" -l
+# InitAndCheckService.checkFunctionBindDefaultRole() 確認字典
+
+# Controller 註記掃描（英文 summary 殘留）
+rg 'summary = "[A-Za-z]' --glob "*Controller.java"
+
+# 品質原則（章節 5）：God Service 候選（public 方法數過多）
+# rg 計算單檔方法數，門檻自訂（如 > 15）逐一檢視是否違反 SRP / 高內聚
+# PowerShell: Get-ChildItem -Recurse -Filter "*Service.java" | ForEach-Object {
+#   $c = (Select-String -Path $_.FullName -Pattern "public .+\(").Count
+#   if ($c -gt 15) { "$($_.FullName): $c methods" }
+# }
+
+# 品質原則：重複 if/else 判斷點（DRY 候選，如 v1~v7 逐欄重複判斷）
+rg "getV[0-9]|setV[0-9]" --glob "*.java"
+
+# Python 行長 / 單字母變數 / 靜默例外
+# PowerShell: Get-Content *.py | Where-Object {$_.Length -gt 100}
+# rg "except .*: *pass|except.*pass"
+
+# FQN 掃描（章節 5.12）：原始碼中殘留完全限定名稱
+rg "java\.(util|lang|sql|time|io)\.\w+" --glob "*.java" --glob "!**/target/**" --glob "!**/node_modules/**"
+rg "com\.example\.BackendArchitectureLab\.(Repository|Entity|Service|Exception)\.\w+" --glob "*.java" --glob "!**/target/**"
+# Python 對應：禁寫內建/套件長路徑 FQN（import 置頂為唯一合法引入途徑）
+rg "import (java\.|encodings\.|urllib\.)" --glob "*.py" || true
+
+# Liquibase 變更檔命名檢查（章節 8.1）：必須符合 db.changelog-<4位序號>-<kebab-case>.yaml
+# PowerShell 檢查未符合命名規則之 changelog 檔名：
+# Get-ChildItem -Recurse -Path "**/src/main/resources/db/changelog/*.yaml" | Where-Object { $_.Name -notmatch '^db\.changelog-(master|\d{4}-[a-z0-9-]+)\.yaml$' }
+
+# 本地 Pre-commit 守門稽核（章節 10.1）：
+python .github/ai-review/check_local.py
+
+# 本機資源保護單執行緒測試（章節 10.2）：
+rtk ./mvnw test "-DforkCount=1" "-Dsurefire.useFile=false"
+```
+
+## 8. 資料庫遷移與結構治理規範 (Liquibase & 樂觀鎖)
+
+### 8.1 Liquibase 檔案組織與命名規範
+
+專案全面採用 Liquibase 進行宣告式資料庫版本控制與遷移管理，徹底廢除執行期由 Hibernate 自動異動 Schema 之做法。
+
+- **主入口檔案**：每個持有獨立資料庫的微服務模組，其資源路徑下必須具備 `src/main/resources/db/changelog/db.changelog-master.yaml`，透過 `include` 依序載入變更腳本。
+- **Baseline 凍結原則**：基準遷移檔案（例如 `db.changelog-0001-baseline.yaml`）一經 Merge 至 `master` 分支即永久凍結，**絕對禁止**回溯修改 baseline 內容。
+- **增量變更檔命名格式**：後續所有 Schema 異動必須採用全新增量檔案，檔名強制遵守以下命名格式：
+  `db.changelog-<4位序號>-<kebab-case簡短說明>.yaml`
+  - 範例：`db.changelog-0002-add-version-column.yaml`、`db.changelog-0003-create-audit-table.yaml`。
+  - 序號必須嚴格遞增，禁止序號重複或跳號。
+
+### 8.2 ChangeSet 結構三要素
+
+每個 Liquibase 增量變更集（changeSet）必須嚴格具備以下三要素，確保變更具備可追溯性與可回滾性：
+
+1. **唯一識別 (`id`)**：每個 changeSet 必須具備模組內唯一且語意明確的 `id`（例如 `0002-add-version-to-user`）。
+2. **作者標記 (`author`)**：明確標註變更負責人或系統識別（例如 `author: gary`）。
+3. **可回滾宣告 (`rollback`)**：每個 changeSet **必須包含**對應的 `rollback` 區塊，宣告精確的逆向補償 DDL/SQL（例如 `dropColumn` 或 `dropTable`），嚴禁撰寫無法回滾的單向變更。
+
+```yaml
+databaseChangeLog:
+  - changeSet:
+      id: 0002-add-version-to-user
+      author: architecture-team
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+      rollback:
+        - dropColumn:
+            tableName: users
+            columnName: version
+```
+
+### 8.3 執行期與測試環境資料庫隔離規範
+
+- **生產與本機環境驗證模式**：
+  - 各服務之 `application.yml` 與設定檔中，Hibernate DDL 模式必須統一設定為：
+    `spring.jpa.hibernate.ddl-auto: validate`
+  - 嚴禁設定為 `update`、`create` 或 `create-drop`。Schema 異動唯一途徑為 Liquibase 遷移引擎。
+- **單元測試切片資料隔離**：
+  - JPA 資料存取層切片測試（如 `@DataJpaTest`）預設強制使用 H2 In-Memory Database 進行隔離驗證。
+  - **嚴禁**在測試類別或設定中宣告 `spring.test.database.replace: none`，防止測試執行時不慎連線並污染實體資料庫或未受控的本地儲存。
+
+### 8.4 樂觀鎖（Optimistic Locking）併發控制實施標準
+
+在高併發業務環境下，為防範覆蓋遺失（Lost Update）並確保高價值資料聚合根的資料一致性，實施樂觀鎖規範：
+
+- **實施對象**：
+  - 限定於核心聚合根（目前為 `com.example.BackendArchitectureLab.Entity.User` 與 `com.example.BackendArchitectureLab.Entity.BotConfig`）。
+  - 一般日誌型（如 `ApiUsageLog`）或 Append-Only 事件資料表無需施加樂觀鎖。
+- **實體定義標準**：
+  - 統一使用 JPA 規範之 `@Version` 註記，型別強制宣告為 `Long`，欄位名稱為 `version`：
+```java
+package com.example.BackendArchitectureLab.Entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Table(name = "users")
+@Getter
+@Setter
+public class UserExample {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
+}
+```
+- **DTO / VO 隔離原則**：
+  - `@Version` 欄位為 JPA 內部狀態機制，**嚴禁直接暴露於對外 API 的 Request DTO** 中供前端任意修改。
+  - 外部 API 傳輸若需進行樂觀鎖版本比對，必須由 Service Impl 透過業務 Vo 進行封裝與驗證。
+- **衝突例外處理**：
+  - 實體發生併發衝突時，Spring Data JPA 會拋出 `org.springframework.orm.ObjectOptimisticLockingFailureException`。
+  - Service 實作層必須妥善捕捉該例外，並轉換為 HTTP 409 衝突業務例外或根據業務情境進行重試，嚴禁直接噴出未經處理的 500 資料庫系統錯誤。
+
+## 9. 韌性防禦與本機快取規範 (Resilience & Caching)
+
+### 9.1 API Gateway 斷路降級回退（Circuit Breaker）
+
+- 網關模組（`backend-gateway`）全面整合 Resilience4j Reactive 斷路器（如 `com.example.BackendArchitectureLab.Config.GatewayCircuitBreakerConfig`）。
+- 當後端微服務實體發生超時、崩潰或拋出大量 5xx 錯誤觸發斷路器閾值（熔斷開啟 OPEN 狀態）時，網關路由必須配置回退過濾器，統一導向降級端點（如 `com.example.BackendArchitectureLab.Controller.GatewayFallbackController`）。
+- 降級端點必須統一回傳標準 HTTP 503 格式之 JSON 錯誤結構，阻絕串聯雪崩效應。
+
+### 9.2 本機近端快取（Near-Cache）與授權防雪崩機制
+
+- **近端快取提升讀取效能**：
+  - 業務微服務於執行 `@RequirePermission` 權限校驗時，透過 `com.example.BackendArchitectureLab.Aop.DefaultPermissionValidator` 整合 Caffeine 本機快取。
+  - 權限檢驗結果在短期內於服務本機記憶體保留，大幅降低跨服務對 IAM `/role/inner/validate` 的 RPC 呼叫負擔與延遲。
+- **防雪崩與安全優先（Fail-Closed）**：
+  - 當 IAM 認證授權中心發生網路分割或服務離線時，本機驗證器優先檢查 Caffeine 快取；若快取無記錄或逾期，**必須嚴格遵循 Fail-Closed（預設關閉/拒絕）原則**，拋出 403 授權拒絕例外，嚴禁因上游離線而自動放行權限。
+  - 跨服務 Feign Client（如 `com.example.BackendArchitectureLab.Feign.PermissionCheckFeignClient`）在無對應環境時必須透過 Spring `ObjectProvider` 動態感知連線狀態，防範非必要之連線重試造成微服務啟動阻塞。
+
+## 10. 版本提交流程與測試資源規範 (Git Workflow & Testing Constraints)
+
+### 10.1 本地 Pre-commit 守門防線（強制檢查）
+
+為防範違規代碼累積至 CI/CD 階段，專案落實本地強制審查防線（ADR-0008）：
+
+- 在執行 `git commit` 前，**必須先執行本地規範檢查**：
+  `python .github/ai-review/check_local.py`
+- 必須確認檢查結果為 **0 阻擋違規（Failures: 0, Exit Code: 0）** 才能執行 commit。
+- 若檢查出 HIGH 或 MEDIUM 等級違規（如 Controller 缺少權限註記、OpenAPI 英文殘留、原始碼中存在 FQN、或是非同步/實體洩漏），**嚴禁強制提交**，必須依照本開發規範修正完畢後再次執行並通過。
+
+### 10.2 本機單執行緒測試與資源保護規範
+
+本機開發機環境通常同時承載 IDE、Docker 容器與本地瀏覽器。為避免 Maven 多核心平行構建霸佔 CPU 導致系統卡頓：
+
+- **嚴禁多執行緒並行**：在本地執行測試或建置時，嚴禁使用 `-T` 多線程編譯或 Surefire 多進程平行測試。
+- **標準測試指令**：調用測試時必須維持單一 JVM 行程循序執行：
+  `rtk ./mvnw test "-DforkCount=1" "-Dsurefire.useFile=false"`
+  - `"-DforkCount=1"`：維持單一 JVM 測試行程，防範 CPU 過載。
+  - `"-Dsurefire.useFile=false"`：將測試日誌輸出至終端機，便於精簡排查並節省 Token。
+- **測試通過保證**：當 `./mvnw test` 未全部通過時（Failures > 0 或 Errors > 0），嚴禁執行 git commit。

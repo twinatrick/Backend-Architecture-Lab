@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "baseline_review_date": "2026-10-20",
+  "sources": [
+    {
+      "profile": "backend",
+      "repository": "https://github.com/twinatrick/Backend-Architecture-Lab",
+      "branch": "master",
+      "commit": "cb0d97685b2d3b8b1aaafa0a08ba858ee31163ae",
+      "local_master_at_import": "6bf733579d6aac1387d4617eeaf85cbb6405c965",
+      "path": "開發規範.md",
+      "imported_path": "standards/backend/master-rules.md",
+      "sha256": "1c94af1faeb73e1792c62e3d0b73dc753e891d7e33bcb9069d8a415389f64a13",
+      "transformation": "none; byte-for-byte Git blob",
+      "license_review": "pending"
+    },
+    {
+      "profile": "backend",
+      "repository": "https://github.com/twinatrick/Backend-Architecture-Lab",
+      "branch": "master",
+      "commit": "cb0d97685b2d3b8b1aaafa0a08ba858ee31163ae",
+      "local_master_at_import": "6bf733579d6aac1387d4617eeaf85cbb6405c965",
+      "path": "AGENTS.md",
+      "imported_path": "standards/backend/master-agents.md",
+      "sha256": "3b24e7352d41d0b050d082176fdc3cc308c5a1aa6de3d038c85370d73381246a",
+      "transformation": "none; byte-for-byte Git blob",
+      "license_review": "pending"
+    },
+    {
+      "profile": "backend",
+      "repository": "https://github.com/twinatrick/Backend-Architecture-Lab",
+      "branch": "master",
+      "commit": "cb0d97685b2d3b8b1aaafa0a08ba858ee31163ae",
+      "local_master_at_import": "6bf733579d6aac1387d4617eeaf85cbb6405c965",
+      "path": ".github/AI_REVIEW.md",
+      "imported_path": "standards/backend/master-review.md",
+      "sha256": "e9b4c1bb4a22a82deea8e0acdfac9d13626b3753aa675ad33d0cb54713ef23b5",
+      "transformation": "none; byte-for-byte Git blob",
+      "license_review": "pending"
+    },
+    {
+      "profile": "frontend",
+      "repository": "https://github.com/twinatrick/v3-admin-vite-templete",
+      "branch": "master",
+      "commit": "8470f3f8981f1117e942b24e6ed287e89d328c6d",
+      "local_master_at_import": "8470f3f8981f1117e942b24e6ed287e89d328c6d",
+      "path": "開發規範.md",
+      "imported_path": "standards/frontend/master-rules.md",
+      "sha256": "92c69e05b4bb4d30d7996ac8148ef3e3c2942c14794f40bb4a069fa3ec5cd94c",
+      "transformation": "none; byte-for-byte Git blob",
+      "license_review": "pending"
+    },
+    {
+      "profile": "frontend",
+      "repository": "https://github.com/twinatrick/v3-admin-vite-templete",
+      "branch": "master",
+      "commit": "8470f3f8981f1117e942b24e6ed287e89d328c6d",
+      "local_master_at_import": "8470f3f8981f1117e942b24e6ed287e89d328c6d",
+      "path": "AGENTS.md",
+      "imported_path": "standards/frontend/master-agents.md",
+      "sha256": "b6df0423c62c926f06fa1cbf1b0497965d25d7609d3560e2da4859e8cdd666ce",
+      "transformation": "none; byte-for-byte Git blob",
+      "license_review": "pending"
+    },
+    {
+      "profile": "frontend",
+      "repository": "https://github.com/twinatrick/v3-admin-vite-templete",
+      "branch": "master",
+      "commit": "8470f3f8981f1117e942b24e6ed287e89d328c6d",
+      "local_master_at_import": "8470f3f8981f1117e942b24e6ed287e89d328c6d",
+      "path": "review.md",
+      "imported_path": "standards/frontend/master-review.md",
+      "sha256": "91f3fec2778e9fa2bca9b26d6d9e50ce9163fa2d89e5f8787c454d99216f77a8",
+      "transformation": "none; byte-for-byte Git blob",
+      "license_review": "pending"
+    }
+  ]
+}
