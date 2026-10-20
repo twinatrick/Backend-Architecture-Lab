@@ -1,11 +1,11 @@
 # OpenCode Agent Instructions
 
-## 工程規範集中治理接軌預覽
+## 工程規範集中治理正式接軌 (0.1.0)
 
-- 集中來源預定為 <https://github.com/twinatrick/engineering-standards>，本地草案為 `../engineering-standards`，目前尚未發布或正式採用。
-- 本專案保留 `0.1.0-draft.1` 的共通＋後端完整快照，入口為 [工程規範快照說明](docs/engineering-standards/README.md)，來源與雜湊見同目錄 `manifest.json`；標準庫 commit 尚不存在，明確記錄為 `null`。
-- **現行 `開發規範.md` 與以下執行指示仍有效**；草案不新增門禁，不可拿未核准提案替代現行規則，也不可直接修改快照。衝突、授權與公開脫敏完成審查後，另行核准正式採用。
-- 可手動執行 `python scripts/check_engineering_standards.py` 進行離線唯讀完整性檢查；目前不接 CI／hooks、不自動升版。專案例外另記錄於快照目錄的 `exceptions.md`，須有明確核准。
+- 集中權威來源為 <https://github.com/twinatrick/engineering-standards>，本地集中庫為 `../engineering-standards`。
+- 本專案保留已發布 `0.1.0` 的共通＋後端完整快照，入口為 [工程規範快照說明](docs/engineering-standards/README.md)，來源與雜湊見同目錄 `manifest.json`；已明確鎖定集中庫 Commit SHA (`c882cc38ed778b099ee3fdf5f2205ade40f2a4a3`)。
+- 本專案工程規範與集中標準庫保持一致，現行根目錄 `開發規範.md` 與以下執行指示與其對齊；禁止直接修改快照。
+- 可手動執行 `python scripts/check_engineering_standards.py`（支援 `--require-published`）進行離線唯讀完整性檢查；目前不接 CI／hooks、不自動升版。專案例外另記錄於快照目錄的 `exceptions.md`，須有明確核准。
 
 ## Language
 - **必須使用繁體中文**與使用者進行溝通、撰寫說明與註解 (MUST use Traditional Chinese for communication and documentation).

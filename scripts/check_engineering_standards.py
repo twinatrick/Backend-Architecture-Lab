@@ -72,7 +72,9 @@ def check_files(root: Path, entries: list[dict], expected: set[str]) -> list[str
     return errors
 
 
-def validate_source(document: dict, require_published: bool) -> list[str]:
+def validate_source(
+    document: dict, require_published: bool, is_manifest: bool = True
+) -> list[str]:
     errors = []
     source = document.get("source", {})
     if not isinstance(source, dict):
@@ -86,12 +88,21 @@ def validate_source(document: dict, require_published: bool) -> list[str]:
     status = source.get("status")
     if status not in {"draft", "published"}:
         errors.append("未知發布狀態")
-    if require_published or status == "published":
+    if require_published or (is_manifest and status == "published"):
         revision = source.get("commit")
         if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
             errors.append("正式採用需要真實的 40 位 commit SHA")
         if status != "published" or "draft" in version:
             errors.append("目前仍為未發布草案")
+        if document.get("release_gates") != {
+            "license_review": "approved",
+            "conflicts": "resolved",
+            "public_redaction": "approved",
+        }:
+            errors.append("發布授權、衝突或脫敏審查未完成")
+    elif not is_manifest and status == "published":
+        if "draft" in version:
+            errors.append("已發布狀態不應包含 draft 版本字串")
         if document.get("release_gates") != {
             "license_review": "approved",
             "conflicts": "resolved",
@@ -105,7 +116,7 @@ def verify_manifest(path: Path, require_published: bool = False) -> list[str]:
     document = read_document(path)
     profile = document.get("profile")
     expected = required_paths(profile)
-    errors = validate_source(document, require_published)
+    errors = validate_source(document, require_published, is_manifest=True)
     entries = document.get("files")
     if not isinstance(entries, list):
         raise ValueError("缺少檔案清單")
@@ -138,7 +149,10 @@ def verify_catalog(path: Path) -> list[str]:
     if not isinstance(entries, list):
         raise ValueError("缺少檔案清單")
     expected = set().union(*(required_paths(profile) for profile in sorted(PROFILES)))
-    return validate_source(document, False) + check_files(path.parent, entries, expected)
+    return (
+        validate_source(document, False, is_manifest=False)
+        + check_files(path.parent, entries, expected)
+    )
 
 
 def main() -> int:

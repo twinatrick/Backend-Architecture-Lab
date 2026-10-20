@@ -8,9 +8,9 @@
 
 工具留在原專案：Maven／JaCoCo、`.github/ai-review/`、`.githooks/`、CI 與 Docker 設定。工具落實程度見 `docs/findings.md`，不能因尚未自動檢查就視為沒有規範。
 
-## 已裁決一致性說明（0.1.0-draft.1）
+## 已裁決一致性說明（0.1.0）
 
 1. **Query DTO 基底路徑**：全域聚合根搜尋軌繼承之查詢基底物件，統一以現行架構 `com.example.BackendArchitectureLab.Dto.Query.BaseSearchQuery` 為準（雙軌規範章節舊路徑筆誤已修正，程式碼維持現狀）。
 2. **完全限定名稱（FQN）**：原始碼一律禁止直接在方法簽名、變數宣告或實例化物件時寫入 FQN，必須顯式 `import` 並使用 Simple Name；極窄例外僅限「同一檔案內同時使用同 Simple Name 的兩個不同類別（如 `java.util.Date` 與 `java.sql.Date` 並存）」以消除歧義。Agent 指南已與根規範同步。
 
-本 Profile 為草案，衝突處理詳見盤點，不宣稱已完成來源規範一致化。
+本 Profile 已隨 0.1.0 正式發布，已知衝突均已裁決落地。
