@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "https://github.com/twinatrick/engineering-standards",
+    "version": "0.1.0",
+    "commit": "c882cc38ed778b099ee3fdf5f2205ade40f2a4a3",
+    "status": "published"
+  },
+  "release_gates": {
+    "license_review": "approved",
+    "conflicts": "resolved",
+    "public_redaction": "approved"
+  },
+  "profile": "backend",
+  "files": [
+    {
+      "path": "LICENSES.md",
+      "source_path": "LICENSES.md",
+      "sha256": "16de9d8b2b75a4e6fd704b59a1d4d913ec03e2f86c166e80a68044fc1ff8d03a"
+    },
+    {
+      "path": "governance/adoption.md",
+      "source_path": "governance/adoption.md",
+      "sha256": "20d12664987da31701b6751c7929bb568e81f028d5c78fc5bfb105c54ed53c1e"
+    },
+    {
+      "path": "sources.json",
+      "source_path": "sources.json",
+      "sha256": "bc400382b679110f64433a9812acc9165d8c531f13d84438c07683512b3b8a92"
+    },
+    {
+      "path": "standards/backend.md",
+      "source_path": "standards/backend.md",
+      "sha256": "477d28651b75ae6a5cc5f53693a88cc84f38f8f240f95ba9a8f23532ed27a467"
+    },
+    {
+      "path": "standards/backend/master-agents.md",
+      "source_path": "standards/backend/master-agents.md",
+      "sha256": "3b24e7352d41d0b050d082176fdc3cc308c5a1aa6de3d038c85370d73381246a"
+    },
+    {
+      "path": "standards/backend/master-review.md",
+      "source_path": "standards/backend/master-review.md",
+      "sha256": "e9b4c1bb4a22a82deea8e0acdfac9d13626b3753aa675ad33d0cb54713ef23b5"
+    },
+    {
+      "path": "standards/backend/master-rules.md",
+      "source_path": "standards/backend/master-rules.md",
+      "sha256": "1c94af1faeb73e1792c62e3d0b73dc753e891d7e33bcb9069d8a415389f64a13"
+    },
+    {
+      "path": "standards/common.md",
+      "source_path": "standards/common.md",
+      "sha256": "36873b88fe00e6dbe33158493a5bfc089e694dfe650edce14ecc7584e9242829"
+    }
+  ],
+  "checker_source_path": "scripts/check_snapshot.py",
+  "checker_sha256": "c1ee29511299354cd7e1849acc3cc7c0c54e5037a7741843670fe6235e8a689c"
+}

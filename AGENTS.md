@@ -1,5 +1,12 @@
 # OpenCode Agent Instructions
 
+## 工程規範集中治理正式接軌 (0.1.0)
+
+- 集中權威來源為 <https://github.com/twinatrick/engineering-standards>，本地集中庫為 `../engineering-standards`。
+- 本專案保留已發布 `0.1.0` 的共通＋後端完整快照，入口為 [工程規範快照說明](docs/engineering-standards/README.md)，來源與雜湊見同目錄 `manifest.json`；已明確鎖定集中庫 Commit SHA (`c882cc38ed778b099ee3fdf5f2205ade40f2a4a3`)。
+- 本專案工程規範與集中標準庫保持一致，現行根目錄 `開發規範.md` 與以下執行指示與其對齊；禁止直接修改快照。
+- 可手動執行 `python scripts/check_engineering_standards.py`（支援 `--require-published`）進行離線唯讀完整性檢查；目前不接 CI／hooks、不自動升版。專案例外另記錄於快照目錄的 `exceptions.md`，須有明確核准。
+
 ## Language
 - **必須使用繁體中文**與使用者進行溝通、撰寫說明與註解 (MUST use Traditional Chinese for communication and documentation).
 ## Build & Run Environment
@@ -49,7 +56,7 @@
   - Entity 僅在 Repository、DataAccess 及 Service Impl（經 Mapper 轉換後）中使用，**嚴禁**傳遞至 Controller 層或作為 API 回傳型別
 - **開發規範 (唯一規則文件)**: **絕對必須遵守** `開發規範.md`（此為唯一規則來源，合併自微服務分類/Permission/Controller 註記/Python 規則/程式碼品質標準（CodeReadview），原文於 `docs/archive/`）。重點包含：模組資料隔離、跨服務 Feign Client 呼叫、Service 層禁止操作 EntityManager、三層權限設計（`@RequirePermission`）、Controller OpenAPI 標準註記（`Annotation/OpenApi`）、Python 語法規範（import 置頂/禁止單字母變數/禁止 `except: pass`）、程式碼品質標準（SOLID/DRY/KISS/YAGNI/高內聚低耦合/Boy Scout Rule）。
 - **範例一律使用完整套件路徑**: 文件或說明中引用程式碼位置時，一律寫完整套件路徑（如 `com.example.BackendArchitectureLab.Service.Impl.RoleService`），嚴禁寫縮寫路徑（如 `RoleService.java`）。
-- **原始碼中禁止使用完全限定名稱 (Fully Qualified Name, FQN)**：在 Java、Python 等原始碼檔案中，一律禁止直接在方法簽名、變數宣告或實例化物件時寫入長路徑的 FQN（例如 `java.util.Date`、`java.util.Optional`、以及微服務內部的實體或異常長路徑）。所有依賴的類別必須在檔案頂部撰寫顯式 `import`，並在程式碼內部僅使用簡潔的類別名稱 (Simple Name) 來維持代碼美觀與高度可讀性。*(備註：前條「範例一律使用完整套件路徑」僅適用於向使用者回報或文件描述中，原始碼編寫仍需遵守本 FQN 禁止規則。)*
+- **原始碼中禁止使用完全限定名稱 (Fully Qualified Name, FQN)**：在 Java、Python 等原始碼檔案中，一律禁止直接在方法簽名、變數宣告或實例化物件時寫入長路徑的 FQN（例如 `java.util.Date`、`java.util.Optional`、以及微服務內部的實體或異常長路徑）。所有依賴的類別必須在檔案頂部撰寫顯式 `import`，並在程式碼內部僅使用簡潔的類別名稱 (Simple Name) 來維持代碼美觀與高度可讀性。**極窄例外（應盡量避免）**：僅當同一個檔案內同時使用同 Simple Name 的兩個不同類別（如 `java.util.Date` 與 `java.sql.Date` 並存）時，才允許 FQN 於程式碼中標示其一以消除歧義。*(備註：前條「範例一律使用完整套件路徑」僅適用於向使用者回報或文件描述中，原始碼編寫仍需遵守本 FQN 禁止規則。)*
 - **Markdown 程式碼範例規範 (IDE 語法相容)**：撰寫或維護 `*.md` 技術文件中的 ````java` 區塊時，**必須宣告完整的外層 `class` / `interface` / `record` 與方法結構**，嚴禁直接撰寫裸語句（如裸 `switch`、裸 `if`、局部變數宣告等），避免觸發 IDE（如 IntelliJ IDEA）的 Java Language Injection 語法錯誤（如 `'class' or 'interface' expected`）。抽象片段或非完整程式碼一律使用通用標籤（如 ````text` 或 ````）。
 
 ## Git & Version Control (嚴格規定)
