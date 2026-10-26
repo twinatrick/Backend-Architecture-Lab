@@ -190,3 +190,39 @@ def test_process_batches_parallel_stagger_and_ordering():
     assert results[1]["files_reviewed"] == ["file_b.py"]
     assert results[2]["files_reviewed"] == ["file_c.py"]
     assert elapsed >= 0.2  # 3 個 worker 錯峰 0.1s 累加
+
+
+def test_process_batch_sub_batch_splitting_on_runtime_error(monkeypatch):
+    monkeypatch.setattr(time, "sleep", lambda _sec: None)
+    files = [
+        {"filename": "src/Alpha.java", "patch": "@@ -1 +1 @@\n+class Alpha {}"},
+        {"filename": "src/Beta.java", "patch": "@@ -1 +1 @@\n+class Beta {}"},
+    ]
+
+    def _chat_fn(prompt: str, required_tokens: int | None = None) -> str:
+        if "src/Alpha.java" in prompt and "src/Beta.java" in prompt:
+            raise RuntimeError("Batch too large for remaining models")
+        reviewed = "src/Alpha.java" if "src/Alpha.java" in prompt else "src/Beta.java"
+        return f"""```json
+        {{
+          "files_reviewed": ["{reviewed}"],
+          "coverage": "COMPLETE",
+          "findings": [],
+          "passed_checks": ["CHECK_{reviewed}"]
+        }}
+        ```"""
+
+    res = batch_runner.process_batch(
+        "business",
+        1,
+        ["src/Alpha.java", "src/Beta.java"],
+        files,
+        "rules",
+        "contract",
+        {},
+        123,
+        chat_fn=_chat_fn,
+    )
+    assert res["coverage"] == "COMPLETE"
+    assert res["files_reviewed"] == ["src/Alpha.java", "src/Beta.java"]
+    assert len(res["passed_checks"]) == 2

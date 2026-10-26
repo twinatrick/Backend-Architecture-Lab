@@ -75,3 +75,43 @@ def test_parse_retry_limit_invalid_or_empty():
     assert retry_utils.parse_retry_limit("invalid", 5) == 5
     assert retry_utils.parse_retry_limit(None, 4) == 4
     assert retry_utils.parse_retry_limit("-5", 3) == 3
+
+
+def test_parse_retry_after_gemini_retry_in_and_retry_delay():
+    mock_resp = MagicMock()
+    mock_resp.headers = {}
+    mock_resp.text = '{"error":{"message":"Please retry in 28.5s."}}'
+    assert retry_utils.parse_retry_after(mock_resp) == 28.5
+
+    mock_resp_json = MagicMock()
+    mock_resp_json.headers = {}
+    mock_resp_json.text = '{"error":{"details":[{"retryDelay":"42s"}]}}'
+    assert retry_utils.parse_retry_after(mock_resp_json) == 42.0
+
+
+def test_is_invalid_api_key_error_classification():
+    assert retry_utils.is_invalid_api_key_error(401, "Unauthorized") is True
+    assert retry_utils.is_invalid_api_key_error(403, "Forbidden") is True
+    invalid_payload = (
+        '{"error":{"message":"API key not valid. Please pass a valid API key.",'
+        '"reason":"API_KEY_INVALID"}}'
+    )
+    assert retry_utils.is_invalid_api_key_error(400, invalid_payload) is True
+    assert retry_utils.is_invalid_api_key_error(
+        400, '{"error":{"message":"Invalid JSON payload"}}'
+    ) is False
+
+
+def test_is_daily_quota_exhausted_classification():
+    assert retry_utils.is_daily_quota_exhausted(
+        "Quota exceeded for metric: GenerateRequestsPerDayPerProject", 5.0
+    ) is True
+    assert retry_utils.is_daily_quota_exhausted(
+        "Rate limit reached on tokens per day (TPD)", 10.0
+    ) is True
+    assert retry_utils.is_daily_quota_exhausted(
+        "Rate limit reached on requests per minute", 180.0
+    ) is True
+    assert retry_utils.is_daily_quota_exhausted(
+        "You exceeded your current quota. Please retry in 25s.", 25.0
+    ) is False

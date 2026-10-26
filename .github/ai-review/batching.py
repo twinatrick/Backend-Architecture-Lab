@@ -154,7 +154,7 @@ def build_batches(
         if not paths:
             continue
         current_batch: list[str] = []
-        current_tokens = 0
+        current_tokens = 1200
         current_chars = 0
         for filename in paths:
             file_item = file_map.get(filename, {})
@@ -170,7 +170,7 @@ def build_batches(
             ):
                 batches.append((scope, current_batch))
                 current_batch = []
-                current_tokens = 0
+                current_tokens = 1200
                 current_chars = 0
             current_batch.append(filename)
             current_tokens += cost_tokens

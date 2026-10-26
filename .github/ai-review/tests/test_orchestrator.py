@@ -175,3 +175,29 @@ def test_orchestrator_skips_groq_when_batch_exceeds_capacity():
     with pytest.raises(RuntimeError) as exc_info:
         orch.chat_completion(huge_prompt)
     assert "GROQ_CAPACITY" in str(exc_info.value)
+
+
+def test_orchestrator_large_batch_falls_back_to_remaining_gemini_models(monkeypatch):
+    gemini_pool = MagicMock()
+    gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY_1", "gkey1")]
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = []
+
+    called_model_lists = []
+
+    def fake_gemini_loop(prompt, max_retries, models, *args, **kwargs):
+        called_model_lists.append(list(models))
+        if "gemini-3.5-flash-lite" in models:
+            return '[{"location": "fallback_lite.py:1"}]'
+        return None
+
+    monkeypatch.setattr(orchestrator, "execute_gemini_loop", fake_gemini_loop)
+    orch = orchestrator.ReviewOrchestrator(
+        groq_key_pool=groq_pool,
+        gemini_key_pool=gemini_pool,
+    )
+    result = orch.chat_completion("test prompt", required_tokens=19000)
+    assert result == '[{"location": "fallback_lite.py:1"}]'
+    assert len(called_model_lists) == 2
+    assert "gemini-3.8-flash" in called_model_lists[0]
+    assert "gemini-3.5-flash-lite" in called_model_lists[1]
