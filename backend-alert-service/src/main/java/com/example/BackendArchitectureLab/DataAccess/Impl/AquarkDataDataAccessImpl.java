@@ -19,7 +19,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Implementation of IAquarkDataDataAccess.
@@ -31,6 +35,9 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
 
     private final AquarkDataRepository aquarkDataRepository;
     private final EntityManager entityManager;
+
+    private volatile long cachedUnfilteredTotal = -1L;
+    private volatile long cachedUnfilteredTotalExpireAt = 0L;
 
     @Override
     public List<AquarkData> findAll() {
@@ -73,12 +80,13 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
     public Page<AquarkData> findByCriteriaPaged(List<CriteriaApiFilter> filterList, Pageable pageable) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
 
-        // 1. 查詢資料 (Data Query)
-        CriteriaQuery<AquarkData> dataQuery = cb.createQuery(AquarkData.class);
-        Root<AquarkData> dataRoot = dataQuery.from(AquarkData.class);
+        // 1. 第一階段：延遲關聯 (Deferred Join) — 僅查詢分頁排序後的 ID 清單，利用複合索引避免對 20 萬筆寬表進行全表排序
+        CriteriaQuery<UUID> idQuery = cb.createQuery(UUID.class);
+        Root<AquarkData> dataRoot = idQuery.from(AquarkData.class);
+        idQuery.select(dataRoot.get("id"));
         List<Predicate> dataPredicates = buildPredicates(cb, dataRoot, filterList);
         if (!dataPredicates.isEmpty()) {
-            dataQuery.where(cb.and(dataPredicates.toArray(new Predicate[0])));
+            idQuery.where(cb.and(dataPredicates.toArray(new Predicate[0])));
         }
 
         // 動態排序
@@ -92,15 +100,36 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
                     orders.add(cb.desc(dataRoot.get(property)));
                 }
             });
-            dataQuery.orderBy(orders);
+            idQuery.orderBy(orders);
         }
 
-        TypedQuery<AquarkData> typedDataQuery = entityManager.createQuery(dataQuery);
-        typedDataQuery.setFirstResult((int) pageable.getOffset());
-        typedDataQuery.setMaxResults(pageable.getPageSize());
-        List<AquarkData> content = typedDataQuery.getResultList();
+        TypedQuery<UUID> typedIdQuery = entityManager.createQuery(idQuery);
+        typedIdQuery.setFirstResult((int) pageable.getOffset());
+        typedIdQuery.setMaxResults(pageable.getPageSize());
+        List<UUID> pageIds = typedIdQuery.getResultList();
 
-        // 2. 查詢總筆數 (Count Query)
+        List<AquarkData> content;
+        if (pageIds.isEmpty()) {
+            content = List.of();
+        } else {
+            List<AquarkData> fetchedEntities = aquarkDataRepository.findAllById(pageIds);
+            Map<UUID, AquarkData> entityById = new HashMap<>(fetchedEntities.size() * 2);
+            for (AquarkData entity : fetchedEntities) {
+                entityById.put(entity.getId(), entity);
+            }
+            content = pageIds.stream()
+                    .map(entityById::get)
+                    .filter(Objects::nonNull)
+                    .toList();
+        }
+
+        // 2. 第二階段：查詢總筆數 (無過濾條件且大表資料量 >= 1000 時，使用 5 秒短效快取避免高併發重複全表 COUNT)
+        boolean isUnfiltered = (filterList == null || filterList.isEmpty());
+        long now = System.currentTimeMillis();
+        if (isUnfiltered && cachedUnfilteredTotal >= 1000L && now < cachedUnfilteredTotalExpireAt) {
+            return new PageImpl<>(content, pageable, cachedUnfilteredTotal);
+        }
+
         CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
         Root<AquarkData> countRoot = countQuery.from(AquarkData.class);
         countQuery.select(cb.count(countRoot));
@@ -109,6 +138,11 @@ public class AquarkDataDataAccessImpl implements IAquarkDataDataAccess {
             countQuery.where(cb.and(countPredicates.toArray(new Predicate[0])));
         }
         Long total = entityManager.createQuery(countQuery).getSingleResult();
+
+        if (isUnfiltered && total != null && total >= 1000L) {
+            cachedUnfilteredTotal = total;
+            cachedUnfilteredTotalExpireAt = now + 5000L;
+        }
 
         return new PageImpl<>(content, pageable, total != null ? total : 0L);
     }

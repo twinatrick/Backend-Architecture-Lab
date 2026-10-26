@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
-import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, getStandardThresholds, handleSummary as customSummary } from './common.js';
+import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, buildStressScenario, getStandardThresholds, handleSummary as customSummary } from './common.js';
 
 const competencyLatency = new Trend('competency_endpoint_duration');
 
@@ -11,11 +11,7 @@ const withCache = __ENV.WITH_CACHE !== 'false';
 
 export const options = {
     scenarios: {
-        competency_stress: {
-            executor: 'constant-vus',
-            vus: targetVUs,
-            duration: duration,
-        },
+        competency_stress: buildStressScenario(targetVUs, duration),
     },
     thresholds: getStandardThresholds(withCache),
 };
@@ -44,18 +40,21 @@ export default function (data) {
         'Competency Project Search 200': (r) => r.status === 200,
     });
 
-    // 2. 取得技能列表 (GET /api/skill/get)
-    const resSkillGet = http.get(`${baseUrl}/api/skill/get`, params);
-    competencyLatency.add(resSkillGet.timings.duration);
-    check(resSkillGet, {
-        'Competency Skill Get 200': (r) => r.status === 200,
+    // 2. 分頁搜尋技能列表 (POST /api/skill/search)
+    const skillSearchPayload = JSON.stringify({
+        page: 0,
+        size: 20
+    });
+    const resSkillSearch = http.post(`${baseUrl}/api/skill/search`, skillSearchPayload, params);
+    competencyLatency.add(resSkillSearch.timings.duration);
+    check(resSkillSearch, {
+        'Competency Skill Search 200': (r) => r.status === 200,
     });
 
     // 3. 搜尋技能等級 (POST /api/skill/level/search)
     const levelSearchPayload = JSON.stringify({
         page: 0,
-        size: 20,
-        keyword: ''
+        size: 20
     });
     const resLevelSearch = http.post(`${baseUrl}/api/skill/level/search`, levelSearchPayload, params);
     competencyLatency.add(resLevelSearch.timings.duration);
@@ -63,11 +62,20 @@ export default function (data) {
         'Competency Skill Level Search 200': (r) => r.status === 200,
     });
 
-    // 4. 取得專案全量列表 (GET /api/project/get)
-    const resProjGet = http.get(`${baseUrl}/api/project/get`, params);
-    competencyLatency.add(resProjGet.timings.duration);
-    check(resProjGet, {
-        'Competency Project Get 200': (r) => r.status === 200,
+    // 4. 批次取得專案詳情 (POST /api/project/batch-query，驗證 BatchCacheHelper / Redis MGET)
+    const batchProjPayload = JSON.stringify({
+        ids: [
+            '00000000-0000-0000-0004-000000000001',
+            '00000000-0000-0000-0004-000000000002',
+            '00000000-0000-0000-0004-000000000003',
+            '00000000-0000-0000-0004-000000000004',
+            '00000000-0000-0000-0004-000000000005'
+        ]
+    });
+    const resProjById = http.post(`${baseUrl}/api/project/batch-query`, batchProjPayload, params);
+    competencyLatency.add(resProjById.timings.duration);
+    check(resProjById, {
+        'Competency Project Batch Query 200': (r) => r.status === 200,
     });
 
     sleep(0.05);

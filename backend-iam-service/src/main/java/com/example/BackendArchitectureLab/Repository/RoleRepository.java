@@ -27,4 +27,7 @@ public interface RoleRepository extends JpaRepository<Role, UUID>, JpaSpecificat
 
     @Query("SELECT r FROM Role r LEFT JOIN FETCH r.roleFunctions rf LEFT JOIN FETCH rf.function WHERE r.id IN :ids")
     List<Role> findAllByIdsWithFunctions(@Param("ids") List<UUID> ids);
+
+    @Query("SELECT rf.role.id, COUNT(rf.id) FROM RoleFunction rf WHERE rf.role.id IN :ids GROUP BY rf.role.id")
+    List<Object[]> countFunctionsByRoleIds(@Param("ids") List<UUID> ids);
 }

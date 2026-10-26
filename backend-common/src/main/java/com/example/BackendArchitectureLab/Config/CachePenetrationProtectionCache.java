@@ -152,58 +152,58 @@ public class CachePenetrationProtectionCache implements Cache, BatchCacheOperati
             return null;
         }
 
+        // 1. 先使用 Request Collapsing (請求合併) 查詢 Redis，確保高併發下只有 1 個執行緒向 Redis 發送 GET 請求，且快取命中時無須排隊信號量
+        CompletableFuture<ValueWrapper> future;
+        boolean isLeader = false;
+        CompletableFuture<ValueWrapper> newFuture = new CompletableFuture<>();
+
+        CompletableFuture<ValueWrapper> existing = activeRedisFetches.putIfAbsent(cacheKey, newFuture);
+        if (existing == null) {
+            future = newFuture;
+            isLeader = true;
+        } else {
+            future = existing;
+        }
+
+        if (isLeader) {
+            try {
+                ValueWrapper val = delegate.get(key);
+                future.complete(val);
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            } finally {
+                activeRedisFetches.remove(cacheKey);
+            }
+        }
+
+        ValueWrapper cached;
+        try {
+            cached = future.get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("獲取合併快取中斷: {}", e.toString());
+            cached = null;
+        } catch (Exception e) {
+            log.warn("獲取合併快取異常: {}", e.toString());
+            cached = null;
+        }
+
+        if (cached != null) {
+            Object value = cached.get();
+            if (value instanceof NullValue) {
+                return null;
+            }
+            incrementStat("hits");
+            return (T) value;
+        }
+
         boolean semaphoreAcquired = false;
         try {
-            // 公平鎖信號量排隊，最大並發 10，最多等 30 秒
+            // 快取未命中時才進入公平鎖信號量排隊，最大並發 10，最多等 30 秒，保護資料庫免受雪崩衝擊
             semaphoreAcquired = concurrencySemaphore.tryAcquire(30, TimeUnit.SECONDS);
             if (!semaphoreAcquired) {
                 log.warn("快取 [{}] key [{}] 獲取併發信號量超時 (30s)，系統繁忙，避免雪崩", name, key);
                 throw new RuntimeException("系統繁忙，請稍候再試");
-            }
-
-            // 1. 使用 Request Collapsing (請求合併) 查詢 Redis，確保 500 個併發只有 1 個會向 Redis 發送 GET 請求
-            CompletableFuture<ValueWrapper> future;
-            boolean isLeader = false;
-            CompletableFuture<ValueWrapper> newFuture = new CompletableFuture<>();
-
-            CompletableFuture<ValueWrapper> existing = activeRedisFetches.putIfAbsent(cacheKey, newFuture);
-            if (existing == null) {
-                future = newFuture;
-                isLeader = true;
-            } else {
-                future = existing;
-            }
-
-            if (isLeader) {
-                try {
-                    ValueWrapper val = delegate.get(key);
-                    future.complete(val);
-                } catch (Exception e) {
-                    future.completeExceptionally(e);
-                } finally {
-                    activeRedisFetches.remove(cacheKey);
-                }
-            }
-
-            ValueWrapper cached;
-            try {
-                cached = future.get(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.warn("獲取合併快取中斷: {}", e.toString());
-                cached = null;
-            } catch (Exception e) {
-                log.warn("獲取合併快取異常: {}", e.toString());
-                cached = null;
-            }
-
-            if (cached != null) {
-                Object value = cached.get();
-                if (value instanceof NullValue) {
-                    return null;
-                }
-                incrementStat("hits");
-                return (T) value;
             }
 
             // 2. 本地查無快取，嘗試非阻塞獲取 Redisson 分散式鎖 (0ms 等待，拿不到直接進入輪詢)

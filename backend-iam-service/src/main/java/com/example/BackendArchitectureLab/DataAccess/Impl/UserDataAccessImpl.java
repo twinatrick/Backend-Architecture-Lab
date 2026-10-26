@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -28,6 +29,9 @@ import java.util.stream.Collectors;
 public class UserDataAccessImpl implements IUserDataAccess {
 
     private final UserRepository userRepository;
+
+    private volatile long cachedUnfilteredTotal = -1L;
+    private volatile long cachedUnfilteredTotalExpireAt = 0L;
 
     @Override
     public void save(User user) {
@@ -79,6 +83,32 @@ public class UserDataAccessImpl implements IUserDataAccess {
         );
 
         Pageable pageable = PageRequest.of(query.getPage(), query.getSize(), sort);
+        if (isUnfiltered(query)) {
+            List<UUID> ids = userRepository.findPagedIds(pageable);
+            long now = System.currentTimeMillis();
+            long total;
+            if (cachedUnfilteredTotal >= 1000L && now < cachedUnfilteredTotalExpireAt) {
+                total = cachedUnfilteredTotal;
+            } else {
+                total = userRepository.count();
+                if (total >= 1000L) {
+                    cachedUnfilteredTotal = total;
+                    cachedUnfilteredTotalExpireAt = now + 5000L;
+                }
+            }
+            if (ids.isEmpty()) {
+                return new PageImpl<>(List.of(), pageable, total);
+            }
+            List<User> enriched = userRepository.findAllByIdsWithRoles(ids);
+            Map<UUID, User> enrichedMap = enriched.stream()
+                    .collect(Collectors.toMap(User::getId, u -> u, (existing, replacement) -> existing));
+            List<User> ordered = ids.stream()
+                    .map(enrichedMap::get)
+                    .filter(Objects::nonNull)
+                    .toList();
+            return new PageImpl<>(ordered, pageable, total);
+        }
+
         Page<User> page = userRepository.findAll(UserSpecification.buildSpecification(query), pageable);
 
         if (page.isEmpty()) {
@@ -89,12 +119,23 @@ public class UserDataAccessImpl implements IUserDataAccess {
         List<UUID> ids = page.getContent().stream().map(User::getId).toList();
         List<User> enriched = userRepository.findAllByIdsWithRoles(ids);
         Map<UUID, User> enrichedMap = enriched.stream()
-                .collect(Collectors.toMap(User::getId, u -> u));
+                .collect(Collectors.toMap(User::getId, u -> u, (existing, replacement) -> existing));
         List<User> ordered = page.getContent().stream()
                 .map(u -> enrichedMap.getOrDefault(u.getId(), u))
                 .toList();
 
         return new PageImpl<>(ordered, page.getPageable(), page.getTotalElements());
+    }
+
+    private boolean isUnfiltered(UserSearchQuery query) {
+        if (query == null) {
+            return true;
+        }
+        return (query.getName() == null || query.getName().isBlank())
+                && (query.getEmail() == null || query.getEmail().isBlank())
+                && (query.getPhone() == null || query.getPhone().isBlank())
+                && query.getDisabled() == null
+                && (query.getCreatedBy() == null || query.getCreatedBy().isBlank());
     }
 
     @Override

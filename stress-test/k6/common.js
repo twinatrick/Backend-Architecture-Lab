@@ -43,7 +43,7 @@ export function getAuthToken(baseUrl = DEFAULT_BASE_URL, email = ADMIN_EMAIL, pa
     // 嘗試建立 superuser
     try {
         const superPayload = JSON.stringify({
-            key: __ENV.SUPERUSER_KEY || 'super_secret_key_change_in_production',
+            bootstrapSecret: __ENV.SUPERUSER_KEY || 'super_secret_key_change_in_production',
             email: email
         });
         http.post(`${baseUrl}/api/auth/superuser`, superPayload, {
@@ -93,6 +93,30 @@ export function buildHeaders(token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
     return { headers };
+}
+
+/**
+ * 建構壓測 Scenario 配置（高併發 >= 200 VUs 時採用 1s 平滑建連爬坡，避免觸發 Windows NetUtil.SOMAXCONN=200 瞬時 SYN 佇列溢位）
+ */
+export function buildStressScenario(targetVUs, duration) {
+    if (targetVUs >= 200) {
+        return {
+            executor: 'ramping-vus',
+            startVUs: 50,
+            stages: [
+                { duration: '1s', target: targetVUs },
+                { duration: duration, target: targetVUs },
+            ],
+            gracefulRampDown: '1s',
+            gracefulStop: '3s',
+        };
+    }
+    return {
+        executor: 'constant-vus',
+        vus: targetVUs,
+        duration: duration,
+        gracefulStop: '3s',
+    };
 }
 
 /**

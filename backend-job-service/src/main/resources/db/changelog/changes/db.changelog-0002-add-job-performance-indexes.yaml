@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-add-job-performance-indexes
+      author: performance-review
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_user_job_link_created_time_id ON user_job_link (created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_job_posting_created_time_id ON job_posting (created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_company_created_time_id ON company (created_time DESC, id ASC);

@@ -12,7 +12,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,7 +25,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
 
+    private static final long UNFILTERED_COUNT_TTL_NANOS = 5_000_000_000L;
+    private static final long COUNT_CACHE_MIN_ROWS = 1_000L;
+
     private final UserJobLinkRepository userJobLinkRepository;
+
+    private volatile long cachedUnfilteredCount = -1L;
+    private volatile long cachedCountTimestampNanos = 0L;
 
     @Override
     public UserJobLink save(UserJobLink userJobLink) {
@@ -76,6 +84,7 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
     }
 
     @Override
+    @Transactional
     public void deleteByUserIdAndJobPostingId(UUID userId, UUID jobPostingId) {
         findByUserIdAndJobPostingId(userId, jobPostingId)
                 .ifPresent(userJobLinkRepository::delete);
@@ -100,22 +109,67 @@ public class UserJobLinkDataAccessImpl implements IUserJobLinkDataAccess {
         );
         PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
 
-        // 第一次查詢：分頁取得 ID（無 EntityGraph，避免 in-memory pagination）
-        Page<UserJobLink> page = userJobLinkRepository.findAll(UserJobLinkSpecification.buildSpecification(query), pageRequest);
+        final List<UUID> ids;
+        final long totalElements;
 
-        if (page.isEmpty()) {
-            return page;
+        if (isUnfilteredQuery(query)) {
+            ids = userJobLinkRepository.findPagedIds(pageRequest);
+            totalElements = getUnfilteredTotalCount(ids.size(), pageRequest);
+            if (ids.isEmpty()) {
+                return new PageImpl<>(Collections.emptyList(), pageRequest, totalElements);
+            }
+        } else {
+            // 第一次查詢：分頁取得 ID（無 EntityGraph，避免 in-memory pagination）
+            Page<UserJobLink> page = userJobLinkRepository.findAll(UserJobLinkSpecification.buildSpecification(query), pageRequest);
+            if (page.isEmpty()) {
+                return page;
+            }
+            ids = page.getContent().stream().map(UserJobLink::getId).toList();
+            totalElements = page.getTotalElements();
         }
 
         // 第二次查詢：批量載入含 jobPosting + company 的完整資料
-        List<UUID> ids = page.getContent().stream().map(UserJobLink::getId).toList();
         Map<UUID, UserJobLink> linkMap = userJobLinkRepository.findAllByIdsWithJobPosting(ids)
-                .stream().collect(Collectors.toMap(UserJobLink::getId, l -> l));
+                .stream().collect(Collectors.toMap(UserJobLink::getId, l -> l, (existing, replacement) -> existing));
 
-        List<UserJobLink> enriched = page.getContent().stream()
-                .map(l -> linkMap.getOrDefault(l.getId(), l))
+        List<UserJobLink> enriched = ids.stream()
+                .map(linkMap::get)
+                .filter(l -> l != null)
                 .toList();
 
-        return new PageImpl<>(enriched, pageRequest, page.getTotalElements());
+        return new PageImpl<>(enriched, pageRequest, totalElements);
+    }
+
+    private boolean isUnfilteredQuery(UserJobLinkSearchQuery query) {
+        if (query == null) {
+            return true;
+        }
+        return isBlank(query.getUserEmail())
+                && isBlank(query.getJobTitle())
+                && isBlank(query.getCompanyName())
+                && isBlank(query.getUserId())
+                && isBlank(query.getJobPostingId())
+                && isBlank(query.getCreatedBy());
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private long getUnfilteredTotalCount(int fetchedSize, Pageable pageable) {
+        if (pageable.getOffset() == 0 && fetchedSize < pageable.getPageSize()) {
+            return fetchedSize;
+        }
+        long now = System.nanoTime();
+        long cached = cachedUnfilteredCount;
+        if (cached >= COUNT_CACHE_MIN_ROWS && (now - cachedCountTimestampNanos) < UNFILTERED_COUNT_TTL_NANOS) {
+            return cached;
+        }
+        long exactCount = userJobLinkRepository.count();
+        if (exactCount >= COUNT_CACHE_MIN_ROWS) {
+            cachedUnfilteredCount = exactCount;
+            cachedCountTimestampNanos = now;
+        }
+        return exactCount;
     }
 }

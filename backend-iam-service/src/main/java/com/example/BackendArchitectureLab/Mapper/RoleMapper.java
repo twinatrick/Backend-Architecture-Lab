@@ -29,6 +29,7 @@ public interface RoleMapper {
 
     @Mapping(target = "userRoles", ignore = true)
     @Mapping(target = "roleFunctions", ignore = true)
+    @Mapping(target = "functionCount", ignore = true)
     Role toEntity(RoleVo roleOutVo);
 
     /**
@@ -58,6 +59,10 @@ public interface RoleMapper {
             return;
         }
         vo.setFunctionIds(Collections.emptyList());
-        vo.setFunctionCount(role.getRoleFunctions() != null ? role.getRoleFunctions().size() : 0);
+        if (role.getFunctionCount() != null) {
+            vo.setFunctionCount(role.getFunctionCount());
+        } else {
+            vo.setFunctionCount(role.getRoleFunctions() != null ? role.getRoleFunctions().size() : 0);
+        }
     }
 }

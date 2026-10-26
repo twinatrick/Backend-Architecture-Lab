@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
-import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, getStandardThresholds, handleSummary as customSummary } from './common.js';
+import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, buildStressScenario, getStandardThresholds, handleSummary as customSummary } from './common.js';
 
 const externalLatency = new Trend('external_endpoint_duration');
 
@@ -11,11 +11,7 @@ const withCache = __ENV.WITH_CACHE !== 'false';
 
 export const options = {
     scenarios: {
-        external_stress: {
-            executor: 'constant-vus',
-            vus: targetVUs,
-            duration: duration,
-        },
+        external_stress: buildStressScenario(targetVUs, duration),
     },
     thresholds: getStandardThresholds(withCache),
 };
@@ -33,13 +29,24 @@ export default function (data) {
     const baseUrl = DEFAULT_BASE_URL;
 
     // 1. 取得 Bot 配置清單 (POST /api/external/config/search)
-    const resConfig = http.post(`${baseUrl}/api/external/config/search`, JSON.stringify({}), params);
+    const resConfig = http.post(`${baseUrl}/api/external/config/search`, JSON.stringify({ page: 0, size: 20 }), params);
     externalLatency.add(resConfig.timings.duration);
     check(resConfig, {
         'Bot Config Search 200': (r) => r.status === 200,
     });
 
-    // 2. 查詢 API 使用量統計摘要 (GET /api/external/usage/summary)
+    // 2. 批次查詢 Bot 配置詳情 (POST /api/external/config/batch-query - 驗證 botConfigs 快取命中)
+    const resBatch = http.post(
+        `${baseUrl}/api/external/config/batch-query`,
+        JSON.stringify({ ids: ['00000000-0000-0000-0000-000000000601'] }),
+        params
+    );
+    externalLatency.add(resBatch.timings.duration);
+    check(resBatch, {
+        'Bot Config Batch Query 200': (r) => r.status === 200,
+    });
+
+    // 3. 查詢 API 使用量統計摘要 (GET /api/external/usage/summary)
     const resUsage = http.get(`${baseUrl}/api/external/usage/summary?start=2020-01-01T00:00:00Z&end=2030-01-01T00:00:00Z`, params);
     externalLatency.add(resUsage.timings.duration);
     check(resUsage, {

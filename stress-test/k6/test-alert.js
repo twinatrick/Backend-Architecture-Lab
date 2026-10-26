@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
-import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, getStandardThresholds, handleSummary as customSummary } from './common.js';
+import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, buildStressScenario, getStandardThresholds, handleSummary as customSummary } from './common.js';
 
 const alertLatency = new Trend('alert_endpoint_duration');
 
@@ -11,11 +11,7 @@ const withCache = __ENV.WITH_CACHE !== 'false';
 
 export const options = {
     scenarios: {
-        alert_stress: {
-            executor: 'constant-vus',
-            vus: targetVUs,
-            duration: duration,
-        },
+        alert_stress: buildStressScenario(targetVUs, duration),
     },
     thresholds: getStandardThresholds(withCache),
 };
@@ -39,23 +35,29 @@ export default function (data) {
         'Aquark Column Names 200': (r) => r.status === 200,
     });
 
-    // 2. 取得告警門檻清單 (GET /api/alertCheckLimit/get)
-    const resLimitGet = http.get(`${baseUrl}/api/alertCheckLimit/get`, params);
-    alertLatency.add(resLimitGet.timings.duration);
-    check(resLimitGet, {
-        'Alert Check Limit Get 200': (r) => r.status === 200,
+    // 2. 分頁搜尋感測器水情資料 (POST /api/aquarkData/search)
+    const aquarkSearchPayload = JSON.stringify({
+        page: 0,
+        size: 20
+    });
+    const resAquarkSearch = http.post(`${baseUrl}/api/aquarkData/search`, aquarkSearchPayload, params);
+    alertLatency.add(resAquarkSearch.timings.duration);
+    check(resAquarkSearch, {
+        'Aquark Data Search 200': (r) => r.status === 200,
     });
 
-    // 3. 搜尋告警門檻 (POST /api/alertCheckLimit/search)
-    const searchPayload = JSON.stringify({
-        page: 0,
-        size: 20,
-        keyword: ''
+    // 3. 批次查詢告警門檻 (POST /api/alertCheckLimit/batch-query，驗證 BatchCacheHelper / Redis MGET)
+    const batchLimitPayload = JSON.stringify({
+        ids: [
+            '00000000-0000-0000-0000-000000000401',
+            '00000000-0000-0000-0000-000000000402',
+            '00000000-0000-0000-0000-000000000403'
+        ]
     });
-    const resLimitSearch = http.post(`${baseUrl}/api/alertCheckLimit/search`, searchPayload, params);
+    const resLimitSearch = http.post(`${baseUrl}/api/alertCheckLimit/batch-query`, batchLimitPayload, params);
     alertLatency.add(resLimitSearch.timings.duration);
     check(resLimitSearch, {
-        'Alert Check Limit Search 200': (r) => r.status === 200,
+        'Alert Check Limit Batch Query 200': (r) => r.status === 200,
     });
 
     // 4. 取得快取命中即時指標 (GET /api/cache-stats)

@@ -7,14 +7,17 @@ import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Repository.CompanyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of ICompanyDataAccess.
@@ -70,6 +73,17 @@ public class CompanyDataAccessImpl implements ICompanyDataAccess {
             query.getSortBy()
         );
         PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
-        return companyRepository.findAll(CompanySpecification.buildSpecification(query), pageRequest);
+        Page<Company> page = companyRepository.findAll(CompanySpecification.buildSpecification(query), pageRequest);
+        if (page.isEmpty()) {
+            return page;
+        }
+        List<UUID> ids = page.getContent().stream().map(Company::getId).toList();
+        List<Company> enriched = companyRepository.findAllByIdsWithWebsites(ids);
+        Map<UUID, Company> enrichedMap = enriched.stream()
+                .collect(Collectors.toMap(Company::getId, c -> c, (existing, replacement) -> existing));
+        List<Company> ordered = page.getContent().stream()
+                .map(c -> enrichedMap.getOrDefault(c.getId(), c))
+                .toList();
+        return new PageImpl<>(ordered, pageRequest, page.getTotalElements());
     }
 }
