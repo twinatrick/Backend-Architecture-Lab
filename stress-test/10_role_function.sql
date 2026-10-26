@@ -14,7 +14,7 @@ DELETE FROM role_function WHERE function_id IN (
 DELETE FROM function WHERE id::text LIKE '00000000-0000-0000-0000-000000000%';
 
 -- Step 2: 動態綁定所有 leaf functions 到 系統管理員 與 admin 角色
--- 葉節點 Function.name 為 View, Edit, EditAll, PersonalEdit, Scrape
+-- 葉節點 Function.name 為 View, Edit, Create, Scrape
 -- 因 role_function 無 (role_id, function_id) 唯一約束，使用 NOT EXISTS 防重複
 INSERT INTO role_function (id, role_id, function_id)
 SELECT gen_random_uuid(), r.id, f.id
@@ -23,7 +23,7 @@ CROSS JOIN function f
 WHERE (r.name = '系統管理員' OR LOWER(r.name) = 'admin')
   AND f.parent IS NOT NULL
   AND f.parent != ''
-  AND f.name IN ('View', 'Edit', 'EditAll', 'PersonalEdit', 'Scrape')
+  AND f.name IN ('View', 'Edit', 'Create', 'Scrape')
   AND NOT EXISTS (
     SELECT 1 FROM role_function rf
     WHERE rf.role_id = r.id AND rf.function_id = f.id
