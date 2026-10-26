@@ -10,6 +10,8 @@ from redaction import redact_secrets
 from retry_utils import (
     DEFAULT_MAX_429_RETRIES_PER_PROVIDER,
     calculate_backoff_delay,
+    is_daily_quota_exhausted,
+    is_invalid_api_key_error,
     parse_retry_after,
 )
 
@@ -76,19 +78,36 @@ def execute_gemini_loop(
                                 break
 
                         status_code = response.status_code
-                        resp_text = response.text[:300]
+                        full_resp_text = response.text or ""
+                        resp_text = full_resp_text[:300]
                         reason_msg = f"HTTP {status_code}: {resp_text}"
                         error_details.append((key_tag, redact_secrets(reason_msg)))
 
-                        if status_code == 429 or "RESOURCE_EXHAUSTED" in resp_text:
+                        if is_invalid_api_key_error(status_code, full_resp_text):
+                            gemini_key_pool.mark_cooldown(api_key, 86400.0)
+                            print(
+                                f"Gemini 金鑰 {var_name} ({masked_key}) 無效或授權失敗 "
+                                f"({status_code})，已全域停用並放入冷卻清單，"
+                                "隨機切換下一把可用金鑰..."
+                            )
+                            time.sleep(1.0)
+                            break
+
+                        if status_code == 429 or "RESOURCE_EXHAUSTED" in full_resp_text:
                             total_429_count += 1
                             raw_retry_after = parse_retry_after(response)
-                            is_quota = (
-                                "quota" in resp_text.lower()
-                                or "RESOURCE_EXHAUSTED" in resp_text
+                            is_daily_quota = is_daily_quota_exhausted(
+                                full_resp_text, raw_retry_after
+                            )
+                            is_quota_or_rate = (
+                                is_daily_quota
+                                or "quota" in full_resp_text.lower()
+                                or "RESOURCE_EXHAUSTED" in full_resp_text
                                 or raw_retry_after > 60.0
                             )
-                            cooldown_seconds = max(raw_retry_after, 3600.0 if is_quota else 30.0)
+                            cooldown_seconds = max(
+                                raw_retry_after, 3600.0 if is_daily_quota else 45.0
+                            )
                             gemini_key_pool.mark_cooldown(
                                 api_key, cooldown_seconds, model=model_name
                             )
@@ -96,15 +115,16 @@ def execute_gemini_loop(
                             active_keys = gemini_key_pool.get_active_keys(
                                 gemini_keys, model=model_name
                             )
-                            if is_quota:
+                            if is_quota_or_rate:
+                                limit_label = "每日配額耗盡" if is_daily_quota else "短期速率/配額限制"
                                 print(
                                     f"Gemini 金鑰 {var_name} ({masked_key}) "
-                                    f"在模型 {model_name} 配額耗盡 (429)，"
+                                    f"在模型 {model_name} 觸發{limit_label} (429)，"
                                     f"已冷卻該模型 {cooldown_seconds:.0f} 秒。"
                                 )
                                 if not active_keys:
                                     print(
-                                        f"Gemini 模型 {model_name} 所有可用金鑰配額均已耗盡，"
+                                        f"Gemini 模型 {model_name} 所有可用金鑰均已進入冷卻，"
                                         "降級切換下一候選模型..."
                                     )
                                     model_unsupported = True
@@ -146,18 +166,10 @@ def execute_gemini_loop(
                             model_unsupported = True
                             break
 
-                        if status_code in (401, 403):
-                            gemini_key_pool.mark_cooldown(api_key, 86400.0)
+                        if status_code in (400, 404, 413):
                             print(
-                                f"Gemini 金鑰 {var_name} ({masked_key}) 授權失敗 ({status_code})，"
-                                "已全域停用並放入冷卻清單，隨機切換下一把可用金鑰..."
-                            )
-                            time.sleep(1.0)
-                            break
-
-                        if status_code == 413:
-                            print(
-                                f"Gemini 模型 {model_name} 請求負載過大 (413)，切換下一候選模型..."
+                                f"Gemini 模型 {model_name} 請求無法處理 ({status_code})，"
+                                "切換下一候選模型..."
                             )
                             gemini_model_pool.demote(model_name)
                             time.sleep(1.0)

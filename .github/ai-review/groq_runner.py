@@ -10,6 +10,8 @@ from redaction import redact_secrets
 from retry_utils import (
     DEFAULT_MAX_429_RETRIES_PER_PROVIDER,
     calculate_backoff_delay,
+    is_daily_quota_exhausted,
+    is_invalid_api_key_error,
     parse_retry_after,
 )
 
@@ -79,26 +81,41 @@ def execute_groq_loop(
                                 break
 
                         status_code = response.status_code
-                        resp_text = response.text[:300]
+                        full_resp_text = response.text or ""
+                        resp_text = full_resp_text[:300]
                         reason_msg = f"HTTP {status_code}: {resp_text}"
                         error_details.append((key_tag, redact_secrets(reason_msg)))
+
+                        if is_invalid_api_key_error(status_code, full_resp_text):
+                            groq_key_pool.mark_cooldown(api_key, 86400.0)
+                            print(
+                                f"Groq 金鑰 {var_name} ({masked_key}) 無效或授權失敗 "
+                                f"({status_code})，已全域停用並放入冷卻清單，"
+                                "隨機切換下一把可用金鑰..."
+                            )
+                            time.sleep(1.0)
+                            break
 
                         if status_code == 429:
                             total_429_count += 1
                             raw_retry_after = parse_retry_after(response)
-                            is_tpd = (
-                                raw_retry_after > 60.0
-                                or "TPD" in resp_text
-                                or "daily limit" in resp_text.lower()
-                                or "quota" in resp_text.lower()
-                                or "tokens per day" in resp_text.lower()
-                                or "tpm" in resp_text.lower()
+                            is_daily_quota = is_daily_quota_exhausted(
+                                full_resp_text, raw_retry_after
                             )
-                            cooldown_seconds = max(raw_retry_after, 3600.0 if is_tpd else 30.0)
+                            lowered_full = full_resp_text.lower()
+                            is_quota_or_rate = (
+                                is_daily_quota
+                                or raw_retry_after > 60.0
+                                or "quota" in lowered_full
+                                or "tpm" in lowered_full
+                            )
+                            cooldown_seconds = max(
+                                raw_retry_after, 3600.0 if is_daily_quota else 45.0
+                            )
                             groq_key_pool.mark_cooldown(api_key, cooldown_seconds, model=model_name)
 
                             active_keys = groq_key_pool.get_active_keys(groq_keys, model=model_name)
-                            if is_tpd:
+                            if is_quota_or_rate:
                                 print(
                                     f"Groq 金鑰 {var_name} ({masked_key}) "
                                     f"在模型 {model_name} 配額/速率耗盡 (429)，"

@@ -81,10 +81,10 @@ class ReviewOrchestrator:
                 gemini_models = model_pool.filter_eligible_models(raw_gemini_models, est_tokens)
                 if not gemini_models:
                     print(
-                        f"批次預估需 {est_tokens} Tokens，候選池無單一 Gemini 模型能完全容納，"
-                        f"採用第一候選 {raw_gemini_models[0]} 嘗試執行..."
+                        f"批次預估需 {est_tokens} Tokens，候選池無單一 Gemini 模型符合建議上限，"
+                        f"依序嘗試全數 Gemini 候選模型..."
                     )
-                    gemini_models = [raw_gemini_models[0]]
+                    gemini_models = list(raw_gemini_models)
 
                 result = execute_gemini_loop(
                     prompt,
@@ -98,6 +98,29 @@ class ReviewOrchestrator:
                 )
                 if result is not None:
                     return result
+
+                fallback_gemini_models = [
+                    model_name
+                    for model_name in raw_gemini_models
+                    if model_name not in gemini_models
+                ]
+                if fallback_gemini_models:
+                    print(
+                        f"首選容量區間之 Gemini 模型均無法處理（預估 {est_tokens} Tokens），"
+                        f"降級嘗試其餘 {len(fallback_gemini_models)} 個 Gemini 候選模型..."
+                    )
+                    result = execute_gemini_loop(
+                        prompt,
+                        max_retries_per_model,
+                        fallback_gemini_models,
+                        self.gemini_key_pool,
+                        self.gemini_model_pool,
+                        self.gemini_client,
+                        self.parser,
+                        error_details,
+                    )
+                    if result is not None:
+                        return result
             else:
                 error_details.append(("GEMINI_POOL", "所有 Gemini 候選模型均處於冷卻狀態，無可用模型"))
 

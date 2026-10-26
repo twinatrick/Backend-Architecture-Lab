@@ -178,19 +178,14 @@ def main() -> None:
     head_sha = pr_data.get("head", {}).get("sha", "")
     enrich_files_with_full_content(repo_name, files, head_sha, gh_get_fn=gh_get)
 
-    max_workers = int(os.environ.get("AI_REVIEW_MAX_WORKERS", "3"))
-    stagger_seconds = float(os.environ.get("AI_REVIEW_STAGGER_SECONDS", "1.5"))
+    default_workers = "2" if len(batches) > 6 else "3"
+    default_stagger = "2.5" if len(batches) > 6 else "1.5"
+    max_workers = int(os.environ.get("AI_REVIEW_MAX_WORKERS", default_workers))
+    stagger_seconds = float(os.environ.get("AI_REVIEW_STAGGER_SECONDS", default_stagger))
     results = _process_batches_parallel(
-        batches,
-        files,
-        rules_text,
-        contract_text,
-        policy,
-        pr_number,
-        repo_name=repo_name,
-        head_sha=head_sha,
-        max_workers=max_workers,
-        stagger_seconds=stagger_seconds,
+        batches, files, rules_text, contract_text, policy, pr_number,
+        repo_name=repo_name, head_sha=head_sha,
+        max_workers=max_workers, stagger_seconds=stagger_seconds,
     )
     reviewed_files = [
         file_name
