@@ -136,17 +136,43 @@ def process_batch(
         except TypeError:
             text_output = caller(prompt).strip()
     except RuntimeError as run_exc:
+        if len(paths) > 1:
+            mid_index = len(paths) // 2
+            left_paths, right_paths = paths[:mid_index], paths[mid_index:]
+            print(
+                f"批次 {scope}-{index} ({len(paths)} 檔, 預估 {batch_tokens} Tokens) "
+                f"呼叫受限，自動拆分為子批次 ({len(left_paths)} + {len(right_paths)} 檔) 重試..."
+            )
+            common_args = (files, rules_text, contract_text, policy, pr_number)
+            common_kw = {
+                "repo_name": repo_name, "head_sha": head_sha,
+                "chat_fn": chat_fn, "gh_get_fn": gh_get_fn,
+            }
+            left_data = process_batch(
+                scope, index, left_paths, *common_args, delay=0.0, **common_kw
+            )
+            right_data = process_batch(
+                scope, index, right_paths, *common_args, delay=1.0, **common_kw
+            )
+            return {
+                "batch": f"{scope}-{index}",
+                "files_reviewed": (
+                    left_data.get("files_reviewed", []) + right_data.get("files_reviewed", [])
+                ),
+                "coverage": "COMPLETE",
+                "findings": left_data.get("findings", []) + right_data.get("findings", []),
+                "passed_checks": (
+                    left_data.get("passed_checks", []) + right_data.get("passed_checks", [])
+                ),
+            }
         try:
             details = json.loads(str(run_exc))
         except (json.JSONDecodeError, ValueError):
             details = str(run_exc)
         publish_failure_report(
-            pr_number,
-            "AI Provider 呼叫失敗",
-            "所有已配置的 AI 模型/金鑰均無法取得有效回應。",
-            details,
-            commit_id=head_sha,
-            status_type="AI_PROVIDER_FAILED",
+            pr_number, "AI Provider 呼叫失敗",
+            "所有已配置的 AI 模型/金鑰均無法取得有效回應。", details,
+            commit_id=head_sha, status_type="AI_PROVIDER_FAILED",
         )
         raise SystemExit(f"AI Provider 無法使用：{details}")
 
@@ -154,12 +180,9 @@ def process_batch(
         batch_data = extract_json_payload(text_output)
     except json.JSONDecodeError as json_exc:
         publish_failure_report(
-            pr_number,
-            "AI 模型輸出非合法 JSON",
-            f"批次 {scope}-{index} 模型輸出解析失敗：{json_exc}",
-            text_output[:500],
-            commit_id=head_sha,
-            status_type="REVIEW_EXECUTION_FAILED",
+            pr_number, "AI 模型輸出非合法 JSON",
+            f"批次 {scope}-{index} 模型輸出解析失敗：{json_exc}", text_output[:500],
+            commit_id=head_sha, status_type="REVIEW_EXECUTION_FAILED",
         )
         raise SystemExit(f"批次 {scope}-{index} JSON 解析失敗：{json_exc}")
 
@@ -168,15 +191,11 @@ def process_batch(
     is_cov_complete = str(batch_data.get("coverage", "")).strip().upper() == "COMPLETE"
     if not is_cov_complete or not validate_coverage(norm_exp, norm_rev):
         cov_err = (
-            f"批次覆蓋範圍驗證失敗：{scope}-{index}\n預期：{paths}\n"
-            f"模型回傳：{norm_rev}"
+            f"批次覆蓋範圍驗證失敗：{scope}-{index}\n預期：{paths}\n模型回傳：{norm_rev}"
         )
         publish_failure_report(
-            pr_number,
-            "批次覆蓋範圍不符",
-            cov_err,
-            commit_id=head_sha,
-            status_type="REVIEW_EXECUTION_FAILED",
+            pr_number, "批次覆蓋範圍不符", cov_err,
+            commit_id=head_sha, status_type="REVIEW_EXECUTION_FAILED",
         )
         raise SystemExit(cov_err)
 
@@ -186,12 +205,8 @@ def process_batch(
         if not validate_finding(finding, allowed_files=paths):
             schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式或範圍驗證。"
             publish_failure_report(
-                pr_number,
-                "Finding 格式驗證失敗",
-                schema_err,
-                finding,
-                commit_id=head_sha,
-                status_type="REVIEW_EXECUTION_FAILED",
+                pr_number, "Finding 格式驗證失敗", schema_err, finding,
+                commit_id=head_sha, status_type="REVIEW_EXECUTION_FAILED",
             )
             raise SystemExit(schema_err)
     return batch_data
@@ -219,51 +234,28 @@ def process_batches_parallel(
     if actual_workers == 1:
         return [
             process_batch(
-                scope,
-                idx,
-                paths,
-                files,
-                rules_text,
-                contract_text,
-                policy,
-                pr_number,
-                repo_name=repo_name,
-                head_sha=head_sha,
-                delay=5.0 if idx > 1 else 0.0,
-                chat_fn=chat_fn,
-                gh_get_fn=gh_get_fn,
+                scope, idx, paths, files, rules_text, contract_text, policy, pr_number,
+                repo_name=repo_name, head_sha=head_sha, delay=5.0 if idx > 1 else 0.0,
+                chat_fn=chat_fn, gh_get_fn=gh_get_fn,
             )
             for idx, (scope, paths) in enumerate(batches, 1)
         ]
 
     print(
         f"啟動平行批次審查：共 {len(batches)} 個批次，"
-        f"啟用 {actual_workers} 個平行 Worker，"
-        f"錯峰間隔 {stagger_seconds:.1f} 秒..."
+        f"啟用 {actual_workers} 個平行 Worker，錯峰間隔 {stagger_seconds:.1f} 秒..."
     )
 
     def _worker(
-        worker_idx: int,
-        worker_scope: str,
-        worker_paths: list[str],
+        worker_idx: int, worker_scope: str, worker_paths: list[str]
     ) -> tuple[int, dict[str, Any]]:
         stagger = (worker_idx - 1) * stagger_seconds
         if stagger > 0:
             time.sleep(stagger)
         batch_data = process_batch(
-            worker_scope,
-            worker_idx,
-            worker_paths,
-            files,
-            rules_text,
-            contract_text,
-            policy,
-            pr_number,
-            repo_name=repo_name,
-            head_sha=head_sha,
-            delay=0.0,
-            chat_fn=chat_fn,
-            gh_get_fn=gh_get_fn,
+            worker_scope, worker_idx, worker_paths, files, rules_text, contract_text,
+            policy, pr_number, repo_name=repo_name, head_sha=head_sha,
+            delay=0.0, chat_fn=chat_fn, gh_get_fn=gh_get_fn,
         )
         return worker_idx, batch_data
 
