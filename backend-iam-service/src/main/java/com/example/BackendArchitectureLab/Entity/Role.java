@@ -37,4 +37,8 @@ public class Role extends BaseEntity {
     @OneToMany(mappedBy = "role", fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<RoleFunction> roleFunctions =new ArrayList<>();
 
+    @JsonIgnore
+    @Transient
+    private Integer functionCount;
+
 }

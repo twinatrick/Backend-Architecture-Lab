@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-add-competency-performance-indexes
+      author: performance-review
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_project_created_time_id ON project (created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_skill_created_time_id ON skill (created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_skill_level_created_time_id ON skill_level (created_time DESC, id ASC);

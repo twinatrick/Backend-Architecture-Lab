@@ -33,6 +33,9 @@ public interface UserJobLinkRepository extends JpaRepository<UserJobLink, UUID>,
     // 移除原本帶 @EntityGraph 的 findAll(Specification, Pageable)，避免 in-memory pagination 問題
     // searchUserJobLinks 改為二次批量查詢模式
 
+    @Query("SELECT u.id FROM UserJobLink u")
+    List<UUID> findPagedIds(Pageable pageable);
+
     @Query("SELECT u FROM UserJobLink u LEFT JOIN FETCH u.jobPosting jp LEFT JOIN FETCH jp.company WHERE u.id IN :ids")
     List<UserJobLink> findAllByIdsWithJobPosting(@Param("ids") List<UUID> ids);
 

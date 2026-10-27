@@ -105,16 +105,19 @@ public class RoleDataAccessImpl implements IRoleDataAccess {
             return page;
         }
         
-        // 第二次查詢：批量載入含 roleFunctions + function 的完整資料，解決 N+1 問題
+        // 第二次查詢：僅以 GROUP BY 聚合統計各角色的 functionCount，避免三表 LEFT JOIN FETCH 拉取全量關聯實體
         List<UUID> ids = page.getContent().stream().map(Role::getId).toList();
-        Map<UUID, Role> roleMap = roleRepository.findAllByIdsWithFunctions(ids)
-                .stream().collect(Collectors.toMap(Role::getId, r -> r));
-        
-        List<Role> enrichedRoles = page.getContent().stream()
-                .map(r -> roleMap.getOrDefault(r.getId(), r))
-                .toList();
-        
-        return new PageImpl<>(enrichedRoles, pageable, page.getTotalElements());
+        List<Object[]> countRows = roleRepository.countFunctionsByRoleIds(ids);
+        Map<UUID, Integer> countMap = countRows.stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> ((Number) row[1]).intValue(),
+                        (existing, replacement) -> existing
+                ));
+
+        page.getContent().forEach(role -> role.setFunctionCount(countMap.getOrDefault(role.getId(), 0)));
+
+        return new PageImpl<>(page.getContent(), pageable, page.getTotalElements());
     }
 
     @Override

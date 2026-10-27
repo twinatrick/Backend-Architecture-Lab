@@ -7,7 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RedissonClient;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -59,7 +61,18 @@ public class BloomFilterService implements IBloomFilterService {
         }
         RBloomFilter<String> filter = getOrCreate(cacheName);
         if (!keys.isEmpty()) {
-            filter.add(keys);
+            int batchSize = 10000;
+            if (keys.size() <= batchSize) {
+                filter.add(keys);
+            } else {
+                List<String> keyList = (keys instanceof List<String> list)
+                        ? list
+                        : new ArrayList<>(keys);
+                for (int offset = 0; offset < keyList.size(); offset += batchSize) {
+                    int end = Math.min(offset + batchSize, keyList.size());
+                    filter.add(keyList.subList(offset, end));
+                }
+            }
         }
     }
 

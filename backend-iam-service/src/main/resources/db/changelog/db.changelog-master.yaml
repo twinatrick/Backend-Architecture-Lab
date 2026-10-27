@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/db.changelog-0001-baseline-iam-service.yaml
   - include:
       file: db/changelog/db.changelog-0002-add-version-to-user.yaml
+  - include:
+      file: db/changelog/changes/db.changelog-0003-add-iam-performance-indexes.yaml

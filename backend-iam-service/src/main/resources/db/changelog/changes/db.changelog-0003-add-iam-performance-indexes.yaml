@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0003-add-iam-performance-indexes
+      author: performance-review
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_user_created_time_id ON "user" (created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_role_created_time_id ON role (created_time DESC, id ASC);

@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-add-alert-performance-indexes
+      author: performance-review
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_aquark_data_trans_time ON aquark_data (trans_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_aquark_data_station_trans_time ON aquark_data (station_id, trans_time DESC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_aquark_data_created_time ON aquark_data (created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_alert_check_limit_created_time ON alert_check_limit (created_time DESC, id ASC);

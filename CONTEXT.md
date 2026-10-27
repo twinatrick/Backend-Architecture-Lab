@@ -316,6 +316,22 @@ _Avoid_: Mixing event in Vo package, *Message suffix inconsistency, Raw string p
 靜態分析工具透過掃描公開 Controller 端點輸入參數（`@ApiBody`、`@RequestBody`、`*Query`）與回傳值（解包 `ResponseType<T>`、`PageResult<T>` 等）及其巢狀自訂欄位，自動遞迴構建公開 API 契約白名單的機制。
 _Avoid_: Regex-only path matching, Blind Vo package tagging, Forcing docs on internal events.
 
+**Benchmark Route Drift (壓測路由契約漂移)**:
+當系統對外 API 路由演進（例如廢除無界全量端點改採雙軌標準）後，壓力測試腳本仍保留已廢除之歷史端點路徑，導致壓測流量落入快速失敗（404/405）而產生虛假高吞吐與低延遲的基準失真現象。
+_Avoid_: Stale test URL, 404 false benchmark, Broken load script.
+
+**Targeted Bottleneck Probe (定向瓶頸探針)**:
+針對靜態架構審查識別出的特定高風險機制（如快取鍵空間掃描、無界串流佇列、非交易延遲載入、Outbox 併發重複選取），以可控資料規模與併發梯度直接量測其物理臨界點與資源退化曲線的精準驗證測試。
+_Avoid_: Blind full-system stress, Unfocused load test, Ad-hoc microbenchmark.
+
+**Orphan Cache Eviction (孤兒快取清除殘留)**:
+當讀取路徑已移除快取寫入（改為資料庫直通查詢），但寫入與異動路徑仍殘留針對該已廢棄快取命名空間的主動清除操作，造成無收益之額外網路與鍵空間掃描開銷的反模式。
+_Avoid_: Dead cache clear, Ghost eviction, Redundant cache flush.
+
+**Keyspace Scan Blocking (鍵空間全量掃描阻塞)**:
+在單執行緒事件循環的快取引擎中，於業務請求或交易路徑內執行全量萬用字元鍵名掃描（如 `KEYS pattern*`），導致快取主執行緒在掃描期間凍結並阻塞所有微服務快取讀寫的效能風險。
+_Avoid_: Wildcard key lookup, Sync key listing, Pattern delete blocking.
+
 
 
 

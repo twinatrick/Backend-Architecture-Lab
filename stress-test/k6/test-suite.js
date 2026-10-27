@@ -44,36 +44,39 @@ export default function (data) {
     if (rand < 0.35) {
         // --- 35% IAM 服務 ---
         iamReqCount.add(1);
-        const searchPayload = JSON.stringify({ page: 0, size: 20, keyword: 'Employee' });
+        const searchPayload = JSON.stringify({ page: 0, size: 20 });
         const res = http.post(`${baseUrl}/api/users/search`, searchPayload, params);
         e2eDuration.add(res.timings.duration);
         check(res, { 'IAM Users Search 200': (r) => r.status === 200 });
 
-        const resRole = http.post(`${baseUrl}/api/role/get`, '{}', params);
+        const rolePayload = JSON.stringify({ page: 0, size: 20 });
+        const resRole = http.post(`${baseUrl}/api/role/search`, rolePayload, params);
         e2eDuration.add(resRole.timings.duration);
-        check(resRole, { 'IAM Role Get 200': (r) => r.status === 200 });
+        check(resRole, { 'IAM Role Search 200': (r) => r.status === 200 });
     } else if (rand < 0.60) {
         // --- 25% Competency 職能服務 ---
         competencyReqCount.add(1);
-        const projPayload = JSON.stringify({ page: 0, size: 20, keyword: '' });
+        const projPayload = JSON.stringify({ page: 0, size: 20 });
         const res = http.post(`${baseUrl}/api/project/search`, projPayload, params);
         e2eDuration.add(res.timings.duration);
         check(res, { 'Competency Project Search 200': (r) => r.status === 200 });
 
-        const resSkill = http.get(`${baseUrl}/api/skill/get`, params);
+        const skillPayload = JSON.stringify({ page: 0, size: 20 });
+        const resSkill = http.post(`${baseUrl}/api/skill/search`, skillPayload, params);
         e2eDuration.add(resSkill.timings.duration);
-        check(resSkill, { 'Competency Skill Get 200': (r) => r.status === 200 });
+        check(resSkill, { 'Competency Skill Search 200': (r) => r.status === 200 });
     } else if (rand < 0.80) {
         // --- 20% Job 職缺服務 ---
         jobReqCount.add(1);
-        const jobPayload = JSON.stringify({ page: 0, size: 20, keyword: '' });
+        const jobPayload = JSON.stringify({ page: 0, size: 20 });
         const res = http.post(`${baseUrl}/api/job-posting/search`, jobPayload, params);
         e2eDuration.add(res.timings.duration);
         check(res, { 'Job Posting Search 200': (r) => r.status === 200 });
 
-        const resComp = http.get(`${baseUrl}/api/company/get`, params);
+        const compPayload = JSON.stringify({ page: 0, size: 20, keyword: 'TSMC' });
+        const resComp = http.post(`${baseUrl}/api/company/search`, compPayload, params);
         e2eDuration.add(resComp.timings.duration);
-        check(resComp, { 'Job Company Get 200': (r) => r.status === 200 });
+        check(resComp, { 'Job Company Search 200': (r) => r.status === 200 });
     } else if (rand < 0.90) {
         // --- 10% Alert 告警與感測服務 ---
         alertReqCount.add(1);
@@ -81,9 +84,10 @@ export default function (data) {
         e2eDuration.add(resCol.timings.duration);
         check(resCol, { 'Alert Column Get 200': (r) => r.status === 200 });
 
-        const resStats = http.get(`${baseUrl}/api/cache-stats`, params);
-        e2eDuration.add(resStats.timings.duration);
-        check(resStats, { 'Alert Cache Stats 200': (r) => r.status === 200 });
+        const aquarkPayload = JSON.stringify({ page: 0, size: 20 });
+        const resAquark = http.post(`${baseUrl}/api/aquarkData/search`, aquarkPayload, params);
+        e2eDuration.add(resAquark.timings.duration);
+        check(resAquark, { 'Alert Aquark Search 200': (r) => r.status === 200 });
     } else {
         // --- 10% External 外部整合服務 ---
         externalReqCount.add(1);

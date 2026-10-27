@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
-import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, getStandardThresholds, handleSummary as customSummary } from './common.js';
+import { DEFAULT_BASE_URL, getAuthToken, buildHeaders, buildStressScenario, getStandardThresholds, handleSummary as customSummary } from './common.js';
 
 const jobLatency = new Trend('job_endpoint_duration');
 
@@ -11,11 +11,7 @@ const withCache = __ENV.WITH_CACHE !== 'false';
 
 export const options = {
     scenarios: {
-        job_stress: {
-            executor: 'constant-vus',
-            vus: targetVUs,
-            duration: duration,
-        },
+        job_stress: buildStressScenario(targetVUs, duration),
     },
     thresholds: getStandardThresholds(withCache),
 };
@@ -56,18 +52,29 @@ export default function (data) {
         'Company Search 200': (r) => r.status === 200,
     });
 
-    // 3. 取得公司清單 (GET /api/company/get)
-    const resCompGet = http.get(`${baseUrl}/api/company/get`, params);
-    jobLatency.add(resCompGet.timings.duration);
-    check(resCompGet, {
-        'Company Get 200': (r) => r.status === 200,
+    // 3. 批次取得公司詳情 (POST /api/company/batch-query，驗證 BatchCacheHelper / Redis MGET)
+    const batchCompPayload = JSON.stringify({
+        ids: [
+            '00000000-0000-0000-0000-000000000301',
+            '00000000-0000-0000-0000-000000000302',
+            '00000000-0000-0000-0000-000000000303'
+        ]
+    });
+    const resCompById = http.post(`${baseUrl}/api/company/batch-query`, batchCompPayload, params);
+    jobLatency.add(resCompById.timings.duration);
+    check(resCompById, {
+        'Company Batch Query 200': (r) => r.status === 200,
     });
 
-    // 4. 取得使用者職缺關聯清單 (GET /api/user-job-link/get)
-    const resLinkGet = http.get(`${baseUrl}/api/user-job-link/get`, params);
-    jobLatency.add(resLinkGet.timings.duration);
-    check(resLinkGet, {
-        'User Job Link Get 200': (r) => r.status === 200,
+    // 4. 分頁搜尋使用者職缺關聯清單 (POST /api/user-job-link/search)
+    const linkSearchPayload = JSON.stringify({
+        page: 0,
+        size: 20
+    });
+    const resLinkSearch = http.post(`${baseUrl}/api/user-job-link/search`, linkSearchPayload, params);
+    jobLatency.add(resLinkSearch.timings.duration);
+    check(resLinkSearch, {
+        'User Job Link Search 200': (r) => r.status === 200,
     });
 
     sleep(0.05);

@@ -1,7 +1,9 @@
 package com.example.BackendArchitectureLab.Config;
 
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
+import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.MethodParameter;
+import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.WebDataBinder;
@@ -15,6 +17,8 @@ import org.springframework.web.method.support.ModelAndViewContainer;
  * 負責從 HTTP 查詢參數中提取參數、支援預設值、必填檢查與型別轉換。
  */
 public class ApiQueryArgumentResolver implements HandlerMethodArgumentResolver {
+
+    private static final ParameterNameDiscoverer PARAMETER_NAME_DISCOVERER = new DefaultParameterNameDiscoverer();
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -31,7 +35,11 @@ public class ApiQueryArgumentResolver implements HandlerMethodArgumentResolver {
             return null;
         }
 
+        parameter.initParameterNameDiscovery(PARAMETER_NAME_DISCOVERER);
         String name = StringUtils.hasText(apiQuery.name()) ? apiQuery.name() : parameter.getParameterName();
+        if (!StringUtils.hasText(name)) {
+            name = parameter.getParameter().getName();
+        }
         String value = webRequest.getParameter(name);
 
         if (value == null && StringUtils.hasText(apiQuery.defaultValue())) {

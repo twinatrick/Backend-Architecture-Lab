@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Repository;
 
 import com.example.BackendArchitectureLab.Entity.Project;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -12,6 +13,9 @@ import java.util.UUID;
 
 public interface ProjectRepository extends JpaRepository<Project, UUID>, JpaSpecificationExecutor<Project> {
     List<Project> findByName(String name);
+
+    @Query("SELECT p.id FROM Project p")
+    List<UUID> findPagedIds(Pageable pageable);
 
     @Modifying
     @Query("delete from Project p where p.id = :projectId")

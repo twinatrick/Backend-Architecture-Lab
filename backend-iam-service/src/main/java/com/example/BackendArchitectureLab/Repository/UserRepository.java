@@ -1,6 +1,7 @@
 package com.example.BackendArchitectureLab.Repository;
 
 import com.example.BackendArchitectureLab.Entity.User;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -21,6 +22,9 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
 
     @Query("SELECT u.id FROM User u")
     List<UUID> findAllIds();
+
+    @Query("SELECT u.id FROM User u")
+    List<UUID> findPagedIds(Pageable pageable);
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.role WHERE u.id = :id")
     Optional<User> findByIdWithRoles(@Param("id") UUID id);
