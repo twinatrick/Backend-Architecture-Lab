@@ -1,19 +1,20 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: backend-architecture-lab-postgres
+    container_name: ${POSTGRES_CONTAINER_NAME:-backend-architecture-lab-postgres}
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+      - "${ALLOW_HOST:-127.0.0.2}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 3s
       timeout: 3s
       retries: 10
@@ -22,11 +23,12 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: backend-architecture-lab-redis
+    container_name: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
     restart: always
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "127.0.0.1:6379:6379"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+      - "${ALLOW_HOST:-127.0.0.2}:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -42,14 +44,15 @@ services:
       context: ./docker/loki
       dockerfile: Dockerfile
     image: ${LOKI_IMAGE:-backend-architecture-lab-loki:3.0.0}
-    container_name: backend-architecture-lab-loki
+    container_name: ${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}
     restart: always
     mem_limit: 512m
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - loki_data:/loki
     ports:
-      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
+      - "${ALLOW_HOST:-127.0.0.2}:${LOKI_PORT:-3100}:3100"
     healthcheck:
       test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:3100/ready >/dev/null || exit 1"]
       interval: 5s
@@ -61,27 +64,33 @@ services:
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.2.1
-    container_name: backend-architecture-lab-zookeeper
+    container_name: ${ZOOKEEPER_CONTAINER_NAME:-backend-architecture-lab-zookeeper}
     restart: always
     mem_limit: 256m
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_PORT:-2181}
       ZOOKEEPER_TICK_TIME: 2000
       JVMFLAGS: "-Xms128m -Xmx256m"
+    ports:
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${ZOOKEEPER_PORT:-2181}:2181"
+      - "${ALLOW_HOST:-127.0.0.2}:${ZOOKEEPER_PORT:-2181}:2181"
     networks:
       - backend-architecture-lab-net
 
   kafka:
     image: confluentinc/cp-kafka:7.2.1
-    container_name: backend-architecture-lab-kafka
+    container_name: ${KAFKA_CONTAINER_NAME:-backend-architecture-lab-kafka}
     restart: always
     depends_on:
       - zookeeper
     mem_limit: 512m
+    ports:
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${KAFKA_PORT:-9092}:9092"
+      - "${ALLOW_HOST:-127.0.0.2}:${KAFKA_PORT:-9092}:9092"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ZOOKEEPER_CONNECT: ${ZOOKEEPER_CONTAINER_NAME:-backend-architecture-lab-zookeeper}:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_CONTAINER_NAME:-backend-architecture-lab-kafka}:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_HEAP_OPTS: "-Xms128m -Xmx384m"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -90,7 +99,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: backend-architecture-lab-minio
+    container_name: ${MINIO_CONTAINER_NAME:-backend-architecture-lab-minio}
     restart: always
     mem_limit: 256m
     command: server /data --console-address ":9001"
@@ -98,8 +107,10 @@ services:
       MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
     ports:
-      - "${MINIO_BIND_IP:-127.0.0.1}:9000:9000"
-      - "${MINIO_BIND_IP:-127.0.0.1}:9001:9001"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
+      - "${ALLOW_HOST:-127.0.0.2}:${MINIO_API_PORT:-9000}:9000"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${ALLOW_HOST:-127.0.0.2}:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     networks:
@@ -107,7 +118,7 @@ services:
 
   nacos:
     image: nacos/nacos-server:v2.5.1
-    container_name: backend-architecture-lab-nacos
+    container_name: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}
     restart: always
     environment:
       MODE: standalone
@@ -116,8 +127,10 @@ services:
       JVM_XMX: 256m
     mem_limit: 512m
     ports:
-      - "${NACOS_BIND_IP:-127.0.0.1}:8848:8848"
-      - "${NACOS_BIND_IP:-127.0.0.1}:9848:9848"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${NACOS_PORT:-8848}:8848"
+      - "${ALLOW_HOST:-127.0.0.2}:${NACOS_PORT:-8848}:8848"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${NACOS_GRPC_PORT:-9848}:9848"
+      - "${ALLOW_HOST:-127.0.0.2}:${NACOS_GRPC_PORT:-9848}:9848"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
       interval: 5s
@@ -134,7 +147,7 @@ services:
       args:
         SERVICE_NAME: backend-gateway
     image: backend-architecture-lab-gateway:latest
-    container_name: backend-architecture-lab-gateway
+    container_name: ${GATEWAY_CONTAINER_NAME:-backend-architecture-lab-gateway}
     restart: always
     depends_on:
       nacos:
@@ -142,16 +155,21 @@ services:
       loki:
         condition: service_healthy
     environment:
-      NACOS_SERVER_ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
-      LOKI_URL: http://loki:3100/loki/api/v1/push
+      APP_IN_DOCKER: "true"
+      NACOS_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      LOKI_URL: ${LOKI_URL:-http://${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}:3100/loki/api/v1/push}
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx256m"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     mem_limit: 512m
     ports:
-      - "8000:8000"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${GATEWAY_PORT:-8000}:8000"
+      - "${ALLOW_HOST:-127.0.0.2}:${GATEWAY_PORT:-8000}:8000"
     networks:
       - backend-architecture-lab-net
 
@@ -162,7 +180,7 @@ services:
       args:
         SERVICE_NAME: backend-iam-service
     image: backend-architecture-lab-iam-service:latest
-    container_name: backend-architecture-lab-iam-service
+    container_name: ${IAM_CONTAINER_NAME:-backend-architecture-lab-iam-service}
     restart: always
     depends_on:
       nacos:
@@ -171,22 +189,31 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_started
       loki:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/iam_service
+      APP_IN_DOCKER: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_CONTAINER_NAME:-backend-architecture-lab-postgres}:5432/iam_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      LOKI_URL: http://loki:3100/loki/api/v1/push
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_DATA_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_CONTAINER_NAME:-backend-architecture-lab-kafka}:9092}
+      LOKI_URL: ${LOKI_URL:-http://${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}:3100/loki/api/v1/push}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+      SUPERUSER_KEY: ${SUPERUSER_KEY:-super_secret_key_change_in_production}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8002:8002"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${IAM_PORT:-8002}:8002"
+      - "${ALLOW_HOST:-127.0.0.2}:${IAM_PORT:-8002}:8002"
     networks:
       - backend-architecture-lab-net
 
@@ -197,7 +224,7 @@ services:
       args:
         SERVICE_NAME: backend-competency-service
     image: backend-architecture-lab-competency-service:latest
-    container_name: backend-architecture-lab-competency-service
+    container_name: ${COMPETENCY_CONTAINER_NAME:-backend-architecture-lab-competency-service}
     restart: always
     depends_on:
       nacos:
@@ -211,20 +238,25 @@ services:
       loki:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/competency_service
+      APP_IN_DOCKER: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_CONTAINER_NAME:-backend-architecture-lab-postgres}:5432/competency_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      LOKI_URL: http://loki:3100/loki/api/v1/push
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_DATA_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+      LOKI_URL: ${LOKI_URL:-http://${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}:3100/loki/api/v1/push}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_CONTAINER_NAME:-backend-architecture-lab-kafka}:9092}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8004:8004"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${COMPETENCY_PORT:-8004}:8004"
+      - "${ALLOW_HOST:-127.0.0.2}:${COMPETENCY_PORT:-8004}:8004"
     networks:
       - backend-architecture-lab-net
 
@@ -235,7 +267,7 @@ services:
       args:
         SERVICE_NAME: backend-job-service
     image: backend-architecture-lab-job-service:latest
-    container_name: backend-architecture-lab-job-service
+    container_name: ${JOB_CONTAINER_NAME:-backend-architecture-lab-job-service}
     restart: always
     depends_on:
       nacos:
@@ -249,20 +281,25 @@ services:
       loki:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job_service
+      APP_IN_DOCKER: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_CONTAINER_NAME:-backend-architecture-lab-postgres}:5432/job_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      LOKI_URL: http://loki:3100/loki/api/v1/push
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_DATA_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+      LOKI_URL: ${LOKI_URL:-http://${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}:3100/loki/api/v1/push}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_CONTAINER_NAME:-backend-architecture-lab-kafka}:9092}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8006:8006"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${JOB_PORT:-8006}:8006"
+      - "${ALLOW_HOST:-127.0.0.2}:${JOB_PORT:-8006}:8006"
     networks:
       - backend-architecture-lab-net
 
@@ -273,7 +310,7 @@ services:
       args:
         SERVICE_NAME: backend-external-api-service
     image: backend-architecture-lab-external-api-service:latest
-    container_name: backend-architecture-lab-external-api-service
+    container_name: ${EXTERNAL_CONTAINER_NAME:-backend-architecture-lab-external-api-service}
     restart: always
     depends_on:
       nacos:
@@ -282,22 +319,36 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_started
       minio:
         condition: service_started
       loki:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/external_api_service
+      APP_IN_DOCKER: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_CONTAINER_NAME:-backend-architecture-lab-postgres}:5432/external_api_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      LOKI_URL: http://loki:3100/loki/api/v1/push
-      MINIO_URL: ${MINIO_URL:-http://minio:9000}
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_DATA_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_CONTAINER_NAME:-backend-architecture-lab-kafka}:9092}
+      LOKI_URL: ${LOKI_URL:-http://${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}:3100/loki/api/v1/push}
+      MINIO_URL: ${MINIO_URL:-http://${MINIO_CONTAINER_NAME:-backend-architecture-lab-minio}:9000}
+      MINIO_ACCESS_KEY: ${MINIO_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_PASSWORD:-minioadmin}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
+      AI_PY_SERVICE_URL: ${AI_PY_SERVICE_URL:-${AI_PY_URL:-http://host.docker.internal:5001}}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GITHUB_MODELS_API_KEY: ${GITHUB_MODELS_API_KEY:-}
       LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-dummy_channel_secret}
       LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-dummy_channel_token}
       LINE_GF_CHANNEL_SECRET: ${LINE_GF_CHANNEL_SECRET:-dummy_gf_secret}
@@ -311,7 +362,8 @@ services:
       - "host.docker.internal:host-gateway"
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8007:8007"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${EXTERNAL_PORT:-8007}:8007"
+      - "${ALLOW_HOST:-127.0.0.2}:${EXTERNAL_PORT:-8007}:8007"
     networks:
       - backend-architecture-lab-net
 
@@ -322,7 +374,7 @@ services:
       args:
         SERVICE_NAME: backend-alert-service
     image: backend-architecture-lab-alert-service:latest
-    container_name: backend-architecture-lab-alert-service
+    container_name: ${ALERT_CONTAINER_NAME:-backend-architecture-lab-alert-service}
     restart: always
     depends_on:
       nacos:
@@ -336,20 +388,25 @@ services:
       loki:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/alert_service
+      APP_IN_DOCKER: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_CONTAINER_NAME:-backend-architecture-lab-postgres}:5432/alert_service
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-verYs3cret}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      LOKI_URL: http://loki:3100/loki/api/v1/push
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_DATA_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_REDIS_HOST: ${REDIS_CONTAINER_NAME:-backend-architecture-lab-redis}
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+      LOKI_URL: ${LOKI_URL:-http://${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}:3100/loki/api/v1/push}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_CONTAINER_NAME:-backend-architecture-lab-kafka}:9092}
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8008:8008"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${ALERT_PORT:-8008}:8008"
+      - "${ALLOW_HOST:-127.0.0.2}:${ALERT_PORT:-8008}:8008"
     networks:
       - backend-architecture-lab-net
 

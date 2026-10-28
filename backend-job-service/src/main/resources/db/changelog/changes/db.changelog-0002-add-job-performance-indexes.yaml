@@ -9,3 +9,24 @@ databaseChangeLog:
             sql: CREATE INDEX IF NOT EXISTS idx_job_posting_created_time_id ON job_posting (created_time DESC, id ASC);
         - sql:
             sql: CREATE INDEX IF NOT EXISTS idx_company_created_time_id ON company (created_time DESC, id ASC);
+
+  - changeSet:
+      id: 0002-02-add-job-composite-indexes
+      author: performance-review
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_ujl_user_created_time ON user_job_link (user_id, created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_ujl_job_posting_created_time ON user_job_link (job_posting_id, created_time DESC, id ASC);
+
+  - changeSet:
+      id: 0002-03-add-job-trgm-gin-indexes
+      author: performance-review
+      dbms: postgresql
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_company_name_trgm ON company USING gin (LOWER(name) gin_trgm_ops);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_job_posting_title_trgm ON job_posting USING gin (LOWER(title) gin_trgm_ops);

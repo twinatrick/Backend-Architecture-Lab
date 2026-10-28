@@ -136,4 +136,28 @@ class LocalPermissionValidatorImplTest {
         when(userService.getUserWithFullPermissionsByEmail(anyString())).thenReturn(null);
         assertTrue(validator.getUserPermissions("missing@example.com").isEmpty());
     }
+
+    @Test
+    @DisplayName("Validate should use preloaded userPermsCache when available")
+    void testValidate_UsesUserPermsCacheFastPath() {
+        when(userService.getUserWithFullPermissionsByEmail("user@example.com")).thenReturn(normalUser);
+        when(functionQueryService.getFunction()).thenReturn(List.of(func1, func2, func3));
+
+        Set<String> perms = validator.getUserPermissions("user@example.com");
+        assertTrue(perms.contains("Module:Layer:Action"));
+
+        assertTrue(validator.validate("user@example.com", "Module", "Layer", "Action"));
+        assertFalse(validator.validate("user@example.com", "Module", "Layer", "Other"));
+    }
+
+    @Test
+    @DisplayName("Validate should recognize Chinese system admin role name")
+    void testValidate_ChineseSystemAdminRole() {
+        UserVo sysAdmin = new UserVo();
+        sysAdmin.setEmail("sysadmin@example.com");
+        sysAdmin.setRoleNames(List.of("系統管理員"));
+        when(userService.getUserWithFullPermissionsByEmail("sysadmin@example.com")).thenReturn(sysAdmin);
+
+        assertTrue(validator.validate("sysadmin@example.com", "Any", "Module", "Action"));
+    }
 }

@@ -79,3 +79,5 @@ semgrep*.json
 review.md
 ai-review.json
 .ai-review-meta/
+交接手冊.md
+HANDOVER*.md

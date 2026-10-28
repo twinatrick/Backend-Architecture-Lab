@@ -7,3 +7,30 @@ databaseChangeLog:
             sql: CREATE INDEX IF NOT EXISTS idx_user_created_time_id ON "user" (created_time DESC, id ASC);
         - sql:
             sql: CREATE INDEX IF NOT EXISTS idx_role_created_time_id ON role (created_time DESC, id ASC);
+
+  - changeSet:
+      id: 0003-02-add-iam-composite-indexes
+      author: performance-review
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_user_disabled_created_time_id ON "user" (disabled, created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_function_parent_name ON function (parent, name);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_function_created_time_id ON function (created_time DESC, id ASC);
+
+  - changeSet:
+      id: 0003-03-add-iam-trgm-gin-indexes
+      author: performance-review
+      dbms: postgresql
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_user_name_trgm ON "user" USING gin (LOWER(name) gin_trgm_ops);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_user_email_trgm ON "user" USING gin (LOWER(email) gin_trgm_ops);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_role_name_trgm ON role USING gin (LOWER(name) gin_trgm_ops);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_function_name_trgm ON function USING gin (LOWER(name) gin_trgm_ops);

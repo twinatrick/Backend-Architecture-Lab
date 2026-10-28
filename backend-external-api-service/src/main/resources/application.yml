@@ -10,9 +10,9 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
   datasource:
-    url: jdbc:postgresql://localhost:5432/external_api_service
-    username: postgres
-    password: verYs3cret
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/external_api_service}
+    username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER:postgres}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:verYs3cret}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 50
@@ -28,6 +28,12 @@ spring:
       ddl-auto: validate
     show-sql: false
     open-in-view: false
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:localhost}}
+      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}}
   application:
     name: external-api-service
   autoconfigure:
@@ -51,12 +57,14 @@ spring:
             read-timeout: 300000
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
 
 ai:
   py:
     service:
-      url: ${AI_PY_SERVICE_URL:http://localhost:5001}
+      url: ${AI_PY_SERVICE_URL:${AI_PY_URL:http://localhost:5001}}
 gemini:
   api:
     key: ${GEMINI_API_KEY:}
@@ -80,8 +88,8 @@ github:
       model: gpt-4o-mini
 minio:
   url: ${MINIO_URL:http://localhost:9000}
-  access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  access-key: ${MINIO_ACCESS_KEY:${MINIO_USER:minioadmin}}
+  secret-key: ${MINIO_SECRET_KEY:${MINIO_PASSWORD:minioadmin}}
   bucket: ${MINIO_BUCKET:audio}
   stt-bucket: ${MINIO_STT_BUCKET:user-audio}
 
@@ -139,3 +147,7 @@ cache:
     entities:
       - "UserVoiceUpload:userVoiceUploads"
       - "VoiceTranslation:voiceTranslations"
+
+logging:
+  loki:
+    url: ${LOKI_URL:http://localhost:3100/loki/api/v1/push}

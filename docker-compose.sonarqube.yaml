@@ -1,10 +1,11 @@
 services:
   sonarqube:
-    image: sonarqube:lts-community
-    container_name: sonarqube
+    image: ${SONARQUBE_IMAGE:-sonarqube:lts-community}
+    container_name: ${SONARQUBE_CONTAINER_NAME:-backend-architecture-lab-sonarqube}
     restart: unless-stopped
     ports:
-      - "9000:9000"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${SONARQUBE_PORT:-9000}:9000"
+      - "${ALLOW_HOST:-127.0.0.2}:${SONARQUBE_PORT:-9000}:9000"
     environment:
       - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
     volumes:

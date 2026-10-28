@@ -167,8 +167,8 @@ services:
 #    command: [ "milvus", "run", "standalone" ]
 
   nacos:
-    image: nacos/nacos-server:v2.5.1
-    container_name: nacos-server
+    image: ${NACOS_IMAGE:-nacos/nacos-server:v2.5.1}
+    container_name: ${NACOS_CONTAINER_NAME:-nacos-server}
     restart: ${RESTART_POLICY:-always}
     environment:
       MODE: standalone
@@ -177,8 +177,10 @@ services:
       JVM_XMX: "512m"
     mem_limit: 768m
     ports:
-      - "8848:8848"
-      - "9848:9848"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${NACOS_PORT:-8848}:8848"
+      - "${ALLOW_HOST:-127.0.0.2}:${NACOS_PORT:-8848}:8848"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${NACOS_GRPC_PORT:-9848}:9848"
+      - "${ALLOW_HOST:-127.0.0.2}:${NACOS_GRPC_PORT:-9848}:9848"
     networks:
       - my_network
 
@@ -194,7 +196,8 @@ services:
     volumes:
       - loki_data:/loki
     ports:
-      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
+      - "${ALLOW_HOST:-127.0.0.2}:${LOKI_PORT:-3100}:3100"
     networks:
       - my_network
 

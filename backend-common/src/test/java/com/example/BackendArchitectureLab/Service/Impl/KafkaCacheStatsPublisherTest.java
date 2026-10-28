@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,10 +54,13 @@ class KafkaCacheStatsPublisherTest {
     }
 
     @Test
-    void publish_WhenSendThrowsException_DoesNotThrow() {
+    void publish_WhenSendThrowsException_DoesNotThrowAndEntersCooldown() {
         when(kafkaTemplate.send(eq("cache-stats"), any(CacheStatsEvent.class)))
                 .thenThrow(new RuntimeException("Sync failure"));
 
         assertDoesNotThrow(() -> publisher.publish("users", "id"));
+        assertDoesNotThrow(() -> publisher.publish("users", "id"));
+
+        verify(kafkaTemplate, times(1)).send(eq("cache-stats"), any(CacheStatsEvent.class));
     }
 }

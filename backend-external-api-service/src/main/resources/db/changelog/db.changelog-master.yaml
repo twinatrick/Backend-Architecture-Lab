@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/db.changelog-0003-seed-bot-config.yaml
   - include:
       file: db/changelog/db.changelog-0004-refactor-gf-messages-1-to-n.yaml
+  - include:
+      file: db/changelog/changes/db.changelog-0005-add-external-performance-indexes.yaml

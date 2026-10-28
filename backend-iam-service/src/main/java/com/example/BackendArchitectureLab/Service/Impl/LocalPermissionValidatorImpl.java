@@ -53,6 +53,14 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
             return cached;
         }
 
+        Set<String> cachedUserPerms = userPermsCache.getIfPresent(email);
+        if (cachedUserPerms != null) {
+            boolean hasPerm = cachedUserPerms.contains("*")
+                    || cachedUserPerms.contains(one + ":" + two + ":" + three);
+            localCache.put(cacheKey, hasPerm);
+            return hasPerm;
+        }
+
         UserVo user = userService.getUserWithFullPermissionsByEmail(email);
         if (user == null) {
             localCache.put(cacheKey, false);
@@ -61,6 +69,7 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
 
         // 管理員全域放行
         if (isAdmin(user)) {
+            userPermsCache.put(email, Set.of("*"));
             localCache.put(cacheKey, true);
             return true;
         }
@@ -93,41 +102,48 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
             return cached;
         }
 
-        UserVo user = userService.getUserWithFullPermissionsByEmail(email);
-        if (user == null) {
-            return Collections.emptySet();
-        }
+        synchronized (email.intern()) {
+            Set<String> secondCheck = userPermsCache.getIfPresent(email);
+            if (secondCheck != null) {
+                return secondCheck;
+            }
 
-        if (isAdmin(user)) {
-            Set<String> adminPerms = Set.of("*");
-            userPermsCache.put(email, adminPerms);
-            return adminPerms;
-        }
+            UserVo user = userService.getUserWithFullPermissionsByEmail(email);
+            if (user == null) {
+                return Collections.emptySet();
+            }
 
-        if (user.getPermissions() == null || user.getPermissions().isEmpty()) {
-            Set<String> emptyPerms = Collections.emptySet();
-            userPermsCache.put(email, emptyPerms);
-            return emptyPerms;
-        }
+            if (isAdmin(user)) {
+                Set<String> adminPerms = Set.of("*");
+                userPermsCache.put(email, adminPerms);
+                return adminPerms;
+            }
 
-        List<FunctionVo> allFuncs = functionQueryService.getFunction();
-        Map<String, FunctionVo> funcMap = allFuncs.stream()
-                .filter(f -> f.getId() != null)
-                .collect(Collectors.toMap(FunctionVo::getId, f -> f, (first, second) -> first));
+            if (user.getPermissions() == null || user.getPermissions().isEmpty()) {
+                Set<String> emptyPerms = Collections.emptySet();
+                userPermsCache.put(email, emptyPerms);
+                return emptyPerms;
+            }
 
-        Set<String> result = new HashSet<>();
-        for (FunctionVo f3 : user.getPermissions()) {
-            if (f3.getParent() != null && funcMap.containsKey(f3.getParent())) {
-                FunctionVo f2 = funcMap.get(f3.getParent());
-                if (f2.getParent() != null && funcMap.containsKey(f2.getParent())) {
-                    FunctionVo f1 = funcMap.get(f2.getParent());
-                    result.add(f1.getName() + ":" + f2.getName() + ":" + f3.getName());
+            List<FunctionVo> allFuncs = functionQueryService.getFunction();
+            Map<String, FunctionVo> funcMap = allFuncs.stream()
+                    .filter(f -> f.getId() != null)
+                    .collect(Collectors.toMap(FunctionVo::getId, f -> f, (first, second) -> first));
+
+            Set<String> result = new HashSet<>();
+            for (FunctionVo f3 : user.getPermissions()) {
+                if (f3.getParent() != null && funcMap.containsKey(f3.getParent())) {
+                    FunctionVo f2 = funcMap.get(f3.getParent());
+                    if (f2.getParent() != null && funcMap.containsKey(f2.getParent())) {
+                        FunctionVo f1 = funcMap.get(f2.getParent());
+                        result.add(f1.getName() + ":" + f2.getName() + ":" + f3.getName());
+                    }
                 }
             }
-        }
 
-        userPermsCache.put(email, result);
-        return result;
+            userPermsCache.put(email, result);
+            return result;
+        }
     }
 
     private boolean isAdmin(UserVo user) {
@@ -135,7 +151,9 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
             return false;
         }
         return user.getRoleNames().stream().anyMatch(r ->
-                "ADMIN".equalsIgnoreCase(r) || "ROLE_ADMIN".equalsIgnoreCase(r)
+                "ADMIN".equalsIgnoreCase(r)
+                || "ROLE_ADMIN".equalsIgnoreCase(r)
+                || "系統管理員".equals(r)
         );
     }
 }
