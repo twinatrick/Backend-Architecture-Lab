@@ -162,7 +162,7 @@ services:
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
       LOKI_URL: ${LOKI_URL:-http://${LOKI_CONTAINER_NAME:-backend-architecture-lab-loki}:3100/loki/api/v1/push}
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
-      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:?JWT_SECRET_USE is required}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx256m"
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -207,8 +207,8 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
-      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
-      SUPERUSER_KEY: ${SUPERUSER_KEY:-super_secret_key_change_in_production}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:?JWT_SECRET_USE is required}
+      SUPERUSER_KEY: ${SUPERUSER_KEY:?SUPERUSER_KEY is required}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
@@ -251,7 +251,7 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
-      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:?JWT_SECRET_USE is required}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
@@ -294,7 +294,7 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
-      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:?JWT_SECRET_USE is required}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
@@ -342,19 +342,19 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
-      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:?JWT_SECRET_USE is required}
       AI_PY_URL: ${AI_PY_URL:-http://host.docker.internal:5001}
       AI_PY_SERVICE_URL: ${AI_PY_SERVICE_URL:-${AI_PY_URL:-http://host.docker.internal:5001}}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GITHUB_MODELS_API_KEY: ${GITHUB_MODELS_API_KEY:-}
-      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-dummy_channel_secret}
-      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-dummy_channel_token}
-      LINE_GF_CHANNEL_SECRET: ${LINE_GF_CHANNEL_SECRET:-dummy_gf_secret}
-      LINE_GF_CHANNEL_ACCESS_TOKEN: ${LINE_GF_CHANNEL_ACCESS_TOKEN:-dummy_gf_token}
-      LINE_DIARY_CHANNEL_SECRET: ${LINE_DIARY_CHANNEL_SECRET:-dummy_diary_secret}
-      LINE_DIARY_CHANNEL_ACCESS_TOKEN: ${LINE_DIARY_CHANNEL_ACCESS_TOKEN:-dummy_diary_token}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
+      LINE_GF_CHANNEL_SECRET: ${LINE_GF_CHANNEL_SECRET:-}
+      LINE_GF_CHANNEL_ACCESS_TOKEN: ${LINE_GF_CHANNEL_ACCESS_TOKEN:-}
+      LINE_DIARY_CHANNEL_SECRET: ${LINE_DIARY_CHANNEL_SECRET:-}
+      LINE_DIARY_CHANNEL_ACCESS_TOKEN: ${LINE_DIARY_CHANNEL_ACCESS_TOKEN:-}
       DISCORD_GF_TOKEN: ${DISCORD_GF_TOKEN:-}
       DISCORD_DIARY_TOKEN: ${DISCORD_DIARY_TOKEN:-}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
@@ -401,7 +401,7 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: ${NACOS_CONTAINER_NAME:-backend-architecture-lab-nacos}:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
-      JWT_SECRET_USE: ${JWT_SECRET_USE:-qBTBqz3r/8hW+a1/KPkqQMgWfQTW3vw7E5+HKx4Vru4=}
+      JWT_SECRET_USE: ${JWT_SECRET_USE:?JWT_SECRET_USE is required}
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
     mem_limit: 512m
     ports:
