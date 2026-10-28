@@ -230,7 +230,7 @@ public class RedisConfig implements CachingConfigurer {
             return configuredHost;
         }
 
-        String resolved = inDocker ? "redis" : "localhost";
+        String resolved = inDocker ? "backend-architecture-lab-redis" : "localhost";
         LOGGER.info("Redis host 根據 APP_IN_DOCKER({}) 解析為: {}", inDocker, resolved);
         return resolved;
     }

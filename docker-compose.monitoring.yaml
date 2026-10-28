@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    container_name: ${PROMETHEUS_CONTAINER_NAME:-backend-architecture-lab-prometheus}
     ports:
-      - "9090:9090"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+      - "${ALLOW_HOST:-127.0.0.2}:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
@@ -17,13 +16,14 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    container_name: ${GRAFANA_CONTAINER_NAME:-backend-architecture-lab-grafana}
     ports:
-      - "3000:3000"
+      - "${LOCAL_BIND_IP:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
+      - "${ALLOW_HOST:-127.0.0.2}:${GRAFANA_PORT:-3000}:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=
     volumes:
       - grafana-data:/var/lib/grafana

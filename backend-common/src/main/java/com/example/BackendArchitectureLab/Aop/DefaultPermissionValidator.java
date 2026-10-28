@@ -49,23 +49,37 @@ public class DefaultPermissionValidator implements LocalPermissionValidator {
             return hasPermission;
         }
 
-        // 快取未命中：優先嘗試批次抓取該使用者的全部權限集合（一次預熱，全域放行）
-        try {
-            Set<String> fetched = circuitBreaker.executeSupplier(() ->
-                    permissionCheckFeignClient.getUserPermissions(email));
-            if (fetched != null && !fetched.isEmpty()) {
-                userPermissionsCache.put(email, fetched);
-                boolean hasPermission = fetched.contains("*") || fetched.contains(one + ":" + two + ":" + three);
-                log.info("Batch user permissions loaded for email={}, total={}, permission={}: {}",
-                        email, fetched.size(), cacheKey, hasPermission);
+        // 快取未命中：透過 Single-Flight 鎖合併同一使用者的併發權限預熱請求
+        synchronized (email.intern()) {
+            Boolean secondCheck = permissionCache.getIfPresent(cacheKey);
+            if (secondCheck != null) {
+                return secondCheck;
+            }
+            Set<String> secondUserPerms = userPermissionsCache.getIfPresent(email);
+            if (secondUserPerms != null) {
+                boolean hasPermission = secondUserPerms.contains("*")
+                        || secondUserPerms.contains(one + ":" + two + ":" + three);
                 permissionCache.put(cacheKey, hasPermission);
                 return hasPermission;
             }
-        } catch (CallNotPermittedException e) {
-            log.warn("Permission check CircuitBreaker is OPEN for key={}: {}", cacheKey, e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            log.warn("getUserPermissions fallback to validatePermission for key={}: {}", cacheKey, e.getMessage());
+
+            try {
+                Set<String> fetched = circuitBreaker.executeSupplier(() ->
+                        permissionCheckFeignClient.getUserPermissions(email));
+                if (fetched != null && !fetched.isEmpty()) {
+                    userPermissionsCache.put(email, fetched);
+                    boolean hasPermission = fetched.contains("*") || fetched.contains(one + ":" + two + ":" + three);
+                    log.info("Batch user permissions loaded for email={}, total={}, permission={}: {}",
+                            email, fetched.size(), cacheKey, hasPermission);
+                    permissionCache.put(cacheKey, hasPermission);
+                    return hasPermission;
+                }
+            } catch (CallNotPermittedException e) {
+                log.warn("Permission check CircuitBreaker is OPEN for key={}: {}", cacheKey, e.getMessage());
+                throw e;
+            } catch (Exception e) {
+                log.warn("getUserPermissions fallback to validatePermission for key={}: {}", cacheKey, e.getMessage());
+            }
         }
 
         log.debug("Permission cache MISS for key={}, calling validatePermission via CircuitBreaker", cacheKey);
@@ -89,15 +103,21 @@ public class DefaultPermissionValidator implements LocalPermissionValidator {
         if (cached != null) {
             return cached;
         }
-        try {
-            Set<String> fetched = circuitBreaker.executeSupplier(() ->
-                    permissionCheckFeignClient.getUserPermissions(email));
-            if (fetched != null) {
-                userPermissionsCache.put(email, fetched);
-                return fetched;
+        synchronized (email.intern()) {
+            Set<String> secondCheck = userPermissionsCache.getIfPresent(email);
+            if (secondCheck != null) {
+                return secondCheck;
             }
-        } catch (Exception e) {
-            log.warn("getUserPermissions error: {}", e.getMessage());
+            try {
+                Set<String> fetched = circuitBreaker.executeSupplier(() ->
+                        permissionCheckFeignClient.getUserPermissions(email));
+                if (fetched != null) {
+                    userPermissionsCache.put(email, fetched);
+                    return fetched;
+                }
+            } catch (Exception e) {
+                log.warn("getUserPermissions error: {}", e.getMessage());
+            }
         }
         return Collections.emptySet();
     }

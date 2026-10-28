@@ -6,9 +6,9 @@ spring:
   application:
     name: iam-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/iam_service
-    username: postgres
-    password: verYs3cret
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/iam_service}
+    username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER:postgres}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:verYs3cret}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 50
@@ -29,8 +29,10 @@ spring:
         default_batch_fetch_size: 64
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:localhost}}
+      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}}
   task:
     execution:
       shutdown:
@@ -42,7 +44,9 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
 
 jwt:
   secret:
@@ -66,3 +70,7 @@ springdoc:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+logging:
+  loki:
+    url: ${LOKI_URL:http://localhost:3100/loki/api/v1/push}

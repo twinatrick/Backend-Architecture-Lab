@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0005-add-external-performance-indexes
+      author: performance-review
+      changes:
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_voice_upload_user_created_time ON user_voice_upload (user_id, created_time DESC, id ASC);
+        - sql:
+            sql: CREATE INDEX IF NOT EXISTS idx_voice_upload_created_time_id ON user_voice_upload (created_time DESC, id ASC);

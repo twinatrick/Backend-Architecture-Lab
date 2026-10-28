@@ -30,7 +30,7 @@ public class CacheStatsKafkaAutoConfiguration {
         if (configuredBootstrapServers != null && !configuredBootstrapServers.isBlank()) {
             return configuredBootstrapServers;
         }
-        return inDocker ? "kafka:29092" : "localhost:9092";
+        return inDocker ? "backend-architecture-lab-kafka:9092" : "localhost:9092";
     }
 
     @Bean
@@ -40,7 +40,10 @@ public class CacheStatsKafkaAutoConfiguration {
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, resolveBootstrapServers());
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 1500);
+        props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 200);
+        props.put(ProducerConfig.RETRIES_CONFIG, 0);
+        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 1000);
+        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 1500);
         ProducerFactory<String, CacheStatsEvent> factory = new DefaultKafkaProducerFactory<>(props);
         return new KafkaTemplate<>(factory);
     }

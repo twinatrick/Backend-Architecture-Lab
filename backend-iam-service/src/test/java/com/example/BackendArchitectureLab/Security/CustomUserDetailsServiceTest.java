@@ -97,4 +97,19 @@ class CustomUserDetailsServiceTest {
                 () -> customUserDetailsService.loadUserByUsername(email));
         verify(userDataAccess).findByEmailWithRoles(email);
     }
+
+    @Test
+    @DisplayName("Should return cached UserDetails on repeated calls and reload after eviction")
+    void testLoadUserByUsername_CacheHitAndEvict() {
+        when(userDataAccess.findByEmailWithRoles(email)).thenReturn(Optional.of(testUser));
+
+        UserDetails first = customUserDetailsService.loadUserByUsername(email);
+        UserDetails second = customUserDetailsService.loadUserByUsername(email);
+        assertSame(first, second);
+        verify(userDataAccess, times(1)).findByEmailWithRoles(email);
+
+        customUserDetailsService.evict(email);
+        customUserDetailsService.loadUserByUsername(email);
+        verify(userDataAccess, times(2)).findByEmailWithRoles(email);
+    }
 }

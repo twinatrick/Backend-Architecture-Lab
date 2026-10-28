@@ -66,7 +66,7 @@ testcontainers-integration:
   image: maven:3.9.8-eclipse-temurin-21
   variables:
     DOCKER_API_VERSION: "1.44"
-    TESTCONTAINERS_HOST_OVERRIDE: "172.17.0.1"
+    TESTCONTAINERS_HOST_OVERRIDE: "${TESTCONTAINERS_HOST_OVERRIDE:-172.17.0.1}"
     TESTCONTAINERS_RYUK_DISABLED: "true"
     MAVEN_OPTS: "-Dmaven.repo.local=/root/.m2 -Xms512m -Xmx2048m -XX:+UseG1GC"
   rules:
@@ -126,11 +126,11 @@ deploy-cluster:
         PG_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-postgres 2>/dev/null || echo "starting")
         if [ "$PG_STATUS" = "healthy" ]; then
           echo "PostgreSQL is ready! Ensuring 5 business databases exist..."
-          docker exec -i backend-architecture-lab-postgres createdb -U postgres iam_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U postgres competency_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U postgres job_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U postgres external_api_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U postgres alert_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" iam_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" competency_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" job_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" external_api_service || true
+          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" alert_service || true
           break
         fi
         sleep 2

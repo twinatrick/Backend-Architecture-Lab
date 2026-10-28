@@ -19,8 +19,10 @@ import java.util.concurrent.CompletableFuture;
 public class KafkaCacheStatsPublisher implements CacheStatsPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaCacheStatsPublisher.class);
+    private static final long COOLDOWN_MS = 30_000L;
 
     private final KafkaTemplate<String, CacheStatsEvent> kafkaTemplate;
+    private volatile long cooldownUntilMillis = 0L;
 
     @Override
     public void publish(String cacheName, String field) {
@@ -29,17 +31,23 @@ public class KafkaCacheStatsPublisher implements CacheStatsPublisher {
 
     @Override
     public void publish(String cacheName, String field, long count) {
+        long now = System.currentTimeMillis();
+        if (now < cooldownUntilMillis) {
+            return;
+        }
         try {
             CompletableFuture<?> future = kafkaTemplate.send("cache-stats", new CacheStatsEvent(cacheName, field, count));
             if (future != null) {
                 future.whenComplete((result, ex) -> {
                     if (ex != null) {
-                        log.debug("發送快取度量至 Kafka 失敗 [{}]: {}", cacheName, ex.getMessage());
+                        cooldownUntilMillis = System.currentTimeMillis() + COOLDOWN_MS;
+                        log.debug("發送快取度量至 Kafka 失敗 [{}]，進入斷路冷卻: {}", cacheName, ex.getMessage());
                     }
                 });
             }
         } catch (Exception e) {
-            log.warn("發送快取度量至 Kafka 異常 [{}]: {}", cacheName, e.getMessage());
+            cooldownUntilMillis = System.currentTimeMillis() + COOLDOWN_MS;
+            log.warn("發送快取度量至 Kafka 異常 [{}]，進入斷路冷卻: {}", cacheName, e.getMessage());
         }
     }
 }
