@@ -72,8 +72,8 @@ def build_batch_prompt(
         f'{{"batch":"{scope}-{index}",'
         f'"files_reviewed":{json.dumps(paths, ensure_ascii=False)},'
         '"findings":[{"severity":"CRITICAL|HIGH|MEDIUM|LOW",'
-        '"confidence":"HIGH|MEDIUM|LOW","location":"file:line",'
-        '"rule":"繁體中文規範依據","problem":"繁體中文問題",'
+        '"confidence":"HIGH|MEDIUM|LOW","category":"ARCHITECTURE|SECURITY|COMPLIANCE",'
+        '"location":"file:line","rule":"繁體中文規範依據","problem":"繁體中文問題",'
         '"evidence":"繁體中文證據","risk":"繁體中文風險",'
         '"recommendation":"繁體中文修正建議"}],'
         '"passed_checks":["繁體中文"],"coverage":"COMPLETE"}'
@@ -138,6 +138,9 @@ artifact/cache、fail-open 與 Review bypass。
    （例如 Repository/DataAccess/Service 介面與其呼叫端可能位於不同批次）。
    嚴禁僅因某個 public 或 interface 方法在本批次內未出現呼叫端，就臆測其為
    「無呼叫端之孤島死代碼 (YAGNI)」；死代碼判定僅限於同一檔案內明確未被使用的 private 成員或局部變數。
+5. 【衍生刪除事務規範與嚴格 Schema 約束】Repository 與 DataAccessImpl 中的 delete* / remove* 方法
+   標註 @Transactional 屬於專案靜態規範強制要求，嚴禁將其誤判為違規。
+   每筆 finding 僅能包含 json_template 中定義的 9 個標準欄位，嚴禁新增 problem_zh 等額外鍵值。
 
 只輸出合法 JSON，不得輸出 markdown：
 {json_template}

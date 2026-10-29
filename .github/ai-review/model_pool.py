@@ -14,82 +14,82 @@ class ModelSpec:
 
 
 GROQ_CAPACITY = ModelSpec(
-    "groq-default", max_batch_tokens=5500, max_files=3, max_output_tokens=2048
+    "groq-default", max_batch_tokens=5500, max_files=3, max_output_tokens=4096
 )
 
 MODEL_SPECS: dict[str, ModelSpec] = {
     # Google Gemini Flash - Tier 1 (RPM 5, TPM 250K, RPD 20)
     "gemini-3.8-flash": ModelSpec(
-        "gemini-3.8-flash", max_batch_tokens=30000, max_files=8, max_output_tokens=8192
+        "gemini-3.8-flash", max_batch_tokens=36000, max_files=8, max_output_tokens=8192
     ),
     "gemini-3.6-flash": ModelSpec(
-        "gemini-3.6-flash", max_batch_tokens=30000, max_files=8, max_output_tokens=8192
+        "gemini-3.6-flash", max_batch_tokens=36000, max_files=8, max_output_tokens=8192
     ),
     "gemini-3-flash-preview": ModelSpec(
         "gemini-3-flash-preview",
-        max_batch_tokens=30000,
+        max_batch_tokens=36000,
         max_files=8,
         max_output_tokens=8192,
     ),
     "gemini-2.5-flash": ModelSpec(
-        "gemini-2.5-flash", max_batch_tokens=30000, max_files=8, max_output_tokens=8192
+        "gemini-2.5-flash", max_batch_tokens=36000, max_files=8, max_output_tokens=8192
     ),
     "gemini-flash-latest": ModelSpec(
         "gemini-flash-latest",
-        max_batch_tokens=30000,
+        max_batch_tokens=36000,
         max_files=8,
         max_output_tokens=8192,
     ),
     # Google Gemini Flash Lite - Tier 2 (RPM 15 / 10, TPM 250K, RPD 500 / 20)
     "gemini-3.5-flash-lite": ModelSpec(
         "gemini-3.5-flash-lite",
-        max_batch_tokens=24000,
+        max_batch_tokens=30000,
         max_files=6,
         max_output_tokens=8192,
     ),
     "gemini-3.1-flash-lite": ModelSpec(
         "gemini-3.1-flash-lite",
-        max_batch_tokens=24000,
+        max_batch_tokens=30000,
         max_files=6,
         max_output_tokens=8192,
     ),
     "gemini-2.5-flash-lite": ModelSpec(
         "gemini-2.5-flash-lite",
-        max_batch_tokens=24000,
+        max_batch_tokens=30000,
         max_files=6,
         max_output_tokens=8192,
     ),
     "gemini-flash-lite-latest": ModelSpec(
         "gemini-flash-lite-latest",
-        max_batch_tokens=24000,
+        max_batch_tokens=30000,
         max_files=6,
         max_output_tokens=8192,
     ),
     # 相容自訂或歷史環境變數覆寫規格
     "gemini-3.7-flash": ModelSpec(
-        "gemini-3.7-flash", max_batch_tokens=24000, max_files=6, max_output_tokens=8192
+        "gemini-3.7-flash", max_batch_tokens=30000, max_files=6, max_output_tokens=8192
     ),
     "gemini-3.5-flash": ModelSpec(
-        "gemini-3.5-flash", max_batch_tokens=24000, max_files=6, max_output_tokens=8192
+        "gemini-3.5-flash", max_batch_tokens=30000, max_files=6, max_output_tokens=8192
     ),
     # Groq Active Models (實測支援 json_object 且各具獨立 TPM 8,000 / RPD 1,000)
     "openai/gpt-oss-120b": ModelSpec(
         "openai/gpt-oss-120b",
         max_batch_tokens=5500,
         max_files=3,
-        max_output_tokens=2048,
+        max_output_tokens=4096,
     ),
     "qwen/qwen3.8-27b": ModelSpec(
         "qwen/qwen3.8-27b",
         max_batch_tokens=5500,
         max_files=3,
-        max_output_tokens=2048,
+        max_output_tokens=4096,
     ),
     "openai/gpt-oss-20b": ModelSpec(
         "openai/gpt-oss-20b",
         max_batch_tokens=5500,
         max_files=3,
-        max_output_tokens=2048,
+        max_output_tokens=4096,
     ),
     "qwen/qwen3.6-27b": ModelSpec(
         "qwen/qwen3.6-27b",
@@ -118,7 +118,7 @@ MODEL_SPECS: dict[str, ModelSpec] = {
 }
 
 DEFAULT_MODEL_SPEC = ModelSpec(
-    "default", max_batch_tokens=20000, max_files=6, max_output_tokens=8192
+    "default", max_batch_tokens=30000, max_files=6, max_output_tokens=8192
 )
 
 
@@ -164,7 +164,6 @@ DEFAULT_GEMINI_MODELS = [
     "gemini-3.8-flash",
     "gemini-3.6-flash",
     "gemini-3-flash-preview",
-    "gemini-2.5-flash",
     "gemini-flash-latest",
     # Tier 2: 高配額高吞吐 Flash Lite 模型 (RPM 15/10, TPM 250K, RPD 500/20)
     "gemini-3.5-flash-lite",

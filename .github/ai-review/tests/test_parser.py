@@ -192,3 +192,20 @@ def test_extract_json_payload_autofills_missing_category():
     finding = parsed["findings"][0]
     assert finding.get("category") == "SECURITY"
 
+
+def test_extract_json_payload_strips_extra_keys_and_maps_aliases():
+    raw = (
+        '{"batch": "data-22", "files_reviewed": ["UserRoleDataAccessImpl.java"], '
+        '"findings": [{"severity": "MEDIUM", "confidence": "HIGH", '
+        '"category": "ARCHITECTURE", "location": "UserRoleDataAccessImpl.java:27", '
+        '"rule": "開發規範.md", "problem": "交易註解說明", '
+        '"problem_zh": "多餘衍生欄位", "evidence": "@Transactional", '
+        '"risk": "維護風險", "recommendation": "移除註解", "extra_field": "ignored"}]}'
+    )
+    parsed = review_parser.extract_json_payload(raw)
+    finding = parsed["findings"][0]
+    assert "problem_zh" not in finding
+    assert "extra_field" not in finding
+    assert finding["problem"] == "交易註解說明"
+
+
