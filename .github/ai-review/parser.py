@@ -2,11 +2,24 @@ import json
 import logging
 import re
 
-from engine import ALLOWED_CATEGORIES
+from engine import (
+    ALLOWED_CATEGORIES,
+    ALLOWED_CONFIDENCE,
+    ALLOWED_SEVERITY,
+    REQUIRED_FIELDS,
+)
 
 
 class ReviewResponseParser:
     """負責 LLM 審查回應的 JSON 提取與格式修復。"""
+
+    FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+        "problem": ("problem_zh", "description", "message", "issue"),
+        "recommendation": ("recommendation_zh", "suggestion", "fix", "solution"),
+        "risk": ("risk_zh", "impact", "consequence"),
+        "rule": ("rule_zh", "rule_id", "standard"),
+        "evidence": ("evidence_zh", "code", "snippet"),
+    }
 
     @staticmethod
     def find_balanced_json_substrings(text: str) -> list[str]:
@@ -112,6 +125,62 @@ class ReviewResponseParser:
         return cleaned
 
     @staticmethod
+    def _normalize_finding_item(finding_item: dict) -> None:
+        for target_field, aliases in ReviewResponseParser.FIELD_ALIASES.items():
+            primary_val = str(finding_item.get(target_field, "") or "").strip()
+            if not primary_val:
+                for alias_key in aliases:
+                    alias_val = str(finding_item.get(alias_key, "") or "").strip()
+                    if alias_val:
+                        finding_item[target_field] = alias_val
+                        break
+
+        loc_val = finding_item.get("location")
+        if isinstance(loc_val, str) and loc_val.strip() and ":" not in loc_val:
+            line_num = finding_item.get("line") or finding_item.get("line_number") or 1
+            finding_item["location"] = f"{loc_val.strip()}:{line_num}"
+
+        sev_val = str(finding_item.get("severity", "") or "").strip().upper()
+        if sev_val in ALLOWED_SEVERITY:
+            finding_item["severity"] = sev_val
+
+        conf_val = str(finding_item.get("confidence", "") or "").strip().upper()
+        if conf_val in ALLOWED_CONFIDENCE:
+            finding_item["confidence"] = conf_val
+
+        category_val = (
+            str(finding_item.get("category", "")).strip().upper().replace(" ", "_")
+        )
+        if not category_val or category_val not in ALLOWED_CATEGORIES:
+            rule_str = str(finding_item.get("rule", ""))
+            prob_str = str(finding_item.get("problem", ""))
+            rule_text = f"{rule_str} {prob_str}".lower()
+            if any(
+                keyword in rule_text
+                for keyword in (
+                    "security", "secret", "permission", "auth", "token",
+                    "inject", "injection", "注入", "安全", "機密", "權限"
+                )
+            ):
+                finding_item["category"] = "SECURITY"
+            elif any(
+                keyword in rule_text
+                for keyword in (
+                    "architecture", "entity", "layer", "feign", "controller",
+                    "service", "架構", "分層"
+                )
+            ):
+                finding_item["category"] = "ARCHITECTURE"
+            else:
+                finding_item["category"] = "COMPLIANCE"
+        else:
+            finding_item["category"] = category_val
+
+        for key in list(finding_item.keys()):
+            if key not in REQUIRED_FIELDS:
+                del finding_item[key]
+
+    @staticmethod
     def extract_json_payload(raw_text: str) -> dict:
         if not raw_text or not isinstance(raw_text, str):
             raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
@@ -123,31 +192,7 @@ class ReviewResponseParser:
             if isinstance(findings, list):
                 for finding_item in findings:
                     if isinstance(finding_item, dict):
-                        category_val = str(finding_item.get("category", "")).strip().upper()
-                        if not category_val or category_val not in ALLOWED_CATEGORIES:
-                            rule_str = str(finding_item.get("rule", ""))
-                            prob_str = str(finding_item.get("problem", ""))
-                            rule_text = f"{rule_str} {prob_str}".lower()
-                            if any(
-                                keyword in rule_text
-                                for keyword in (
-                                    "security", "secret", "permission", "auth", "token",
-                                    "inject", "injection", "注入", "安全", "機密", "權限"
-                                )
-                            ):
-                                finding_item["category"] = "SECURITY"
-                            elif any(
-                                keyword in rule_text
-                                for keyword in (
-                                    "architecture", "entity", "layer", "feign", "controller",
-                                    "service", "架構", "分層"
-                                )
-                            ):
-                                finding_item["category"] = "ARCHITECTURE"
-                            else:
-                                finding_item["category"] = "COMPLIANCE"
-                        else:
-                            finding_item["category"] = category_val
+                        ReviewResponseParser._normalize_finding_item(finding_item)
             return parsed
         raise json.JSONDecodeError("JSON 頂層結構必須為物件（dict）", repaired, 0)
 

@@ -196,7 +196,7 @@ def test_orchestrator_large_batch_falls_back_to_remaining_gemini_models(monkeypa
         groq_key_pool=groq_pool,
         gemini_key_pool=gemini_pool,
     )
-    result = orch.chat_completion("test prompt", required_tokens=26000)
+    result = orch.chat_completion("test prompt", required_tokens=32000)
     assert result == '[{"location": "fallback_lite.py:1"}]'
     assert len(called_model_lists) == 2
     assert "gemini-3.8-flash" in called_model_lists[0]
