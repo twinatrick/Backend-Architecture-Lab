@@ -42,6 +42,10 @@ public class ApiBodyArgumentResolver implements HandlerMethodArgumentResolver {
             return null;
         }
 
+        if (parameter.getParameterType() == byte[].class) {
+            return servletRequest.getInputStream().readAllBytes();
+        }
+
         JavaType javaType = objectMapper.constructType(parameter.getGenericParameterType());
         Object target;
         try {

@@ -332,6 +332,40 @@ _Avoid_: Dead cache clear, Ghost eviction, Redundant cache flush.
 在單執行緒事件循環的快取引擎中，於業務請求或交易路徑內執行全量萬用字元鍵名掃描（如 `KEYS pattern*`），導致快取主執行緒在掃描期間凍結並阻塞所有微服務快取讀寫的效能風險。
 _Avoid_: Wildcard key lookup, Sync key listing, Pattern delete blocking.
 
+**Unidirectional Join Cleanup (單向關聯清除)**:
+當主領域實體（`User`、`Role`、`Function`）執行刪除時，必須單向清除其從屬之中介關聯紀錄（`UserRole`、`RoleFunction`）；嚴禁由中介關聯實體反向級聯刪除或異動主領域實體，避免刪除單一綁定或角色時透過共同權限連鎖清空全系統角色與權限。
+_Avoid_: Reverse ManyToOne cascade, Bidirectional CascadeType.ALL on join entity, Collateral parent deletion.
+
+**Subtree Cascade Deletion (權限子樹向下級聯刪除)**:
+`Function` 構成三層階層式權限樹（第一層模組、第二層功能、第三層動作）。當刪除任一父層權限節點時，必須向下收集其所有子孫權限節點（Subtree），先單向清除該子樹所有節點之 `RoleFunction` 綁定，再一併刪除整棵子樹節點，確保資料庫不殘留無法從根節點抵達之孤兒子權限（Orphan Functions）。
+_Avoid_: Orphan child functions, Flat single-node delete on tree, Dangling parent UUID reference.
+
+**Sibling Name Uniqueness (同層權限名稱唯一性)**:
+權限節點（`Function`）的名稱（`name`）唯一性約束僅作用於同一父節點（`parent`）下的同層兄弟節點之間；不同模組或功能下允許擁有相同動作名稱（例如 `Iam:User:View` 與 `Iam:Role:View` 共用第三層名稱 `"View"`）。
+_Avoid_: Global function name uniqueness, Cross-parent name collision.
+
+**System Reserved Role & Principal (系統保留角色與預設管理員)**:
+系統初始化植入並由權限體系強依賴之核心角色（`admin`、`user`）與預設最高管理員帳號（`admin`），屬於受保護之領域基礎設施，禁止透過一般管理端點刪除、更名或拔除預設管理員之 `admin` 角色綁定。
+_Avoid_: Deleting built-in admin/user role, Self-deletion of active principal, Stripping admin role from bootstrap superuser.
+
+**Directed Acyclic Dependency Graph (有向無環依賴圖, DAG)**:
+全系統從微服務邊界、應用分層（`Controller` $\rightarrow$ `Service` $\rightarrow$ `DataAccess` $\rightarrow$ `Repository` $\rightarrow$ `Entity`）、同層 Spring Bean、JPA 實體級聯到 Python 模組匯入，所有依賴邊必須構成嚴格的有向無環圖，嚴禁任何直接（$A \leftrightarrow B$）或間接（$A \rightarrow B \rightarrow C \rightarrow A$）循環依賴。
+_Avoid_: Circular dependency, Mutual service injection, Bidirectional component coupling.
+
+**Dependency Demotion (職責下沉解耦, Lower-Level Extraction)**:
+當兩個服務或元件（如驗證器與業務服務）因共享底層狀態、快取或純邏輯而產生雙向依賴需求時，將共享狀態或基礎設施操作抽離下沉至零業務依賴的底層元件（如 `Util` / `DataAccess`），使雙方改為單向依賴該底層元件以消除環路。
+_Avoid_: Cross-bean @Lazy workaround, Bidirectional service reference for cache eviction.
+
+**Circular Dependency Masking (環形依賴遮蔽)**:
+指透過 `@Lazy` 注入（包含跨元件 `@Lazy` 與同類別自我代理注入 `@Lazy self`）、`@Autowired` 欄位／Setter 延遲注入或開啟 `spring.main.allow-circular-references=true` 來繞過編譯期與啟動期環路檢查的反模式。專案全面禁止此類遮蔽手法，強制從結構上消除環路。
+_Avoid_: @Lazy on any bean or self injection, allow-circular-references=true, Setter injection to break cycle.
+
+**Explicit Aspect Executor (顯式橫切執行器)**:
+當同一個 Service 類別內部方法需要觸發事務邊界（`@Transactional`、`Propagation.REQUIRES_NEW`）或快取切面（`@Cacheable`、`@CacheEvict`、`@CachePut`）時，嚴禁注入 `@Lazy self` 自我代理或直接以 `this.xxx()` 自調用（導致 Spring AOP Proxy 被繞過），必須單向委派給底層無業務狀態的顯式橫切執行器（`TransactionExecutor` 與 `CacheExecutor`）以 Lambda / Method Reference 方式執行。
+_Avoid_: @Lazy self proxy injection, Internal this.method() aspect bypass, AopContext.currentProxy().
+
+
+
 
 
 

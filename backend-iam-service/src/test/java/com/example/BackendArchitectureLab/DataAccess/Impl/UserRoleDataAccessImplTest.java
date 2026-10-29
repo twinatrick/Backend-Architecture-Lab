@@ -273,6 +273,92 @@ class UserRoleDataAccessImplTest {
         List<UserRole> left = userRoleDataAccess.findByUserId(user.getId());
         assertEquals(1, left.size());
         assertEquals(role2.getId(), left.get(0).getRole().getId());
+        assertTrue(userRepository.findById(user.getId()).isPresent(), "刪除 UserRole 不得反向級聯刪除 User");
+        assertTrue(roleRepository.findById(role1.getId()).isPresent(), "刪除 UserRole 不得反向級聯刪除 Role");
+    }
+
+    @Test
+    @DisplayName("Should delete user roles by role id and preserve User and Role entities")
+    void testDeleteByRoleId_ShouldPreserveParentEntities() {
+        User user1 = new User();
+        user1.setEmail("u1@example.com");
+        user1.setPassword("password");
+        user1.setDisabled(false);
+        userRepository.save(user1);
+
+        Role roleToDelete = new Role();
+        roleToDelete.setName("TEMP_ROLE");
+        roleRepository.save(roleToDelete);
+
+        Role keptRole = new Role();
+        keptRole.setName("KEPT_ROLE");
+        roleRepository.save(keptRole);
+
+        UserRole ur1 = new UserRole();
+        ur1.setUser(user1);
+        ur1.setRole(roleToDelete);
+        userRoleRepository.save(ur1);
+
+        UserRole ur2 = new UserRole();
+        ur2.setUser(user1);
+        ur2.setRole(keptRole);
+        userRoleRepository.save(ur2);
+
+        userRoleDataAccess.deleteByRoleId(roleToDelete.getId());
+
+        List<UserRole> remaining = userRoleDataAccess.findByUserId(user1.getId());
+        assertEquals(1, remaining.size());
+        assertEquals(keptRole.getId(), remaining.get(0).getRole().getId());
+        assertTrue(userRepository.findById(user1.getId()).isPresent());
+        assertTrue(roleRepository.findById(roleToDelete.getId()).isPresent());
+    }
+
+    @Test
+    @DisplayName("Should batch delete by userId and roleIds or userIds and roleId")
+    void testBatchDeleteByUserAndRoles() {
+        User user1 = new User();
+        user1.setEmail("b1@example.com");
+        user1.setPassword("password");
+        user1.setDisabled(false);
+        userRepository.save(user1);
+
+        User user2 = new User();
+        user2.setEmail("b2@example.com");
+        user2.setPassword("password");
+        user2.setDisabled(false);
+        userRepository.save(user2);
+
+        Role role1 = new Role();
+        role1.setName("R1");
+        roleRepository.save(role1);
+
+        Role role2 = new Role();
+        role2.setName("R2");
+        roleRepository.save(role2);
+
+        UserRole ur1 = new UserRole();
+        ur1.setUser(user1);
+        ur1.setRole(role1);
+        userRoleRepository.save(ur1);
+
+        UserRole ur2 = new UserRole();
+        ur2.setUser(user1);
+        ur2.setRole(role2);
+        userRoleRepository.save(ur2);
+
+        UserRole ur3 = new UserRole();
+        ur3.setUser(user2);
+        ur3.setRole(role1);
+        userRoleRepository.save(ur3);
+
+        userRoleDataAccess.deleteByUserIdAndRoleIds(user1.getId(), List.of(role1.getId(), role2.getId()));
+        assertTrue(userRoleDataAccess.findByUserId(user1.getId()).isEmpty());
+        assertEquals(1, userRoleDataAccess.findByUserId(user2.getId()).size());
+
+        userRoleDataAccess.deleteByUserIdsAndRoleId(List.of(user2.getId()), role1.getId());
+        assertTrue(userRoleDataAccess.findByUserId(user2.getId()).isEmpty());
+        assertTrue(userRepository.findById(user1.getId()).isPresent());
+        assertTrue(userRepository.findById(user2.getId()).isPresent());
     }
 }
 

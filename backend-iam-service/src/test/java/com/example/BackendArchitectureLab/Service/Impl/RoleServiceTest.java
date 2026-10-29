@@ -30,6 +30,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import org.springframework.cache.CacheManager;
@@ -52,6 +54,12 @@ class RoleServiceTest {
 
     @Mock
     private TransactionExecutor transactionExecutor;
+
+    @Mock
+    private CacheExecutor cacheExecutor;
+
+    @Mock
+    private IamLocalCacheManager iamLocalCacheManager;
 
     @Mock
     private IRoleDataAccess roleDataAccess;
@@ -98,6 +106,14 @@ class RoleServiceTest {
         });
         lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
             Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheable(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
             return supplier.get();
         });
         // Setup test role
@@ -371,8 +387,8 @@ class RoleServiceTest {
         roleToDelete.setId(testRoleKey);
         
         when(roleDataAccess.findById(testRoleKey)).thenReturn(Optional.of(testRole));
-        when(roleFunctionDataAccess.findAll(any(Example.class))).thenReturn(new ArrayList<>());
-        doNothing().when(roleFunctionDataAccess).deleteAll(anyList());
+        doNothing().when(roleFunctionDataAccess).deleteByRoleKey(testRoleKey);
+        doNothing().when(userRoleDataAccess).deleteByRoleId(testRoleKey);
         doNothing().when(roleDataAccess).delete(any(Role.class));
 
         // Act
@@ -380,7 +396,8 @@ class RoleServiceTest {
 
         // Assert
         verify(roleDataAccess, times(1)).findById(testRoleKey);
-        verify(roleFunctionDataAccess, times(1)).findAll(any(Example.class));
+        verify(roleFunctionDataAccess, times(1)).deleteByRoleKey(testRoleKey);
+        verify(userRoleDataAccess, times(1)).deleteByRoleId(testRoleKey);
         verify(roleDataAccess, times(1)).delete(testRole);
     }
 
@@ -508,12 +525,12 @@ class RoleServiceTest {
         when(userDataAccess.findById(testUserKey)).thenReturn(Optional.of(testUser));
         when(userRoleDataAccess.findByUserId(testUserKey)).thenReturn(List.of(existing));
         when(roleDataAccess.findAllById(List.of(newRoleId))).thenReturn(List.of(newRole));
-        doNothing().when(userRoleDataAccess).deleteByUserIdAndRoleId(testUserKey, oldRoleId);
+        doNothing().when(userRoleDataAccess).deleteByUserIdAndRoleIds(eq(testUserKey), anyCollection());
         when(userRoleDataAccess.saveAll(anyList())).thenReturn(List.of());
 
         roleService.userBindRole(testUserKey.toString(), List.of(newRoleId.toString()));
 
-        verify(userRoleDataAccess).deleteByUserIdAndRoleId(testUserKey, oldRoleId);
+        verify(userRoleDataAccess).deleteByUserIdAndRoleIds(eq(testUserKey), anyCollection());
         verify(userRoleDataAccess).saveAll(anyList());
     }
 
@@ -571,17 +588,14 @@ class RoleServiceTest {
     @DisplayName("Should unbind all roles from user")
     void testUserUnbindAllRole() {
         // Arrange
-        List<Role> allRoles = Arrays.asList(testRole);
         when(userDataAccess.findById(testUserKey)).thenReturn(Optional.of(testUser));
-        when(roleDataAccess.findAll()).thenReturn(allRoles);
-        doNothing().when(userRoleDataAccess).deleteAllByUserInAndRoleIn(anyList(), anyList());
+        doNothing().when(userRoleDataAccess).deleteByUserId(testUserKey);
 
         // Act
         roleService.userUnbindAllRole(testUserKey.toString());
 
         // Assert
-        verify(roleDataAccess, times(1)).findAll();
-        verify(userRoleDataAccess, times(1)).deleteAllByUserInAndRoleIn(List.of(testUser), allRoles);
+        verify(userRoleDataAccess, times(1)).deleteByUserId(testUserKey);
     }
 
     // ==================== Group 4: Query Operations ====================

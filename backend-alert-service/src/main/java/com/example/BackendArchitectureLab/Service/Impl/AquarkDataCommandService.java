@@ -29,6 +29,7 @@ public class AquarkDataCommandService implements IAquarkDataCommandService {
 
     @Override
     @Transactional
+    @CachePut(value = "aquarkData", key = "#aquarkDataRaw.station_id + '_' + #aquarkDataRaw.trans_time", unless = "#result == null")
     public AquarkDataRaw insertAquarkData(AquarkDataRaw aquarkDataRaw) {
         AquarkData aquarkData = aquarkDataMapper.toEntity(aquarkDataRaw);
 
@@ -36,7 +37,8 @@ public class AquarkDataCommandService implements IAquarkDataCommandService {
         aquarkData.setWaterSpeedAquark(abs);
         AquarkData aquarkDataGet = getAquarkDataEntity(aquarkData);
         if (aquarkDataGet == null) {
-            return updateAquarkData(aquarkDataMapper.toVo(aquarkData));
+            AquarkData saved = updateAquarkDataEntity(aquarkData);
+            return aquarkDataMapper.toVo(saved);
         }
 
         aquarkDataGet.setCSQ(aquarkData.getCSQ());

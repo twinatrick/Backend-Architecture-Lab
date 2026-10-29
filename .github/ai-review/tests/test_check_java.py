@@ -215,3 +215,43 @@ def test_check_java_strong_typed_map_allowed():
     )
     rules = [item["rule"] for item in findings]
     assert not any("禁止弱型別 Map 回傳" in rule for rule in rules)
+
+
+def test_check_java_prohibit_lazy_and_self_invocation():
+    content = (
+        "package com.example.BackendArchitectureLab.Service.Impl;\n"
+        "public class DemoService {\n"
+        "    @Lazy\n"
+        "    private final IDemoService self;\n"
+        "    public void outer() {\n"
+        "        innerCached();\n"
+        "    }\n"
+        "    @Cacheable(value = \"demo\")\n"
+        "    public String innerCached() {\n"
+        "        return \"ok\";\n"
+        "    }\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-iam-service/src/main/java/com/example/Service/Impl/DemoService.java",
+        content,
+    )
+    rules = [item["rule"] for item in findings]
+    assert any("@Lazy" in rule for rule in rules)
+    assert any("禁止同類別切面自調用" in rule for rule in rules)
+
+
+def test_check_java_many_to_one_reverse_cascade_prohibited():
+    content = (
+        "package com.example.BackendArchitectureLab.Entity;\n"
+        "public class RoleFunction {\n"
+        "    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)\n"
+        "    private Role role;\n"
+        "}\n"
+    )
+    findings = check_java.check_java_file(
+        "backend-iam-service/src/main/java/com/example/Entity/RoleFunction.java",
+        content,
+    )
+    rules = [item["rule"] for item in findings]
+    assert any("實體單向級聯規範" in rule for rule in rules)

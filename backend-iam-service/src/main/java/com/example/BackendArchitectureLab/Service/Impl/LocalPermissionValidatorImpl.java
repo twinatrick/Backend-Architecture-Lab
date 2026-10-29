@@ -3,14 +3,12 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Aop.LocalPermissionValidator;
 import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
 import com.example.BackendArchitectureLab.Service.IUserService;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -30,16 +28,7 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
 
     private final IFunctionQueryService functionQueryService;
     private final IUserService userService;
-
-    private final Cache<String, Boolean> localCache = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofMinutes(10))
-            .maximumSize(5000)
-            .build();
-
-    private final Cache<String, Set<String>> userPermsCache = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofMinutes(10))
-            .maximumSize(2000)
-            .build();
+    private final IamLocalCacheManager iamLocalCacheManager;
 
     @Override
     public boolean validate(String email, String one, String two, String three) {
@@ -48,35 +37,35 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
         }
 
         String cacheKey = email + ":" + one + ":" + two + ":" + three;
-        Boolean cached = localCache.getIfPresent(cacheKey);
+        Boolean cached = iamLocalCacheManager.getPermissionDecision(cacheKey);
         if (cached != null) {
             return cached;
         }
 
-        Set<String> cachedUserPerms = userPermsCache.getIfPresent(email);
+        Set<String> cachedUserPerms = iamLocalCacheManager.getUserPerms(email);
         if (cachedUserPerms != null) {
             boolean hasPerm = cachedUserPerms.contains("*")
                     || cachedUserPerms.contains(one + ":" + two + ":" + three);
-            localCache.put(cacheKey, hasPerm);
+            iamLocalCacheManager.putPermissionDecision(cacheKey, hasPerm);
             return hasPerm;
         }
 
         UserVo user = userService.getUserWithFullPermissionsByEmail(email);
         if (user == null) {
-            localCache.put(cacheKey, false);
+            iamLocalCacheManager.putPermissionDecision(cacheKey, false);
             return false;
         }
 
         // 管理員全域放行
         if (isAdmin(user)) {
-            userPermsCache.put(email, Set.of("*"));
-            localCache.put(cacheKey, true);
+            iamLocalCacheManager.putUserPerms(email, Set.of("*"));
+            iamLocalCacheManager.putPermissionDecision(cacheKey, true);
             return true;
         }
 
         FunctionVo func3 = functionQueryService.getFunctionByPath(one, two, three);
         if (func3 == null) {
-            localCache.put(cacheKey, false);
+            iamLocalCacheManager.putPermissionDecision(cacheKey, false);
             return false;
         }
 
@@ -87,7 +76,7 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
                 .filter(Objects::nonNull)
                 .anyMatch(id -> id.equals(requiredFunctionId));
 
-        localCache.put(cacheKey, match);
+        iamLocalCacheManager.putPermissionDecision(cacheKey, match);
         return match;
     }
 
@@ -97,13 +86,13 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
             return Collections.emptySet();
         }
 
-        Set<String> cached = userPermsCache.getIfPresent(email);
+        Set<String> cached = iamLocalCacheManager.getUserPerms(email);
         if (cached != null) {
             return cached;
         }
 
         synchronized (email.intern()) {
-            Set<String> secondCheck = userPermsCache.getIfPresent(email);
+            Set<String> secondCheck = iamLocalCacheManager.getUserPerms(email);
             if (secondCheck != null) {
                 return secondCheck;
             }
@@ -115,13 +104,13 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
 
             if (isAdmin(user)) {
                 Set<String> adminPerms = Set.of("*");
-                userPermsCache.put(email, adminPerms);
+                iamLocalCacheManager.putUserPerms(email, adminPerms);
                 return adminPerms;
             }
 
             if (user.getPermissions() == null || user.getPermissions().isEmpty()) {
                 Set<String> emptyPerms = Collections.emptySet();
-                userPermsCache.put(email, emptyPerms);
+                iamLocalCacheManager.putUserPerms(email, emptyPerms);
                 return emptyPerms;
             }
 
@@ -141,7 +130,7 @@ public class LocalPermissionValidatorImpl implements LocalPermissionValidator {
                 }
             }
 
-            userPermsCache.put(email, result);
+            iamLocalCacheManager.putUserPerms(email, result);
             return result;
         }
     }

@@ -7,6 +7,7 @@ from check_dual_rail import (
     check_missing_dual_rail_endpoints,
     check_unimplemented_stubs,
 )
+from check_dependency_cycles import check_java_acyclic_and_lazy
 from check_openapi_dto import (
     check_controller_openapi_contract,
     check_dto_field_and_schema_contract,
@@ -63,6 +64,9 @@ def check_java_file(
 
     # 檢查自我 Feign（支援跨多行註解）
     findings.extend(check_self_feign_block(path, content, current_module, changed_lines))
+
+    # 檢查 @Lazy、切面自調用、@ManyToOne 反向級聯與環形依賴配置
+    findings.extend(check_java_acyclic_and_lazy(path, content, changed_lines=changed_lines))
 
     # Repository 死代碼逆向引用檢索
     findings.extend(

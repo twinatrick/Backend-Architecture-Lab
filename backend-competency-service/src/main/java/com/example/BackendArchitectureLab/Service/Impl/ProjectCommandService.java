@@ -9,16 +9,17 @@ import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
 import com.example.BackendArchitectureLab.Service.IProjectCommandService;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Dto.Request.PersonalProjectRequest;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * ProjectCommandService - 專案寫入業務邏輯服務
@@ -33,9 +34,7 @@ public class ProjectCommandService implements IProjectCommandService {
     private final SecurityUtil securityUtil;
     private final ProjectMapper projectMapper;
     private final IProjectUserBindingService projectUserBindingService;
-
-    @Lazy
-    private final ProjectCommandService self;
+    private final TransactionExecutor transactionExecutor;
 
     /**
      * 新增專案
@@ -48,38 +47,35 @@ public class ProjectCommandService implements IProjectCommandService {
         if (projectVo.getUserIds() != null) {
             projectUserBindingService.validateUsersExist(projectVo.getUserIds().stream().map(UUID::fromString).toList());
         }
-        return self.doAddProject(projectVo);
-    }
-
-    /**
-     * 交易內新增專案（由 addProject 在交易外的 Feign 驗證後呼叫）
-     */
-    @Transactional
-    public ProjectVo doAddProject(ProjectVo projectVo) {
-        Project project = projectMapper.toEntity(projectVo);
-        if (project.getId() != null) {
-            throw new IllegalArgumentException("Key must be null");
-        } else if (project.getName() == null) {
-            throw new IllegalArgumentException("Name must not be null");
-        } else if (!projectDataAccess.findByName(project.getName()).isEmpty()) {
-            throw new IllegalArgumentException("Name already exists");
-        }
-
-        Project savedProject = projectDataAccess.save(project);
-
-        // 處理使用者綁定（如果提供了 userIds）
-        if (projectVo.getUserIds() != null && !projectVo.getUserIds().isEmpty()) {
-            projectUserBindingService.bindUsersToProject(savedProject.getId(), projectVo.getUserIds());
-            for (String uid : projectVo.getUserIds()) {
-                projectUserBindingService.evictUserProjectsCache(UUID.fromString(uid));
+        Supplier<ProjectVo> addTask = () -> {
+            Project project = projectMapper.toEntity(projectVo);
+            if (project.getId() != null) {
+                throw new IllegalArgumentException("Key must be null");
+            } else if (project.getName() == null) {
+                throw new IllegalArgumentException("Name must not be null");
+            } else if (!projectDataAccess.findByName(project.getName()).isEmpty()) {
+                throw new IllegalArgumentException("Name already exists");
             }
-        }
 
-        ProjectVo result = projectMapper.toVo(savedProject);
-        if (projectVo.getUserIds() != null && !projectVo.getUserIds().isEmpty()) {
-            result.setUserIds(projectVo.getUserIds());
+            Project savedProject = projectDataAccess.save(project);
+
+            if (projectVo.getUserIds() != null && !projectVo.getUserIds().isEmpty()) {
+                projectUserBindingService.bindUsersToProject(savedProject.getId(), projectVo.getUserIds());
+                for (String uid : projectVo.getUserIds()) {
+                    projectUserBindingService.evictUserProjectsCache(UUID.fromString(uid));
+                }
+            }
+
+            ProjectVo result = projectMapper.toVo(savedProject);
+            if (projectVo.getUserIds() != null && !projectVo.getUserIds().isEmpty()) {
+                result.setUserIds(projectVo.getUserIds());
+            }
+            return result;
+        };
+        if (transactionExecutor != null) {
+            return transactionExecutor.executeWritable(addTask);
         }
-        return result;
+        return addTask.get();
     }
 
     /**
@@ -88,42 +84,38 @@ public class ProjectCommandService implements IProjectCommandService {
      * @throws IllegalArgumentException 當參數驗證失敗時拋出
      */
     @Override
-    public void updateProject(ProjectVo projectVo) {
-        if (projectVo.getUserIds() != null) {
-            projectUserBindingService.validateUsersExist(projectVo.getUserIds().stream().map(UUID::fromString).toList());
-        }
-        self.doUpdateProject(projectVo);
-    }
-
-    /**
-     * 交易內更新專案（由 updateProject 在交易外的 Feign 驗證後呼叫）
-     */
-    @Transactional
     @Caching(evict = {
             @CacheEvict(value = "projects", key = "#projectVo.id"),
             @CacheEvict(value = "projectMemberSkills", key = "#projectVo.id")
     })
-    public void doUpdateProject(ProjectVo projectVo) {
-        Project project = projectMapper.toEntity(projectVo);
-        if (project.getId() == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        } else if (project.getName() == null) {
-            throw new IllegalArgumentException("Name must not be null");
-        }
-        projectDataAccess.save(project);
-
-        // 處理使用者重新綁定（如果提供了 userIds）
+    public void updateProject(ProjectVo projectVo) {
         if (projectVo.getUserIds() != null) {
-            // 先刪除現有綁定
-            userProjectDataAccess.deleteByProjectId(project.getId());
+            projectUserBindingService.validateUsersExist(projectVo.getUserIds().stream().map(UUID::fromString).toList());
+        }
+        Runnable updateTask = () -> {
+            Project project = projectMapper.toEntity(projectVo);
+            if (project.getId() == null) {
+                throw new IllegalArgumentException("Key must not be null");
+            } else if (project.getName() == null) {
+                throw new IllegalArgumentException("Name must not be null");
+            }
+            projectDataAccess.save(project);
 
-            // 重新綁定（如果 userIds 不為空）
-            if (!projectVo.getUserIds().isEmpty()) {
-                projectUserBindingService.bindUsersToProject(project.getId(), projectVo.getUserIds());
+            if (projectVo.getUserIds() != null) {
+                userProjectDataAccess.deleteByProjectId(project.getId());
+
+                if (!projectVo.getUserIds().isEmpty()) {
+                    projectUserBindingService.bindUsersToProject(project.getId(), projectVo.getUserIds());
+                }
+                for (String uid : projectVo.getUserIds()) {
+                    projectUserBindingService.evictUserProjectsCache(UUID.fromString(uid));
+                }
             }
-            for (String uid : projectVo.getUserIds()) {
-                projectUserBindingService.evictUserProjectsCache(UUID.fromString(uid));
-            }
+        };
+        if (transactionExecutor != null) {
+            transactionExecutor.runWritable(updateTask);
+        } else {
+            updateTask.run();
         }
     }
 

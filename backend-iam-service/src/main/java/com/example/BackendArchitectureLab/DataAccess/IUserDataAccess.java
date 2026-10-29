@@ -23,6 +23,13 @@ public interface IUserDataAccess {
     void save(User user);
 
     /**
+     * Delete a user entity.
+     *
+     * @param user the user to delete
+     */
+    void delete(User user);
+
+    /**
      * Find all users.
      *
      * @return list of all users

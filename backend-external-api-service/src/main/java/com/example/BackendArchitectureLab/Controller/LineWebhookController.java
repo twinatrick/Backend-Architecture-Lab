@@ -1,6 +1,8 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.Ignore;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Service.ILineDiaryService;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
 import com.example.BackendArchitectureLab.Service.ILineWebhookService;
@@ -14,11 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -41,7 +40,7 @@ public class LineWebhookController {
     @Ignore
     @PostMapping("/external/line/callback")
     public ResponseEntity<String> gfCallback(
-            @RequestBody byte[] bodyBytes,
+            @ApiBody(description = "LINE Webhook 原始位元組負載") byte[] bodyBytes,
             @RequestHeader("X-Line-Signature") String signature) {
         if (gfSecret.isBlank()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("GF LINE bot not configured");
@@ -62,7 +61,7 @@ public class LineWebhookController {
     @Ignore
     @PostMapping("/external/line/diary/callback")
     public ResponseEntity<String> diaryCallback(
-            @RequestBody byte[] bodyBytes,
+            @ApiBody(description = "LINE 語音日記 Webhook 原始位元組負載") byte[] bodyBytes,
             @RequestHeader("X-Line-Signature") String signature) {
         if (diarySecret.isBlank() || lineDiaryService == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Diary LINE bot not configured");
@@ -82,7 +81,8 @@ public class LineWebhookController {
 
     @Ignore
     @GetMapping("/external/public/audio/stream/{fileName}")
-    public ResponseEntity<byte[]> streamAudio(@PathVariable("fileName") String fileName) {
+    public ResponseEntity<byte[]> streamAudio(
+            @ApiPath(name = "fileName", description = "TTS 音訊檔案名稱", example = "sample.wav") String fileName) {
         log.info("streamAudio requested for fileName={}", fileName);
         try {
             byte[] data = ttsService.downloadTtsFile(fileName);

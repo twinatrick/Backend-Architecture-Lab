@@ -13,8 +13,28 @@ public class TransactionExecutor {
         return supplier.get();
     }
 
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRED)
+    public void runReadOnly(Runnable runnable) {
+        runnable.run();
+    }
+
     @Transactional(propagation = Propagation.REQUIRED)
     public <T> T executeWritable(Supplier<T> supplier) {
         return supplier.get();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void runWritable(Runnable runnable) {
+        runnable.run();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public <T> T executeRequiresNew(Supplier<T> supplier) {
+        return supplier.get();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void runRequiresNew(Runnable runnable) {
+        runnable.run();
     }
 }

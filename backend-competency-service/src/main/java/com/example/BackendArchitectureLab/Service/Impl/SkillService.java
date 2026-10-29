@@ -1,7 +1,5 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
-import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Dto.Request.PersonalSkillRequest;
 import com.example.BackendArchitectureLab.Dto.Query.SkillLevelSearchQuery;
@@ -17,6 +15,7 @@ import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserSkill;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
@@ -86,92 +85,74 @@ public class SkillService implements ISkillService {
     private final SecurityUtil securityUtil;
     private final IUserGateway userGateway;
     private final TransactionExecutor transactionExecutor;
-
-    @Lazy
-    private final ISkillService self;
+    private final CacheExecutor cacheExecutor;
 
     @Override
-    public SkillVo addSkill(SkillVo skillVo) {
-        if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
-            validateUsersExist(skillVo.getUserIds().stream().map(UUID::fromString).toList());
-        }
-        return self.doAddSkill(skillVo);
-    }
-
-    /**
-     * 交易內新增技能（由 addSkill 在交易外的 Feign 驗證後呼叫）
-     */
-    @Transactional
     @Caching(put = {
             @CachePut(value = "skills", key = "#result.id")
     }, evict = {
             @CacheEvict(value = "skills", key = "'all'")
     })
-    public SkillVo doAddSkill(SkillVo skillVo) {
-        Skill skill = skillMapper.toEntity(skillVo);
-        if (skill.getId() != null) {
-            throw new IllegalArgumentException("Key must be null");
-        } else if (skill.getName() == null) {
-            throw new IllegalArgumentException("Name must not be null");
-        }
-        Example<Skill> example = Example.of(skill);
-        if (skillDataAccess.exists(example)) {
-            throw new IllegalArgumentException("Name already exists");
-        }
-
-        Skill savedSkill = skillDataAccess.save(skill);
-        
-        // 處理使用者綁定（如果提供了 userIds）
-        if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
-            bindUsersToSkill(savedSkill.getId(), skillVo.getUserIds(), skillVo.getSkillLevelId());
-        }
-        
-        SkillVo result = skillMapper.toVo(savedSkill);
-        if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
-            result.setUserIds(skillVo.getUserIds());
-            result.setSkillLevelId(skillVo.getSkillLevelId());
-        }
-        return result;
-    }
-
-    @Override
-    public void updateSkill(SkillVo skillVo) {
+    public SkillVo addSkill(SkillVo skillVo) {
         if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
             validateUsersExist(skillVo.getUserIds().stream().map(UUID::fromString).toList());
         }
-        self.doUpdateSkill(skillVo);
+        return transactionExecutor.executeWritable(() -> {
+            Skill skill = skillMapper.toEntity(skillVo);
+            if (skill.getId() != null) {
+                throw new IllegalArgumentException("Key must be null");
+            } else if (skill.getName() == null) {
+                throw new IllegalArgumentException("Name must not be null");
+            }
+            Example<Skill> example = Example.of(skill);
+            if (skillDataAccess.exists(example)) {
+                throw new IllegalArgumentException("Name already exists");
+            }
+
+            Skill savedSkill = skillDataAccess.save(skill);
+
+            if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
+                bindUsersToSkill(savedSkill.getId(), skillVo.getUserIds(), skillVo.getSkillLevelId());
+            }
+
+            SkillVo result = skillMapper.toVo(savedSkill);
+            if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
+                result.setUserIds(skillVo.getUserIds());
+                result.setSkillLevelId(skillVo.getSkillLevelId());
+            }
+            return result;
+        });
     }
 
-    /**
-     * 交易內更新技能（由 updateSkill 在交易外的 Feign 驗證後呼叫）
-     */
-    @Transactional
+    @Override
     @Caching(evict = {
             @CacheEvict(value = "skills", key = "#skillVo.id"),
             @CacheEvict(value = "skills", key = "'all'")
     })
-    public void doUpdateSkill(SkillVo skillVo) {
-        Skill skill = skillMapper.toEntity(skillVo);
-        if (skill.getId() == null) {
-            throw new IllegalArgumentException("Key must not be null");
-        } else if (skill.getName() == null) {
-            throw new IllegalArgumentException("Name must not be null");
+    public void updateSkill(SkillVo skillVo) {
+        if (skillVo.getUserIds() != null && !skillVo.getUserIds().isEmpty()) {
+            validateUsersExist(skillVo.getUserIds().stream().map(UUID::fromString).toList());
         }
-        skillDataAccess.save(skill);
-        
-        // 處理使用者重新綁定（如果提供了 userIds）
-        if (skillVo.getUserIds() != null) {
-            // 先刪除現有綁定
-            List<UserSkill> existingBindings = userSkillDataAccess.findBySkillId(skill.getId());
-            existingBindings.forEach(userSkill -> 
-                userSkillDataAccess.deleteByUserIdAndSkillId(userSkill.getUserId(), skill.getId())
-            );
-            
-            // 重新綁定（如果 userIds 不為空）
-            if (!skillVo.getUserIds().isEmpty()) {
-                bindUsersToSkill(skill.getId(), skillVo.getUserIds(), skillVo.getSkillLevelId());
+        transactionExecutor.runWritable(() -> {
+            Skill skill = skillMapper.toEntity(skillVo);
+            if (skill.getId() == null) {
+                throw new IllegalArgumentException("Key must not be null");
+            } else if (skill.getName() == null) {
+                throw new IllegalArgumentException("Name must not be null");
             }
-        }
+            skillDataAccess.save(skill);
+
+            if (skillVo.getUserIds() != null) {
+                List<UserSkill> existingBindings = userSkillDataAccess.findBySkillId(skill.getId());
+                existingBindings.forEach(userSkill ->
+                    userSkillDataAccess.deleteByUserIdAndSkillId(userSkill.getUserId(), skill.getId())
+                );
+
+                if (!skillVo.getUserIds().isEmpty()) {
+                    bindUsersToSkill(skill.getId(), skillVo.getUserIds(), skillVo.getSkillLevelId());
+                }
+            }
+        });
     }
     
     /**
@@ -240,14 +221,9 @@ public class SkillService implements ISkillService {
 
     @Override
     public List<SkillVo> getSkill() {
-        return self.getSkillListCache().getData();
-    }
-
-    @Override
-    @Cacheable(value = "skills", key = "'all'", sync = true)
-    public CacheListWrapper<SkillVo> getSkillListCache() {
-        List<SkillVo> list = skillDataAccess.findAll().stream().map(skillMapper::toVo).toList();
-        return new CacheListWrapper<>(list);
+        return cacheExecutor.executeCacheableList("skills", "all", () ->
+                skillDataAccess.findAll().stream().map(skillMapper::toVo).toList()
+        );
     }
 
     @Override
@@ -314,24 +290,19 @@ public class SkillService implements ISkillService {
 
     @Override
     public List<SkillLevelVo> getSkillLevels(String skillId) {
-        return self.getSkillLevelsCache(skillId).getData();
-    }
-
-    @Override
-    @Cacheable(value = "skillLevels", key = "#skillId", sync = true)
-    public CacheListWrapper<SkillLevelVo> getSkillLevelsCache(String skillId) {
-        UUID skillUuid = mapUuid(skillId);
-        if (skillUuid == null) {
-            throw new IllegalArgumentException("Skill key must not be null");
-        }
-        if (skillDataAccess.findById(skillUuid).isEmpty()) {
-            throw new IllegalArgumentException("Skill not found");
-        }
-        List<SkillLevelVo> list = skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(skillUuid)
-                .stream()
-                .map(this::mapSkillLevelVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return cacheExecutor.executeCacheableList("skillLevels", skillId, () -> {
+            UUID skillUuid = mapUuid(skillId);
+            if (skillUuid == null) {
+                throw new IllegalArgumentException("Skill key must not be null");
+            }
+            if (skillDataAccess.findById(skillUuid).isEmpty()) {
+                throw new IllegalArgumentException("Skill not found");
+            }
+            return skillLevelDataAccess.findBySkillIdOrderByLevelValueAsc(skillUuid)
+                    .stream()
+                    .map(this::mapSkillLevelVo)
+                    .toList();
+        });
     }
 
     @Override
@@ -371,33 +342,27 @@ public class SkillService implements ISkillService {
         }
 
         validateUsersExist(List.of(userUuid));
-        self.doBindUserSkill(userUuid, skillUuid, skillLevelUuid);
-    }
+        transactionExecutor.runWritable(() -> {
+            Skill skill = skillDataAccess.findById(skillUuid)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
+            SkillLevel skillLevel = skillLevelDataAccess.findById(skillLevelUuid)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill level not found"));
+            validateSkillLevelBelongsToSkill(skillLevel, skill);
 
-    /**
-     * 交易內綁定單一技能（由 bindUserSkill 在交易外的 Feign 驗證後呼叫）
-     */
-    @Transactional
-    public void doBindUserSkill(UUID userUuid, UUID skillUuid, UUID skillLevelUuid) {
-        Skill skill = skillDataAccess.findById(skillUuid)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
-        SkillLevel skillLevel = skillLevelDataAccess.findById(skillLevelUuid)
-                .orElseThrow(() -> new IllegalArgumentException("Skill level not found"));
-        validateSkillLevelBelongsToSkill(skillLevel, skill);
+            if (userSkillDataAccess.existsByUserIdAndSkillId(userUuid, skillUuid)) {
+                throw new IllegalArgumentException("Skill already bind to user");
+            }
 
-        if (userSkillDataAccess.existsByUserIdAndSkillId(userUuid, skillUuid)) {
-            throw new IllegalArgumentException("Skill already bind to user");
-        }
+            Map<UUID, UUID> target = new LinkedHashMap<>();
+            userSkillDataAccess.findByUserId(userUuid).forEach(item -> {
+                UUID existingSkillId = item.getSkill().getId();
+                UUID existingLevelId = item.getSkillLevel() == null ? null : item.getSkillLevel().getId();
+                target.put(existingSkillId, existingLevelId);
+            });
+            target.put(skillUuid, skillLevelUuid);
 
-        Map<UUID, UUID> target = new LinkedHashMap<>();
-        userSkillDataAccess.findByUserId(userUuid).forEach(item -> {
-            UUID existingSkillId = item.getSkill().getId();
-            UUID existingLevelId = item.getSkillLevel() == null ? null : item.getSkillLevel().getId();
-            target.put(existingSkillId, existingLevelId);
+            doRebindUserSkills(userUuid, target);
         });
-        target.put(skillUuid, skillLevelUuid);
-
-        self.doRebindUserSkills(userUuid, target);
     }
 
     @Override
@@ -407,14 +372,10 @@ public class SkillService implements ISkillService {
         }
 
         validateUsersExist(List.of(userId));
-        self.doRebindUserSkills(userId, skillLevelMapping);
+        transactionExecutor.runWritable(() -> doRebindUserSkills(userId, skillLevelMapping));
     }
 
-    /**
-     * 交易內重新綁定使用者技能（由 rebindUserSkills 在交易外的 Feign 驗證後呼叫）
-     */
-    @Transactional
-    public void doRebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping) {
+    private void doRebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping) {
         Map<UUID, UUID> targetMap = normalizeSkillLevelMapping(skillLevelMapping);
         validateSkillLevelMapping(targetMap);
 
@@ -489,11 +450,16 @@ public class SkillService implements ISkillService {
         });
         target.put(skillUuid, skillLevelUuid);
 
-        self.rebindProjectSkills(projectUuid, target);
+        doRebindProjectSkills(projectUuid, target);
     }
 
+    @Override
     @Transactional
     public void rebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping) {
+        doRebindProjectSkills(projectId, skillLevelMapping);
+    }
+
+    private void doRebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping) {
         if (projectId == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
@@ -569,11 +535,12 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    @Cacheable(value = "skills", key = "#id")
     public SkillVo getSkillById(UUID id) {
-        Skill skill = skillDataAccess.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
-        return skillMapper.toVo(skill);
+        return cacheExecutor.executeCacheable("skills", id, () -> {
+            Skill skill = skillDataAccess.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill not found"));
+            return skillMapper.toVo(skill);
+        });
     }
 
     @Override
@@ -582,11 +549,12 @@ public class SkillService implements ISkillService {
     }
 
     @Override
-    @Cacheable(value = "skillLevels", key = "#id")
     public SkillLevelVo getSkillLevelById(UUID id) {
-        SkillLevel skillLevel = skillLevelDataAccess.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Skill level not found"));
-        return mapSkillLevelVo(skillLevel);
+        return cacheExecutor.executeCacheable("skillLevels", id, () -> {
+            SkillLevel skillLevel = skillLevelDataAccess.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Skill level not found"));
+            return mapSkillLevelVo(skillLevel);
+        });
     }
 
     @Override
@@ -713,114 +681,106 @@ public class SkillService implements ISkillService {
     }
     
     @Override
-    @Transactional(readOnly = true)
     public List<CurrentUserSkillVo> getCurrentUserSkills() {
-        return self.getCurrentUserSkillsCache(securityUtil.requireCurrentUserId().toString()).getData();
+        return loadCurrentUserSkills(securityUtil.requireCurrentUserId().toString());
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    @Cacheable(value = "currentUserSkills", key = "'byuser:' + #currentUserId", sync = true)
-    public CacheListWrapper<CurrentUserSkillVo> getCurrentUserSkillsCache(String currentUserId) {
-        List<CurrentUserSkillVo> result = new ArrayList<>();
-        Set<UUID> seenSkillIds = new HashSet<>();
-        UUID userId = UUID.fromString(currentUserId);
-        
-        // 1. 取得 USER 直接綁定的技能
-        List<UserSkill> userSkills = userSkillDataAccess.findByUserId(userId);
-        for (UserSkill us : userSkills) {
-            Skill skill = us.getSkill();
-            result.add(CurrentUserSkillVo.fromSkillVo(skillMapper.toVo(skill)));
-            seenSkillIds.add(skill.getId());
-        }
-        
-        // 2. 取得 PROJECT 專案的技能（批次載入避免 N+1）
-        List<UserProject> userProjects = userProjectDataAccess.findByUserId(userId);
-        if (!userProjects.isEmpty()) {
-            List<UUID> projectIds = userProjects.stream()
-                .map(up -> up.getProject().getId())
-                .toList();
-            List<ProjectSkill> allProjectSkills = projectSkillDataAccess.findByProjectIdIn(projectIds);
-            Map<UUID, List<ProjectSkill>> skillsByProject = allProjectSkills.stream()
-                .collect(Collectors.groupingBy(ps -> ps.getProject().getId()));
+    private List<CurrentUserSkillVo> loadCurrentUserSkills(String currentUserId) {
+        return cacheExecutor.executeCacheableList("currentUserSkills", "byuser:" + currentUserId, () ->
+                transactionExecutor.executeReadOnly(() -> {
+                    List<CurrentUserSkillVo> result = new ArrayList<>();
+                    Set<UUID> seenSkillIds = new HashSet<>();
+                    UUID userId = UUID.fromString(currentUserId);
 
-            for (UserProject up : userProjects) {
-                Project project = up.getProject();
-                for (ProjectSkill ps : skillsByProject.getOrDefault(project.getId(), List.of())) {
-                    Skill skill = ps.getSkill();
-                    if (!seenSkillIds.contains(skill.getId())) {
-                        result.add(CurrentUserSkillVo.fromSkillVoWithProject(
-                            skillMapper.toVo(skill),
-                            project.getId(),
-                            project.getName()
-                        ));
+                    // 1. 取得 USER 直接綁定的技能
+                    List<UserSkill> userSkills = userSkillDataAccess.findByUserId(userId);
+                    for (UserSkill us : userSkills) {
+                        Skill skill = us.getSkill();
+                        result.add(CurrentUserSkillVo.fromSkillVo(skillMapper.toVo(skill)));
                         seenSkillIds.add(skill.getId());
                     }
-                }
-            }
-        }
-        
-        return new CacheListWrapper<>(result);
+
+                    // 2. 取得 PROJECT 專案的技能（批次載入避免 N+1）
+                    List<UserProject> userProjects = userProjectDataAccess.findByUserId(userId);
+                    if (!userProjects.isEmpty()) {
+                        List<UUID> projectIds = userProjects.stream()
+                                .map(up -> up.getProject().getId())
+                                .toList();
+                        List<ProjectSkill> allProjectSkills = projectSkillDataAccess.findByProjectIdIn(projectIds);
+                        Map<UUID, List<ProjectSkill>> skillsByProject = allProjectSkills.stream()
+                                .collect(Collectors.groupingBy(ps -> ps.getProject().getId()));
+
+                        for (UserProject up : userProjects) {
+                            Project project = up.getProject();
+                            for (ProjectSkill ps : skillsByProject.getOrDefault(project.getId(), List.of())) {
+                                Skill skill = ps.getSkill();
+                                if (!seenSkillIds.contains(skill.getId())) {
+                                    result.add(CurrentUserSkillVo.fromSkillVoWithProject(
+                                            skillMapper.toVo(skill),
+                                            project.getId(),
+                                            project.getName()
+                                    ));
+                                    seenSkillIds.add(skill.getId());
+                                }
+                            }
+                        }
+                    }
+
+                    return result;
+                })
+        );
     }
-    
+
     @Override
     public PageResult<CurrentUserSkillVo> searchCurrentUserSkills(SkillSearchQuery query) {
-        return self.searchCurrentUserSkillsCache(securityUtil.requireCurrentUserId().toString(), query);
-    }
+        String currentUserId = securityUtil.requireCurrentUserId().toString();
+        return transactionExecutor.executeReadOnly(() -> {
+            SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
 
-    @Override
-    @Transactional(readOnly = true)
-    public PageResult<CurrentUserSkillVo> searchCurrentUserSkillsCache(String currentUserId, SkillSearchQuery query) {
-        // 驗證排序欄位與方向
-        SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
+            List<CurrentUserSkillVo> allSkills = loadCurrentUserSkills(currentUserId);
 
-        // 從使用者的全量快取中取得技能（避免重入解析 SecurityContext）
-        CacheListWrapper<CurrentUserSkillVo> wrapper = self.getCurrentUserSkillsCache(currentUserId);
-        List<CurrentUserSkillVo> allSkills = (wrapper != null && wrapper.getData() != null)
-                ? wrapper.getData()
-                : Collections.emptyList();
+            if (allSkills.isEmpty()) {
+                return PageResult.<CurrentUserSkillVo>builder()
+                        .content(Collections.emptyList())
+                        .totalElements(0L)
+                        .totalPages(0)
+                        .currentPage(query.getPage())
+                        .pageSize(query.getSize())
+                        .hasNext(false)
+                        .hasPrevious(query.getPage() > 0)
+                        .isFirst(query.getPage() == 0)
+                        .isLast(true)
+                        .build();
+            }
 
-        if (allSkills.isEmpty()) {
+            // 套用搜尋條件
+            List<CurrentUserSkillVo> filteredSkills = allSkills.stream()
+                    .filter(skill -> matchesQuery(skill, query))
+                    .toList();
+
+            // 套用排序
+            filteredSkills = applySorting(filteredSkills, query);
+
+            // 套用分頁
+            int start = query.getPage() * query.getSize();
+            int end = Math.min(start + query.getSize(), filteredSkills.size());
+            List<CurrentUserSkillVo> pageContent = (start < filteredSkills.size())
+                    ? filteredSkills.subList(start, end)
+                    : new ArrayList<>();
+
+            // 建立分頁結果
             return PageResult.<CurrentUserSkillVo>builder()
-                    .content(Collections.emptyList())
-                    .totalElements(0L)
-                    .totalPages(0)
+                    .content(pageContent)
+                    .totalElements((long) filteredSkills.size())
+                    .totalPages((int) Math.ceil((double) filteredSkills.size() / query.getSize()))
                     .currentPage(query.getPage())
                     .pageSize(query.getSize())
-                    .hasNext(false)
+                    .hasNext(end < filteredSkills.size())
                     .hasPrevious(query.getPage() > 0)
                     .isFirst(query.getPage() == 0)
-                    .isLast(true)
+                    .isLast(end >= filteredSkills.size())
                     .build();
-        }
-
-        // 套用搜尋條件
-        List<CurrentUserSkillVo> filteredSkills = allSkills.stream()
-                .filter(skill -> matchesQuery(skill, query))
-                .toList();
-
-        // 套用排序
-        filteredSkills = applySorting(filteredSkills, query);
-
-        // 套用分頁
-        int start = query.getPage() * query.getSize();
-        int end = Math.min(start + query.getSize(), filteredSkills.size());
-        List<CurrentUserSkillVo> pageContent = (start < filteredSkills.size())
-                ? filteredSkills.subList(start, end)
-                : new ArrayList<>();
-
-        // 建立分頁結果
-        return PageResult.<CurrentUserSkillVo>builder()
-                .content(pageContent)
-                .totalElements((long) filteredSkills.size())
-                .totalPages((int) Math.ceil((double) filteredSkills.size() / query.getSize()))
-                .currentPage(query.getPage())
-                .pageSize(query.getSize())
-                .hasNext(end < filteredSkills.size())
-                .hasPrevious(query.getPage() > 0)
-                .isFirst(query.getPage() == 0)
-                .isLast(end >= filteredSkills.size())
-                .build();
+        });
     }
     
     private boolean matchesQuery(CurrentUserSkillVo skill, SkillSearchQuery query) {

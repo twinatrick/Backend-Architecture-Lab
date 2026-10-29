@@ -1,6 +1,5 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
@@ -38,8 +37,6 @@ public interface IProjectQueryService {
      */
     List<ProjectVo> getCurrentUserProjects();
 
-    CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId);
-
     /**
      * 分頁搜尋當前使用者的專案
      *
@@ -47,8 +44,6 @@ public interface IProjectQueryService {
      * @return 分頁結果
      */
     PageResult<ProjectVo> searchCurrentUserProjects(ProjectSearchQuery query);
-
-    PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query);
 
     ProjectVo getProjectById(UUID id);
 

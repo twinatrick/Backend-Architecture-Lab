@@ -1,7 +1,6 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Request.CreateCompanyRequest;
@@ -11,6 +10,7 @@ import com.example.BackendArchitectureLab.Entity.Company;
 import com.example.BackendArchitectureLab.Mapper.CompanyMapper;
 import com.example.BackendArchitectureLab.Service.ICompanyService;
 import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
@@ -48,6 +48,7 @@ public class CompanyService implements ICompanyService {
     );
 
     private final TransactionExecutor transactionExecutor;
+    private final CacheExecutor cacheExecutor;
     private final ICompanyDataAccess companyDataAccess;
     private final CompanyMapper companyMapper;
     private final CacheManager cacheManager;
@@ -69,20 +70,12 @@ public class CompanyService implements ICompanyService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<CompanyVo> getAllCompanies() {
-        return getAllCompaniesCache().getData();
-    }
-
-    @Override
-    @Cacheable(value = "companies", key = "'all'", sync = true)
-    public CacheListWrapper<CompanyVo> getAllCompaniesCache() {
-        return transactionExecutor.executeReadOnly(() -> {
-            List<CompanyVo> list = companyDataAccess.findAll().stream()
-                    .map(companyMapper::toVo)
-                    .toList();
-            return new CacheListWrapper<>(list);
-        });
+        return cacheExecutor.executeCacheableList("companies", "all", () ->
+                transactionExecutor.executeReadOnly(() -> companyDataAccess.findAll().stream()
+                        .map(companyMapper::toVo)
+                        .toList())
+        );
     }
 
     @Override

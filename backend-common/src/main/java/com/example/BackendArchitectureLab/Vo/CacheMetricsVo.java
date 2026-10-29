@@ -1,28 +1,29 @@
 package com.example.BackendArchitectureLab.Vo;
 
-import io.swagger.v3.oas.annotations.media.Schema;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiDto;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiField;
 
 import java.io.Serializable;
 import java.util.Map;
 
-@Schema(description = "快取度量統計資料")
+@ApiDto(description = "快取度量統計資料")
 public record CacheMetricsVo(
-        @Schema(description = "快取命中次數", example = "10")
+        @ApiField(description = "快取命中次數", example = "10")
         Long hits,
 
-        @Schema(description = "快取未命中次數", example = "2")
+        @ApiField(description = "快取未命中次數", example = "2")
         Long misses,
 
-        @Schema(description = "布隆過濾器攔截次數", example = "0")
+        @ApiField(description = "布隆過濾器攔截次數", example = "0")
         Long bloomRejects,
 
-        @Schema(description = "空值防護命中次數", example = "0")
+        @ApiField(description = "空值防護命中次數", example = "0")
         Long nullHits,
 
-        @Schema(description = "總請求次數 (hits + misses + bloomRejects + nullHits)", example = "12")
+        @ApiField(description = "總請求次數 (hits + misses + bloomRejects + nullHits)", example = "12")
         Long total,
 
-        @Schema(description = "快取命中率 (0.0 ~ 1.0)", example = "0.8333")
+        @ApiField(description = "快取命中率 (0.0 ~ 1.0)", example = "0.8333")
         Float hitRate
 ) implements Serializable {
 

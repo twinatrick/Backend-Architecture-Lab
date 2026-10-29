@@ -6,9 +6,8 @@ import com.example.BackendArchitectureLab.Entity.UserVoiceUpload;
 import com.example.BackendArchitectureLab.Entity.VoiceTranslation;
 import com.example.BackendArchitectureLab.Mapper.UserVoiceUploadMapper;
 import com.example.BackendArchitectureLab.Mapper.VoiceTranslationMapper;
-import com.example.BackendArchitectureLab.Service.IUserVoiceUploadService;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Query.VoiceUploadSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVoiceUploadVo;
@@ -69,7 +68,7 @@ class UserVoiceUploadServiceTest {
     private Cache mockCache;
 
     @Mock
-    private IUserVoiceUploadService self;
+    private CacheExecutor cacheExecutor;
 
     @InjectMocks
     private UserVoiceUploadService uploadService;
@@ -79,6 +78,10 @@ class UserVoiceUploadServiceTest {
         // Mock TransactionExecutor
         when(transactionExecutor.executeReadOnly(any())).thenAnswer(inv -> {
             Supplier<?> supplier = inv.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(inv -> {
+            Supplier<?> supplier = inv.getArgument(2);
             return supplier.get();
         });
 
@@ -271,8 +274,8 @@ class UserVoiceUploadServiceTest {
     }
 
     @Test
-    @DisplayName("getTranslationsByUploadIdCache 應能正確回傳快取列表")
-    void shouldGetTranslationsByUploadIdCache() {
+    @DisplayName("getTranslationsByUploadId 應能正確回傳快取列表")
+    void shouldGetTranslationsByUploadId() {
         UUID uploadId = UUID.randomUUID();
         UserVoiceUpload upload = new UserVoiceUpload();
         upload.setId(uploadId);
@@ -286,10 +289,10 @@ class UserVoiceUploadServiceTest {
         when(voiceTranslationDataAccess.findByVoiceUploadIdOrderByCreatedTimeDesc(uploadId))
                 .thenReturn(List.of(entity));
 
-        CacheListWrapper<VoiceTranslationVo> result = uploadService.getTranslationsByUploadIdCache(uploadId);
+        List<VoiceTranslationVo> result = uploadService.getTranslationsByUploadId(uploadId);
 
         assertNotNull(result);
-        assertEquals(1, result.getData().size());
-        assertEquals("ja", result.getData().get(0).getTargetLanguage());
+        assertEquals(1, result.size());
+        assertEquals("ja", result.get(0).getTargetLanguage());
     }
 }

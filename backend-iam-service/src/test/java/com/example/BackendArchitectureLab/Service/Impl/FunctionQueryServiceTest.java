@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
@@ -54,6 +55,9 @@ class FunctionQueryServiceTest {
     @Mock
     private CacheManager cacheManager;
 
+    @Mock
+    private CacheExecutor cacheExecutor;
+
     @InjectMocks
     private FunctionQueryService functionQueryService;
 
@@ -64,6 +68,14 @@ class FunctionQueryServiceTest {
     void setUp() {
         lenient().when(transactionExecutor.executeReadOnly(any())).thenAnswer(invocation -> {
             Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheable(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
             return supplier.get();
         });
 
@@ -97,8 +109,6 @@ class FunctionQueryServiceTest {
             vo.setType(function.getType());
             return vo;
         });
-
-        ReflectionTestUtils.setField(functionQueryService, "self", functionQueryService);
     }
 
     @Test
@@ -175,12 +185,14 @@ class FunctionQueryServiceTest {
 
     @Test
     void testGetFunctionByPath_MissingLevel_ReturnsNull() {
+        when(functionDataAccess.findFunctionByNameAndParent("System", "")).thenReturn(List.of());
         when(functionDataAccess.findFunctionByName("System")).thenReturn(null);
 
         FunctionVo result = functionQueryService.getFunctionByPath("System", "User", "View");
 
         assertNull(result);
-        verify(functionDataAccess, never()).findFunctionByNameAndParent(anyString(), anyString());
+        verify(functionDataAccess).findFunctionByNameAndParent("System", "");
+        verify(functionDataAccess).findFunctionByName("System");
     }
 
     @Test

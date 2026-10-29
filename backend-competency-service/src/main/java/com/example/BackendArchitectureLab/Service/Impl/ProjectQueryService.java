@@ -7,11 +7,11 @@ import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
 import com.example.BackendArchitectureLab.Service.IProjectQueryService;
 import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.ProjectVo;
 import com.example.BackendArchitectureLab.Dto.Query.ProjectSearchQuery;
@@ -47,6 +47,7 @@ public class ProjectQueryService implements IProjectQueryService {
     );
 
     private final TransactionExecutor transactionExecutor;
+    private final CacheExecutor cacheExecutor;
     private final IProjectDataAccess projectDataAccess;
     private final IUserProjectDataAccess userProjectDataAccess;
     private final SecurityUtil securityUtil;
@@ -148,48 +149,36 @@ public class ProjectQueryService implements IProjectQueryService {
 
     @Override
     public List<ProjectVo> getCurrentUserProjects() {
-        return getCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString()).getData();
-    }
-
-    @Override
-    @Cacheable(value = "projects", key = "'byuser:' + #currentUserId", sync = true)
-    public CacheListWrapper<ProjectVo> getCurrentUserProjectsCache(String currentUserId) {
-        return transactionExecutor.executeReadOnly(() -> {
-            UUID currentUserIdUuid = UUID.fromString(currentUserId);
-            // 透過 UserProject 關聯取得當前使用者的專案
-            List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserIdUuid);
-            List<ProjectVo> list = userProjects.stream()
-                    .map(UserProject::getProject)
-                    .map(projectMapper::toVo)
-                    .toList();
-            return new CacheListWrapper<>(list);
-        });
+        String currentUserId = securityUtil.requireCurrentUserId().toString();
+        return cacheExecutor.executeCacheableList("projects", "byuser:" + currentUserId, () ->
+                transactionExecutor.executeReadOnly(() -> {
+                    UUID currentUserIdUuid = UUID.fromString(currentUserId);
+                    List<UserProject> userProjects = userProjectDataAccess.findByUserId(currentUserIdUuid);
+                    return userProjects.stream()
+                            .map(UserProject::getProject)
+                            .map(projectMapper::toVo)
+                            .toList();
+                })
+        );
     }
 
     @Override
     public PageResult<ProjectVo> searchCurrentUserProjects(ProjectSearchQuery query) {
-        return searchCurrentUserProjectsCache(securityUtil.requireCurrentUserId().toString(), query);
-    }
-
-    @Override
-    public PageResult<ProjectVo> searchCurrentUserProjectsCache(String currentUserId, ProjectSearchQuery query) {
+        String currentUserId = securityUtil.requireCurrentUserId().toString();
         return transactionExecutor.executeReadOnly(() -> {
             UUID currentUserIdUuid = UUID.fromString(currentUserId);
 
             SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
 
-            // 執行分頁查詢（只查詢當前使用者的專案）
             Page<Project> projectPage = projectDataAccess.searchCurrentUserProjects(
                 currentUserIdUuid.toString(),
                 query
             );
 
-            // 轉換為 VO
             List<ProjectVo> projectVos = projectPage.getContent().stream()
                     .map(projectMapper::toVo)
                     .toList();
 
-            // 返回分頁結果
             return PageResult.of(projectPage, projectVos);
         });
     }

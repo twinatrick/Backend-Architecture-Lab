@@ -22,8 +22,35 @@ class TransactionExecutorTest {
     }
 
     @Test
+    void runReadOnly_runsRunnable() {
+        AtomicInteger counter = new AtomicInteger();
+        executor.runReadOnly(counter::incrementAndGet);
+        assertEquals(1, counter.get());
+    }
+
+    @Test
     void executeWritable_runsSupplier() {
         String result = executor.executeWritable(() -> "written");
         assertEquals("written", result);
+    }
+
+    @Test
+    void runWritable_runsRunnable() {
+        AtomicInteger counter = new AtomicInteger();
+        executor.runWritable(counter::incrementAndGet);
+        assertEquals(1, counter.get());
+    }
+
+    @Test
+    void executeRequiresNew_runsSupplier() {
+        String result = executor.executeRequiresNew(() -> "requires-new");
+        assertEquals("requires-new", result);
+    }
+
+    @Test
+    void runRequiresNew_runsRunnable() {
+        AtomicInteger counter = new AtomicInteger();
+        executor.runRequiresNew(counter::incrementAndGet);
+        assertEquals(1, counter.get());
     }
 }

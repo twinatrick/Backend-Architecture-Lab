@@ -16,6 +16,7 @@ import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Event.CompensationAction;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.MemberSkillLevelVo;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,6 @@ import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,9 +57,7 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     private final IUserGateway userGateway;
     private final ICompensationOutboxService compensationOutboxService;
     private final IExternalSyncCommandService externalSyncCommandService;
-
-    @Lazy
-    private final ProjectUserBindingService self;
+    private final TransactionExecutor transactionExecutor;
 
     /**
      * 綁定多個使用者到專案
@@ -125,6 +123,10 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "projectSkills", key = "#projectId"),
+            @CacheEvict(value = "projectMemberSkills", key = "#projectId")
+    })
     public void rebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap) {
         if (projectId == null) {
             throw new IllegalArgumentException("Project ID must not be null");
@@ -144,7 +146,14 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         //    worker 遲早會執行，不再有「commit 後同步永不執行」的 crash window。
         //    同步失敗重試耗盡（DEAD）時才觸發補償閉環（COMPENSATION_REQUIRED）。
         //    本地事務執行失敗已由 Spring 負責 rollback，此處不需發送補償事件，直接向上拋出。
-        self.doRebindProjectMemberSkills(projectId, memberSkillsMap, transactionId);
+        final Map<UUID, Map<UUID, UUID>> targetSkillsMap = memberSkillsMap;
+        if (transactionExecutor != null) {
+            transactionExecutor.runWritable(
+                    () -> doRebindProjectMemberSkills(projectId, targetSkillsMap, transactionId)
+            );
+        } else {
+            doRebindProjectMemberSkills(projectId, targetSkillsMap, transactionId);
+        }
     }
 
     /**
@@ -171,20 +180,15 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
     }
 
     /**
-     * 交易內重新綁定成員技能（由 rebindProjectMemberSkills 在交易外的 Feign 驗證後呼叫）
+     * 交易內重新綁定成員技能（由 rebindProjectMemberSkills 在交易外的 Feign 驗證後透過 TransactionExecutor 呼叫）
      *
      * @param projectId 專案 ID
      * @param memberSkillsMap 成員技能等級對應
      * @param transactionId 補償交易 ID
      * @return 建立的一致性快照 state
      */
-    @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "projectSkills", key = "#projectId"),
-            @CacheEvict(value = "projectMemberSkills", key = "#projectId")
-    })
-    public Map<String, Object> doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
-                                                            UUID transactionId) {
+    public void doRebindProjectMemberSkills(UUID projectId, Map<UUID, Map<UUID, UUID>> memberSkillsMap,
+                                            UUID transactionId) {
         // 驗證專案存在
         Project project = projectDataAccess.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
@@ -301,8 +305,6 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         if (externalSyncCommandService.isEnabled()) {
             externalSyncCommandService.enqueue(transactionId, projectId, memberSkillsMap, state);
         }
-
-        return state;
     }
 
     @Override

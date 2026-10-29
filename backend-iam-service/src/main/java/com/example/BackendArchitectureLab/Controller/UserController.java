@@ -92,6 +92,15 @@ public class UserController {
         return new ResponseType<>(0, "使用者更新成功");
     }
 
+    @DeleteMapping("/{id}")
+    @RequirePermission("Edit")
+    @ApiOperationBadRequest(summary = "刪除使用者", description = "刪除指定 ID 之使用者並單向清除其角色綁定關聯。")
+    public ResponseType<String> deleteUser(
+            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
+        userService.deleteUser(id);
+        return ResponseType.Success("使用者刪除成功");
+    }
+
     @PostMapping("/{userId}/roles/rebind")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(

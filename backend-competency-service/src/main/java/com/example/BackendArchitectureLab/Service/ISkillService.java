@@ -1,6 +1,5 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.CurrentUserSkillVo;
 import com.example.BackendArchitectureLab.Dto.Request.PersonalSkillRequest;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
@@ -18,31 +17,25 @@ import java.util.UUID;
 
 public interface ISkillService {
     SkillVo addSkill(SkillVo skillVo);
-    SkillVo doAddSkill(SkillVo skillVo);
 
     void updateSkill(SkillVo skillVo);
-    void doUpdateSkill(SkillVo skillVo);
 
     List<SkillVo> getSkill();
-    CacheListWrapper<SkillVo> getSkillListCache();
 
     SkillLevelVo addSkillLevel(SkillLevelVo skillLevelVo);
 
     void updateSkillLevel(SkillLevelVo skillLevelVo);
 
     List<SkillLevelVo> getSkillLevels(String skillId);
-    CacheListWrapper<SkillLevelVo> getSkillLevelsCache(String skillId);
 
     void deleteSkillLevel(String skillLevelId);
 
     void bindUserSkill(String userId, String skillId, String skillLevelId);
-    void doBindUserSkill(UUID userUuid, UUID skillUuid, UUID skillLevelUuid);
 
     void bindProjectSkill(String projectId, String skillId, String skillLevelId);
     void rebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping);
 
     void rebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
-    void doRebindUserSkills(UUID userId, Map<UUID, UUID> skillLevelMapping);
 
     void deleteSkill(SkillVo skillVo);
     
@@ -68,7 +61,6 @@ public interface ISkillService {
      * @return 技能列表（含來源標記）
      */
     List<CurrentUserSkillVo> getCurrentUserSkills();
-    CacheListWrapper<CurrentUserSkillVo> getCurrentUserSkillsCache(String currentUserId);
     
     /**
      * 搜尋當前使用者技能（支援分頁與條件查詢）
@@ -77,7 +69,6 @@ public interface ISkillService {
      * @return 分頁結果
      */
     PageResult<CurrentUserSkillVo> searchCurrentUserSkills(SkillSearchQuery query);
-    PageResult<CurrentUserSkillVo> searchCurrentUserSkillsCache(String currentUserId, SkillSearchQuery query);
     
     /**
      * 搜尋技能等級（支援分頁與條件查詢）

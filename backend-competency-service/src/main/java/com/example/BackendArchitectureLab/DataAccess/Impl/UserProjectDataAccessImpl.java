@@ -5,6 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -31,11 +32,13 @@ public class UserProjectDataAccessImpl implements IUserProjectDataAccess {
     }
 
     @Override
+    @Transactional
     public void deleteByProjectId(UUID projectId) {
         userProjectRepository.deleteByProjectId(projectId);
     }
     
     @Override
+    @Transactional
     public void deleteByUserIdAndProjectId(UUID userId, UUID projectId) {
         userProjectRepository.deleteByUserIdAndProjectId(userId, projectId);
     }

@@ -14,6 +14,7 @@ import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Exception.CompensationConflictException;
 import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,8 +76,7 @@ class CompensationRestoreServiceTest {
                 skillLevelDataAccess
         );
 
-        stateService = new CompensationRestoreStateService(restoreLogRepository, null);
-        ReflectionTestUtils.setField(stateService, "self", stateService);
+        stateService = new CompensationRestoreStateService(restoreLogRepository, new TransactionExecutor());
 
         compensationRestoreService = new CompensationRestoreService(
                 projectDataAccess,

@@ -66,4 +66,11 @@ public interface IRoleFunctionDataAccess {
      * @param functions collection of function entities
      */
     void deleteAllByFunctionIn(Collection<Function> functions);
+
+    /**
+     * Delete all role-function associations by function IDs.
+     *
+     * @param functionIds collection of function UUIDs
+     */
+    void deleteByFunctionIds(Collection<UUID> functionIds);
 }

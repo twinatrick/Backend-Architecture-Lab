@@ -12,6 +12,7 @@ import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,6 +63,9 @@ class UserJobLinkServiceTest {
     @Mock
     private TransactionExecutor transactionExecutor;
 
+    @Mock
+    private CacheExecutor cacheExecutor;
+
     @InjectMocks
     private UserJobLinkService userJobLinkService;
 
@@ -83,8 +87,11 @@ class UserJobLinkServiceTest {
             Supplier<?> supplier = invocation.getArgument(0);
             return supplier.get();
         });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
+            return supplier.get();
+        });
 
-        ReflectionTestUtils.setField(userJobLinkService, "self", userJobLinkService);
         userId = UUID.randomUUID();
         jobPostingId = UUID.randomUUID();
         linkId = UUID.randomUUID();

@@ -30,12 +30,12 @@ public class Role extends BaseEntity {
 
     @JsonIgnore
     @BatchSize(size = 50)
-    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY,cascade = CascadeType.ALL)
-    private List<UserRole> userRoles =new ArrayList<>();
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
+    private List<UserRole> userRoles = new ArrayList<>();
     @JsonIgnore
     @BatchSize(size = 50)
-    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY,cascade = CascadeType.ALL)
-    private List<RoleFunction> roleFunctions =new ArrayList<>();
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
+    private List<RoleFunction> roleFunctions = new ArrayList<>();
 
     @JsonIgnore
     @Transient

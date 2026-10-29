@@ -2,6 +2,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from check_dependency_cycles import (
+    check_config_circular_ref,
+    check_cross_file_dependency_cycles,
+)
 from check_java import check_java_file
 from check_python import check_python_file
 from check_rules import (
@@ -117,7 +121,12 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 all_findings.extend(
                     check_python_file(path, py_code, changed_lines=changed_lines)
                 )
+        elif norm_path.endswith((".yml", ".yaml", ".properties")) and clean_content:
+            all_findings.extend(
+                check_config_circular_ref(path, clean_content, changed_lines=changed_lines)
+            )
 
+    all_findings.extend(check_cross_file_dependency_cycles(files))
     return all_findings
 
 

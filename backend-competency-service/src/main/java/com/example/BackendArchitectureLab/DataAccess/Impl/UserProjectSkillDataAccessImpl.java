@@ -5,6 +5,7 @@ import com.example.BackendArchitectureLab.Entity.UserProjectSkill;
 import com.example.BackendArchitectureLab.Repository.UserProjectSkillRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -59,22 +60,26 @@ public class UserProjectSkillDataAccessImpl implements IUserProjectSkillDataAcce
     }
 
     @Override
+    @Transactional
     public void deleteByProjectId(UUID projectId) {
         repository.deleteByProjectId(projectId);
     }
 
     @Override
+    @Transactional
     public void deleteByUserIdAndProjectId(UUID userId, UUID projectId) {
         repository.deleteByUserIdAndProjectId(userId, projectId);
     }
 
     @Override
+    @Transactional
     public void deleteByUserIdAndProjectIdAndSkillId(
             UUID userId, UUID projectId, UUID skillId) {
         repository.deleteByUserIdAndProjectIdAndSkillId(userId, projectId, skillId);
     }
 
     @Override
+    @Transactional
     public void deleteBySkillId(UUID skillId) {
         repository.deleteBySkillId(skillId);
     }

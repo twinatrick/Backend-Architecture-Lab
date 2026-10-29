@@ -1,12 +1,14 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
+import com.example.BackendArchitectureLab.DataAccess.IRoleDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IUserRoleDataAccess;
 import com.example.BackendArchitectureLab.Dto.Query.UserSearchQuery;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Service.IRoleService;
-import com.example.BackendArchitectureLab.Service.Impl.UserService;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import com.example.BackendArchitectureLab.Entity.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,12 @@ class UserServiceTest {
     private IUserDataAccess userDataAccess;
 
     @Mock
+    private IUserRoleDataAccess userRoleDataAccess;
+
+    @Mock
+    private IRoleDataAccess roleDataAccess;
+
+    @Mock
     private IRoleService roleService;
 
     @Mock
@@ -67,6 +75,9 @@ class UserServiceTest {
 
     @Mock
     private CacheManager cacheManager;
+
+    @Mock
+    private IamLocalCacheManager iamLocalCacheManager;
 
     @InjectMocks
     private UserService userService;
@@ -83,6 +94,11 @@ class UserServiceTest {
             Supplier<?> supplier = invocation.getArgument(0);
             return supplier.get();
         });
+        lenient().doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(transactionExecutor).runWritable(any());
 
         testUser = new User();
         testUser.setId(UUID.randomUUID());
@@ -154,7 +170,7 @@ class UserServiceTest {
     @DisplayName("Should return users by email")
     void testGetUserByEmail() {
         // Arrange
-        when(userDataAccess.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userDataAccess.findByEmailWithRoles("test@example.com")).thenReturn(Optional.of(testUser));
 
         // Act
         List<UserVo> result = userService.getUserByEmail("test@example.com");
@@ -163,14 +179,14 @@ class UserServiceTest {
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals("test@example.com", result.get(0).getEmail());
-        verify(userDataAccess, times(1)).findByEmail("test@example.com");
+        verify(userDataAccess, times(1)).findByEmailWithRoles("test@example.com");
     }
 
     @Test
     @DisplayName("Should return only one user by email")
     void testGetOnlyUserByEmail() {
         // Arrange
-        when(userDataAccess.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        when(userDataAccess.findByEmailWithRoles("test@example.com")).thenReturn(Optional.of(testUser));
 
         // Act
         UserVo result = userService.getOnlyUserByEmail("test@example.com");
@@ -178,7 +194,7 @@ class UserServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("test@example.com", result.getEmail());
-        verify(userDataAccess, times(1)).findByEmail("test@example.com");
+        verify(userDataAccess, times(1)).findByEmailWithRoles("test@example.com");
     }
 
     @Test
@@ -344,7 +360,7 @@ class UserServiceTest {
         // Arrange
         UUID userId = UUID.randomUUID();
         testUser.setId(userId);
-        when(userDataAccess.findById(userId)).thenReturn(Optional.of(testUser));
+        when(userDataAccess.findByIdWithRoles(userId)).thenReturn(Optional.of(testUser));
 
         // Act
         UserVo result = userService.getUserById(userId.toString());
@@ -352,7 +368,7 @@ class UserServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals(testUser.getEmail(), result.getEmail());
-        verify(userDataAccess).findById(userId);
+        verify(userDataAccess).findByIdWithRoles(userId);
     }
 
     @Test
@@ -378,7 +394,7 @@ class UserServiceTest {
     void testGetUserById_UserNotFound() {
         // Arrange
         UUID userId = UUID.randomUUID();
-        when(userDataAccess.findById(userId)).thenReturn(Optional.empty());
+        when(userDataAccess.findByIdWithRoles(userId)).thenReturn(Optional.empty());
 
         // Act & Assert
         AppException exception = assertThrows(AppException.class,
@@ -392,6 +408,7 @@ class UserServiceTest {
         // Arrange
         Page<User> page0 = new PageImpl<>(List.of(testUser), PageRequest.of(0, 10), 1);
         when(userDataAccess.findAllPaged(any())).thenReturn(page0);
+        when(userMapper.toStreamVo(any(User.class))).thenAnswer(inv -> userMapper.toVo(inv.getArgument(0)));
 
         // Act
         Flux<ServerSentEvent<List<UserVo>>> stream = userService.streamUsersChunked(10);
@@ -598,5 +615,45 @@ class UserServiceTest {
         assertEquals(email, result.getEmail());
         verify(userDataAccess).findByEmailWithRoles(email);
         verify(userMapper).toVoWithPermissions(user);
+    }
+
+    @Test
+    @DisplayName("Should delete user and unidirectionally clean UserRole")
+    void testDeleteUser_Success() {
+        UUID userId = UUID.randomUUID();
+        testUser.setId(userId);
+        testUser.setEmail("member@example.com");
+        when(userDataAccess.findById(userId)).thenReturn(Optional.of(testUser));
+
+        userService.deleteUser(userId.toString());
+
+        verify(userRoleDataAccess).deleteByUserId(userId);
+        verify(userDataAccess).delete(testUser);
+        verify(iamLocalCacheManager).evictUser("member@example.com");
+    }
+
+    @Test
+    @DisplayName("Should forbid deleting system default admin user")
+    void testDeleteUser_ForbiddenAdmin() {
+        UUID adminId = UUID.randomUUID();
+        User admin = new User();
+        admin.setId(adminId);
+        admin.setEmail("admin");
+        when(userDataAccess.findById(adminId)).thenReturn(Optional.of(admin));
+
+        AppException ex = assertThrows(AppException.class, () -> userService.deleteUser(adminId.toString()));
+        assertEquals("FORBIDDEN_SYSTEM_USER", ex.getErrorType());
+        verify(userRoleDataAccess, never()).deleteByUserId(any());
+        verify(userDataAccess, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when deleting non-existent user")
+    void testDeleteUser_NotFound() {
+        UUID userId = UUID.randomUUID();
+        when(userDataAccess.findById(userId)).thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class, () -> userService.deleteUser(userId.toString()));
+        assertEquals("NOT_FOUND", ex.getErrorType());
     }
 }

@@ -2,9 +2,9 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.ICompensationRestoreLogDataAccess;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreStateService;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,9 +25,7 @@ import java.util.UUID;
 public class CompensationRestoreStateService implements ICompensationRestoreStateService {
 
     private final ICompensationRestoreLogDataAccess restoreLogRepository;
-
-    @Lazy
-    private final ICompensationRestoreStateService self;
+    private final TransactionExecutor transactionExecutor;
 
     @Override
     @Transactional
@@ -51,19 +49,33 @@ public class CompensationRestoreStateService implements ICompensationRestoreStat
 
     @Override
     public void scheduleMarkRestoreFailed(UUID eventId, String ownerId, Long fencingVersion, Exception e) {
+        final String reason = e.getMessage();
+        Runnable markFailedTask = () -> {
+            Runnable action = () -> {
+                int updated = restoreLogRepository.markRestoreState(
+                        eventId, ownerId, fencingVersion, "FAILED", new Date(), reason);
+                if (updated == 0) {
+                    log.warn("markRestoreFailed skipped (token superseded or log missing): eventId={}", eventId);
+                }
+            };
+            if (transactionExecutor != null) {
+                transactionExecutor.runRequiresNew(action);
+            } else {
+                action.run();
+            }
+        };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            final String reason = e.getMessage();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCompletion(int status) {
                     if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                        self.markRestoreFailed(eventId, ownerId, fencingVersion, reason);
+                        markFailedTask.run();
                     }
                 }
             });
         } else {
             // 非交易環境（如單元測試直接呼叫）下無同步機制可用，直接標記 FAILED
-            self.markRestoreFailed(eventId, ownerId, fencingVersion, e.getMessage());
+            markFailedTask.run();
         }
     }
 }

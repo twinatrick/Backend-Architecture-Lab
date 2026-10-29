@@ -106,22 +106,32 @@ public class RoleDataAccessImpl implements IRoleDataAccess {
         }
         
         // 第二次查詢：僅以 GROUP BY 聚合統計各角色的 functionCount，避免三表 LEFT JOIN FETCH 拉取全量關聯實體
-        List<UUID> ids = page.getContent().stream().map(Role::getId).toList();
-        List<Object[]> countRows = roleRepository.countFunctionsByRoleIds(ids);
-        Map<UUID, Integer> countMap = countRows.stream()
-                .collect(Collectors.toMap(
-                        row -> (UUID) row[0],
-                        row -> ((Number) row[1]).intValue(),
-                        (existing, replacement) -> existing
-                ));
-
-        page.getContent().forEach(role -> role.setFunctionCount(countMap.getOrDefault(role.getId(), 0)));
+        populateFunctionCounts(page.getContent());
 
         return new PageImpl<>(page.getContent(), pageable, page.getTotalElements());
     }
 
     @Override
     public Page<Role> findAllPaged(Pageable pageable) {
-        return roleRepository.findAll(pageable);
+        Page<Role> page = roleRepository.findAll(pageable);
+        if (!page.isEmpty()) {
+            populateFunctionCounts(page.getContent());
+        }
+        return page;
+    }
+
+    private void populateFunctionCounts(List<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return;
+        }
+        List<UUID> ids = roles.stream().map(Role::getId).toList();
+        List<Object[]> countRows = roleRepository.countFunctionsByRoleIds(ids);
+        Map<UUID, Integer> countMap = countRows == null ? Map.of() : countRows.stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> ((Number) row[1]).intValue(),
+                        (existing, replacement) -> existing
+                ));
+        roles.forEach(role -> role.setFunctionCount(countMap.getOrDefault(role.getId(), 0)));
     }
 }

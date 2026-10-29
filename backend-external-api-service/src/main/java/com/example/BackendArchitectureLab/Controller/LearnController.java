@@ -5,9 +5,13 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ILearnService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -26,9 +30,9 @@ public class LearnController {
                     + "mode: 輸出模式 (pinyin, zhuyin, romaji, none)；file: 音訊檔案。"
     )
     public ResponseType<AudioRecognizeVo> recognizeAudio(
-            @PathVariable("lan") String lan,
-            @PathVariable("mode") String mode,
-            @RequestParam("file") MultipartFile file) {
+            @ApiPath(name = "lan", description = "目標語言代碼（如 zh 或 ja）", example = "zh") String lan,
+            @ApiPath(name = "mode", description = "拼音轉換模式（pinyin, zhuyin, romaji, none）", example = "pinyin") String mode,
+            @ApiQuery(name = "file", required = true, description = "上傳之音訊檔案") MultipartFile file) {
         
         if (file.isEmpty()) {
             return ResponseType.Fail("BAD_REQUEST", "請上傳音訊檔案", 400);

@@ -12,9 +12,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -120,5 +125,50 @@ public class FunctionDataAccessImpl implements IFunctionDataAccess {
             return List.of();
         }
         return functionRepository.findAllParentHierarchyByChildIds(childIds);
+    }
+
+    @Override
+    public List<Function> findAllByParentIn(Collection<String> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return List.of();
+        }
+        return functionRepository.findAllByParentIn(parentIds);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByIds(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        functionRepository.deleteByIds(ids);
+    }
+
+    @Override
+    public List<UUID> collectSubtreeIds(Collection<UUID> rootIds) {
+        if (rootIds == null || rootIds.isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> visited = new LinkedHashSet<>();
+        List<String> currentParentIds = new ArrayList<>();
+        for (UUID rootId : rootIds) {
+            if (rootId != null && visited.add(rootId)) {
+                currentParentIds.add(rootId.toString());
+            }
+        }
+        while (!currentParentIds.isEmpty()) {
+            List<Function> children = functionRepository.findAllByParentIn(currentParentIds);
+            if (children == null || children.isEmpty()) {
+                break;
+            }
+            List<String> nextParentIds = new ArrayList<>();
+            for (Function child : children) {
+                if (child != null && child.getId() != null && visited.add(child.getId())) {
+                    nextParentIds.add(child.getId().toString());
+                }
+            }
+            currentParentIds = nextParentIds;
+        }
+        return new ArrayList<>(visited);
     }
 }

@@ -14,12 +14,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface UserRoleRepository extends JpaRepository<UserRole, UUID> {
-//    @Modifying
-//    @Query("delete from UserRole ur where ur.user IN ?1 and ur.role IN ?2")
-//    void deleteByUserAndRole(List<UUID> userKey, List<UUID> roleKey);
-//    @Modifying
-//    @Query("delete from UserRole ur where ur.user IN ?1 and ur.role IN ?2")
-//
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from UserRole ur where ur.user in ?1 and ur.role in ?2")
     void deleteAllByUserInAndRoleIn(List<User> userKey, List<Role> roleKey);
 
     @EntityGraph(attributePaths = {"role", "user"})
@@ -28,11 +24,23 @@ public interface UserRoleRepository extends JpaRepository<UserRole, UUID> {
     @EntityGraph(attributePaths = {"role", "user"})
     List<UserRole> findByUserIdIn(Collection<UUID> userIds);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from UserRole ur where ur.user.id = :userId")
     void deleteByUserId(@Param("userId") UUID userId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from UserRole ur where ur.role.id = :roleId")
+    void deleteByRoleId(@Param("roleId") UUID roleId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from UserRole ur where ur.user.id = :userId and ur.role.id = :roleId")
     void deleteByUserIdAndRoleId(@Param("userId") UUID userId, @Param("roleId") UUID roleId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from UserRole ur where ur.user.id = :userId and ur.role.id in :roleIds")
+    void deleteByUserIdAndRoleIds(@Param("userId") UUID userId, @Param("roleIds") Collection<UUID> roleIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from UserRole ur where ur.user.id in :userIds and ur.role.id = :roleId")
+    void deleteByUserIdsAndRoleId(@Param("userIds") Collection<UUID> userIds, @Param("roleId") UUID roleId);
 }

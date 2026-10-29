@@ -489,6 +489,7 @@ erDiagram
 | | `GET /stream` | `/users/stream` | `/api/users/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /saveUser` | `/users/saveUser` | `/api/users/saveUser` | **Protected** | `Edit` 權限。 |
 | | `POST /{userId}/roles/rebind` | `/users/{userId}/roles/rebind` | `/api/users/{userId}/roles/rebind` | **Protected** | `Edit` 權限（重新綁定使用者角色）。 |
+| | `DELETE /{id}` | `/users/{id}` | `/api/users/{id}` | **Protected** | `Edit` 權限（單向解除角色綁定並刪除使用者）。 |
 | | `POST /search` | `/users/search` | `/api/users/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
 | `UserInternalController` | `GET /{id}` | `/users/inner/{id}` | *Gateway 阻擋* | **Internal** | Feign 查詢使用者是否存在與詳情。 |
 | | `POST /by-email` | `/users/inner/by-email` | *Gateway 阻擋* | **Internal** | Feign 依 Email 取得使用者。 |
@@ -535,10 +536,10 @@ erDiagram
 | | `POST /update` | `/skill/level/update` | `/api/skill/level/update` | **Protected** | `Edit` 權限。 |
 | | `POST /delete` | `/skill/level/delete` | `/api/skill/level/delete` | **Protected** | `Edit` 權限。 |
 | | `POST /search` | `/skill/level/search` | `/api/skill/level/search` | **Protected** | `View` 權限。 |
-| `PersonalSkillController` | `POST /add` | `/skill/personal/add` | `/api/skill/personal/add` | **Protected** | `Edit` 權限（個人技能新增）。 |
-| | `POST /update` | `/skill/personal/update` | `/api/skill/personal/update` | **Protected** | `Edit` 權限。 |
-| | `POST /update-level` | `/skill/personal/update-level` | `/api/skill/personal/update-level` | **Protected** | `Edit` 權限。 |
-| | `POST /delete` | `/skill/personal/delete` | `/api/skill/personal/delete` | **Protected** | `Edit` 權限。 |
+| `PersonalSkillController` | `POST ` | `/skill/personal` | `/api/skill/personal` | **Protected** | `Edit` 權限（個人技能新增）。 |
+| | `PUT /{skillId}` | `/skill/personal/{skillId}` | `/api/skill/personal/{skillId}` | **Protected** | `Edit` 權限（修改個人技能）。 |
+| | `PUT /{skillId}/level` | `/skill/personal/{skillId}/level` | `/api/skill/personal/{skillId}/level` | **Protected** | `Edit` 權限（修改個人技能綁定等級）。 |
+| | `DELETE /{skillId}` | `/skill/personal/{skillId}` | `/api/skill/personal/{skillId}` | **Protected** | `Edit` 權限（解除個人技能綁定）。 |
 | `ProjectController` | `POST /add` | `/project/add` | `/api/project/add` | **Protected** | `Edit` 權限。 |
 | | `GET /stream` | `/project/stream` | `/api/project/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `POST /update` | `/project/update` | `/api/project/update` | **Protected** | `Edit` 權限。 |
@@ -547,9 +548,9 @@ erDiagram
 | | `POST /search` | `/project/search` | `/api/project/search` | **Protected** | `View` 權限。 |
 | | `GET /current` | `/project/current` | `/api/project/current` | **Protected** | `View` 權限（查詢當前使用者專案）。 |
 | | `POST /current/search` | `/project/current/search` | `/api/project/current/search` | **Protected** | `View` 權限。 |
-| `PersonalProjectController` | `POST /add` | `/project/personal/add` | `/api/project/personal/add` | **Protected** | `Edit` 權限（個人專案管理）。 |
-| | `PUT /update/{projectId}` | `/project/personal/update/{projectId}` | `/api/project/personal/update/{projectId}` | **Protected** | `Edit` 權限。 |
-| | `DELETE /delete/{projectId}` | `/project/personal/delete/{projectId}` | `/api/project/personal/delete/{projectId}` | **Protected** | `Edit` 權限。 |
+| `PersonalProjectController` | `POST ` | `/project/personal` | `/api/project/personal` | **Protected** | `Edit` 權限（個人專案新增）。 |
+| | `PUT /{projectId}` | `/project/personal/{projectId}` | `/api/project/personal/{projectId}` | **Protected** | `Edit` 權限（個人專案修改）。 |
+| | `DELETE /{projectId}` | `/project/personal/{projectId}` | `/api/project/personal/{projectId}` | **Protected** | `Edit` 權限（個人專案刪除）。 |
 | | `GET /{projectId}/skills` | `/project/personal/{projectId}/skills` | `/api/project/personal/{projectId}/skills` | **Protected** | `View` 權限。 |
 | | `POST /{projectId}/skill/bind` | `/project/personal/{projectId}/skill/bind` | `/api/project/personal/{projectId}/skill/bind` | **Protected** | `Edit` 權限。 |
 | | `PUT /{projectId}/skill/{skillId}/level` | `/project/personal/{projectId}/skill/{skillId}/level` | `/api/project/personal/{projectId}/skill/{skillId}/level` | **Protected** | `Edit` 權限。 |
@@ -587,7 +588,7 @@ erDiagram
 | | `GET /user/{userId}` | `/user-job-link/user/{userId}` | `/api/user-job-link/user/{userId}` | **Protected** | `View` 權限。 |
 | | `GET /job-posting/{jobPostingId}` | `/user-job-link/job-posting/{jobPostingId}` | `/api/user-job-link/job-posting/{jobPostingId}` | **Protected** | `View` 權限。 |
 | | `DELETE /delete/{id}` | `/user-job-link/delete/{id}` | `/api/user-job-link/delete/{id}` | **Protected** | `Edit` 權限。 |
-| `UserJobBindingController` | `POST /add/{jobPostingId}` | `/user/bindings/job/add/{jobPostingId}` | `/api/user/bindings/job/add/{jobPostingId}` | **Protected** | 當前登入使用者收藏職缺。 |
+| `UserJobBindingController` | `POST /{jobPostingId}` | `/user/bindings/job/{jobPostingId}` | `/api/user/bindings/job/{jobPostingId}` | **Protected** | 當前登入使用者收藏職缺。 |
 | | `DELETE /{jobPostingId}` | `/user/bindings/job/{jobPostingId}` | `/api/user/bindings/job/{jobPostingId}` | **Protected** | 當前登入使用者取消收藏。 |
 | | `GET ` | `/user/bindings/job` | `/api/user/bindings/job` | **Protected** | 查詢當前登入使用者收藏職缺清單。 |
 

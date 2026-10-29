@@ -42,6 +42,13 @@ public interface IUserService {
     void saveUserWithRole(UserVo userVo);
 
     /**
+     * 刪除指定 ID 之使用者，並單向清除其所有 UserRole 關聯紀錄與快取。
+     *
+     * @param id 使用者 UUID 字串
+     */
+    void deleteUser(String id);
+
+    /**
      * 完整覆蓋式綁定使用者角色。空清單清空所有角色，null 清單拋出異常。
      *
      * @param userId 使用者 ID

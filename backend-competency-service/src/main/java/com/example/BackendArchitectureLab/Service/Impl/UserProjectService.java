@@ -5,10 +5,9 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Service.IUserProjectService;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
@@ -23,9 +22,7 @@ public class UserProjectService implements IUserProjectService {
     private final IUserProjectDataAccess userProjectDataAccess;
     private final IProjectDataAccess projectDataAccess;
     private final IUserGateway userGateway;
-
-    @Lazy
-    private final UserProjectService self;
+    private final TransactionExecutor transactionExecutor;
 
     @Override
     public void rebindUserProjects(UUID userId, List<UUID> projectIds) {
@@ -38,38 +35,38 @@ public class UserProjectService implements IUserProjectService {
             throw new IllegalArgumentException("User not found");
         }
 
-        self.doRebindUserProjects(userId, projectIds);
-    }
+        Runnable rebindTask = () -> {
+            Set<UUID> targetProjectIds = projectIds == null
+                    ? Set.of()
+                    : projectIds.stream()
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
 
-    /**
-     * 交易內重新綁定使用者專案（由 rebindUserProjects 在交易外的 Feign 驗證後呼叫）
-     */
-    @Transactional
-    public void doRebindUserProjects(UUID userId, List<UUID> projectIds) {
-        Set<UUID> targetProjectIds = projectIds == null
-                ? Set.of()
-                : projectIds.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+            Set<UUID> existingProjectIds = userProjectDataAccess.findByUserId(userId).stream()
+                    .map(up -> up.getProject().getId())
+                    .collect(Collectors.toSet());
 
-        Set<UUID> existingProjectIds = userProjectDataAccess.findByUserId(userId).stream()
-                .map(up -> up.getProject().getId())
-                .collect(Collectors.toSet());
-
-        for (UUID existingProjectId : existingProjectIds) {
-            if (!targetProjectIds.contains(existingProjectId)) {
-                userProjectDataAccess.deleteByUserIdAndProjectId(userId, existingProjectId);
+            for (UUID existingProjectId : existingProjectIds) {
+                if (!targetProjectIds.contains(existingProjectId)) {
+                    userProjectDataAccess.deleteByUserIdAndProjectId(userId, existingProjectId);
+                }
             }
-        }
 
-        for (UUID targetProjectId : targetProjectIds) {
-            if (!existingProjectIds.contains(targetProjectId)) {
-                UserProject userProject = new UserProject();
-                userProject.setUserId(userId);
-                userProject.setProject(projectDataAccess.findById(targetProjectId)
-                        .orElseThrow(() -> new IllegalArgumentException("Project not found")));
-                userProjectDataAccess.save(userProject);
+            for (UUID targetProjectId : targetProjectIds) {
+                if (!existingProjectIds.contains(targetProjectId)) {
+                    UserProject userProject = new UserProject();
+                    userProject.setUserId(userId);
+                    userProject.setProject(projectDataAccess.findById(targetProjectId)
+                            .orElseThrow(() -> new IllegalArgumentException("Project not found")));
+                    userProjectDataAccess.save(userProject);
+                }
             }
+        };
+
+        if (transactionExecutor != null) {
+            transactionExecutor.runWritable(rebindTask);
+        } else {
+            rebindTask.run();
         }
     }
 }

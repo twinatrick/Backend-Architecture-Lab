@@ -13,6 +13,7 @@ import com.example.BackendArchitectureLab.DataAccess.*;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Mapper.SkillMapper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.springframework.cache.CacheManager;
@@ -66,6 +67,8 @@ class SkillServiceTest {
     private CacheManager cacheManager;
     @Mock
     private TransactionExecutor transactionExecutor;
+    @Mock
+    private CacheExecutor cacheExecutor;
 
     @InjectMocks
     private SkillService skillService;
@@ -114,15 +117,19 @@ class SkillServiceTest {
             Supplier<?> supplier = invocation.getArgument(0);
             return supplier.get();
         });
-        
-        // Inject self reference
-        try {
-            Field selfField = SkillService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(skillService, skillService);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self into SkillService", e);
-        }
+        lenient().doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(transactionExecutor).runWritable(any());
+        lenient().when(cacheExecutor.executeCacheable(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
+            return supplier.get();
+        });
     }
 
     @AfterEach

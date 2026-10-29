@@ -88,6 +88,10 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
     @Transactional
     @CachePut(value = "alertCheckLimit", key = "#tableName + '.' + #column")
     public AlertCheckLimitVo insertLimit(String tableName, String column, double limitValue) {
+        return doInsertLimit(tableName, column, limitValue);
+    }
+
+    private AlertCheckLimitVo doInsertLimit(String tableName, String column, double limitValue) {
         AlertCheckLimit alertCheckLimit = new AlertCheckLimit();
         alertCheckLimit.setTableName(tableName);
         alertCheckLimit.setColumnName(column);
@@ -108,8 +112,9 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
 
     @Override
     @Transactional
+    @CachePut(value = "alertCheckLimit", key = "#alertCheckLimitVo.tableName + '.' + #alertCheckLimitVo.columnName")
     public AlertCheckLimitVo addLimit(AlertCheckLimitVo alertCheckLimitVo) {
-        return insertLimit(
+        return doInsertLimit(
                 alertCheckLimitVo.getTableName(),
                 alertCheckLimitVo.getColumnName(),
                 alertCheckLimitVo.getLimitValue()
@@ -123,7 +128,7 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
         @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimitVo.tableName + '.' + #alertCheckLimitVo.columnName")
     })
     public AlertCheckLimitVo updateLimit(AlertCheckLimitVo alertCheckLimitVo) {
-        AlertCheckLimit updated = updateEntity(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
+        AlertCheckLimit updated = alertCheckLimitDataAccess.save(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
         return alertCheckLimitMapper.toVo(updated);
     }
 
@@ -140,7 +145,7 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
         @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimitVo.tableName + '.' + #alertCheckLimitVo.columnName")
     })
     public void deleteLimit(AlertCheckLimitVo alertCheckLimitVo) {
-        deleteLimitEntity(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
+        alertCheckLimitDataAccess.delete(alertCheckLimitMapper.toEntity(alertCheckLimitVo));
     }
     
     @Override
@@ -223,24 +228,6 @@ public class AlertCheckLimitService implements IAlertCheckLimitService {
                             .data(List.of())
                             .build());
                 });
-    }
-
-    @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "alertCheckLimits", key = "#alertCheckLimit.id", condition = "#alertCheckLimit.id != null"),
-        @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
-    })
-    public AlertCheckLimit updateEntity(AlertCheckLimit alertCheckLimit) {
-        return alertCheckLimitDataAccess.save(alertCheckLimit);
-    }
-
-    @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "alertCheckLimits", key = "#alertCheckLimit.id", condition = "#alertCheckLimit.id != null"),
-        @CacheEvict(value = "alertCheckLimit", key = "#alertCheckLimit.tableName + '.' + #alertCheckLimit.columnName")
-    })
-    public void deleteLimitEntity(AlertCheckLimit alertCheckLimit) {
-        alertCheckLimitDataAccess.delete(alertCheckLimit);
     }
 
     private AlertCheckLimit getLimitEntity(String tableName, String column) {

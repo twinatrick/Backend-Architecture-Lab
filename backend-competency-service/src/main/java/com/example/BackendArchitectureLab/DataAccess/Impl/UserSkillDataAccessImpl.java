@@ -5,6 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserSkillDataAccess;
 import com.example.BackendArchitectureLab.Entity.UserSkill;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -36,11 +37,13 @@ public class UserSkillDataAccessImpl implements IUserSkillDataAccess {
     }
 
     @Override
+    @Transactional
     public void deleteBySkillId(UUID skillId) {
         userSkillRepository.deleteBySkillId(skillId);
     }
     
     @Override
+    @Transactional
     public void deleteByUserIdAndSkillId(UUID userId, UUID skillId) {
         userSkillRepository.deleteByUserIdAndSkillId(userId, skillId);
     }
