@@ -8,6 +8,16 @@ variables:
   MAVEN_OPTS: "-Dmaven.repo.local=/root/.m2 -Xms256m -Xmx1024m -XX:+UseG1GC"
   PIP_CACHE_DIR: "/root/.cache/pip"
 
+# 以替身命令驗證部署契約，不需存取正式環境或機密。
+portainer-deploy-contract-test:
+  stage: test
+  image: python:3.12-alpine
+  before_script:
+    - apk add --no-cache bash jq
+    - pip install --no-cache-dir PyYAML==6.0.2
+  script:
+    - python scripts/test_portainer_ci.py
+
 # ============================================
 # Job 1：Maven 單元測試與代碼覆蓋率
 # ============================================
@@ -94,6 +104,7 @@ testcontainers-integration:
 docker-images-build:
   stage: package
   image: docker:27-cli
+  resource_group: backend-image-build
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_PIPELINE_SOURCE == "web"
@@ -102,81 +113,91 @@ docker-images-build:
       allow_failure: true
   script:
     - echo "===> Building all microservice Docker images with --no-cache (Gateway + 5 microservices)..."
-    - docker compose -f compose.prototype.yaml build --no-cache
+    - docker compose -p backend-architecture-lab -f compose.prototype.yaml build --no-cache
+    - |
+      # 避免不同 Pipeline 的 latest 標籤互相覆蓋部署版本。
+      for SERVICE in gateway iam-service competency-service job-service external-api-service alert-service; do
+        docker tag "backend-architecture-lab-${SERVICE}:latest" "backend-architecture-lab-${SERVICE}:${CI_COMMIT_SHA}"
+      done
     - docker images | grep backend-architecture-lab-
 
 # ============================================
-# Job 5：微服務叢集部署 (master 自動部署)
+# Job 5：透過 Portainer 更新既有 Stack
 # ============================================
 deploy-cluster:
   stage: deploy
   image: docker:27-cli
+  resource_group: backend-production
+  environment:
+    name: production
+  variables:
+    PORTAINER_STACK_NAME: backend-managed
+    PORTAINER_ENDPOINT_ID: "3"
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_PIPELINE_SOURCE == "web"
-      when: manual
-    - when: manual
-      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $PORTAINER_DEPLOY_ENABLED == "true"'
+    - when: never
+  before_script:
+    - apk add --no-cache curl jq git
   script:
-    - echo "===> Starting middleware services (PostgreSQL, Redis, Kafka, Zookeeper, Nacos, MinIO, Loki)..."
-    - docker compose -f compose.prototype.yaml up -d postgres redis nacos zookeeper kafka minio loki
-    - echo "===> Waiting for PostgreSQL readiness and ensuring business databases exist..."
     - |
-      for i in $(seq 1 30); do
-        PG_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-postgres 2>/dev/null || echo "starting")
-        if [ "$PG_STATUS" = "healthy" ]; then
-          echo "PostgreSQL is ready! Ensuring 5 business databases exist..."
-          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" iam_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" competency_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" job_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" external_api_service || true
-          docker exec -i backend-architecture-lab-postgres createdb -U "${POSTGRES_USER:-postgres}" alert_service || true
-          break
-        fi
-        sleep 2
+      set -eu
+      umask 077
+      : "${PORTAINER_API_URL:?請設定結尾為 /api 的 Portainer 網址}"
+      : "${PORTAINER_API_KEY:?請設定受保護且遮罩的專用 API Token}"
+      API_URL="${PORTAINER_API_URL%/}"
+      WORK_DIR=$(mktemp -d)
+      trap 'rm -rf "$WORK_DIR"' EXIT
+
+      # 拒絕落後主分支的 Pipeline，避免舊版本排隊後覆蓋新版本。
+      CURRENT_SHA=$(git ls-remote "$CI_REPOSITORY_URL" "refs/heads/$CI_DEFAULT_BRANCH" | awk '{print $1}')
+      test "$CURRENT_SHA" = "$CI_COMMIT_SHA" || { echo "提交已不是主分支最新版本，拒絕部署"; exit 1; }
+
+      curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+        -H "X-API-Key: $PORTAINER_API_KEY" "$API_URL/stacks" > "$WORK_DIR/stacks.json"
+      STACK_ID=$(jq -er --arg name "$PORTAINER_STACK_NAME" --argjson endpoint "$PORTAINER_ENDPOINT_ID" \
+        '[.[] | select(.Name == $name and .EndpointId == $endpoint and .Type == 2 and .Status == 1)] | if length == 1 then .[0].Id else error("需要唯一且啟用的 Compose Stack") end' "$WORK_DIR/stacks.json")
+      STACK_ENV=$(jq -c --argjson id "$STACK_ID" '.[] | select(.Id == $id) | .Env // []' "$WORK_DIR/stacks.json")
+      curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+        -H "X-API-Key: $PORTAINER_API_KEY" "$API_URL/stacks/$STACK_ID/file" \
+        -o "$WORK_DIR/file.json"
+      jq -er '.StackFileContent' "$WORK_DIR/file.json" > "$WORK_DIR/stack.json"
+
+      # 接管 Stack 使用 JSON（合法 YAML）；只改六個應用映像。
+      jq -e '.services | type == "object"' "$WORK_DIR/stack.json" >/dev/null
+      for SERVICE in gateway iam-service competency-service job-service external-api-service alert-service; do
+        IMAGE="backend-architecture-lab-${SERVICE}:${CI_COMMIT_SHA}"
+        docker image inspect "$IMAGE" >/dev/null
+        jq -e --arg service "$SERVICE" --arg image "$IMAGE" \
+          'if .services[$service] then .services[$service].image = $image else error("缺少應用服務") end' \
+          "$WORK_DIR/stack.json" > "$WORK_DIR/next.json"
+        mv "$WORK_DIR/next.json" "$WORK_DIR/stack.json"
       done
-    - echo "===> Checking Nacos readiness..."
-    - |
-      for i in $(seq 1 30); do
-        NACOS_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-nacos 2>/dev/null || echo "starting")
-        if [ "$NACOS_STATUS" = "healthy" ] || docker exec backend-architecture-lab-nacos curl -fsS http://localhost:8848/nacos/v1/console/health/readiness >/dev/null 2>&1; then
-          echo "Nacos is healthy and ready!"
-          break
-        fi
-        echo "Waiting for Nacos readiness ($i/30)..."
-        sleep 2
+      jq -n --rawfile content "$WORK_DIR/stack.json" --argjson env "$STACK_ENV" \
+        '{StackFileContent: $content, Env: $env, Prune: false, PullImage: false}' > "$WORK_DIR/request.json"
+      # 不重試寫入：API 逾時可能已接受部署，必須先確認實際狀態。
+      curl --fail --silent --show-error --connect-timeout 10 --max-time 180 \
+        -X PUT -H "X-API-Key: $PORTAINER_API_KEY" -H 'Content-Type: application/json' \
+        --data-binary "@$WORK_DIR/request.json" \
+        "$API_URL/stacks/$STACK_ID?endpointId=$PORTAINER_ENDPOINT_ID" > "$WORK_DIR/result.json"
+
+      # 驗證實際映像及健康狀態，不以 API 接受請求直接判定成功。
+      for SERVICE in gateway iam-service competency-service job-service external-api-service alert-service; do
+        EXPECTED_ID=$(docker image inspect -f '{{.Id}}' "backend-architecture-lab-${SERVICE}:${CI_COMMIT_SHA}")
+        READY=false
+        for ATTEMPT in $(seq 1 60); do
+          if docker inspect "backend-architecture-lab-$SERVICE" > "$WORK_DIR/container.json" 2>/dev/null && \
+            jq -e --arg image "$EXPECTED_ID" --arg stack "$PORTAINER_STACK_NAME" \
+              '.[0] | .Image == $image and .Config.Labels["com.docker.compose.project"] == $stack and .State.Running == true and (.State.Health.Status // "healthy") == "healthy"' \
+              "$WORK_DIR/container.json" >/dev/null; then
+            READY=true
+            break
+          fi
+          sleep 3
+        done
+        test "$READY" = true || { echo "$SERVICE 未在期限內完成更新"; exit 1; }
       done
-    - echo "===> Checking Loki readiness..."
-    - |
-      LOKI_READY=false
-      for i in $(seq 1 30); do
-        LOKI_STATUS=$(docker inspect -f '{{.State.Health.Status}}' backend-architecture-lab-loki 2>/dev/null || echo "starting")
-        if [ "$LOKI_STATUS" = "healthy" ]; then
-          echo "Loki is healthy and ready!"
-          LOKI_READY=true
-          break
-        fi
-        echo "Waiting for Loki readiness ($i/30)..."
-        sleep 2
-      done
-      if [ "$LOKI_READY" != "true" ]; then
-        echo "Loki failed to become healthy within 60 seconds"
-        docker logs --tail 50 backend-architecture-lab-loki || true
-        exit 1
-      fi
-    - echo "===> Deploying microservices with latest images (force-recreate, no-deps)..."
-    - docker compose -f compose.prototype.yaml up -d --force-recreate --no-deps gateway iam-service competency-service job-service external-api-service alert-service
-    - echo "===> Waiting for Gateway readiness..."
-    - |
-      for i in $(seq 1 30); do
-        GW_STATUS=$(docker inspect -f '{{.State.Status}}' backend-architecture-lab-gateway 2>/dev/null || echo "down")
-        if [ "$GW_STATUS" = "running" ]; then
-          echo "backend-architecture-lab-gateway container is running!"
-          break
-        fi
-        sleep 1
+      for SERVICE in postgres redis nacos loki; do
+        test "$(docker inspect -f '{{.State.Health.Status}}' "backend-architecture-lab-$SERVICE")" = healthy
       done
     - docker ps --filter "name=backend-architecture-lab-"
-    - echo "===> Service log summary (Gateway):"
-    - docker logs --tail 25 backend-architecture-lab-gateway
-    - echo "===> Microservice cluster deployment complete!"
+    - echo "===> Portainer Stack application update verified."
