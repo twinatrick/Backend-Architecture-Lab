@@ -146,6 +146,18 @@ class PortainerDeploymentTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.directory / "calls.txt").exists())
 
+    def test_build_cleanup_only_prunes_unused_default_builder_cache(self):
+        configuration = yaml.safe_load(
+            (PROJECT_ROOT / ".gitlab-ci.yml").read_text(encoding="utf-8"))
+        job = configuration["docker-images-build"]
+        self.assertEqual(job["resource_group"], "backend-image-build")
+        self.assertEqual(job["after_script"], [
+            "docker buildx prune --builder default --all --force"])
+        result = subprocess.run(["bash", "-eu", "-c", "\n".join(job["after_script"])],
+            env=self.environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.directory / "calls.txt").read_text().splitlines(), ["docker READ"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,6 +120,10 @@ docker-images-build:
         docker tag "backend-architecture-lab-${SERVICE}:latest" "backend-architecture-lab-${SERVICE}:${CI_COMMIT_SHA}"
       done
     - docker images | grep backend-architecture-lab-
+  after_script:
+    # --no-cache 不會自動刪除新快取；成功、失敗或取消後皆嘗試清理。
+    # 僅清理 default builder 未使用的快取，不刪服務映像、容器或資料卷。
+    - docker buildx prune --builder default --all --force
 
 # ============================================
 # Job 5：透過 Portainer 更新既有 Stack
