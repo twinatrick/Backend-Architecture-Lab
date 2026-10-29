@@ -26,34 +26,31 @@ def test_default_gemini_models_tiered_order():
     models = model_pool.DEFAULT_GEMINI_MODELS
     assert models[0] == "gemini-3.8-flash"
     assert "gemini-3.8-flash" in models
-    assert "gemini-flash-latest" in models
-    assert "gemini-3.7-flash" in models
     assert "gemini-3.6-flash" in models
     assert "gemini-3-flash-preview" in models
-    assert "gemini-flash-lite-latest" in models
+    assert "gemini-2.5-flash" in models
+    assert "gemini-flash-latest" in models
     assert "gemini-3.5-flash-lite" in models
     assert "gemini-3.1-flash-lite" in models
+    assert "gemini-2.5-flash-lite" in models
+    assert "gemini-flash-lite-latest" in models
+    assert "gemini-3.7-flash" not in models
+    assert "gemini-3.5-flash" not in models
     assert "gemini-2.0-flash" not in models
     assert "gemini-1.5-flash" not in models
-    assert "gemini-2.5-flash" not in models
     # 高額度 Lite 模型排在主要 Flash 模型之後做為防線
     idx_38 = models.index("gemini-3.8-flash")
-    idx_37 = models.index("gemini-3.7-flash")
+    idx_25 = models.index("gemini-2.5-flash")
     idx_35_lite = models.index("gemini-3.5-flash-lite")
-    assert idx_38 < idx_37 < idx_35_lite
+    assert idx_38 < idx_25 < idx_35_lite
 
 
 def test_default_groq_models_priority_order():
     models = model_pool.DEFAULT_MODEL_CANDIDATES
     assert models == [
-        "groq/compound-mini",
-        "groq/compound",
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
         "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
         "qwen/qwen3.8-27b",
-        "qwen/qwen3.6-27b",
+        "openai/gpt-oss-20b",
     ]
     assert model_pool.get_groq_candidate_models() == models
 
@@ -95,18 +92,19 @@ def test_model_pool_thread_safety():
 
 def test_model_spec_registry_and_capacity():
     spec_38 = model_pool.get_model_spec("gemini-3.8-flash")
-    assert spec_38.max_batch_tokens == 24000
-    assert spec_38.max_files == 6
-    assert spec_38.max_output_tokens == 4096
+    assert spec_38.max_batch_tokens == 30000
+    assert spec_38.max_files == 8
+    assert spec_38.max_output_tokens == 8192
 
     spec_lite = model_pool.get_model_spec("gemini-3.5-flash-lite")
-    assert spec_lite.max_batch_tokens == 8000
-    assert spec_lite.max_files == 3
+    assert spec_lite.max_batch_tokens == 24000
+    assert spec_lite.max_files == 6
+    assert spec_lite.max_output_tokens == 8192
 
-    spec_groq = model_pool.get_model_spec("llama-3.3-70b-versatile")
-    assert spec_groq.max_batch_tokens == 5000
+    spec_groq = model_pool.get_model_spec("openai/gpt-oss-120b")
+    assert spec_groq.max_batch_tokens == 5500
     assert spec_groq.max_files == 3
-    assert spec_groq.max_output_tokens == 1000
+    assert spec_groq.max_output_tokens == 2048
 
     spec_unknown = model_pool.get_model_spec("unknown-custom-model")
     assert spec_unknown.max_batch_tokens == model_pool.DEFAULT_MODEL_SPEC.max_batch_tokens
@@ -123,6 +121,6 @@ def test_model_spec_env_override(monkeypatch):
 
 def test_filter_eligible_models_by_tokens():
     candidates = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"]
-    eligible = model_pool.filter_eligible_models(candidates, 15000)
+    eligible = model_pool.filter_eligible_models(candidates, 26000)
     assert eligible == ["gemini-3.8-flash", "gemini-3.6-flash"]
     assert "gemini-3.5-flash-lite" not in eligible

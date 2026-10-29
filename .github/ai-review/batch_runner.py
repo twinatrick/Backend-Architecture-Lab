@@ -10,6 +10,7 @@ import requests
 from batching import estimate_tokens
 from engine import validate_coverage, validate_finding
 from github_client import gh_get, normalize_paths, publish_failure_report
+from model_pool import GROQ_CAPACITY
 from orchestrator import chat_completion
 from parser import extract_json_payload
 from prompt_builder import build_batch_prompt, filter_relevant_rules
@@ -130,11 +131,17 @@ def process_batch(
     diff = sanitize_diff("\n\n".join(diff_parts))
     prompt = build_batch_prompt(scope, index, paths, diff, contract_text, relevant_rules)
     batch_tokens = estimate_tokens(prompt)
+    is_light_batch = batch_tokens <= GROQ_CAPACITY.max_batch_tokens
     try:
         try:
-            text_output = caller(prompt, required_tokens=batch_tokens).strip()
+            text_output = caller(
+                prompt, required_tokens=batch_tokens, prefer_groq=is_light_batch
+            ).strip()
         except TypeError:
-            text_output = caller(prompt).strip()
+            try:
+                text_output = caller(prompt, required_tokens=batch_tokens).strip()
+            except TypeError:
+                text_output = caller(prompt).strip()
     except RuntimeError as run_exc:
         if len(paths) > 1:
             mid_index = len(paths) // 2
@@ -243,13 +250,18 @@ def process_batches_parallel(
 
     print(
         f"啟動平行批次審查：共 {len(batches)} 個批次，"
-        f"啟用 {actual_workers} 個平行 Worker，錯峰間隔 {stagger_seconds:.1f} 秒..."
+        f"啟用 {actual_workers} 個平行 Worker，首波錯峰間隔 {stagger_seconds:.1f} 秒...",
+        flush=True,
     )
 
     def _worker(
         worker_idx: int, worker_scope: str, worker_paths: list[str]
     ) -> tuple[int, dict[str, Any]]:
-        stagger = (worker_idx - 1) * stagger_seconds
+        stagger = (
+            (worker_idx - 1) * stagger_seconds
+            if worker_idx <= actual_workers
+            else 0.0
+        )
         if stagger > 0:
             time.sleep(stagger)
         batch_data = process_batch(

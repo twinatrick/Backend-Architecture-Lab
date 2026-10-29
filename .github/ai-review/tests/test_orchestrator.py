@@ -196,8 +196,30 @@ def test_orchestrator_large_batch_falls_back_to_remaining_gemini_models(monkeypa
         groq_key_pool=groq_pool,
         gemini_key_pool=gemini_pool,
     )
-    result = orch.chat_completion("test prompt", required_tokens=19000)
+    result = orch.chat_completion("test prompt", required_tokens=26000)
     assert result == '[{"location": "fallback_lite.py:1"}]'
     assert len(called_model_lists) == 2
     assert "gemini-3.8-flash" in called_model_lists[0]
+    assert "gemini-3.5-flash-lite" not in called_model_lists[0]
     assert "gemini-3.5-flash-lite" in called_model_lists[1]
+
+
+def test_orchestrator_prefer_groq_offloads_lightweight_batch(monkeypatch):
+    gemini_pool = MagicMock()
+    gemini_pool.get_all_keys.return_value = [("GEMINI_API_KEY_1", "gkey1")]
+    groq_pool = MagicMock()
+    groq_pool.get_all_keys.return_value = [("GROQ_API_KEY_1", "qkey1")]
+
+    gemini_mock = MagicMock(return_value='[{"location": "gemini.py:1"}]')
+    groq_mock = MagicMock(return_value='[{"location": "groq_fast.py:1"}]')
+    monkeypatch.setattr(orchestrator, "execute_gemini_loop", gemini_mock)
+    monkeypatch.setattr(orchestrator, "execute_groq_loop", groq_mock)
+
+    orch = orchestrator.ReviewOrchestrator(
+        groq_key_pool=groq_pool,
+        gemini_key_pool=gemini_pool,
+    )
+    result = orch.chat_completion("short prompt", required_tokens=3000, prefer_groq=True)
+    assert result == '[{"location": "groq_fast.py:1"}]'
+    assert groq_mock.called
+    assert not gemini_mock.called

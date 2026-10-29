@@ -332,7 +332,16 @@ _Avoid_: Dead cache clear, Ghost eviction, Redundant cache flush.
 在單執行緒事件循環的快取引擎中，於業務請求或交易路徑內執行全量萬用字元鍵名掃描（如 `KEYS pattern*`），導致快取主執行緒在掃描期間凍結並阻塞所有微服務快取讀寫的效能風險。
 _Avoid_: Wildcard key lookup, Sync key listing, Pattern delete blocking.
 
+**Quota-Aligned Model Pool (配額對齊模型池)**:
+依據雲端推理平台實際授權之單分鐘請求數（RPM）、單分鐘權杖數（TPM）與單日請求數（RPD）配額，精確剔除零配額模型、釋放單批次容量上限（對齊 250K TPM 與實測 Context），並按單日吞吐餘裕與推理能力動態排定候選優先級的模型池治理機制。
+_Avoid_: Blind model list, Artificial low token cap, Zero-quota retry loop.
 
+**Dual-Provider Load Offloading (雙供應商主動分流)**:
+在進行多批次平行審查時，不再將第二供應商（Groq）僅視為第一供應商（Gemini）全數耗盡後的被動備援，而是依據批次權杖預算將輕量批次主動優先分流至低延遲供應商，並支援將失敗或逾時之大型批次動態拆解為子批次交由第二供應商救援的主動負載均衡策略。
+_Avoid_: Cold standby only, Single-provider bottleneck, Idle backup key pool.
 
+**Fast-Demote Transient Spike (瞬態尖峰快速降級)**:
+當特定模型端點遭遇雲端服務商高負載尖峰（`HTTP 503`）或單次請求逾時時，立即對該模型執行健康度降級並切換至池內下一候選模型，避免在同一壅塞模型上盲目輪詢所有 API Key 的快速失敗切換機制。
+_Avoid_: Exhausting all keys on 503, Blind key rotation on model outage, Long timeout blocking.
 
 

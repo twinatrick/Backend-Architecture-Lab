@@ -41,20 +41,20 @@ def test_gemini_build_generation_config_sampling_parameters_by_model():
     assert "top_p" not in cfg_38
     assert "top_k" not in cfg_38
     assert cfg_38["responseMimeType"] == "application/json"
-    assert cfg_38["maxOutputTokens"] == 4096
+    assert cfg_38["maxOutputTokens"] == 8192
 
-    cfg_37 = providers.GeminiClient.build_generation_config("gemini-3.7-flash")
-    assert "temperature" not in cfg_37
-    assert "top_p" not in cfg_37
-    assert "top_k" not in cfg_37
-    assert cfg_37["responseMimeType"] == "application/json"
-    assert cfg_37["maxOutputTokens"] == 4096
+    cfg_25_flash = providers.GeminiClient.build_generation_config("gemini-2.5-flash")
+    assert "temperature" in cfg_25_flash
+    assert cfg_25_flash["temperature"] == 0.1
+    assert cfg_25_flash["responseMimeType"] == "application/json"
+    assert cfg_25_flash["maxOutputTokens"] == 8192
 
     cfg_36 = providers.GeminiClient.build_generation_config("gemini-3.6-flash")
     assert "temperature" not in cfg_36
 
     cfg_35_lite = providers.GeminiClient.build_generation_config("gemini-3.5-flash-lite")
     assert "temperature" not in cfg_35_lite
+    assert cfg_35_lite["maxOutputTokens"] == 8192
 
     cfg_flash_latest = providers.GeminiClient.build_generation_config("gemini-flash-latest")
     assert "temperature" not in cfg_flash_latest
@@ -129,3 +129,57 @@ def test_gemini_runner_quarantines_http_400_api_key_invalid_and_uses_next_key(mo
     assert pool.is_in_cooldown("bad_key") is True
     assert pool.get_cooldown_remaining("bad_key") > 3600.0
     assert pool.is_in_cooldown("good_key") is False
+
+
+def test_gemini_runner_fast_demotes_on_http_503_and_switches_model(monkeypatch):
+    monkeypatch.setattr(gemini_runner.time, "sleep", lambda _sec: None)
+    pool = key_pool.KeyPool("GEMINI_TEST_503")
+    monkeypatch.setattr(
+        pool,
+        "get_all_keys",
+        lambda: [
+            ("GEMINI_API_KEY_1", "k1"),
+            ("GEMINI_API_KEY_2", "k2"),
+            ("GEMINI_API_KEY_3", "k3"),
+        ],
+    )
+    mpool = model_pool.ModelPool(["gemini-3.8-flash", "gemini-3.5-flash-lite"])
+    client = MagicMock()
+
+    resp_503 = MagicMock()
+    resp_503.ok = False
+    resp_503.status_code = 503
+    resp_503.headers = {}
+    resp_503.text = '{"error":{"code":503,"message":"High demand spike"}}'
+
+    good_resp = MagicMock()
+    good_resp.ok = True
+    good_resp.json.return_value = {
+        "candidates": [{"content": {"parts": [{"text": '{"findings":[]}'}]}}],
+    }
+
+    called_models: list[str] = []
+
+    def _call(prompt: str, model_name: str, api_key: str):
+        called_models.append(model_name)
+        return resp_503 if model_name == "gemini-3.8-flash" else good_resp
+
+    client.call.side_effect = _call
+    client.extract_text.return_value = '{"findings":[]}'
+    errors: list[tuple[str, str]] = []
+
+    res = gemini_runner.execute_gemini_loop(
+        "prompt",
+        3,
+        ["gemini-3.8-flash", "gemini-3.5-flash-lite"],
+        pool,
+        mpool,
+        client,
+        parser_mod.ReviewResponseParser(),
+        errors,
+    )
+    assert res == '{"findings":[]}'
+    # 503 僅重試 1 次即切換至 gemini-3.5-flash-lite，不會把 3 把 Key × 3 次全部耗盡
+    assert called_models.count("gemini-3.8-flash") == 2
+    assert called_models[-1] == "gemini-3.5-flash-lite"
+    assert mpool.get_candidates()[-1] == "gemini-3.8-flash"

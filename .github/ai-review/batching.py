@@ -1,7 +1,7 @@
 import os
 from typing import Any
 
-from model_pool import get_model_spec
+from model_pool import GROQ_CAPACITY, get_model_spec
 
 
 def estimate_tokens(text: str) -> int:
@@ -26,17 +26,18 @@ def estimate_file_tokens(filename: str, file_item: dict[str, Any]) -> int:
     return max(patch_cost + base_cost, 250)
 
 
-def estimate_batch_tokens(paths: list[str], file_map: dict[str, dict[str, Any]]) -> int:
+def estimate_batch_tokens(
+    paths: list[str], file_map: dict[str, dict[str, Any]]
+) -> int:
     """計算一組檔案納入提示詞後之預估 Token 總量（包含提示詞模板開銷）。"""
     prompt_overhead = 1200
     file_tokens_total = sum(
-        estimate_file_tokens(fname, file_map.get(fname, {}))
-        for fname in paths
+        estimate_file_tokens(fname, file_map.get(fname, {})) for fname in paths
     )
     return prompt_overhead + file_tokens_total
 
 
-def _classify_file(filename: str, file_item: dict) -> str:
+def _classify_file(filename: str, file_item: dict[str, Any]) -> str:
     """依據檔案路徑層級、內容語義與副檔名精確劃分所屬審查領域批次。"""
     path_lower = filename.lower().replace("\\", "/")
     patch = file_item.get("patch", "")
@@ -53,47 +54,122 @@ def _classify_file(filename: str, file_item: dict) -> str:
     ):
         return "ci"
 
-    # 安全與 API 邊界特徵（優先於一般業務）
     if (
-        any(keyword in path_lower for keyword in (
-            "/controller/", "/security/", "/permission/", "/auth/",
-            "/gateway/", "/filter/", "/aop/", "controller", "security",
-            "permission", "auth", "openapi",
-        ))
+        any(
+            keyword in path_lower
+            for keyword in (
+                "/controller/",
+                "/security/",
+                "/permission/",
+                "/auth/",
+                "/gateway/",
+                "/filter/",
+                "/aop/",
+                "controller",
+                "security",
+                "permission",
+                "auth",
+                "openapi",
+            )
+        )
         or "@RestController" in text_sample
         or "@RequirePermission" in text_sample
         or "SecurityUtil" in text_sample
     ):
         return "security-api"
 
-    # 外部整合與通訊特徵
     if (
-        any(keyword in path_lower for keyword in (
-            "/feign/", "/client/", "/external/", "/integration/",
-            "/kafka/", "/consumer/", "/publisher/", "feign",
-            "client", "integration", "external",
-        ))
+        any(
+            keyword in path_lower
+            for keyword in (
+                "/feign/",
+                "/client/",
+                "/external/",
+                "/integration/",
+                "/kafka/",
+                "/consumer/",
+                "/publisher/",
+                "feign",
+                "client",
+                "integration",
+                "external",
+            )
+        )
         or "@FeignClient" in text_sample
         or "KafkaTemplate" in text_sample
     ):
         return "integration"
 
-    # 資料存取與持久化特徵
-    if any(keyword in path_lower for keyword in (
-        "/repository/", "/entity/", "/dataaccess/", "/dao/",
-        "/migration/", "/mapper/", "repository", "entity",
-        "dao", "migration", "mapper",
-    )):
+    if any(
+        keyword in path_lower
+        for keyword in (
+            "/repository/",
+            "/entity/",
+            "/dataaccess/",
+            "/dao/",
+            "/migration/",
+            "/mapper/",
+            "repository",
+            "entity",
+            "dao",
+            "migration",
+            "mapper",
+        )
+    ):
         return "data"
 
-    # 核心業務邏輯特徵
-    if any(keyword in path_lower for keyword in (
-        "/service/", "/domain/", "/usecase/", "/timer/",
-        "service", "domain", "usecase", "timer",
-    )):
+    if any(
+        keyword in path_lower
+        for keyword in (
+            "/service/",
+            "/domain/",
+            "/usecase/",
+            "/timer/",
+            "service",
+            "domain",
+            "usecase",
+            "timer",
+        )
+    ):
         return "business"
 
     return "other"
+
+
+def _pack_scope_paths(
+    scope: str,
+    paths: list[str],
+    file_map: dict[str, dict[str, Any]],
+    target_tokens: int,
+    target_files: int,
+    char_limit: int,
+) -> list[tuple[str, list[str]]]:
+    """依指定 Token、檔案數與字元數上限打包單一領域內的檔案清單。"""
+    packed: list[tuple[str, list[str]]] = []
+    current_batch: list[str] = []
+    current_tokens = 1200
+    current_chars = 0
+    for filename in paths:
+        file_item = file_map.get(filename, {})
+        patch_content = file_item.get("patch") or ""
+        cost_chars = len(filename) + max(len(patch_content), 1000)
+        cost_tokens = estimate_file_tokens(filename, file_item)
+
+        if current_batch and (
+            len(current_batch) >= target_files
+            or current_tokens + cost_tokens > target_tokens
+            or current_chars + cost_chars > char_limit
+        ):
+            packed.append((scope, current_batch))
+            current_batch = []
+            current_tokens = 1200
+            current_chars = 0
+        current_batch.append(filename)
+        current_tokens += cost_tokens
+        current_chars += cost_chars
+    if current_batch:
+        packed.append((scope, current_batch))
+    return packed
 
 
 def build_batches(
@@ -102,17 +178,19 @@ def build_batches(
     max_tokens: int | None = None,
     max_files: int | None = None,
     model_name: str | None = None,
+    enable_dual_track: bool = False,
 ) -> list[tuple[str, list[str]]]:
     """
     依據領域分類、Token 預估消耗與最大檔案數（雙重切分條件），將變更檔案切分為獨立批次。
     保證每個變更檔案屬於且僅屬於一個批次，無遺漏或重複。
-    - 若傳入 model_name，自動讀取該模型之 ModelSpec (max_batch_tokens 與 max_files)。
-    - 若未指定 model_name，支援環境變數或使用預設安全基準 (max_tokens=16000, max_files=4)。
-    - 完整相容既有呼叫簽名 (max_chars)。
+    - 預設對齊 Gemini Tier 1/Tier 2 共通容量基準 (max_tokens=20000, max_files=6, max_chars=80000)。
+    - 當 enable_dual_track=True 時，自動將領域內小型變更優先打包為符合 GROQ_CAPACITY 之輕量批次。
     """
     if model_name:
         spec = get_model_spec(model_name)
-        target_tokens = max_tokens if max_tokens is not None else spec.max_batch_tokens
+        target_tokens = (
+            max_tokens if max_tokens is not None else spec.max_batch_tokens
+        )
         target_files = max_files if max_files is not None else spec.max_files
     else:
         env_tokens = os.environ.get("AI_REVIEW_MAX_BATCH_TOKENS")
@@ -120,18 +198,18 @@ def build_batches(
         target_tokens = (
             max_tokens
             if max_tokens is not None
-            else (int(env_tokens) if env_tokens and env_tokens.isdigit() else 16000)
+            else (int(env_tokens) if env_tokens and env_tokens.isdigit() else 20000)
         )
         target_files = (
             max_files
             if max_files is not None
-            else (int(env_files) if env_files and env_files.isdigit() else 4)
+            else (int(env_files) if env_files and env_files.isdigit() else 6)
         )
 
     char_limit = (
         max_chars
         if max_chars is not None
-        else int(os.environ.get("AI_REVIEW_MAX_BATCH_CHARS", "24000"))
+        else int(os.environ.get("AI_REVIEW_MAX_BATCH_CHARS", "80000"))
     )
 
     groups: dict[str, list[str]] = {
@@ -153,29 +231,42 @@ def build_batches(
     for scope, paths in groups.items():
         if not paths:
             continue
-        current_batch: list[str] = []
-        current_tokens = 1200
-        current_chars = 0
-        for filename in paths:
-            file_item = file_map.get(filename, {})
-            patch_content = file_item.get("patch") or ""
-            cost_chars = len(filename) + max(len(patch_content), 1000)
-            cost_tokens = estimate_file_tokens(filename, file_item)
-
-            # 雙重切分條件：檔案數達上限 OR Token 達上限 OR 字元數達上限
-            if current_batch and (
-                len(current_batch) >= target_files
-                or current_tokens + cost_tokens > target_tokens
-                or current_chars + cost_chars > char_limit
-            ):
-                batches.append((scope, current_batch))
-                current_batch = []
-                current_tokens = 1200
-                current_chars = 0
-            current_batch.append(filename)
-            current_tokens += cost_tokens
-            current_chars += cost_chars
-        if current_batch:
-            batches.append((scope, current_batch))
+        if enable_dual_track and len(paths) >= 4:
+            light_paths: list[str] = []
+            heavy_paths: list[str] = []
+            for fname in paths:
+                ftokens = estimate_file_tokens(fname, file_map.get(fname, {}))
+                if ftokens <= 1500 and len(light_paths) < max(3, len(paths) // 3):
+                    light_paths.append(fname)
+                else:
+                    heavy_paths.append(fname)
+            if light_paths:
+                batches.extend(
+                    _pack_scope_paths(
+                        scope,
+                        light_paths,
+                        file_map,
+                        GROQ_CAPACITY.max_batch_tokens,
+                        GROQ_CAPACITY.max_files,
+                        min(char_limit, 18000),
+                    )
+                )
+            if heavy_paths:
+                batches.extend(
+                    _pack_scope_paths(
+                        scope,
+                        heavy_paths,
+                        file_map,
+                        target_tokens,
+                        target_files,
+                        char_limit,
+                    )
+                )
+        else:
+            batches.extend(
+                _pack_scope_paths(
+                    scope, paths, file_map, target_tokens, target_files, char_limit
+                )
+            )
 
     return batches

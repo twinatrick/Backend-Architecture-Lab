@@ -17,7 +17,7 @@ class GroqClient:
 
     SYSTEM_CONTENT = SYSTEM_CONTENT
 
-    def __init__(self, timeout: int = 120) -> None:
+    def __init__(self, timeout: int = 60) -> None:
         self.timeout = timeout
 
     def call(
@@ -74,7 +74,7 @@ class GeminiClient:
 
     SYSTEM_CONTENT = SYSTEM_CONTENT
 
-    def __init__(self, timeout: int = 120) -> None:
+    def __init__(self, timeout: int = 60) -> None:
         self.timeout = timeout
 
     @staticmethod
@@ -140,7 +140,7 @@ def call_gemini_api(
     prompt: str,
     model_name: str,
     api_key: str,
-    timeout: int = 120,
+    timeout: int = 60,
 ) -> requests.Response:
     client = GeminiClient(timeout=timeout)
     return client.call(prompt, model_name, api_key)
