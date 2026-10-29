@@ -209,6 +209,22 @@ def process_batch(
     if missing_findings:
         batch_data.setdefault("findings", []).extend(missing_findings)
     for finding in batch_data.get("findings", []):
+        if isinstance(finding, dict) and ":" in str(finding.get("location", "")):
+            loc_path, loc_line = str(finding["location"]).rsplit(":", 1)
+            norm_loc = loc_path.replace("\\", "/").lower().lstrip("/")
+            exact_matches = [
+                path_item
+                for path_item in paths
+                if path_item.replace("\\", "/").lower() == norm_loc
+            ]
+            if not exact_matches and norm_loc:
+                suffix_matches = [
+                    path_item
+                    for path_item in paths
+                    if path_item.replace("\\", "/").lower().endswith("/" + norm_loc)
+                ]
+                if len(suffix_matches) == 1:
+                    finding["location"] = f"{suffix_matches[0]}:{loc_line.strip()}"
         if not validate_finding(finding, allowed_files=paths):
             schema_err = f"批次 {scope}-{index} 中的 Finding 未通過格式或範圍驗證。"
             publish_failure_report(
