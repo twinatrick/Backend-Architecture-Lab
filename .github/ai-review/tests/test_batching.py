@@ -96,16 +96,27 @@ def test_build_batches_dual_condition_splits_by_max_files():
 
 
 def test_build_batches_with_model_name_spec():
-    # gemini-3.5-flash-lite 規格為 max_files=3
+    # gemini-3.5-flash-lite 規格為 max_files=6
     files = [
         {"filename": f"backend-service/Service{i}.java", "patch": "+ short"}
         for i in range(7)
     ]
     batches = batching.build_batches(files, model_name="gemini-3.5-flash-lite")
-    assert len(batches) == 3
+    assert len(batches) == 2
+    assert len(batches[0][1]) == 6
+    assert len(batches[1][1]) == 1
+
+
+def test_build_batches_dual_track_carves_lightweight_groq_batches():
+    files = [
+        {"filename": f"backend-service/Small{i}.java", "patch": "+ tiny"}
+        for i in range(4)
+    ]
+    batches = batching.build_batches(files, enable_dual_track=True)
+    # 雙軌切批：前 3 個極小檔切為 1 個輕量批次 (<= 3 檔)，剩餘 1 檔為下一個批次
+    assert len(batches) == 2
     assert len(batches[0][1]) == 3
-    assert len(batches[1][1]) == 3
-    assert len(batches[2][1]) == 1
+    assert len(batches[1][1]) == 1
 
 
 def test_build_batches_dual_condition_splits_by_tokens():
