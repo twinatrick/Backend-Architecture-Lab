@@ -226,3 +226,61 @@ def test_process_batch_sub_batch_splitting_on_runtime_error(monkeypatch):
     assert res["coverage"] == "COMPLETE"
     assert res["files_reviewed"] == ["src/Alpha.java", "src/Beta.java"]
     assert len(res["passed_checks"]) == 2
+
+
+def test_process_batch_retries_on_empty_files_reviewed_and_succeeds():
+    files = [{"filename": "src/Foo.java", "patch": "@@ -1 +1 @@\n+class Foo {}"}]
+    mock_chat = MagicMock(
+        side_effect=[
+            '{"batch": "data-20", "files_reviewed": [], "coverage": "COMPLETE", "findings": []}',
+            '{"batch": "data-20", "files_reviewed": ["src/Foo.java"], '
+            '"coverage": "COMPLETE", "findings": []}',
+        ]
+    )
+    res = batch_runner.process_batch(
+        "data",
+        20,
+        ["src/Foo.java"],
+        files,
+        "rules",
+        "contract",
+        {},
+        123,
+        chat_fn=mock_chat,
+    )
+    assert mock_chat.call_count == 2
+    assert res["files_reviewed"] == ["src/Foo.java"]
+
+
+def test_process_batch_normalizes_short_filenames_and_aliases():
+    target_path = "backend-iam-service/src/main/java/IRoleFunctionDataAccess.java"
+    files = [
+        {
+            "filename": target_path,
+            "patch": "@@ -1 +1 @@\n+interface IRoleFunctionDataAccess {}",
+        }
+    ]
+    mock_chat = MagicMock(
+        return_value=(
+            '{"batch": "data-20", "reviewed_files": ["IRoleFunctionDataAccess.java"], '
+            '"findings": [{"location": "IRoleFunctionDataAccess.java:10", '
+            '"category": "ARCHITECTURE", "severity": "LOW", "confidence": "HIGH", '
+            '"rule": "開發規範.md", "problem": "命名建議", "evidence": "void delete()", '
+            '"risk": "可讀性", "recommendation": "維持一致"}]}'
+        )
+    )
+    res = batch_runner.process_batch(
+        "data",
+        20,
+        [target_path],
+        files,
+        "rules",
+        "contract",
+        {},
+        123,
+        chat_fn=mock_chat,
+    )
+    assert res["files_reviewed"] == [target_path]
+    assert res["coverage"] == "COMPLETE"
+    assert res["findings"][0]["location"] == f"{target_path}:10"
+
