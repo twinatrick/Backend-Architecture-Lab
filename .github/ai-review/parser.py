@@ -181,6 +181,55 @@ class ReviewResponseParser:
                 del finding_item[key]
 
     @staticmethod
+    def normalize_batch_paths(batch_data: dict, expected_paths: list[str]) -> None:
+        if not isinstance(batch_data, dict):
+            return
+        raw_reviewed = batch_data.get("files_reviewed")
+        if not isinstance(raw_reviewed, list) or not raw_reviewed:
+            for alias_key in ("reviewed_files", "files", "file_list"):
+                alias_val = batch_data.get(alias_key)
+                if isinstance(alias_val, list) and alias_val:
+                    raw_reviewed = alias_val
+                    batch_data["files_reviewed"] = raw_reviewed
+                    break
+        if isinstance(raw_reviewed, list):
+            resolved_files: list[str] = []
+            for item in raw_reviewed:
+                norm_item = str(item).replace("\\", "/").lower().lstrip("/")
+                exact = [
+                    exp for exp in expected_paths
+                    if exp.replace("\\", "/").lower() == norm_item
+                ]
+                if exact:
+                    resolved_files.append(exact[0])
+                    continue
+                suffix = [
+                    exp for exp in expected_paths
+                    if norm_item and exp.replace("\\", "/").lower().endswith("/" + norm_item)
+                ]
+                resolved_files.append(suffix[0] if len(suffix) == 1 else str(item))
+            batch_data["files_reviewed"] = resolved_files
+
+        if not str(batch_data.get("coverage", "")).strip() and batch_data.get("files_reviewed"):
+            batch_data["coverage"] = "COMPLETE"
+
+        for finding in batch_data.get("findings", []):
+            if isinstance(finding, dict) and ":" in str(finding.get("location", "")):
+                loc_path, loc_line = str(finding["location"]).rsplit(":", 1)
+                norm_loc = loc_path.replace("\\", "/").lower().lstrip("/")
+                exact_matches = [
+                    exp for exp in expected_paths
+                    if exp.replace("\\", "/").lower() == norm_loc
+                ]
+                if not exact_matches and norm_loc:
+                    suffix_matches = [
+                        exp for exp in expected_paths
+                        if exp.replace("\\", "/").lower().endswith("/" + norm_loc)
+                    ]
+                    if len(suffix_matches) == 1:
+                        finding["location"] = f"{suffix_matches[0]}:{loc_line.strip()}"
+
+    @staticmethod
     def extract_json_payload(raw_text: str) -> dict:
         if not raw_text or not isinstance(raw_text, str):
             raise json.JSONDecodeError("輸出為空或型別錯誤", "", 0)
@@ -207,3 +256,8 @@ def repair_json_string(text: str) -> str:
 
 def extract_json_payload(raw_text: str) -> dict:
     return ReviewResponseParser.extract_json_payload(raw_text)
+
+
+def normalize_batch_paths(batch_data: dict, expected_paths: list[str]) -> None:
+    ReviewResponseParser.normalize_batch_paths(batch_data, expected_paths)
+
