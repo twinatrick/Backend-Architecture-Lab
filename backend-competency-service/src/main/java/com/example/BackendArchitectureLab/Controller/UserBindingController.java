@@ -50,7 +50,7 @@ public class UserBindingController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "重新綁定當前使用者專案技能", description = "以 diff 策略重新綁定可管理專案的技能關聯。")
     public ResponseType<String> rebindCurrentUserProjectSkills(
-            @ApiPath(name = "projectId", description = "目標專案 UUID", format = "uuid") UUID projectId,
+            @ApiPath(name = "projectId", description = "目標專案 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID projectId,
             @ApiBody(description = "重新綁定技能清單請求") SkillBindingsRebindRequest request) {
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("User {} rebinding project {} with {} skill bindings", securityUtil.requireCurrentUserId(), projectId, bindingCount);

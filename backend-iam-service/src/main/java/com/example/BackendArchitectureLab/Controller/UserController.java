@@ -60,8 +60,8 @@ public class UserController {
     @RequirePermission("View")
     @ApiOperationOk(summary = "依 ID 取得使用者", description = "根據 ID 取得使用者資訊。")
     public ResponseType<UserVo> getUserById(
-            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
-        return ResponseType.Success(userService.getUserById(id), "使用者查詢成功");
+            @ApiPath(name = "id", description = "使用者唯一識別碼", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID id) {
+        return ResponseType.Success(userService.getUserById(id.toString()), "使用者查詢成功");
     }
 
     @PostMapping("/batch-query")
@@ -85,9 +85,9 @@ public class UserController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "更新使用者與角色", description = "更新指定 ID 之使用者及其角色綁定。")
     public ResponseType<String> updateUser(
-            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id,
+            @ApiPath(name = "id", description = "使用者唯一識別碼", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID id,
             @ApiBody(description = "使用者更新資料") UserVo user) {
-        user.setId(id);
+        user.setId(id.toString());
         userService.saveUserWithRole(user);
         return new ResponseType<>(0, "使用者更新成功");
     }
@@ -96,8 +96,8 @@ public class UserController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "刪除使用者", description = "刪除指定 ID 之使用者並單向清除其角色綁定關聯。")
     public ResponseType<String> deleteUser(
-            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String id) {
-        userService.deleteUser(id);
+            @ApiPath(name = "id", description = "使用者唯一識別碼", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID id) {
+        userService.deleteUser(id.toString());
         return ResponseType.Success("使用者刪除成功");
     }
 
@@ -108,15 +108,14 @@ public class UserController {
             description = "完整覆蓋式綁定使用者角色。空清單清空所有角色，null 清單拋出異常。"
     )
     public ResponseType<String> rebindUserRoles(
-            @ApiPath(description = "使用者唯一識別碼", example = "4e28569a-055e-459e-acd7-d76f014fd801", format = "uuid") String userId,
+            @ApiPath(name = "userId", description = "使用者唯一識別碼", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID userId,
             @ApiBody(description = "角色重新綁定請求") UserRoleRebindRequest request) {
-        UUID userUuid = UUID.fromString(userId);
         List<String> roleIds = request.getRoleIds() == null
                 ? List.of()
                 : request.getRoleIds();
-        log.info("Rebinding user {} roles to {} roles", userUuid, roleIds.size());
-        userService.rebindUserRoles(userUuid, roleIds);
-        log.info("Rebound user {} roles successfully", userUuid);
+        log.info("Rebinding user {} roles to {} roles", userId, roleIds.size());
+        userService.rebindUserRoles(userId, roleIds);
+        log.info("Rebound user {} roles successfully", userId);
         return ResponseType.Success("使用者角色重新綁定成功");
     }
     

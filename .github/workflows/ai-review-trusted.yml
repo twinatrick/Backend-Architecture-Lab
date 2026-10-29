@@ -78,7 +78,8 @@ jobs:
           GEMINI_API_KEY_10: ${{ secrets.GEMINI_API_KEY_10 }}
           REPO: ${{ github.repository }}
           EVENT_PATH: ${{ github.event_path }}
-        run: python3 .github/ai-review/review.py
+          PYTHONUNBUFFERED: "1"
+        run: python3 -u .github/ai-review/review.py
 
       - name: Upload final report
         if: always()

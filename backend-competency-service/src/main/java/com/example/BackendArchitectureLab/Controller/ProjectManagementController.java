@@ -48,7 +48,7 @@ public class ProjectManagementController {
             description = "取得專案所有成員在此專案中的技能等級綁定，供編輯專案時回填既有資料"
     )
     public ResponseType<List<ProjectMemberSkillVo>> getProjectMemberSkills(
-            @ApiPath(name = "projectId", description = "目標專案 UUID", format = "uuid") UUID projectId) {
+            @ApiPath(name = "projectId", description = "目標專案 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID projectId) {
         List<ProjectMemberSkillVo> members = projectUserBindingService.getProjectMemberSkills(projectId);
         return ResponseType.Success(members, "專案成員技能查詢成功");
     }

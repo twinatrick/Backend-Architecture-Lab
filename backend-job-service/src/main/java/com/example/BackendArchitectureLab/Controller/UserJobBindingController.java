@@ -34,20 +34,20 @@ public class UserJobBindingController {
     @PostMapping("/{jobPostingId}")
     @ApiOperationBadRequest(summary = "綁定職缺", description = "當前使用者綁定一筆職缺。")
     public ResponseType<UserJobLinkVo> addJob(
-            @ApiPath(name = "jobPostingId", description = "目標職缺 UUID", format = "uuid") String jobPostingId) {
+            @ApiPath(name = "jobPostingId", description = "目標職缺 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID jobPostingId) {
         UUID currentUserId = securityUtil.requireCurrentUserId();
         log.info("User {} binding job {}", currentUserId, jobPostingId);
-        UserJobLinkVo result = userJobLinkService.addJobToCurrentUser(currentUserId.toString(), jobPostingId);
+        UserJobLinkVo result = userJobLinkService.addJobToCurrentUser(currentUserId.toString(), jobPostingId.toString());
         return ResponseType.Success(result, "職缺綁定成功");
     }
 
     @DeleteMapping("/{jobPostingId}")
     @ApiOperationBadRequest(summary = "解除綁定職缺", description = "當前使用者解除綁定一筆職缺。")
     public ResponseType<String> removeJob(
-            @ApiPath(name = "jobPostingId", description = "目標職缺 UUID", format = "uuid") String jobPostingId) {
+            @ApiPath(name = "jobPostingId", description = "目標職缺 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID jobPostingId) {
         UUID currentUserId = securityUtil.requireCurrentUserId();
         log.info("User {} unbinding job {}", currentUserId, jobPostingId);
-        userJobLinkService.removeJobFromCurrentUser(currentUserId.toString(), jobPostingId);
+        userJobLinkService.removeJobFromCurrentUser(currentUserId.toString(), jobPostingId.toString());
         return ResponseType.Success("職缺解除綁定成功");
     }
 

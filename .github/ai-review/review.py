@@ -155,9 +155,7 @@ def main() -> None:
     rules_text = rules_p.read_text(encoding="utf-8") if rules_p.exists() else ""
     contract_text = contract_p.read_text(encoding="utf-8") if contract_p.exists() else ""
     policy = load_policy()
-    gemini_candidates = get_gemini_candidate_models()
-    primary_model = gemini_candidates[0] if gemini_candidates else None
-    batches = build_batches(files, model_name=primary_model)
+    batches = build_batches(files, enable_dual_track=True)
 
     expected_files = [fname for _, paths in batches for fname in paths]
     is_batch_valid = (
@@ -178,8 +176,8 @@ def main() -> None:
     head_sha = pr_data.get("head", {}).get("sha", "")
     enrich_files_with_full_content(repo_name, files, head_sha, gh_get_fn=gh_get)
 
-    default_workers = "2" if len(batches) > 6 else "3"
-    default_stagger = "2.5" if len(batches) > 6 else "1.5"
+    default_workers = "6" if len(batches) > 4 else "4"
+    default_stagger = "0.8" if len(batches) > 4 else "1.0"
     max_workers = int(os.environ.get("AI_REVIEW_MAX_WORKERS", default_workers))
     stagger_seconds = float(os.environ.get("AI_REVIEW_STAGGER_SECONDS", default_stagger))
     results = _process_batches_parallel(

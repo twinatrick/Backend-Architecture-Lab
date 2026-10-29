@@ -57,7 +57,8 @@ def execute_gemini_loop(
                                 parser.extract_json_payload(raw_content)
                                 print(
                                     f"使用 Google Gemini 模型：{model_name}"
-                                    f"（金鑰：{var_name} {masked_key}）"
+                                    f"（金鑰：{var_name} {masked_key}）",
+                                    flush=True,
                                 )
                                 gemini_model_pool.promote(model_name)
                                 return raw_content
@@ -67,11 +68,12 @@ def execute_gemini_loop(
                                 print(
                                     f"Gemini 模型 {model_name} 金鑰 {var_name} 輸出非合法 JSON"
                                     f"（第 {attempt}/{max_retries_per_model} 次）："
-                                    f"{parse_exc}，退避等待後重試..."
+                                    f"{parse_exc}，退避等待後重試...",
+                                    flush=True,
                                 )
                                 if attempt < max_retries_per_model:
                                     wait_sec = calculate_backoff_delay(
-                                        attempt, 0.0, base_delay=2.0, max_delay=30.0
+                                        attempt, 0.0, base_delay=2.0, max_delay=15.0
                                     )
                                     time.sleep(wait_sec)
                                     continue
@@ -88,9 +90,10 @@ def execute_gemini_loop(
                             print(
                                 f"Gemini 金鑰 {var_name} ({masked_key}) 無效或授權失敗 "
                                 f"({status_code})，已全域停用並放入冷卻清單，"
-                                "隨機切換下一把可用金鑰..."
+                                "隨機切換下一把可用金鑰...",
+                                flush=True,
                             )
-                            time.sleep(1.0)
+                            time.sleep(0.5)
                             break
 
                         if status_code == 429 or "RESOURCE_EXHAUSTED" in full_resp_text:
@@ -116,63 +119,78 @@ def execute_gemini_loop(
                                 gemini_keys, model=model_name
                             )
                             if is_quota_or_rate:
-                                limit_label = "每日配額耗盡" if is_daily_quota else "短期速率/配額限制"
+                                limit_label = (
+                                    "每日配額耗盡" if is_daily_quota else "短期速率/配額限制"
+                                )
                                 print(
                                     f"Gemini 金鑰 {var_name} ({masked_key}) "
                                     f"在模型 {model_name} 觸發{limit_label} (429)，"
-                                    f"已冷卻該模型 {cooldown_seconds:.0f} 秒。"
+                                    f"已冷卻該模型 {cooldown_seconds:.0f} 秒。",
+                                    flush=True,
                                 )
                                 if not active_keys:
                                     print(
                                         f"Gemini 模型 {model_name} 所有可用金鑰均已進入冷卻，"
-                                        "降級切換下一候選模型..."
+                                        "降級切換下一候選模型...",
+                                        flush=True,
                                     )
+                                    gemini_model_pool.demote(model_name)
                                     model_unsupported = True
                                     break
                                 print(
                                     f"切換下一把可用 Gemini 金鑰"
-                                    f"（模型 {model_name} 剩餘 {len(active_keys)} 把可用）..."
+                                    f"（模型 {model_name} 剩餘 {len(active_keys)} 把可用）...",
+                                    flush=True,
                                 )
-                                time.sleep(1.0)
+                                time.sleep(0.5)
                                 break
 
                             if total_429_count >= max_429_retries:
-                                print("Gemini 連續遭遇 429 達到預算上限，立即交棒備援 Provider。")
+                                print(
+                                    "Gemini 連續遭遇 429 達到預算上限，立即交棒備援 Provider。",
+                                    flush=True,
+                                )
                                 return None
 
                             if len(active_keys) > 0 and len(gemini_keys) > 1:
                                 print(
                                     f"Gemini 金鑰 {var_name} 達到速率限制 (429)，"
-                                    f"冷卻 {cooldown_seconds:.1f} 秒並切換其他金鑰..."
+                                    f"冷卻 {cooldown_seconds:.1f} 秒並切換其他金鑰...",
+                                    flush=True,
                                 )
-                                time.sleep(1.0)
+                                time.sleep(0.5)
                                 break
 
                             wait_sec = calculate_backoff_delay(
-                                attempt, raw_retry_after, base_delay=2.5, max_delay=60.0
+                                attempt, raw_retry_after, base_delay=2.0, max_delay=30.0
                             )
                             if attempt < max_retries_per_model and raw_retry_after <= 60.0:
                                 print(
                                     f"Gemini 模型 {model_name} 暫時速率限制 (429)，"
                                     f"等待 {wait_sec:.1f} 秒後重試"
-                                    f"（第 {attempt}/{max_retries_per_model} 次）..."
+                                    f"（第 {attempt}/{max_retries_per_model} 次）...",
+                                    flush=True,
                                 )
                                 time.sleep(wait_sec)
                                 continue
 
-                            print(f"Gemini 模型 {model_name} 達到重試上限，切換下一個模型。")
+                            print(
+                                f"Gemini 模型 {model_name} 達到重試上限，切換下一個模型。",
+                                flush=True,
+                            )
                             gemini_model_pool.demote(model_name)
-                            time.sleep(1.0)
+                            time.sleep(0.5)
                             model_unsupported = True
                             break
 
                         if status_code in (400, 404, 413):
                             print(
                                 f"Gemini 模型 {model_name} 請求無法處理 ({status_code})，"
-                                "切換下一候選模型..."
+                                "切換下一候選模型...",
+                                flush=True,
                             )
                             gemini_model_pool.demote(model_name)
-                            time.sleep(1.0)
+                            time.sleep(0.5)
                             model_unsupported = True
                             break
 
@@ -184,37 +202,44 @@ def execute_gemini_loop(
                         if is_503_spike:
                             print(
                                 f"Google Gemini 伺服器端負載尖峰 (503 High Demand Spike) "
-                                f"[金鑰：{var_name} {masked_key}]"
+                                f"[{model_name} / 金鑰：{var_name} {masked_key}]",
+                                flush=True,
                             )
-                        else:
-                            print(f"Gemini 金鑰 {var_name} 呼叫失敗：{reason_msg}")
-
-                        if status_code >= 500 and attempt < max_retries_per_model:
-                            backoff_base = 3.0 if is_503_spike else 2.5
-                            raw_backoff = 3.0 if is_503_spike else 2.0
-                            wait_sec = calculate_backoff_delay(
-                                attempt,
-                                raw_backoff,
-                                base_delay=backoff_base,
-                                max_delay=30.0,
-                            )
-                            if is_503_spike:
-                                print(
-                                    f"等待 {wait_sec:.1f} 秒後退避重試"
-                                    f"（第 {attempt}/{max_retries_per_model} 次）..."
+                            if attempt == 1 and max_retries_per_model > 1:
+                                wait_sec = calculate_backoff_delay(
+                                    attempt, 1.5, base_delay=1.5, max_delay=5.0
                                 )
+                                print(
+                                    f"短暫等待 {wait_sec:.1f} 秒後重試 1 次，若仍壅塞立即切換模型...",
+                                    flush=True,
+                                )
+                                time.sleep(wait_sec)
+                                continue
+                            print(
+                                f"模型 {model_name} 持續遭遇 503 負載尖峰，立即降級並切換下一候選模型。",
+                                flush=True,
+                            )
+                            gemini_model_pool.demote(model_name)
+                            model_unsupported = True
+                            break
+
+                        print(f"Gemini 金鑰 {var_name} 呼叫失敗：{reason_msg}", flush=True)
+                        if status_code >= 500 and attempt < max_retries_per_model:
+                            wait_sec = calculate_backoff_delay(
+                                attempt, 2.0, base_delay=2.0, max_delay=15.0
+                            )
                             time.sleep(wait_sec)
                             continue
                         break
                     except requests.RequestException as req_exc:
                         error_details.append((key_tag, redact_secrets(str(req_exc))))
-                        print(f"Gemini 金鑰 {var_name} 連線異常：{req_exc}")
-                        if attempt < max_retries_per_model:
-                            wait_sec = calculate_backoff_delay(
-                                attempt, 2.0, base_delay=2.5, max_delay=30.0
-                            )
-                            time.sleep(wait_sec)
-                            continue
+                        print(
+                            f"Gemini 模型 {model_name} 金鑰 {var_name} 連線/逾時異常："
+                            f"{req_exc}，立即降級並切換下一候選模型...",
+                            flush=True,
+                        )
+                        gemini_model_pool.demote(model_name)
+                        model_unsupported = True
                         break
             finally:
                 gemini_key_pool.release_key(api_key)

@@ -38,9 +38,9 @@ public class PersonalSkillController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "修改個人技能", description = "只有技能的擁有者可以修改技能主資料。管理者指派給使用者的技能視為唯讀，不可透過個人修改 API 變更 name/description 等內容。")
     public ResponseType<String> updatePersonalSkill(
-            @ApiPath(name = "skillId", description = "目標技能 UUID", format = "uuid") String skillId,
+            @ApiPath(name = "skillId", description = "目標技能 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID skillId,
             @ApiBody(description = "修改個人技能請求資料") PersonalSkillRequest request) {
-        skillService.updatePersonalSkill(UUID.fromString(skillId), request);
+        skillService.updatePersonalSkill(skillId, request);
         return ResponseType.Success("個人技能修改成功");
     }
 
@@ -48,9 +48,9 @@ public class PersonalSkillController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "修改個人技能綁定等級", description = "更新 user-skill 關聯上的 skill level，不會修改技能主資料。")
     public ResponseType<String> updatePersonalSkillLevel(
-            @ApiPath(name = "skillId", description = "目標技能 UUID", format = "uuid") String skillId,
+            @ApiPath(name = "skillId", description = "目標技能 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID skillId,
             @ApiBody(description = "修改個人技能等級請求資料") PersonalSkillLevelRequest request) {
-        skillService.updatePersonalSkillLevel(UUID.fromString(skillId), UUID.fromString(request.getSkillLevelId()));
+        skillService.updatePersonalSkillLevel(skillId, UUID.fromString(request.getSkillLevelId()));
         return ResponseType.Success("個人技能綁定等級修改成功");
     }
 
@@ -58,8 +58,8 @@ public class PersonalSkillController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "解除個人技能綁定", description = "移除 user-skill 綁定。管理者指派技能雖不可修改主資料，仍可解除個人綁定。")
     public ResponseType<String> deletePersonalSkill(
-            @ApiPath(name = "skillId", description = "目標技能 UUID", format = "uuid") String skillId) {
-        skillService.deletePersonalSkill(UUID.fromString(skillId));
+            @ApiPath(name = "skillId", description = "目標技能 UUID", example = "550e8400-e29b-41d4-a716-446655440000", format = "uuid") UUID skillId) {
+        skillService.deletePersonalSkill(skillId);
         return ResponseType.Success("個人技能綁定解除成功");
     }
 }

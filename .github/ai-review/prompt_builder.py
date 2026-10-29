@@ -134,6 +134,10 @@ artifact/cache、fail-open 與 Review bypass。
 3. 【測試案例豁免】對於測試目錄（如 tests/、test/ 等）中，
    專門為驗證語法檢查器、靜態檢查規則或安全防護而構造的測試字串/樣例
    （例如驗證檢查器是否能捕獲 Exception 的測試用例），嚴禁將其誤判為生產代碼違規。
+4. 【分批視野限制與跨檔案呼叫豁免】由於審查採分批進行，單一批次僅包含部分變更檔案
+   （例如 Repository/DataAccess/Service 介面與其呼叫端可能位於不同批次）。
+   嚴禁僅因某個 public 或 interface 方法在本批次內未出現呼叫端，就臆測其為
+   「無呼叫端之孤島死代碼 (YAGNI)」；死代碼判定僅限於同一檔案內明確未被使用的 private 成員或局部變數。
 
 只輸出合法 JSON，不得輸出 markdown：
 {json_template}
