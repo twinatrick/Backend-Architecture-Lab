@@ -1,2 +1,6 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+# 工程規範快照以原始位元組驗證 SHA-256，禁止自動轉換換行。
+/docs/engineering-standards/** -text
+/scripts/check_engineering_standards.py text eol=lf

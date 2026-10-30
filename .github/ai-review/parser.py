@@ -213,7 +213,8 @@ class ReviewResponseParser:
         if not str(batch_data.get("coverage", "")).strip() and batch_data.get("files_reviewed"):
             batch_data["coverage"] = "COMPLETE"
 
-        for finding in batch_data.get("findings", []):
+        findings = batch_data.get("findings")
+        for finding in findings if isinstance(findings, list) else []:
             if isinstance(finding, dict) and ":" in str(finding.get("location", "")):
                 loc_path, loc_line = str(finding["location"]).rsplit(":", 1)
                 norm_loc = loc_path.replace("\\", "/").lower().lstrip("/")

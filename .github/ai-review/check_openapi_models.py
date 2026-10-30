@@ -4,8 +4,11 @@
 建立公開 API 契約模型白名單，徹底避免非 Controller 物件（如內部 Event、Snapshot 等）被誤判。
 """
 
+import logging
 import re
 from pathlib import Path
+
+from java_code_analyzer import strip_comments_and_strings
 
 BUILTIN_FRAMEWORK_TYPES = frozenset({
     "String", "Integer", "int", "Long", "long", "Double", "double", "Float", "float",
@@ -23,7 +26,7 @@ BUILTIN_FRAMEWORK_TYPES = frozenset({
     "PathVariable", "RequestParam", "RequestHeader", "RestController", "RequestMapping"
 })
 
-_PUBLIC_API_MODELS_CACHE: set[str] | None = None
+_PUBLIC_API_MODELS_CACHE: dict[Path, set[str]] | None = None
 
 ENDPOINT_ANNOTATIONS = (
     "@GetMapping", "@PostMapping", "@PutMapping",
@@ -31,6 +34,15 @@ ENDPOINT_ANNOTATIONS = (
 )
 
 MODEL_DIR_KEYWORDS = ("/Vo/", "/vo/", "/Dto/", "/dto/")
+
+
+def _read_java_content(path: Path) -> str:
+    """讀取失敗不可產出部分白名單；僅記錄安全診斷以免例外內文洩密。"""
+    try:
+        return path.read_text(encoding="utf-8", errors="strict")
+    except (OSError, UnicodeError) as exc:
+        logging.warning("公開 API 模型掃描讀取失敗：%s (%s)", path, type(exc).__name__)
+        raise RuntimeError("公開 API 模型掃描未完成：必要檔案無法讀取。") from exc
 
 
 def is_internal_controller(path_str: str, content: str = "") -> bool:
@@ -60,9 +72,9 @@ def find_public_controllers(repo_root: Path) -> list[tuple[Path, str]]:
     for controller_path in repo_root.glob("**/src/main/java/**/Controller/**/*.java"):
         if is_internal_controller(str(controller_path)):
             continue
-        try:
-            content = controller_path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
+        content = _read_java_content(controller_path)
+        annotation_code, complete = strip_comments_and_strings(content, preserve_literals=True)
+        if complete and is_internal_controller(str(controller_path), annotation_code):
             continue
         controllers.append((controller_path, content))
     return controllers
@@ -75,15 +87,20 @@ def extract_seed_models(
     """自公開 Controller 端點提取直接引用的輸入與輸出種子模型。"""
     seed_models: set[str] = set()
     for _, content in controllers:
+        stripped, complete = strip_comments_and_strings(content)
+        if complete:
+            content = stripped
         lines = content.splitlines()
         for i, line in enumerate(lines):
             trimmed = line.strip()
             if any(ann in trimmed for ann in ENDPOINT_ANNOTATIONS):
                 window_lines: list[str] = []
+                paren_depth = 0
                 for line_idx in range(i, min(i + 12, len(lines))):
                     current_line = lines[line_idx].strip()
                     window_lines.append(current_line)
-                    if "{" in current_line or ";" in current_line:
+                    paren_depth += current_line.count("(") - current_line.count(")")
+                    if paren_depth == 0 and ("{" in current_line or ";" in current_line):
                         break
                 method_text = " ".join(window_lines)
                 tokens = re.findall(r"\b[A-Z][A-Za-z0-9_]+\b", method_text)
@@ -108,10 +125,10 @@ def expand_nested_models(
         model_path = class_to_path.get(current_name)
         if not model_path or not model_path.exists():
             continue
-        try:
-            code = model_path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
+        code = _read_java_content(model_path)
+        stripped, complete = strip_comments_and_strings(code)
+        if complete:
+            code = stripped
         tokens = re.findall(r"\b[A-Z][A-Za-z0-9_]+\b", code)
         for token in tokens:
             if token in class_to_path and token not in BUILTIN_FRAMEWORK_TYPES:
@@ -126,14 +143,16 @@ def expand_nested_models(
 def get_public_api_model_set(repo_root: Path | None = None) -> set[str]:
     """取得對外暴露於公開 Controller 之 API 契約模型白名單集合（含巢狀欄位遞迴解析）。"""
     global _PUBLIC_API_MODELS_CACHE
-    if _PUBLIC_API_MODELS_CACHE is not None:
-        return _PUBLIC_API_MODELS_CACHE
-
     if repo_root is None:
         repo_root = Path(__file__).resolve().parent.parent.parent
+    repo_root = repo_root.resolve()
+    if _PUBLIC_API_MODELS_CACHE is None:
+        _PUBLIC_API_MODELS_CACHE = {}
+    if repo_root in _PUBLIC_API_MODELS_CACHE:
+        return set(_PUBLIC_API_MODELS_CACHE[repo_root])
 
     class_to_path = scan_class_paths(repo_root)
     controllers = find_public_controllers(repo_root)
     seed_models = extract_seed_models(controllers, class_to_path)
-    _PUBLIC_API_MODELS_CACHE = expand_nested_models(seed_models, class_to_path)
-    return _PUBLIC_API_MODELS_CACHE
+    _PUBLIC_API_MODELS_CACHE[repo_root] = expand_nested_models(seed_models, class_to_path)
+    return set(_PUBLIC_API_MODELS_CACHE[repo_root])

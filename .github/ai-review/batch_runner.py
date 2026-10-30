@@ -1,15 +1,17 @@
-import base64
 import concurrent.futures
 import json
-import logging
 import time
 from typing import Any
 
-import requests
-
 from batching import estimate_tokens
+from claim_verifier import VerificationBudget, apply_batch_claim_verification
 from engine import validate_coverage, validate_finding
 from github_client import gh_get, normalize_paths, publish_failure_report
+from github_content import (
+    enrich_files_with_full_content,
+    fetch_all_pr_files,
+    fetch_file_content_fallback,
+)
 from model_pool import GROQ_CAPACITY
 from orchestrator import chat_completion
 from parser import extract_json_payload, normalize_batch_paths
@@ -17,67 +19,22 @@ from prompt_builder import build_batch_prompt, filter_relevant_rules
 from redaction import sanitize_diff
 
 
-def fetch_all_pr_files(
-    repo_name: str, pr_number: int, gh_get_fn: Any = None
-) -> list[dict[str, Any]]:
-    """分頁讀取 PR 變更的所有檔案清單。"""
-    getter = gh_get_fn or gh_get
-    files: list[dict[str, Any]] = []
-    page = 1
-    while True:
-        url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/files"
-        chunk = getter(url, params={"per_page": 100, "page": page})
-        files.extend(chunk)
-        if len(chunk) < 100:
-            break
-        page += 1
-    return files
-
-
-def fetch_file_content_fallback(
-    repo_name: str, path: str, ref: str | None = None, gh_get_fn: Any = None
-) -> str | None:
-    """透過 GitHub Contents API 補齊 Patch 缺失之檔案原始內容。"""
-    getter = gh_get_fn or gh_get
-    try:
-        url = f"https://api.github.com/repos/{repo_name}/contents/{path}"
-        data = getter(url, params={"ref": ref} if ref else None)
-        if isinstance(data, dict) and data.get("encoding") == "base64" and data.get("content"):
-            return base64.b64decode(data["content"]).decode("utf-8", errors="replace")
-    except (requests.RequestException, UnicodeDecodeError, ValueError, KeyError) as exc:
-        logging.warning("無法自 Contents API 讀取檔案 %s: %s", path, exc)
-    return None
-
-
-def enrich_files_with_full_content(
-    repo_name: str, files: list[dict[str, Any]], head_sha: str, gh_get_fn: Any = None
-) -> None:
-    """針對缺少 patch 且未被刪除的檔案，嘗試透過 Contents API 補充完整內容。"""
-    for file_item in files:
-        if (
-            file_item.get("status") not in ("removed", "deleted")
-            and not file_item.get("patch")
-            and not file_item.get("full_content")
-        ):
-            blob = fetch_file_content_fallback(
-                repo_name, file_item.get("filename", ""), head_sha, gh_get_fn=gh_get_fn
-            )
-            if blob is not None:
-                file_item["full_content"] = blob
-
-
 def process_batch(
     scope: str, index: int, paths: list[str], files: list[dict[str, Any]],
     rules_text: str, contract_text: str, policy: dict[str, Any], pr_number: int,
     repo_name: str = "", head_sha: str = "", delay: float = 0.0,
-    chat_fn: Any = None, gh_get_fn: Any = None,
+    chat_fn: Any = None, gh_get_fn: Any = None, session_start_monotonic: float | None = None,
+    base_sha: str = "", verification_budget: VerificationBudget | None = None,
 ) -> dict[str, Any]:
     """執行單一批次的 LLM 提示建構、呼叫、回傳解析與安全結構驗證（支援自動重發）。"""
     if delay > 0:
         print(f"批次間隔節流：等待 {delay:.1f} 秒以平滑 API 速率限制...")
         time.sleep(delay)
-
     caller = chat_fn or chat_completion
+    if session_start_monotonic is None:
+        session_start_monotonic = time.monotonic()
+    if verification_budget is None:
+        verification_budget = VerificationBudget(session_start_monotonic=session_start_monotonic)
     getter = gh_get_fn or gh_get
     relevant_rules = filter_relevant_rules(rules_text, scope)
     diff_parts: list[str] = []
@@ -109,14 +66,16 @@ def process_batch(
                     )
             diff_parts.append(f"diff -- {fname}\n{sanitize_diff(raw_patch or '[Empty diff]')}")
 
-    diff = sanitize_diff("\n\n".join(diff_parts))
-    prompt = build_batch_prompt(scope, index, paths, diff, contract_text, relevant_rules)
+    prompt = build_batch_prompt(scope, index, paths, sanitize_diff("\n\n".join(diff_parts)),
+                               contract_text, relevant_rules)
     batch_tokens = estimate_tokens(prompt)
     is_light_batch = batch_tokens <= GROQ_CAPACITY.max_batch_tokens
     norm_exp = normalize_paths(paths)
     common_args = (files, rules_text, contract_text, policy, pr_number)
     common_kw = {
         "repo_name": repo_name, "head_sha": head_sha, "chat_fn": chat_fn, "gh_get_fn": gh_get_fn,
+        "base_sha": base_sha, "session_start_monotonic": session_start_monotonic,
+        "verification_budget": verification_budget,
     }
 
     def _split_and_retry(reason: str) -> dict[str, Any]:
@@ -135,6 +94,11 @@ def process_batch(
             "coverage": "COMPLETE",
             "findings": left_d.get("findings", []) + right_d.get("findings", []),
             "passed_checks": left_d.get("passed_checks", []) + right_d.get("passed_checks", []),
+            "shadow_verified_findings": (
+                left_d.get("shadow_verified_findings", [])
+                + right_d.get("shadow_verified_findings", [])
+            ),
+            "claim_audit": left_d.get("claim_audit", []) + right_d.get("claim_audit", []),
         }
 
     max_attempts = 3
@@ -193,15 +157,13 @@ def process_batch(
                 continue
             break
 
-        bad_finding = next(
-            (f_item for f_item in batch_data.get("findings", [])
-             if not validate_finding(f_item, allowed_files=paths)),
-            None,
-        )
-        if bad_finding is not None:
+        candidates = batch_data.get("findings")
+        if not isinstance(candidates, list) or any(
+            not validate_finding(item, allowed_files=paths) for item in candidates
+        ):
             fail_title = "Finding 格式驗證失敗"
             fail_summary = f"批次 {scope}-{index} 中的 Finding 未通過格式或範圍驗證。"
-            fail_detail = bad_finding
+            fail_detail = candidates
             if attempt < max_attempts:
                 print(
                     f"批次 {scope}-{index} 第 {attempt} 次 Finding 驗證未通過，重新發送...",
@@ -210,8 +172,19 @@ def process_batch(
                 continue
             break
 
+        apply_batch_claim_verification(
+            batch_data, scope, index, paths, files, prompt, caller, batch_tokens, is_light_batch,
+            head_sha=head_sha, base_sha=base_sha,
+            repo_name=repo_name, pr_number=pr_number,
+            content_fetcher=lambda r_name, f_path, sha_ref: fetch_file_content_fallback(
+                r_name, f_path, sha_ref, gh_get_fn=getter
+            ),
+            session_start_monotonic=session_start_monotonic,
+            budget=verification_budget,
+        )
         if missing_findings:
             batch_data.setdefault("findings", []).extend(missing_findings)
+            batch_data.setdefault("shadow_verified_findings", []).extend(missing_findings)
         return batch_data
 
     if len(paths) > 1:
@@ -229,10 +202,12 @@ def process_batches_parallel(
     rules_text: str, contract_text: str, policy: dict[str, Any], pr_number: int,
     repo_name: str = "", head_sha: str = "", max_workers: int = 3,
     stagger_seconds: float = 1.5, chat_fn: Any = None, gh_get_fn: Any = None,
+    base_sha: str = "",
 ) -> list[dict[str, Any]]:
     """多執行緒平行處理批次審查，並結合錯峰啟動機制平滑 API 速率限制。"""
     if not batches:
         return []
+    session_start = time.monotonic()
 
     actual_workers = max(1, min(len(batches), max_workers))
     if actual_workers == 1:
@@ -240,7 +215,8 @@ def process_batches_parallel(
             process_batch(
                 scope, idx, paths, files, rules_text, contract_text, policy, pr_number,
                 repo_name=repo_name, head_sha=head_sha, delay=5.0 if idx > 1 else 0.0,
-                chat_fn=chat_fn, gh_get_fn=gh_get_fn,
+                chat_fn=chat_fn, gh_get_fn=gh_get_fn, session_start_monotonic=session_start,
+                base_sha=base_sha,
             )
             for idx, (scope, paths) in enumerate(batches, 1)
         ]
@@ -260,7 +236,8 @@ def process_batches_parallel(
         batch_data = process_batch(
             worker_scope, worker_idx, worker_paths, files, rules_text, contract_text,
             policy, pr_number, repo_name=repo_name, head_sha=head_sha,
-            delay=0.0, chat_fn=chat_fn, gh_get_fn=gh_get_fn,
+            delay=0.0, chat_fn=chat_fn, gh_get_fn=gh_get_fn, session_start_monotonic=session_start,
+            base_sha=base_sha,
         )
         return worker_idx, batch_data
 

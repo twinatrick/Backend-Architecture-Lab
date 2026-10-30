@@ -18,6 +18,7 @@ from model_pool import (
 )
 from parser import ReviewResponseParser
 from providers import GeminiClient, GroqClient
+from native_tool_transport import NativeToolTransport
 from retry_utils import DEFAULT_MAX_RETRIES_PER_MODEL
 
 
@@ -244,6 +245,20 @@ class ReviewOrchestrator:
 
 
 DEFAULT_ORCHESTRATOR = ReviewOrchestrator()
+
+
+def native_tool_transports() -> list[NativeToolTransport]:
+    """依目前可用池建立候選，不把尚未實測能力的模型標為已驗證。"""
+    orchestrator = DEFAULT_ORCHESTRATOR
+    return [
+        NativeToolTransport(provider, model, key)
+        for provider, key_pool, candidate_pool in (
+            ("groq", orchestrator.groq_key_pool, orchestrator.groq_model_pool),
+            ("gemini", orchestrator.gemini_key_pool, orchestrator.gemini_model_pool),
+        )
+        for model in candidate_pool.get_candidates()
+        for _, key in key_pool.get_all_keys()
+    ]
 
 
 def chat_completion(

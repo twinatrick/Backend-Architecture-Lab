@@ -1,0 +1,40 @@
+name: Trusted AI Review Verdict Recorder
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: ai-verdict-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  record:
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/ai-verdict ') &&
+      vars.AI_REVIEW_VERDICT_RECORDER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: ai-review-verdict-ledger
+    steps:
+      - name: 取得受信任的主要分支程式碼
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: 安裝受信任程式的 Python 執行依賴
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ai-review-venv"
+          "$RUNNER_TEMP/ai-review-venv/bin/python" -m pip install --disable-pip-version-check -r .github/ai-review/requirements.txt
+          echo "$RUNNER_TEMP/ai-review-venv/bin" >> "$GITHUB_PATH"
+      - name: 驗證授權與快照後追加裁定
+        env:
+          GH_TOKEN: ${{ secrets.AI_REVIEW_LEDGER_READ_TOKEN }}
+          AI_REVIEW_LEDGER_WRITE_TOKEN: ${{ secrets.AI_REVIEW_LEDGER_WRITE_TOKEN }}
+          AI_REVIEW_VERDICT_LEDGER_WRITER: ${{ vars.AI_REVIEW_VERDICT_LEDGER_WRITER }}
+        run: python3 .github/ai-review/record_verdict.py

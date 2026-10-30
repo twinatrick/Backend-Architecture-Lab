@@ -344,4 +344,33 @@ _Avoid_: Cold standby only, Single-provider bottleneck, Idle backup key pool.
 當特定模型端點遭遇雲端服務商高負載尖峰（`HTTP 503`）或單次請求逾時時，立即對該模型執行健康度降級並切換至池內下一候選模型，避免在同一壅塞模型上盲目輪詢所有 API Key 的快速失敗切換機制。
 _Avoid_: Exhausting all keys on 503, Blind key rotation on model outage, Long timeout blocking.
 
+**Review Suspicion (審查疑點)**:
+由語言模型在批次程式碼審查過程中初步提出、尚未經確定性規則查證器或人工審核驗證之潛在問題觀察，在完成證據核對前不具備直接宣告確定性規範違規的效力。
+_Avoid_: Raw LLM finding, Unverified blocker, Hallucinated violation.
 
+**Rule Claim (規則主張)**:
+從單一審查疑點拆解而出、綁定單一受管規則或單一業務風險焦點的最小可驗證與可裁定主張單元，確保每條規則結論可獨立查證而不受複合敘述牽連。
+_Avoid_: Compound finding, Multi-rule bundle, Ambiguous accusation.
+
+**Rule Inspector (規則查證器)**:
+對應特定工程規範條款、接收審查快照與問題座標並自主蒐集必要結構化上下文，進而回傳確定性查證狀態（`VIOLATION`、`COMPLIANT`、`NOT_APPLICABLE`、`INCONCLUSIVE`）與具體證據之專責領域檢查元件。
+_Avoid_: Prompt-only clarification, Blind regex lint, Unscoped file dump.
+
+**Confirmed Violation (已確認違規)**:
+經對應規則查證器以充分結構化證據確認成立、或經具授權之人工裁定確認成立的正式規範違規，由審查閘門獨立持有，不受語言模型後續漏列或單方撤回影響。
+_Avoid_: Unverified LLM claim, Self-certified model violation, Silent finding drop.
+
+**Review Snapshot (審查快照)**:
+鎖定單次程式碼審查所依據之基準分支版本、目標提交版本與完整受檢內容之不可變審查視角，確保所有規則查證與呼叫鏈檢索皆基於同一時間點的一致事實。
+_Avoid_: Mixed branch grep, Floating head state, Cross-commit reuse.
+
+**Suspicion Eligibility Auditor (疑點資格審核器)**:
+針對尚無專屬規則查證器的開放式業務或安全疑點，強制檢驗其引用座標真實性、操作入口、受影響資源、預期保護條件與缺失上下文是否具體可核對，以區分值得人工介入追查之具體疑點與模糊臆測的審核機制。
+_Avoid_: Unchecked business suspicion, Vague risk blocking, Free-form LLM escalation.
+
+**Human Claim Verdict (人工主張裁定)**:
+由專案負責人明確核准之審核者，針對特定規則主張、審查快照與查證證據所作出的可稽核正式判定（確認違規或判定誤判不成立），與主要分支合併資格及高風險變更之架構安全人工簽核彼此獨立。
+
+**Approved Reviewer (核准審核者)**:
+經專案負責人明確授予人工主張裁定資格的人員；身分以固定帳號識別碼辨識，並非由帳號顯示名稱、職稱或模型推測決定。
+_Avoid_: Silent comment dismissal, Unscoped override, Mixing false-positive verdict with high-risk sign-off.

@@ -27,39 +27,40 @@ def run_git_cmd(cmd: list[str]) -> str:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             check=False,
         )
-        return res.stdout.strip()
-    except OSError:
-        return ""
+        if res.returncode != 0:
+            raise RuntimeError("Git 命令失敗，無法完成本地稽核。")
+        return res.stdout
+    except OSError as exc:
+        raise RuntimeError("無法執行 Git，本地稽核未完成。") from exc
 
 
 def get_staged_files() -> list[dict[str, Any]]:
     """自 Git 暫存區取得變更檔案清單與 Diff Patch。"""
-    status_output = run_git_cmd(["git", "diff", "--cached", "--name-status"])
+    status_output = run_git_cmd(["git", "diff", "--cached", "--name-status", "-z"])
     if not status_output:
         return []
 
     file_payloads: list[dict[str, Any]] = []
-    for line in status_output.splitlines():
-        parts = line.strip().split(maxsplit=1)
-        if len(parts) < 2:
-            continue
-        status_code, filename = parts[0], parts[1]
+    entries = status_output.split("\0")
+    if entries[-1] == "":
+        entries.pop()
+    entry_index = 0
+    while entry_index < len(entries):
+        status_code = entries[entry_index]
+        path_count = 2 if status_code.startswith(("R", "C")) else 1
+        entry_index += path_count + 1
+        if entry_index > len(entries):
+            raise RuntimeError("Git 暫存區檔案清單不完整。")
+        filename = entries[entry_index - 1]
         norm_path = filename.replace("\\", "/")
 
         if status_code.startswith("D"):
             continue
 
         staged_content = run_git_cmd(["git", "show", f":{norm_path}"])
-        if not staged_content:
-            target_path = Path(filename)
-            if target_path.exists():
-                staged_content = target_path.read_text(
-                    encoding="utf-8", errors="replace"
-                )
-
         status = "added" if status_code.startswith("A") else "modified"
         patch = run_git_cmd(["git", "diff", "--cached", "-U0", "--", norm_path])
 
@@ -75,13 +76,14 @@ def get_staged_files() -> list[dict[str, Any]]:
 
 def get_all_repo_files() -> list[dict[str, Any]]:
     """取得專案全量關注檔案清單。"""
-    ls_output = run_git_cmd(["git", "ls-files"])
+    ls_output = run_git_cmd(["git", "ls-files", "-z"])
     if not ls_output:
         return []
 
     file_payloads: list[dict[str, Any]] = []
-    for line in ls_output.splitlines():
-        filename = line.strip()
+    for filename in ls_output.split("\0"):
+        if not filename:
+            continue
         norm_path = filename.replace("\\", "/")
         is_target = (
             norm_path.endswith((".java", ".py", ".yml", ".yaml"))
@@ -93,9 +95,9 @@ def get_all_repo_files() -> list[dict[str, Any]]:
         if not target_path.exists() or not target_path.is_file():
             continue
         try:
-            content = target_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
+            content = target_path.read_text(encoding="utf-8", errors="strict")
+        except OSError as exc:
+            raise RuntimeError("無法讀取受稽核檔案。") from exc
 
         file_payloads.append({
             "filename": norm_path,
@@ -124,7 +126,7 @@ def print_report(findings: list[dict[str, Any]]) -> tuple[int, int]:
         evidence = item.get("evidence", "")
         rec = item.get("recommendation", "")
 
-        if severity in ("HIGH", "MEDIUM"):
+        if severity in ("CRITICAL", "HIGH", "MEDIUM"):
             blocking_count += 1
             tag = "[BLOCKING]"
         else:
@@ -141,7 +143,7 @@ def print_report(findings: list[dict[str, Any]]) -> tuple[int, int]:
 
     print("\n" + "-" * 70)
     summary_text = (
-        f"稽核結果: 發現 {blocking_count} 項阻擋違規 (HIGH/MEDIUM)，"
+        f"稽核結果: 發現 {blocking_count} 項阻擋違規 (CRITICAL/HIGH/MEDIUM)，"
         f"{warning_count} 項警告 (LOW)。"
     )
     print(summary_text)
@@ -171,17 +173,21 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.all:
-        print("[INFO] 執行專案全量檔案規範稽核...")
-        files = get_all_repo_files()
-    else:
-        print("[INFO] 執行 Git 暫存區（Staged Changes）差異稽核...")
-        files = get_staged_files()
-        if not files:
-            print("[INFO] Git 暫存區無變更檔案，跳過規範檢查（若欲全量檢查請加 --all）。")
-            return 0
+    try:
+        if args.all:
+            print("[INFO] 執行專案全量檔案規範稽核...")
+            files = get_all_repo_files()
+        else:
+            print("[INFO] 執行 Git 暫存區（Staged Changes）差異稽核...")
+            files = get_staged_files()
+            if not files:
+                print("[INFO] Git 暫存區無變更檔案，跳過規範檢查（若欲全量檢查請加 --all）。")
+                return 0
+    except (RuntimeError, UnicodeError) as exc:
+        print(f"[FAIL] 稽核未完成：{type(exc).__name__}", file=sys.stderr)
+        return 1
 
-    findings = static_checks.run_static_checks(files)
+    findings = static_checks.run_static_checks(files, allow_local_fallback=False)
     blocking, _ = print_report(findings)
     return 1 if blocking > 0 else 0
 
