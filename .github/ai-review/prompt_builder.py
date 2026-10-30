@@ -124,10 +124,20 @@ artifact/cache、fail-open 與 Review bypass。
    NotImplementedException，或遺留 TODO: implement、FIXME: implement 註記。
 2. 嚴查虛假實作：僅針對 Diff 中以「+」明確呈現完整方法體之方法，檢查是否偽造回傳 null 或空集合；
    嚴禁臆測或捏造未出現在 Diff 區段（@@ ... @@ 之外）的既有方法（例如嚴禁捏造未顯示區段回傳 Flux.empty()）。
-3. 嚴查實體雙軌獲取：僅當 Diff 新增了無分頁 getAll/findAll 端點時才提出 Finding；
-   既有 Controller 中未修改之 POST /search 或 GET /stream 端點不會出現在局部 Diff 中，嚴禁憑空指控缺失或空殼。
-4. 建構子注入（@RequiredArgsConstructor + private final）之欄位由 Spring 容器保證非空，
+3. 局部 Diff 上下文豁免：GitHub Patch 僅顯示變更行上下 3 行（@@ ... @@）。若僅修改 import 或局部方法，
+   類別頂部的 @RequirePermission、@RestController 或同類別既有的雙軌端點（POST /search、GET /stream）
+   可能位於未顯示的區段；嚴禁因局部 Diff 未顯示類別頂部註解或既有端點，就臆測其缺失！
+4. 雙軌制（/search + /stream）適用邊界：雙軌制僅約束「Controller 層公開聚合根端點」不得新增無分頁全量 GET。
+   Service / DataAccess / Repository 層內部保留無參 findAll() 或全量查詢方法（供內部邏輯或快取使用）
+   完全符合《開發規範.md》§6.1，嚴禁在 Service / DataAccess 層誤判違反雙軌制！
+   此外，非聚合根或個人子資源 Controller（如 DiaryController、PersonalSkillController、
+   UserJobBindingController、InitController、AuthController、LearnController、UsageController）
+   均豁免雙軌分頁要求。
+5. 建構子注入（@RequiredArgsConstructor + private final）之欄位由 Spring 容器保證非空，
    請勿要求對 private final 注入欄位進行多餘的 != null 防禦檢查。
+6. 顯式橫切執行器（TransactionExecutor / CacheExecutor）規範：當公開 Service 方法由外部（如 Controller）
+   透過 Spring Proxy 呼叫時，該公開方法標註 @CacheEvict / @Caching 並於內部先執行交易外驗證（如 Feign）、
+   再透過 transactionExecutor.runWritable(...) 執行局部資料庫事務，屬於合法標準解耦寫法，嚴禁誤判為自調用切面失效。
 
 【Diff 變更極性與行號絕對約束】
 1. 你只能針對以「+」開頭之新增或修改行提出 Finding，必須引用新檔案中實際存在的行號！
@@ -141,10 +151,15 @@ artifact/cache、fail-open 與 Review bypass。
    （例如 Repository/DataAccess/Service 介面與其呼叫端可能位於不同批次）。
    嚴禁僅因某個 public 或 interface 方法在本批次內未出現呼叫端，就臆測其為
    「無呼叫端之孤島死代碼 (YAGNI)」；死代碼判定僅限於同一檔案內明確未被使用的 private 成員或局部變數。
-5. 【衍生刪除事務規範與嚴格 Schema 約束】Repository 與 DataAccessImpl 中的 delete* / remove* 方法
-   標註 @Transactional 屬於專案靜態規範強制要求，嚴禁將其誤判為違規。
-   另 @ApiQuery 與 @ApiPath 無 format 屬性（format 僅存在於 @ApiField）。
-   每筆 finding 僅能包含 json_template 中定義的 9 個標準欄位，嚴禁新增 problem_zh 等額外鍵值。
+5. 【衍生刪除事務、自訂註解屬性與向後相容規範】
+   - Repository 與 DataAccessImpl 中的 delete* / remove* 方法標註 @Transactional 屬於專案靜態規範強制要求。
+   - OpenAPI 註解屬性定義：@ApiPath 與 @ApiField 均支援 format 屬性（如 format = "uuid"、"date-time"）；
+     僅 @ApiQuery 無 format 屬性。嚴禁將 @ApiPath(..., format = "uuid") 誤判為違規或要求移除！
+   - 專案自訂之 ApiQueryArgumentResolver 原生支援將 @ApiQuery 用於 MultipartFile 檔案上傳參數；
+     原始二進位陣列 byte[] 並非 JavaBean DTO，無須改寫為 @ApiDto 類別。
+   - 若 Diff 僅在既有端點方法上替換參數註解（如 @RequestBody 改為 @ApiBody）而未新增端點，
+     嚴禁對既有路由命名（如 /rebind 或已標註 @Deprecated 之舊端點）提出路徑重構 Finding，以免破壞前端相容性。
+   - 每筆 finding 僅能包含 json_template 中定義的 9 個標準欄位，嚴禁新增 problem_zh 等額外鍵值。
 
 只輸出合法 JSON，不得輸出 markdown：
 {json_template}
