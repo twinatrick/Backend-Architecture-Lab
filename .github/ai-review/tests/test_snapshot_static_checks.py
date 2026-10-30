@@ -96,12 +96,19 @@ def test_static_confirmed_claim_is_retained_and_accepts_bound_human_verdict():
 
 def test_snapshot_comment_is_not_repository_caller():
     snapshot = ReviewSnapshot([{
-        "filename": "Caller.java", "full_content": "class Caller { /* deleteById */ }",
+        "filename": "src/main/java/Caller.java",
+        "full_content": "class Caller { /* removeUnused */ }",
+    }, {
+        "filename": "src/main/java/Repository.java",
+        "full_content": "interface Repository { void removeUnused(); }",
     }], repo_name="owner/repo", head_sha="fixed")
     searcher = SnapshotRepositorySearch(snapshot, MagicMock(return_value={
-        "truncated": False, "tree": [{"type": "blob", "path": "Caller.java"}],
+        "truncated": False, "tree": [
+            {"type": "blob", "path": "src/main/java/Caller.java"},
+            {"type": "blob", "path": "src/main/java/Repository.java"},
+        ],
     }), time.monotonic() + 10)
-    assert searcher("deleteById", "Repository.java") == []
+    assert searcher("removeUnused", "src/main/java/Repository.java") == []
     assert not searcher.incomplete
 
 
@@ -112,7 +119,7 @@ def test_literal_reference_without_symbol_resolution_stays_inconclusive():
     searcher = SnapshotRepositorySearch(snapshot, MagicMock(return_value={
         "truncated": False, "tree": [{"type": "blob", "path": "Other.java"}],
     }), time.monotonic() + 10)
-    assert searcher("deleteById", "Repository.java") == ["Other.java"]
+    assert searcher("deleteById", "Repository.java") == []
     assert searcher.incomplete == {"Repository.java"}
 
 

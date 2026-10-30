@@ -374,3 +374,15 @@ _Avoid_: Unchecked business suspicion, Vague risk blocking, Free-form LLM escala
 **Approved Reviewer (核准審核者)**:
 經專案負責人明確授予人工主張裁定資格的人員；身分以固定帳號識別碼辨識，並非由帳號顯示名稱、職稱或模型推測決定。
 _Avoid_: Silent comment dismissal, Unscoped override, Mixing false-positive verdict with high-risk sign-off.
+
+**Production Caller Existence (生產呼叫端存在性)**:
+在審查快照的生產來源中，存在可無歧義解析至指定方法的靜態呼叫之事實；不包含僅出現在測試來源中的引用，也不代表該呼叫可由外部入口到達。
+_Avoid_: Name-only reference, Test-only caller, Runtime reachability proof.
+
+**Entry Reachability (入口可達性)**:
+指定方法能否由受檢操作入口沿有效呼叫路徑到達的獨立審查主張，不能僅由呼叫端存在或缺少靜態引用直接推定。
+_Avoid_: Caller existence, No-reference equals unreachable.
+
+**Claim Counterevidence (主張反證)**:
+足以否定單一規則主張的可核對證據，其成立不要求其他無關搜尋完成，也不會連帶解除其他主張或整場審查的未完成狀態。
+_Avoid_: Whole-review approval, Partial search means compliance.

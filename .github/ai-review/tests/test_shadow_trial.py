@@ -136,12 +136,15 @@ def test_execution_compares_but_never_publishes_and_checks_final_sha(monkeypatch
     monkeypatch.setattr(shadow_trial, "process_batches_parallel", processor)
     monkeypatch.setattr(shadow_trial, "run_static_checks", lambda *args: [])
     shadow = {"decision": "APPROVE", "findings": [], "blocking_findings": []}
-    monkeypatch.setattr(shadow_trial, "evaluate_snapshot_shadow_review", lambda *args: shadow)
+    evaluator = MagicMock(return_value=shadow)
+    monkeypatch.setattr(shadow_trial, "evaluate_snapshot_shadow_review", evaluator)
     if changed:
         with pytest.raises(ValueError, match="Base／Head"):
             shadow_trial.execute_trial(manifest, [], [], getter)
     else:
         report = shadow_trial.execute_trial(manifest, [], [], getter)
+        assert (processor.call_args.kwargs["source_budget"]
+                is evaluator.call_args.kwargs["source_budget"])
         assert report["shadow_review"]["decision"] == "APPROVE"
         assert report["decision"] == "HUMAN_REVIEW_REQUIRED"
         assert report["requires_human_review"] is True

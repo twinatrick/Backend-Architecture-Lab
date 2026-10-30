@@ -22,9 +22,7 @@ def attribute_confirmed_claims(
         if result is None or result.status != InspectionStatus.VIOLATION:
             output.append((claim, result))
             continue
-        before = snapshot.extra_tokens_used
         attribution = attribute_location(snapshot, result.location)
-        budget.extra_context_tokens_used += snapshot.extra_tokens_used - before
         if attribution.status == AttributionStatus.DIRECT_CHANGE:
             output.append((claim, result))
             continue
@@ -43,12 +41,11 @@ def attribute_confirmed_claims(
         path, _ = snapshot.parse_location(result.location)
         entry = snapshot.find_file_entry(path) or {}
         base_path = str(entry.get("previous_filename") or path)
-        before = snapshot.extra_tokens_used
         content = snapshot.get_file_content(base_path, snapshot.base_sha)
-        budget.extra_context_tokens_used += snapshot.extra_tokens_used - before
         base_snapshot = ReviewSnapshot(
             [{"filename": base_path, "full_content": content}],
-            head_sha=snapshot.base_sha, max_extra_tokens=budget.max_extra_context_tokens,
+            head_sha=snapshot.base_sha, repo_name=snapshot.repo_name,
+            source_budget=snapshot.source_budget,
         )
         base_finding = dict(claim.finding, location=f"{base_path}:{attribution.base_line}")
         budget.tool_calls_used += 1
@@ -71,7 +68,6 @@ def attribute_confirmed_claims(
 def append_claim_audit(records: list, results: list[Any], snapshot: Any, budget: Any) -> None:
     """每主張保留最新裁定與歸責；既有債亦保留於獨立稽核資料。"""
     latest = {claim.claim_id: (claim, result) for claim, result in results}
-    before = snapshot.extra_tokens_used
     for claim, result in latest.values():
         location = str(claim.finding.get("location", ""))
         attribution = attribute_location(snapshot, location)
@@ -84,4 +80,3 @@ def append_claim_audit(records: list, results: list[Any], snapshot: Any, budget:
             "attribution": attribution.status.value, "attribution_reason": attribution.reason,
             "base_line": attribution.base_line,
         })
-    budget.extra_context_tokens_used += snapshot.extra_tokens_used - before

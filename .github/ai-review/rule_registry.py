@@ -3,8 +3,10 @@ from typing import Any
 from check_java import check_java_file
 from check_python import check_python_file
 import check_rules
+from method_fact_inspector import MethodFactInspector
 from package_version_inspector import PackageVersionInspector
 from python_claim_inspectors import PythonClaimInspector
+from repository_call_inspector import RepositoryCallInspector
 from review_snapshot import (
     InspectionStatus,
     ReviewSnapshot,
@@ -119,6 +121,10 @@ class RuleRegistry:
                     self._inspectors[attr_name] = DeterministicFileRuleInspector(val, can_prove)
                     self._inspectors[val] = DeterministicFileRuleInspector(val, can_prove)
 
+        caller_inspector = RepositoryCallInspector()
+        self._inspectors["RULE_JAVA_METHOD_FACT"] = MethodFactInspector()
+        self._inspectors["RULE_DEAD_CODE_REPOSITORY"] = caller_inspector
+        self._inspectors[check_rules.RULE_DEAD_CODE_REPOSITORY] = caller_inspector
         fqn_inspector = FqnRuleInspector()
         self._inspectors["RULE_PROHIBIT_FQN"] = fqn_inspector
         self._inspectors["RULE_FQN_FORBIDDEN"] = fqn_inspector
@@ -173,6 +179,10 @@ class RuleRegistry:
                 matched_keys.append(key)
 
         keyword_rules = [
+            (("非私有", "非 private", "公開方法", "公開的", "方法不存在"),
+             "RULE_JAVA_METHOD_FACT"),
+            (("沒有呼叫端", "無任何呼叫端", "無呼叫端", "孤島死代碼"),
+             "RULE_DEAD_CODE_REPOSITORY"),
             (("套件版本不存在", "不存在的 requests", "版本不存在", "package version does not exist"),
              "RULE_PACKAGE_VERSION_EXISTS"),
             (("重複定義", "函式重複", "函數重複", "duplicate definition"),
@@ -232,6 +242,9 @@ class RuleRegistry:
         seen: set[str] = set()
         for part in parts or [raw_rule]:
             matched = self.match_rule_keys(part, raw_prob if len(parts) <= 1 else "")
+            # 事實反證只能處理該子主張；未知業務規則不可因方法引用錯誤而一併消失。
+            if "RULE_JAVA_METHOD_FACT" in matched and part not in self._inspectors:
+                matched.append(part or "UNCLASSIFIED_BUSINESS_CLAIM")
             for key in matched or [part or "UNCLASSIFIED_BUSINESS_CLAIM"]:
                 inspector = self._inspectors.get(key)
                 canonical = getattr(check_rules, key, key)

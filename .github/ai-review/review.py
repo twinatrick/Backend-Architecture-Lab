@@ -33,6 +33,7 @@ from orchestrator import chat_completion
 from redaction import get_gh_token
 from reporter import format_json_report, format_markdown_report
 from snapshot_static_checks import evaluate_verified_review
+from source_budget import SourceReadBudget
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,8 +43,7 @@ def _fetch_file_content_fallback(repo_name: str, path: str, ref: str | None = No
 
 
 def _process_batch(
-    scope: str,
-    index: int,
+    scope: str, index: int,
     paths: list[str],
     files: list[dict[str, Any]],
     rules_text: str,
@@ -68,17 +68,16 @@ def _process_batches_parallel(
     contract_text: str,
     policy: dict[str, Any],
     pr_number: int,
-    repo_name: str = "",
-    head_sha: str = "",
-    max_workers: int = 3,
-    stagger_seconds: float = 1.5,
+    repo_name: str = "", head_sha: str = "",
+    max_workers: int = 3, stagger_seconds: float = 1.5,
     base_sha: str = "",
+    source_budget: SourceReadBudget | None = None,
 ) -> list[dict[str, Any]]:
     return process_batches_parallel(
         batches, files, rules_text, contract_text, policy, pr_number,
         repo_name=repo_name, head_sha=head_sha, max_workers=max_workers,
         stagger_seconds=stagger_seconds, chat_fn=chat_completion, gh_get_fn=gh_get,
-        base_sha=base_sha,
+        base_sha=base_sha, source_budget=source_budget,
     )
 
 
@@ -157,8 +156,7 @@ def main() -> None:
     contract_p = ROOT / ".github/AI_REVIEW.md"
     rules_text = rules_p.read_text(encoding="utf-8") if rules_p.exists() else ""
     contract_text = contract_p.read_text(encoding="utf-8") if contract_p.exists() else ""
-    policy = load_policy()
-    batches = build_batches(files, enable_dual_track=True)
+    policy, batches = load_policy(), build_batches(files, enable_dual_track=True)
 
     expected_files = [fname for _, paths in batches for fname in paths]
     is_batch_valid = (
@@ -184,11 +182,13 @@ def main() -> None:
     max_workers = int(os.environ.get("AI_REVIEW_MAX_WORKERS", default_workers))
     stagger_seconds = float(os.environ.get("AI_REVIEW_STAGGER_SECONDS", default_stagger))
     shadow_deadline = time.monotonic() + 900
+    source_budget = SourceReadBudget(deadline=shadow_deadline)
     results = _process_batches_parallel(
         batches, files, rules_text, contract_text, policy, pr_number,
         repo_name=repo_name, head_sha=head_sha,
         base_sha=pr_data.get("base", {}).get("sha", ""),
         max_workers=max_workers, stagger_seconds=stagger_seconds,
+        source_budget=source_budget,
     )
     reviewed_files = [file_name for res_item in results
         for file_name in normalize_paths(res_item.get("files_reviewed", []))
@@ -216,6 +216,7 @@ def main() -> None:
             results, files, normalize_paths(expected_files), reviewed_files, policy,
             repo_name, head_sha, gh_get, shadow_deadline,
             pr_data.get("base", {}).get("sha", ""), pr_number,
+            source_budget=source_budget,
         )
     except (RuntimeError, ValueError, requests.RequestException):
         publish_failure_report(

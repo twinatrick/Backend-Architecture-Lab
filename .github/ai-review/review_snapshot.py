@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from diff_parser import extract_changed_lines
 from rule_version import trusted_rule_version
+from source_budget import SourceReadBudget
 
 
 class InspectionStatus(str, Enum):
@@ -109,8 +110,10 @@ class ReviewSnapshot:
     base_sha: str = ""
     repo_name: str = ""
     content_fetcher: Callable[[str, str, str], str | None] | None = None
-    max_extra_tokens: int = 32000
+    max_extra_tokens: int = 32 * 1024 * 1024
     extra_tokens_used: int = 0
+    source_budget: SourceReadBudget = field(default_factory=SourceReadBudget)
+    repository_getter: Any = None
     _file_map: dict[str, dict[str, Any]] = field(init=False, default_factory=dict)
     _changed_lines_map: dict[str, set[int]] = field(init=False, default_factory=dict)
     _repo_searcher: Callable[[str], list[str]] | None = field(init=False, default=None)
@@ -161,7 +164,10 @@ class ReviewSnapshot:
         identity = (canonical_path, target_sha)
         if identity in self._content_cache:
             return self._content_cache[identity]
-        if identity in self._unavailable or not self.can_fetch_more():
+        shared_key = (self.repo_name, target_sha, canonical_path)
+        if identity in self._unavailable or (
+            shared_key not in self.source_budget.contents and not self.can_fetch_more()
+        ):
             return ""
 
         if entry is not None:
@@ -170,16 +176,26 @@ class ReviewSnapshot:
                 return self._remember_content(identity, cached)
 
         if self.content_fetcher is not None and target_sha:
-            fetched = self.content_fetcher(self.repo_name, canonical_path, target_sha)
-            if isinstance(fetched, str) and fetched.strip():
+            fetched = self.source_budget.read(
+                self.repo_name, target_sha, canonical_path,
+                lambda: self.content_fetcher(self.repo_name, canonical_path, target_sha),
+            )
+            if fetched:
                 return self._remember_content(identity, fetched)
         self._unavailable.add(identity)
         return ""
 
     def can_fetch_more(self) -> bool:
-        return not self._budget_exhausted and self.extra_tokens_used < self.max_extra_tokens
+        return (not self._budget_exhausted and self.extra_tokens_used < self.max_extra_tokens
+                and self.source_budget.can_read())
 
     def _remember_content(self, identity: tuple[str, str], content: str) -> str:
+        content = self.source_budget.read(
+            self.repo_name, identity[1], identity[0], lambda: content,
+        )
+        if not content:
+            self._unavailable.add(identity)
+            return ""
         estimated = max(1, len(content.encode("utf-8")))
         if self.extra_tokens_used + estimated > self.max_extra_tokens:
             self._budget_exhausted = True
