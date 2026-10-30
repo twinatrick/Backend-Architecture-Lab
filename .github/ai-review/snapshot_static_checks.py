@@ -33,6 +33,7 @@ class SnapshotRepositorySearch:
         self.getter = getter
         self.deadline = deadline
         self.paths: list[str] | None = None
+        self.tree_attempted = False
         self.incomplete: set[str] = set()
 
     def _load_tree(self) -> list[str] | None:
@@ -40,6 +41,9 @@ class SnapshotRepositorySearch:
             return None
         if self.paths is not None:
             return self.paths
+        if self.tree_attempted:
+            return None
+        self.tree_attempted = True
         tree = self.getter(
             f"https://api.github.com/repos/{self.snapshot.repo_name}/git/trees/"
             f"{self.snapshot.head_sha}", params={"recursive": "1"},
@@ -74,6 +78,8 @@ class SnapshotRepositorySearch:
                 content = self.snapshot.get_file_content(path)
                 if not content:
                     self.incomplete.add(repository_path)
+                    if not self.snapshot.can_fetch_more():
+                        return []
                     continue
                 stripped, complete = strip_comments_and_strings(content)
                 if not complete:
