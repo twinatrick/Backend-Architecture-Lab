@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 import json
+import logging
 import time
 from typing import Any
 
@@ -103,7 +104,12 @@ def run_native_tool_dialogue(
                         state.calls_by_claim[claim_id] = used + 1
                         result = executor(claim_id, rule_key)
                     state.history.append({"role": "tool", "id": call["id"], "result": result})
-        except (requests.RequestException, ValueError, TypeError, KeyError, IndexError):
+        except (requests.RequestException, ValueError, TypeError, KeyError, IndexError) as exc:
             # 不記錄例外字串，避免供應商把密鑰或原始碼寫入錯誤資訊。
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", None)
+            status = status if type(status) is int and 100 <= status <= 599 else None
+            logging.warning("模型工具對話失敗 (%s, HTTP=%s)；切換候選模型。",
+                            type(exc).__name__, status)
             state.errors.append("模型工具對話失敗；保留紀錄並切換候選模型。")
     return None

@@ -132,3 +132,43 @@ def test_adapter_unknown_tool_and_no_candidates_never_fabricate_completion(monke
     assert isinstance(adapt_native_caller(
         claim_native_adapter.chat_completion, [], VerificationBudget(),
     ), ClaimNativeAdapter)
+
+
+@pytest.mark.parametrize("error_type", [
+    requests.Timeout, requests.HTTPError, ValueError, TypeError, KeyError, IndexError,
+])
+def test_safe_failure_diagnostics_preserve_state_and_fallback(caplog, error_type):
+    failure = error_type("fake_test_secret and private source code")
+    if isinstance(failure, requests.HTTPError):
+        failure.response = requests.Response()
+        failure.response.status_code = 502
+    first = transport(failure)
+    second = transport({"text": "done"})
+    second.model = "fallback"
+    history = [{"role": "tool", "id": "previous", "result": {"status": "VIOLATION"}}]
+    state = ToolDialogueState(list(history), {"claim": "RULE"}, verified_models={
+        ("groq", "local-test"), ("groq", "fallback"),
+    })
+    budget = VerificationBudget(tool_calls_used=1)
+    executor = MagicMock()
+    assert run_native_tool_dialogue(state, [first, second], executor, budget) == "done"
+    assert state.history == history
+    assert budget.tool_calls_used == 1
+    executor.assert_not_called()
+    assert error_type.__name__ in caplog.text
+    assert ("HTTP=502" if error_type is requests.HTTPError else "HTTP=None") in caplog.text
+    assert "fake_test_secret" not in caplog.text + str(state.errors)
+    assert "private source code" not in caplog.text + str(state.errors)
+
+
+@pytest.mark.parametrize("status", [True, "fake_test_secret", 999])
+def test_invalid_http_status_is_not_logged(caplog, status):
+    failure = requests.HTTPError("fake_test_secret")
+    failure.response = requests.Response()
+    failure.response.status_code = status
+    state = ToolDialogueState([], {}, verified_models={("groq", "local-test")})
+    assert run_native_tool_dialogue(
+        state, [transport(failure)], MagicMock(), VerificationBudget(),
+    ) is None
+    assert "HTTP=None" in caplog.text
+    assert "fake_test_secret" not in caplog.text

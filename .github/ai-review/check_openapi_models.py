@@ -4,6 +4,7 @@
 建立公開 API 契約模型白名單，徹底避免非 Controller 物件（如內部 Event、Snapshot 等）被誤判。
 """
 
+import logging
 import re
 from pathlib import Path
 
@@ -35,6 +36,15 @@ ENDPOINT_ANNOTATIONS = (
 MODEL_DIR_KEYWORDS = ("/Vo/", "/vo/", "/Dto/", "/dto/")
 
 
+def _read_java_content(path: Path) -> str:
+    """讀取失敗不可產出部分白名單；僅記錄安全診斷以免例外內文洩密。"""
+    try:
+        return path.read_text(encoding="utf-8", errors="strict")
+    except (OSError, UnicodeError) as exc:
+        logging.warning("公開 API 模型掃描讀取失敗：%s (%s)", path, type(exc).__name__)
+        raise RuntimeError("公開 API 模型掃描未完成：必要檔案無法讀取。") from exc
+
+
 def is_internal_controller(path_str: str, content: str = "") -> bool:
     """判斷是否為微服務間內部 Feign Controller。"""
     normalized = path_str.replace("\\", "/").lower()
@@ -62,10 +72,7 @@ def find_public_controllers(repo_root: Path) -> list[tuple[Path, str]]:
     for controller_path in repo_root.glob("**/src/main/java/**/Controller/**/*.java"):
         if is_internal_controller(str(controller_path)):
             continue
-        try:
-            content = controller_path.read_text(encoding="utf-8", errors="strict")
-        except OSError:
-            continue
+        content = _read_java_content(controller_path)
         annotation_code, complete = strip_comments_and_strings(content, preserve_literals=True)
         if complete and is_internal_controller(str(controller_path), annotation_code):
             continue
@@ -118,10 +125,7 @@ def expand_nested_models(
         model_path = class_to_path.get(current_name)
         if not model_path or not model_path.exists():
             continue
-        try:
-            code = model_path.read_text(encoding="utf-8", errors="strict")
-        except OSError:
-            continue
+        code = _read_java_content(model_path)
         stripped, complete = strip_comments_and_strings(code)
         if complete:
             code = stripped

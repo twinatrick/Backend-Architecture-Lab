@@ -103,3 +103,36 @@ def test_multiline_mapping_path_array_does_not_hide_public_signature(tmp_path):
     public ItemVo list() { return null; }
 }''')
     assert models.get_public_api_model_set(tmp_path) == {"ItemVo"}
+
+
+@pytest.mark.parametrize("filename", ["PublicController.java", "ParentVo.java"])
+@pytest.mark.parametrize("failure", [
+    PermissionError("fake_test_secret"),
+    UnicodeDecodeError("utf-8", b"\xff", 0, 1, "fake_test_secret"),
+])
+def test_failed_required_read_aborts_without_caching_partial_models(
+    tmp_path, monkeypatch, caplog, filename, failure,
+):
+    write_java(tmp_path, "Controller/PublicController.java", '''class PublicController {
+    @GetMapping("/items")
+    public ParentVo list() { return null; }
+}''')
+    write_java(tmp_path, "Vo/ParentVo.java", "class ParentVo { ChildVo child; }")
+    write_java(tmp_path, "Vo/ChildVo.java", "class ChildVo {}")
+    original_read = Path.read_text
+
+    def failing_read(path, *args, **kwargs):
+        if path.name == filename:
+            raise failure
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", failing_read)
+    with pytest.raises(RuntimeError, match="掃描未完成") as caught:
+        models.get_public_api_model_set(tmp_path)
+    assert caught.value.__cause__ is failure
+    assert tmp_path.resolve() not in models._PUBLIC_API_MODELS_CACHE
+    assert filename in caplog.text
+    assert type(failure).__name__ in caplog.text
+    assert "fake_test_secret" not in caplog.text
+    monkeypatch.setattr(Path, "read_text", original_read)
+    assert models.get_public_api_model_set(tmp_path) == {"ParentVo", "ChildVo"}
