@@ -95,10 +95,13 @@ def _build_pr_repo_searcher(files: list[dict[str, Any]]) -> Any:
     return _searcher
 
 
-def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def run_static_checks(
+    files: list[dict[str, Any]], *, repo_searcher: Any = None,
+    allow_local_fallback: bool = True,
+) -> list[dict[str, Any]]:
     """對變更檔案清單執行確定性靜態規則檢查。"""
     all_findings: list[dict[str, Any]] = []
-    repo_searcher = _build_pr_repo_searcher(files)
+    repo_searcher = repo_searcher or _build_pr_repo_searcher(files)
 
     for file_item in files:
         path = file_item.get("filename") or file_item.get("path") or ""
@@ -132,7 +135,10 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
             (".yml", ".yaml")
         )
         if is_workflow:
-            wf_code = _read_local_content(path, file_item, clean_content)
+            wf_code = (
+                _read_local_content(path, file_item, clean_content)
+                if allow_local_fallback else clean_content
+            )
             if wf_code:
                 all_findings.extend(
                     check_workflow_file(path, wf_code, changed_lines=changed_lines)
@@ -147,7 +153,10 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 )
             )
         elif norm_path.endswith(".py"):
-            py_code = _read_local_content(path, file_item, clean_content)
+            py_code = (
+                _read_local_content(path, file_item, clean_content)
+                if allow_local_fallback else clean_content
+            )
             if py_code:
                 all_findings.extend(
                     check_python_file(path, py_code, changed_lines=changed_lines)

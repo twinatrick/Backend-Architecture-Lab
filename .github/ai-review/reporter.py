@@ -1,8 +1,22 @@
 import json
 from typing import Any
 
-from engine import has_high_risk_scope
+from engine import evaluate, has_high_risk_scope
 from redaction import redact_secrets
+
+
+def evaluate_shadow_review(
+    results: list[dict[str, Any]], static_findings: list[dict[str, Any]],
+    expected_files: list[str], reviewed_files: list[str], policy: dict[str, Any],
+) -> dict[str, Any] | None:
+    """獨立計算影子候選結論，絕不回寫正式 Findings。"""
+    if not any("shadow_verified_findings" in result for result in results):
+        return None
+    findings = [
+        item for result in results
+        for item in result.get("shadow_verified_findings", result.get("findings", []))
+    ]
+    return evaluate(static_findings + findings, expected_files, reviewed_files, policy)
 
 
 def format_markdown_report(
@@ -15,6 +29,7 @@ def format_markdown_report(
     audit_info: dict[str, Any] | None = None,
     requires_human_review: bool = False,
     high_risk_files: list[str] | None = None,
+    shadow_review: dict[str, Any] | None = None,
 ) -> str:
     """產出 Markdown 格式之 AI Review 報告全文。"""
     is_human_required = requires_human_review or has_high_risk_scope(changed_files)
@@ -81,6 +96,14 @@ def format_markdown_report(
     else:
         report.extend(["## Findings", "無。"])
 
+    if shadow_review is not None:
+        report.extend([
+            "", "## 工具查證影子對照（不變更正式閘門）",
+            f"- 候選結論：`{shadow_review['decision']}`",
+            f"- 候選 Findings：{len(shadow_review['findings'])}；"
+            f"阻擋項目：{len(shadow_review['blocking_findings'])}",
+            "- 四態查證與缺失上下文詳見 JSON 報告的 claim_audit。",
+        ])
     report.extend([
         "",
         "## 已通過檢查",
@@ -105,6 +128,8 @@ def format_json_report(
     audit_info: dict[str, Any] | None = None,
     requires_human_review: bool = False,
     high_risk_files: list[str] | None = None,
+    shadow_review: dict[str, Any] | None = None,
+    claim_audit: list[dict[str, Any]] | None = None,
 ) -> str:
     """產出 JSON 格式之審查元數據。"""
     sanitized_findings = []
@@ -133,6 +158,10 @@ def format_json_report(
             key_name: redact_secrets(str(val_obj)) if isinstance(val_obj, str) else val_obj
             for key_name, val_obj in audit_info.items()
         }
+    if shadow_review is not None:
+        payload["shadow_review"] = json.loads(redact_secrets(json.dumps(shadow_review)))
+    if claim_audit is not None:
+        payload["claim_audit"] = json.loads(redact_secrets(json.dumps(claim_audit)))
     return json.dumps(
         payload,
         ensure_ascii=False,

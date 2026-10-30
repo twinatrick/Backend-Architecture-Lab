@@ -51,6 +51,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
+      - name: 安裝受信任程式的 Python 執行依賴
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ai-review-venv"
+          "$RUNNER_TEMP/ai-review-venv/bin/python" -m pip install --disable-pip-version-check -r .github/ai-review/requirements.txt
+          echo "$RUNNER_TEMP/ai-review-venv/bin" >> "$GITHUB_PATH"
+
       - name: Run trusted batch review and deterministic gate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,6 +85,8 @@ jobs:
           REPO: ${{ github.repository }}
           EVENT_PATH: ${{ github.event_path }}
           PYTHONUNBUFFERED: "1"
+          AI_REVIEW_VERDICT_LEDGER_WRITER: ${{ vars.AI_REVIEW_VERDICT_LEDGER_WRITER }}
+          AI_REVIEW_LEDGER_READ_TOKEN: ${{ secrets.AI_REVIEW_LEDGER_READ_TOKEN }}
         run: python3 -u .github/ai-review/review.py
 
       - name: Upload final report

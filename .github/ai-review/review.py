@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from batch_runner import (
     process_batches_parallel,
 )
 from batching import build_batches
+from claim_verifier import validate_claim_gate_mode
 from engine import evaluate, load_policy, validate_finding
 from github_client import (
     REPO,
@@ -30,6 +32,7 @@ from model_pool import get_gemini_candidate_models
 from orchestrator import chat_completion
 from redaction import get_gh_token
 from reporter import format_json_report, format_markdown_report
+from snapshot_static_checks import evaluate_snapshot_shadow_review
 from static_checks import run_static_checks
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,11 +75,13 @@ def _process_batches_parallel(
     head_sha: str = "",
     max_workers: int = 3,
     stagger_seconds: float = 1.5,
+    base_sha: str = "",
 ) -> list[dict[str, Any]]:
     return process_batches_parallel(
         batches, files, rules_text, contract_text, policy, pr_number,
         repo_name=repo_name, head_sha=head_sha, max_workers=max_workers,
         stagger_seconds=stagger_seconds, chat_fn=chat_completion, gh_get_fn=gh_get,
+        base_sha=base_sha,
     )
 
 
@@ -85,6 +90,7 @@ def _fetch_all_pr_files(repo_name: str, pr_number: int) -> list[dict[str, Any]]:
 
 
 def main() -> None:
+    validate_claim_gate_mode()
     if not get_gh_token() or (not get_groq_api_keys() and not get_gemini_api_keys()):
         raise SystemExit("未配置必要的信任密鑰（GH_TOKEN 與至少一組 AI Provider 密鑰）。")
 
@@ -180,14 +186,14 @@ def main() -> None:
     default_stagger = "0.8" if len(batches) > 4 else "1.0"
     max_workers = int(os.environ.get("AI_REVIEW_MAX_WORKERS", default_workers))
     stagger_seconds = float(os.environ.get("AI_REVIEW_STAGGER_SECONDS", default_stagger))
+    shadow_deadline = time.monotonic() + 900
     results = _process_batches_parallel(
         batches, files, rules_text, contract_text, policy, pr_number,
         repo_name=repo_name, head_sha=head_sha,
+        base_sha=pr_data.get("base", {}).get("sha", ""),
         max_workers=max_workers, stagger_seconds=stagger_seconds,
     )
-    reviewed_files = [
-        file_name
-        for res_item in results
+    reviewed_files = [file_name for res_item in results
         for file_name in normalize_paths(res_item.get("files_reviewed", []))
     ]
     llm_findings = [
@@ -208,24 +214,26 @@ def main() -> None:
             )
             raise SystemExit(invalid_err)
     passed_checks = [chk for res in results for chk in res.get("passed_checks", [])]
-
     static_findings = run_static_checks(files)
-    eval_result = evaluate(
-        llm_findings + static_findings,
-        normalize_paths(expected_files),
-        reviewed_files,
-        policy,
+    shadow_review = evaluate_snapshot_shadow_review(
+        results, files, normalize_paths(expected_files), reviewed_files, policy,
+        repo_name, head_sha, gh_get, shadow_deadline,
+        pr_data.get("base", {}).get("sha", ""), pr_number,
     )
-    decision = eval_result["decision"]
-    unique_findings = eval_result["findings"]
-    blocking_findings = eval_result["blocking_findings"]
+    eval_result = evaluate(
+        llm_findings + static_findings, normalize_paths(expected_files), reviewed_files, policy,
+    )
+    decision, unique_findings, blocking_findings = (
+        eval_result["decision"], eval_result["findings"], eval_result["blocking_findings"]
+    )
     requires_human = eval_result.get("requires_human_review", False)
     high_risk_files = eval_result.get("high_risk_files", [])
 
     try:
         latest_pr = gh_get(f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}")
         latest_head_sha = latest_pr.get("head", {}).get("sha", "")
-        if not latest_head_sha or latest_head_sha != head_sha:
+        if (not latest_head_sha or latest_head_sha != head_sha
+                or latest_pr.get("base", {}).get("sha") != pr_data.get("base", {}).get("sha")):
             toctou_err = (
                 f"TOCTOU 衝突：PR #{pr_number} head SHA 於審查期間變更或缺失 "
                 f"({head_sha[:8]} -> {str(latest_head_sha)[:8]})，中止審查。"
@@ -264,24 +272,22 @@ def main() -> None:
         audit_info=audit_info,
         requires_human_review=requires_human,
         high_risk_files=high_risk_files,
+        shadow_review=shadow_review,
     )
     publish_review(
-        pr_number,
-        body,
-        decision,
+        pr_number, body, decision,
         commit_id=head_sha,
         requires_human_review=requires_human,
     )
     Path("review.md").write_text(body + "\n", encoding="utf-8")
     json_report = format_json_report(
-        decision,
-        unique_findings,
-        blocking_findings,
-        len(results),
-        changed_files,
+        decision, unique_findings, blocking_findings,
+        len(results), changed_files,
         audit_info=audit_info,
         requires_human_review=requires_human,
         high_risk_files=high_risk_files,
+        shadow_review=shadow_review,
+        claim_audit=[item for result in results for item in result.get("claim_audit", [])],
     )
     Path("ai-review.json").write_text(json_report, encoding="utf-8")
     print(body)
