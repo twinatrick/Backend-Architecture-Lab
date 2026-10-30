@@ -58,3 +58,25 @@ def test_both_workflows_install_trusted_requirements_before_running_python():
                       if step.get("run", "").startswith("python3 ")
                       and ".github/ai-review/" in step["run"].splitlines()[0]]
         assert executions and all(index > install for index in executions)
+
+
+def test_runtime_requirements_pin_yaml_distribution():
+    requirements = (WORKFLOWS.parent / "ai-review/requirements.txt").read_text(encoding="utf-8")
+    assert re.search(r"^PyYAML==\d+\.\d+\.\d+$", requirements, re.MULTILINE)
+
+
+def test_ci_import_smoke_uses_isolated_runtime_only_environment_without_secrets():
+    job = load_workflow("ci.yml")["jobs"]["ai-review-runtime"]
+    assert job["permissions"] == {"contents": "read"}
+    assert "secrets." not in str(job)
+    checkout = job["steps"][0]
+    assert re.fullmatch(r"actions/checkout@[0-9a-f]{40}", checkout["uses"])
+    assert checkout["with"]["persist-credentials"] == "false"
+    run = next(step["run"] for step in job["steps"] if "run" in step)
+    assert 'python -m venv "$RUNNER_TEMP/ai-review-runtime"' in run
+    assert "--system-site-packages" not in run
+    assert run.count("-m pip install") == 1
+    assert "-r .github/ai-review/requirements.txt" in run
+    assert '"$RUNNER_TEMP/ai-review-runtime/bin/python" -I -' in run
+    assert "import review" in run and "import record_verdict" in run
+    assert run.index("-m pip install") < run.index("import review")
