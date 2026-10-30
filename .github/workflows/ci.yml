@@ -27,7 +27,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven
+          # 帳戶快取傳出流量超額時會拖延還原；改由 Maven 直接下載依賴。
 
       - name: Make mvnw executable
         run: chmod +x mvnw
@@ -65,7 +65,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -75,7 +75,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven
+          # 與 build 一致，避免 Actions 快取還原耗盡整合測試時間。
 
       - name: Make mvnw executable
         run: chmod +x mvnw
