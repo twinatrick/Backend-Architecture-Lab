@@ -22,6 +22,7 @@ from redaction import redact_secrets
 from reporter import format_json_report
 from rule_version import trusted_rule_version
 from snapshot_static_checks import evaluate_snapshot_shadow_review
+from source_budget import SourceReadBudget
 from static_checks import run_static_checks
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -101,6 +102,7 @@ def execute_trial(manifest: dict, files: list, batches: list, getter: Any = gh_g
     if snapshot_identity(getter(url)) != expected:
         raise ValueError("試用開始前審查快照已過期")
     deadline = time.monotonic() + 900
+    source_budget = SourceReadBudget(deadline=deadline)
     policy = load_policy()
     enrich_files_with_full_content(repo, files, expected["head"], gh_get_fn=getter)
 
@@ -113,7 +115,7 @@ def execute_trial(manifest: dict, files: list, batches: list, getter: Any = gh_g
             batches, files, (ROOT / "開發規範.md").read_text(encoding="utf-8"),
             (ROOT / ".github/AI_REVIEW.md").read_text(encoding="utf-8"), policy, number,
             repo_name=repo, head_sha=expected["head"], base_sha=expected["base"],
-            max_workers=1, gh_get_fn=getter,
+            max_workers=1, gh_get_fn=getter, source_budget=source_budget,
         )
     paths = normalize_paths(manifest["changed_files"])
     reviewed = [path for result in results
@@ -122,7 +124,7 @@ def execute_trial(manifest: dict, files: list, batches: list, getter: Any = gh_g
     baseline = evaluate(original + run_static_checks(files), paths, reviewed, policy)
     shadow = evaluate_snapshot_shadow_review(
         results, files, paths, reviewed, policy, repo, expected["head"], getter, deadline,
-        expected["base"], number,
+        expected["base"], number, source_budget=source_budget,
     )
     if shadow is None:
         raise RuntimeError("未產生影子結果，不得視為試用完成")

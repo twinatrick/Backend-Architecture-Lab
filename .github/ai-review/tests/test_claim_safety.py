@@ -272,7 +272,7 @@ def test_shadow_report_is_separate_and_preserves_static_findings():
     assert batches[0]["findings"] == [original]
 
 
-def test_previously_spent_context_budget_is_not_reset_for_unknown_claim():
+def test_spent_model_context_does_not_prevent_static_evidence_reading():
     finding = _finding(rule="BUSINESS_LOGIC")
     snapshot = _snapshot("class A {\n int number;\n java.util.Date value;\n}")
     budget = VerificationBudget(max_extra_context_tokens=10, extra_context_tokens_used=9)
@@ -280,8 +280,9 @@ def test_previously_spent_context_budget_is_not_reset_for_unknown_claim():
         "business", 1, ["src/A.java"], [finding], snapshot, RuleRegistry(), None,
         "prompt", gate_mode="enforce", budget=budget,
     )
-    assert budget.extra_context_tokens_used <= 10
-    assert "REVIEW_INCOMPLETE" in result[0]["problem"]
+    assert budget.extra_context_tokens_used == 9
+    assert snapshot.extra_tokens_used > 10
+    assert "SPECULATION_ONLY" in result[0]["problem"]
 
 
 def test_exhausted_tool_budget_preserves_pending_claim():

@@ -17,6 +17,7 @@ from orchestrator import chat_completion
 from parser import extract_json_payload, normalize_batch_paths
 from prompt_builder import build_batch_prompt, filter_relevant_rules
 from redaction import sanitize_diff
+from source_budget import SourceReadBudget
 
 
 def process_batch(
@@ -25,6 +26,7 @@ def process_batch(
     repo_name: str = "", head_sha: str = "", delay: float = 0.0,
     chat_fn: Any = None, gh_get_fn: Any = None, session_start_monotonic: float | None = None,
     base_sha: str = "", verification_budget: VerificationBudget | None = None,
+    source_budget: SourceReadBudget | None = None,
 ) -> dict[str, Any]:
     """執行單一批次的 LLM 提示建構、呼叫、回傳解析與安全結構驗證（支援自動重發）。"""
     if delay > 0:
@@ -36,6 +38,7 @@ def process_batch(
     if verification_budget is None:
         verification_budget = VerificationBudget(session_start_monotonic=session_start_monotonic)
     getter = gh_get_fn or gh_get
+    source_budget = source_budget or SourceReadBudget(deadline=session_start_monotonic + 900)
     relevant_rules = filter_relevant_rules(rules_text, scope)
     diff_parts: list[str] = []
     missing_findings: list[dict[str, Any]] = []
@@ -76,6 +79,7 @@ def process_batch(
         "repo_name": repo_name, "head_sha": head_sha, "chat_fn": chat_fn, "gh_get_fn": gh_get_fn,
         "base_sha": base_sha, "session_start_monotonic": session_start_monotonic,
         "verification_budget": verification_budget,
+        "source_budget": source_budget,
     }
 
     def _split_and_retry(reason: str) -> dict[str, Any]:
@@ -181,6 +185,8 @@ def process_batch(
             ),
             session_start_monotonic=session_start_monotonic,
             budget=verification_budget,
+            source_budget=source_budget,
+            repository_getter=getter,
         )
         if missing_findings:
             batch_data.setdefault("findings", []).extend(missing_findings)
@@ -203,11 +209,13 @@ def process_batches_parallel(
     repo_name: str = "", head_sha: str = "", max_workers: int = 3,
     stagger_seconds: float = 1.5, chat_fn: Any = None, gh_get_fn: Any = None,
     base_sha: str = "",
+    source_budget: SourceReadBudget | None = None,
 ) -> list[dict[str, Any]]:
     """多執行緒平行處理批次審查，並結合錯峰啟動機制平滑 API 速率限制。"""
     if not batches:
         return []
     session_start = time.monotonic()
+    source_budget = source_budget or SourceReadBudget(deadline=session_start + 900)
 
     actual_workers = max(1, min(len(batches), max_workers))
     if actual_workers == 1:
@@ -216,7 +224,7 @@ def process_batches_parallel(
                 scope, idx, paths, files, rules_text, contract_text, policy, pr_number,
                 repo_name=repo_name, head_sha=head_sha, delay=5.0 if idx > 1 else 0.0,
                 chat_fn=chat_fn, gh_get_fn=gh_get_fn, session_start_monotonic=session_start,
-                base_sha=base_sha,
+                base_sha=base_sha, source_budget=source_budget,
             )
             for idx, (scope, paths) in enumerate(batches, 1)
         ]
@@ -237,7 +245,7 @@ def process_batches_parallel(
             worker_scope, worker_idx, worker_paths, files, rules_text, contract_text,
             policy, pr_number, repo_name=repo_name, head_sha=head_sha,
             delay=0.0, chat_fn=chat_fn, gh_get_fn=gh_get_fn, session_start_monotonic=session_start,
-            base_sha=base_sha,
+            base_sha=base_sha, source_budget=source_budget,
         )
         return worker_idx, batch_data
 
