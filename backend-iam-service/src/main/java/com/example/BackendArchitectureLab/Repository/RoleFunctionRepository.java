@@ -15,19 +15,19 @@ import java.util.UUID;
 public interface RoleFunctionRepository extends JpaRepository<RoleFunction, UUID> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from RoleFunction s where s.function.id = ?1")
-    void deleteByFunction(UUID key);
+    void deleteByFunction(UUID functionId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from RoleFunction s where s.role.id = ?1")
-    void deleteByRoleKey(UUID key);
+    void deleteByRoleKey(UUID roleId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from RoleFunction s where s.function in ?1 and s.role in ?2")
-    void deleteByFunctionAndRole(List<Function> function, List<Role> role);
+    void deleteByFunctionAndRole(List<Function> functions, List<Role> roles);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from RoleFunction s where s.function in ?1")
-    void deleteAllByFunctionIn(Collection<Function> function);
+    void deleteAllByFunctionIn(Collection<Function> functions);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from RoleFunction s where s.function.id in :functionIds")

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -128,11 +129,18 @@ public class FunctionDataAccessImpl implements IFunctionDataAccess {
     }
 
     @Override
-    public List<Function> findAllByParentIn(Collection<String> parentIds) {
+    public List<Function> findAllByParentIn(Collection<UUID> parentIds) {
         if (parentIds == null || parentIds.isEmpty()) {
             return List.of();
         }
-        return functionRepository.findAllByParentIn(parentIds);
+        List<String> parentIdStrings = parentIds.stream()
+                .filter(Objects::nonNull)
+                .map(UUID::toString)
+                .toList();
+        if (parentIdStrings.isEmpty()) {
+            return List.of();
+        }
+        return functionRepository.findAllByParentIn(parentIdStrings);
     }
 
     @Override
@@ -150,21 +158,21 @@ public class FunctionDataAccessImpl implements IFunctionDataAccess {
             return List.of();
         }
         Set<UUID> visited = new LinkedHashSet<>();
-        List<String> currentParentIds = new ArrayList<>();
+        List<UUID> currentParentIds = new ArrayList<>();
         for (UUID rootId : rootIds) {
             if (rootId != null && visited.add(rootId)) {
-                currentParentIds.add(rootId.toString());
+                currentParentIds.add(rootId);
             }
         }
         while (!currentParentIds.isEmpty()) {
-            List<Function> children = functionRepository.findAllByParentIn(currentParentIds);
+            List<Function> children = findAllByParentIn(currentParentIds);
             if (children == null || children.isEmpty()) {
                 break;
             }
-            List<String> nextParentIds = new ArrayList<>();
+            List<UUID> nextParentIds = new ArrayList<>();
             for (Function child : children) {
                 if (child != null && child.getId() != null && visited.add(child.getId())) {
-                    nextParentIds.add(child.getId().toString());
+                    nextParentIds.add(child.getId());
                 }
             }
             currentParentIds = nextParentIds;

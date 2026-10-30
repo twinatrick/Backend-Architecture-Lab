@@ -145,12 +145,12 @@ public interface IFunctionDataAccess {
     List<Function> findAllParentHierarchyByChildIds(List<UUID> childIds);
 
     /**
-     * 依父節點 UUID 字串集合查詢直屬子功能清單
+     * 依父節點 UUID 集合查詢直屬子功能清單
      *
-     * @param parentIds 父節點 UUID 字串集合
+     * @param parentIds 父節點 UUID 集合
      * @return 直屬子功能清單
      */
-    List<Function> findAllByParentIn(Collection<String> parentIds);
+    List<Function> findAllByParentIn(Collection<UUID> parentIds);
 
     /**
      * 依功能 UUID 集合批次刪除功能
