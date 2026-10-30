@@ -90,6 +90,34 @@ jobs:
           name: integration-test-results
           path: "**/target/failsafe-reports/"
 
+  # 以獨立環境驗證正式依賴，避免開發或測試套件掩蓋啟動時缺少的套件。
+  ai-review-runtime:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.11'
+
+      - name: 驗證乾淨環境的 AI Review 入口匯入
+        run: |
+          python -m venv "$RUNNER_TEMP/ai-review-runtime"
+          "$RUNNER_TEMP/ai-review-runtime/bin/python" -m pip install --disable-pip-version-check -r .github/ai-review/requirements.txt
+          "$RUNNER_TEMP/ai-review-runtime/bin/python" -I - <<'PY'
+          import sys
+          sys.path.insert(0, '.github/ai-review')
+          import review
+          import record_verdict
+          print('AI Review runtime imports OK')
+          PY
+
   # ============================================
   # Job 1.5：Python 服務驗證 (Ruff & Pytest)
   # ============================================
