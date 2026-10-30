@@ -26,12 +26,17 @@ public class RepositoryCaller {
 """
 
 
-@pytest.mark.parametrize("caller,expected_status,blocked", [
-    (CALLER, "COMPLIANT", False),
-    (CALLER.replace("String id", "Integer id"), "INCONCLUSIVE", True),
+@pytest.mark.parametrize("target,caller,expected_status,blocked", [
+    (TARGET, CALLER, "COMPLIANT", False),
+    (TARGET, CALLER.replace("String id", "Integer id"), "INCONCLUSIVE", True),
+    (TARGET.replace(" void removeCustom", ' @Query("""\nselect { example }\n""")\n'
+                    " void removeCustom"),
+     CALLER.replace("repository.removeCustom(id)",
+                    "String localId = id; repository.removeCustom(localId)"),
+     "COMPLIANT", False),
 ])
-def test_caller_resolution_gate_audit_and_json_agree(caller, expected_status, blocked):
-    sources = {TARGET_PATH: TARGET, CALLER_PATH: caller}
+def test_caller_resolution_gate_audit_and_json_agree(target, caller, expected_status, blocked):
+    sources = {TARGET_PATH: target, CALLER_PATH: caller}
     getter = MagicMock(return_value={
         "truncated": False, "tree": [{"type": "blob", "path": path} for path in sources],
     })
@@ -40,8 +45,9 @@ def test_caller_resolution_gate_audit_and_json_agree(caller, expected_status, bl
         repo_name="owner/repo", head_sha="a" * 40, base_sha="b" * 40,
         repository_getter=getter,
     )
+    method_line = target[:target.index("void removeCustom")].count("\n") + 1
     finding = {
-        "location": f"{TARGET_PATH}:3", "rule": "RULE_DEAD_CODE_REPOSITORY",
+        "location": f"{TARGET_PATH}:{method_line}", "rule": "RULE_DEAD_CODE_REPOSITORY",
         "problem": "Repository 方法沒有呼叫端", "evidence": "void removeCustom(String id);",
         "severity": "HIGH", "confidence": "HIGH", "category": "ARCHITECTURE",
         "risk": "無法確認方法使用狀態", "recommendation": "查證生產程式呼叫",

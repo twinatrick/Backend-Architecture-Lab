@@ -145,11 +145,14 @@ def test_multiple_known_framework_parents_resolve_custom_method_but_not_framewor
                             "findOne") is None
 
 
-def test_unicode_escape_and_text_block_are_not_treated_as_complete_symbols():
+def test_unicode_escape_is_unknown_but_well_formed_text_block_is_masked():
     escaped = CALLER.replace("repository.removeCustom", r"\u0072.removeCustom")
     assert not parse_java_calls(escaped).complete
     text_block = 'interface Repo { @Query("""\nquery\n""") void remove(); }'
-    assert not parse_java_calls(text_block).complete
+    model = parse_java_calls(text_block)
+    assert model.complete
+    assert "query" not in model.code
+    assert target_signature(model, "remove") is not None
 
 
 @pytest.mark.parametrize("path", [
