@@ -6,6 +6,7 @@ if str(AI_REVIEW_DIR) not in sys.path:
     sys.path.insert(0, str(AI_REVIEW_DIR))
 
 import check_java
+import static_checks
 
 
 def test_check_java_cross_module_data_access():
@@ -215,3 +216,40 @@ def test_check_java_strong_typed_map_allowed():
     )
     rules = [item["rule"] for item in findings]
     assert not any("禁止弱型別 Map 回傳" in rule for rule in rules)
+
+
+def test_run_static_checks_resolves_repository_callers_from_pr_files():
+    repo_path = "backend-iam-service/src/main/java/com/example/Repository/DemoRepository.java"
+    dao_path = (
+        "backend-iam-service/src/main/java/com/example/DataAccess/Impl/DemoDataAccessImpl.java"
+    )
+    files = [
+        {
+            "filename": repo_path,
+            "status": "modified",
+            "patch": (
+                "@@ -1,2 +1,4 @@\n"
+                " public interface DemoRepository {\n"
+                "+    void deleteByCustomIdsInPrMemory(List<String> ids);\n"
+                " }\n"
+            ),
+        },
+        {
+            "filename": dao_path,
+            "status": "modified",
+            "patch": (
+                "@@ -1,2 +1,4 @@\n"
+                " public class DemoDataAccessImpl {\n"
+                "+    public void clean(List<String> ids) {\n"
+                "+        demoRepository.deleteByCustomIdsInPrMemory(ids);\n"
+                "+    }\n"
+                " }\n"
+            ),
+        },
+    ]
+    findings = static_checks.run_static_checks(files)
+    repo_dead_findings = [
+        item for item in findings if "deleteByCustomIdsInPrMemory" in item.get("problem", "")
+    ]
+    assert repo_dead_findings == []
+

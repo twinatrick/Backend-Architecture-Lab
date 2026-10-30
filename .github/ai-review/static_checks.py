@@ -1,8 +1,10 @@
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
 from check_java import check_java_file
+from check_java_quality import default_repo_searcher
 from check_python import check_python_file
 from check_rules import (
     RULE_PYTHON_MODULE_LOC,
@@ -66,9 +68,37 @@ def check_secrets(
     return findings
 
 
+def _build_pr_repo_searcher(files: list[dict[str, Any]]) -> Any:
+    """結合 PR 變更檔案內容與本地 git grep，避免 Trusted CI 漏檢同 PR 新增之呼叫端。"""
+
+    def _searcher(method_name: str, repo_path: str) -> list[str]:
+        norm_repo = repo_path.replace("\\", "/").lstrip("./")
+        word_pat = re.compile(rf"\b{re.escape(method_name)}\b")
+        matched: set[str] = set(default_repo_searcher(method_name, repo_path))
+        for item in files:
+            fpath = (item.get("filename") or item.get("path") or "").replace("\\", "/").lstrip("./")
+            if not fpath or item.get("status") in ("removed", "deleted"):
+                continue
+            if (
+                fpath == norm_repo
+                or fpath.endswith("/" + norm_repo)
+                or norm_repo.endswith("/" + fpath)
+            ):
+                continue
+            text = "\n".join(
+                filter(None, (item.get("full_content"), item.get("content"), item.get("patch")))
+            )
+            if word_pat.search(text):
+                matched.add(fpath)
+        return sorted(matched)
+
+    return _searcher
+
+
 def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """對變更檔案清單執行確定性靜態規則檢查。"""
     all_findings: list[dict[str, Any]] = []
+    repo_searcher = _build_pr_repo_searcher(files)
 
     for file_item in files:
         path = file_item.get("filename") or file_item.get("path") or ""
@@ -109,7 +139,12 @@ def run_static_checks(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 )
         elif norm_path.endswith(".java") and clean_content:
             all_findings.extend(
-                check_java_file(path, clean_content, changed_lines=changed_lines)
+                check_java_file(
+                    path,
+                    clean_content,
+                    changed_lines=changed_lines,
+                    repo_searcher=repo_searcher,
+                )
             )
         elif norm_path.endswith(".py"):
             py_code = _read_local_content(path, file_item, clean_content)
