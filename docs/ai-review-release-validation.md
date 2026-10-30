@@ -10,7 +10,7 @@
 ## 已實測範圍
 
 - 完整 Python 測試套件，包含單元、整合介面與對抗案例；具體總數以當次 pytest 輸出為準。
-  本輪最新實測為 **623 passed**；此數字不等於正式部署驗收通過。
+  本輪最新實測為 **647 passed**；此數字不等於正式部署驗收通過。
 - 對工作目錄中的 AI Review Python 原始碼與測試逐檔執行共用靜態規範檢查，
   不以舊暫存區的檢查冒充最新程式驗證。
 - 檢查全部 AI Review Python 模組的靜態 import 圖無環；不宣稱能涵蓋動態 import。
@@ -110,6 +110,27 @@
   不能視為完整 LLM 審查或合併後 CI 已通過。
 - 同輪 Maven 以 `.env` Java 21 與 `.run` 設定、單一 Surefire JVM 循序重跑，
   九個 Reactor 模組全部 `SUCCESS`，`BUILD SUCCESS`、Failures／Errors 均為零，耗時 5 分鐘。
+
+## PR #188 text block 與局部引數型別補強
+
+- Java 呼叫解析明確啟用 text block 詞法遮罩，保留字元偏移與行號；SQL 中的大括號、
+  假方法及註解不成為 Java 符號。非法開啟分隔符、未閉合區塊與 Unicode 前置轉義仍不確認。
+  其他未宣告支援 text block 的規則保持原有能力界線，不一併放寬。
+- 局部引數限方法直接區塊內、呼叫前已初始化的明確型別；`var`、分支初始化、重新賦值、
+  閉包與作用域歧義不作反證。僅允許已知 JDK `List<T>` 到 `Collection<T>` 的契約，
+  泛型實參須相同，不以參數個數或任意繼承猜測簽名。亦驗證泛型及顯式匯入遮蔽的反例。
+- 對 PR #188 Head `09bc5448785a026a74da76ca1225015d180a5ab5`、Base
+  `0de0c306251aa48c343df697ecaadf1cb8215468` 唯讀重跑 132 個變更檔案：
+  耗時 53.53 秒、唯一版本來源 1,159,510 bytes，14 個方法全數取得有效生產呼叫反證，
+  此靜態階段為 **0 項 Finding、14 筆方法稽核**；沒有將未知狀態硬改成通過。
+  `com.example.BackendArchitectureLab.DataAccess.Impl.FunctionDataAccessImpl` 的
+  `findAllByParentIn` 與 `deleteByIds` 呼叫均已解析。
+- 已補正式查證閘門、稽核與 JSON 報告一致性案例；本輪完整 Python 測試為 **647 passed**，
+  最新工作目錄共用靜態規範掃描為 **108 檔、0 項 Finding**。
+  真實回歸產物留在外部 `pr188-text-block-static-final.json`，不提交來源副本或存取憑證。
+  此結果不是完整模型重審，不代表遠端 CI 或高風險人工簽核已通過；工具須合入受信任分支才生效。
+- 同輪使用 `.env` Java 21 與 `.run` 設定、標準 RTK 包裝及單一 Surefire JVM 重跑 Maven：
+  九個 Reactor 模組全部 `SUCCESS`，`BUILD SUCCESS`、Failures／Errors 均為零，耗時 5 分 19 秒。
 
 ## Python 分支覆蓋率盤點
 

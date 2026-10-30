@@ -26,7 +26,7 @@ class JavaCallModel:
 
 
 def parse_java_calls(content: str) -> JavaCallModel:
-    code, complete = strip_comments_and_strings(content)
+    code, complete = strip_comments_and_strings(content, allow_text_blocks=True)
     if "\\u" in content:
         complete = False  # Java Unicode 轉義先於詞法處理，有限模型不假設原始字面可直接解析。
     package_match = re.search(r"\bpackage\s+([\w.]+)\s*;", code)
@@ -87,6 +87,8 @@ def canonical_type(model: JavaCallModel, declaration: str) -> str | None:
             return name
         if "." in name:
             return name
+        if name in model.imports:
+            return model.imports[name]
         if name in ("String", "Integer", "Long", "Boolean", "Object"):
             return "java.lang." + name
         return model.imports.get(name, model.package + "." + name)
@@ -140,12 +142,15 @@ def target_signature(model: JavaCallModel, method: str) -> tuple[int, str, tuple
 def arguments_match(
     model: JavaCallModel, offset: int, args: list[str], expected: tuple[str, ...],
 ) -> bool:
-    """限可定位方法參數的精確型別；不猜測運算式、泛型轉換或局部資料流。"""
+    """限方法參數或直接區塊明確宣告型別；不推導初始化運算式的型別。"""
     headers = [item for item in METHOD_HEADER_RE.finditer(model.code)
                if item.end() <= offset and model.depth[item.start()] == 1]
     if not headers:
         return False
     header = headers[-1]
+    if re.search(r"\b(?:public|protected|private|default)\s+"
+                 r"(?:(?:static|final|synchronized|abstract)\s+)*<", header.group(0)):
+        return False
     if any(model.depth[index] == 2 and model.code[index] == "}"
            for index in range(header.end(), offset)):
         return False
@@ -154,12 +159,64 @@ def arguments_match(
         return False
     by_name = {param.split()[-1]: canonical_type(model, param) for param in parameters}
     for arg, required in zip(args, expected):
-        if not re.fullmatch(r"\w+", arg) or by_name.get(arg) != required:
+        if not re.fullmatch(r"\w+", arg):
+            return False
+        if arg not in by_name:
+            if not local_argument_matches(model, header.end(), offset, arg, required):
+                return False
+            continue
+        if not argument_type_matches(by_name[arg], required):
             return False
         # 引數名稱在方法內重宣告、賦值或 lambda 捕獲時，有限資料流不作保證。
         prefix = model.code[header.end():offset]
         if re.search(rf"\b{arg}\s*=(?!=)|\b\w+\s+{arg}\b|\b{arg}\s*->", prefix):
             return False
+    return True
+
+
+def argument_type_matches(actual: str | None, required: str) -> bool:
+    """僅納入 JDK 明確的 List 到 Collection 契約；泛型實參必須完全相同。"""
+    if actual == required:
+        return True
+    if actual is None:
+        return False
+    match = re.fullmatch(r"java\.util\.List<([^<>?]+)>", actual)
+    return bool(match and required == f"java.util.Collection<{match.group(1)}>")
+
+
+def local_argument_matches(
+    model: JavaCallModel, body_start: int, offset: int, name: str, required: str,
+) -> bool:
+    """只接受方法直接區塊已初始化的顯式型別，不猜 var／分支賦值／閉包作用域。"""
+    prefix = model.code[body_start:offset]
+    if re.search(r"\b(?:try|catch|finally|class|record)\b|->", prefix):
+        return False
+    declarations = list(re.finditer(
+        rf"(?<![\w.])(?:final\s+)?([\w.]+(?:<[^<>;{{}}]+>)?)\s+{name}\s*=", prefix,
+    ))
+    if len(declarations) != 1:
+        return False
+    declaration = declarations[0]
+    absolute = body_start + declaration.start()
+    if model.depth[absolute] != 2:
+        return False
+    boundary = prefix[:declaration.start()].rstrip()
+    if boundary and boundary[-1] not in ";{}":
+        return False
+    if not argument_type_matches(canonical_type(model, f"{declaration.group(1)} {name}"),
+                                 required):
+        return False
+    end = prefix.find(";", declaration.end())
+    if end < 0 or not prefix[declaration.end():end].strip():
+        return False
+    initializer = prefix[declaration.end():end]
+    # 自我引用、運算子或區塊使確定初始化關係不明確；不追蹤複雜資料流。
+    if re.search(rf"\b{name}\b|[{{}}]", initializer):
+        return False
+    remainder = prefix[end + 1:]
+    if re.search(rf"\b{name}\s*(?:[+*/%&|^\-]?=(?!=)|\+\+|--)|\b\w+\s+{name}\b",
+                 remainder):
+        return False
     return True
 
 
@@ -170,7 +227,8 @@ def resolved_calls(
     if not model.complete or not target.complete:
         return []
     # 子類別、匿名類別及萬用匯入會使此有限模型無法排除名稱遮蔽。
-    if re.search(r"\bextends\b|\bimport\s+[\w.]+\.\*|\bnew\b[^;{}]*\{", model.code):
+    if re.search(r"\bextends\b|\bimport\s+[\w.]+\.\*|\bnew\b[^;{}]*\{"
+                 r"|\b(?:class|interface|record)\s+\w+\s*<", model.code):
         return []
     fields = list(re.finditer(
         r"\b(?:private|protected|public)\s+(?:final\s+)?(\w+)\s+(\w+)\s*;", model.code,
