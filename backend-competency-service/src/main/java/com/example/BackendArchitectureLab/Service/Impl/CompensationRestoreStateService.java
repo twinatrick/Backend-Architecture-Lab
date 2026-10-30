@@ -50,20 +50,13 @@ public class CompensationRestoreStateService implements ICompensationRestoreStat
     @Override
     public void scheduleMarkRestoreFailed(UUID eventId, String ownerId, Long fencingVersion, Exception e) {
         final String reason = e.getMessage();
-        Runnable markFailedTask = () -> {
-            Runnable action = () -> {
-                int updated = restoreLogRepository.markRestoreState(
-                        eventId, ownerId, fencingVersion, "FAILED", new Date(), reason);
-                if (updated == 0) {
-                    log.warn("markRestoreFailed skipped (token superseded or log missing): eventId={}", eventId);
-                }
-            };
-            if (transactionExecutor != null) {
-                transactionExecutor.runRequiresNew(action);
-            } else {
-                action.run();
+        Runnable markFailedTask = () -> transactionExecutor.runRequiresNew(() -> {
+            int updated = restoreLogRepository.markRestoreState(
+                    eventId, ownerId, fencingVersion, "FAILED", new Date(), reason);
+            if (updated == 0) {
+                log.warn("markRestoreFailed skipped (token superseded or log missing): eventId={}", eventId);
             }
-        };
+        });
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override

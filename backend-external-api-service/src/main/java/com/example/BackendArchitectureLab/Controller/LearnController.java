@@ -32,7 +32,7 @@ public class LearnController {
     public ResponseType<AudioRecognizeVo> recognizeAudio(
             @ApiPath(name = "lan", description = "目標語言代碼（如 zh 或 ja）", example = "zh") String lan,
             @ApiPath(name = "mode", description = "拼音轉換模式（pinyin, zhuyin, romaji, none）", example = "pinyin") String mode,
-            @ApiQuery(name = "file", required = true, description = "上傳之音訊檔案") MultipartFile file) {
+            @ApiQuery(name = "file", required = true, description = "上傳之音訊檔案", example = "sample.wav") MultipartFile file) {
         
         if (file.isEmpty()) {
             return ResponseType.Fail("BAD_REQUEST", "請上傳音訊檔案", 400);

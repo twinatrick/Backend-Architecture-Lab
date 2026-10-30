@@ -79,9 +79,6 @@ public class AuthService implements IAuthService {
             userVo.getPermissions().addAll(parent);
             return userVo;
         };
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheable("userInfo", email, loader);
     }
 
@@ -101,7 +98,7 @@ public class AuthService implements IAuthService {
     }
 
     private void enrichUserRoleFunctions(User user) {
-        if (roleDataAccess == null || user.getRoles() == null || user.getRoles().isEmpty()) {
+        if (user.getRoles() == null || user.getRoles().isEmpty()) {
             return;
         }
         List<UUID> roleIds = user.getRoles().stream()

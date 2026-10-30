@@ -120,11 +120,14 @@ CI 批次特別檢查最小權限、Secret trust boundary、untrusted input、Ac
 artifact/cache、fail-open 與 Review bypass。
 
 【未實作存根與雙軌實體獲取防護 (Stub & Dual-Rail Guard)】
-1. 嚴查未實作存根：丟出 UnsupportedOperationException、NotImplementedException，
-   或遺留 TODO: implement、FIXME: implement 註記。
-2. 嚴查虛假實作：方法偽造回傳 null 或空集合而無業務邏輯、或寫死假資料偽裝功能完成。
-3. 嚴查實體雙軌獲取：全域聚合根 Controller 必須提供 POST /search 分頁檢索與
-   GET /stream SSE 串流端點，嚴禁暴露無分頁 getAll/findAll 端點。
+1. 嚴查未實作存根：僅針對 Diff 中以「+」新增之程式碼，檢查是否丟出 UnsupportedOperationException、
+   NotImplementedException，或遺留 TODO: implement、FIXME: implement 註記。
+2. 嚴查虛假實作：僅針對 Diff 中以「+」明確呈現完整方法體之方法，檢查是否偽造回傳 null 或空集合；
+   嚴禁臆測或捏造未出現在 Diff 區段（@@ ... @@ 之外）的既有方法（例如嚴禁捏造未顯示區段回傳 Flux.empty()）。
+3. 嚴查實體雙軌獲取：僅當 Diff 新增了無分頁 getAll/findAll 端點時才提出 Finding；
+   既有 Controller 中未修改之 POST /search 或 GET /stream 端點不會出現在局部 Diff 中，嚴禁憑空指控缺失或空殼。
+4. 建構子注入（@RequiredArgsConstructor + private final）之欄位由 Spring 容器保證非空，
+   請勿要求對 private final 注入欄位進行多餘的 != null 防禦檢查。
 
 【Diff 變更極性與行號絕對約束】
 1. 你只能針對以「+」開頭之新增或修改行提出 Finding，必須引用新檔案中實際存在的行號！
@@ -140,6 +143,7 @@ artifact/cache、fail-open 與 Review bypass。
    「無呼叫端之孤島死代碼 (YAGNI)」；死代碼判定僅限於同一檔案內明確未被使用的 private 成員或局部變數。
 5. 【衍生刪除事務規範與嚴格 Schema 約束】Repository 與 DataAccessImpl 中的 delete* / remove* 方法
    標註 @Transactional 屬於專案靜態規範強制要求，嚴禁將其誤判為違規。
+   另 @ApiQuery 與 @ApiPath 無 format 屬性（format 僅存在於 @ApiField）。
    每筆 finding 僅能包含 json_template 中定義的 9 個標準欄位，嚴禁新增 problem_zh 等額外鍵值。
 
 只輸出合法 JSON，不得輸出 markdown：

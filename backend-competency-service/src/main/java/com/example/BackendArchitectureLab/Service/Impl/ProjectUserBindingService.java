@@ -147,13 +147,9 @@ public class ProjectUserBindingService implements IProjectUserBindingService {
         //    同步失敗重試耗盡（DEAD）時才觸發補償閉環（COMPENSATION_REQUIRED）。
         //    本地事務執行失敗已由 Spring 負責 rollback，此處不需發送補償事件，直接向上拋出。
         final Map<UUID, Map<UUID, UUID>> targetSkillsMap = memberSkillsMap;
-        if (transactionExecutor != null) {
-            transactionExecutor.runWritable(
-                    () -> doRebindProjectMemberSkills(projectId, targetSkillsMap, transactionId)
-            );
-        } else {
-            doRebindProjectMemberSkills(projectId, targetSkillsMap, transactionId);
-        }
+        transactionExecutor.runWritable(
+                () -> doRebindProjectMemberSkills(projectId, targetSkillsMap, transactionId)
+        );
     }
 
     /**

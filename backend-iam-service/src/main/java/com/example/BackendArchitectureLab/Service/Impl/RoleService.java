@@ -123,9 +123,6 @@ public class RoleService implements IRoleService {
             List<Role> roles = enrichRolesWithFunctions(roleDataAccess.findAll());
             return roles.stream().map(roleMapper::toVo).toList();
         });
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheableList("roles", "all", loader);
     }
 
@@ -141,9 +138,6 @@ public class RoleService implements IRoleService {
                     .orElseThrow(() -> new IllegalArgumentException("Role not found"));
             return roleMapper.toVo(role);
         });
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheable("roles", roleId, loader);
     }
 
@@ -697,9 +691,6 @@ public class RoleService implements IRoleService {
                     .map(functionMapper::toVo)
                     .toList();
         });
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheableList("roleFunctions", roleId, loader);
     }
 
@@ -723,9 +714,6 @@ public class RoleService implements IRoleService {
                     .map(roleMapper::toVo)
                     .toList();
         });
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheableList("roles", "byfunction:" + functionId, loader);
     }
 
@@ -749,9 +737,6 @@ public class RoleService implements IRoleService {
                     .map(userMapper::toVo)
                     .toList();
         });
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheableList("userRoles", "byrole:" + roleId, loader);
     }
 
@@ -775,9 +760,6 @@ public class RoleService implements IRoleService {
                     .map(roleMapper::toVo)
                     .toList();
         });
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheableList("roles", "byuser:" + userId, loader);
     }
 
@@ -791,9 +773,6 @@ public class RoleService implements IRoleService {
             List<Role> enriched = enrichRolesWithFunctions(List.of(role));
             return roleMapper.toVo(enriched.getFirst());
         });
-        if (cacheExecutor == null) {
-            return loader.get();
-        }
         return cacheExecutor.executeCacheable("roles", "byname:" + name, loader);
     }
     
@@ -952,15 +931,11 @@ public class RoleService implements IRoleService {
         if (email == null || email.isBlank()) {
             return;
         }
-        if (iamLocalCacheManager != null) {
-            iamLocalCacheManager.evictUser(email);
-        }
+        iamLocalCacheManager.evictUser(email);
     }
 
     private void evictAllLocalCaches() {
-        if (iamLocalCacheManager != null) {
-            iamLocalCacheManager.evictAll();
-        }
+        iamLocalCacheManager.evictAll();
     }
 
     private List<Role> enrichRolesWithFunctions(List<Role> roles) {

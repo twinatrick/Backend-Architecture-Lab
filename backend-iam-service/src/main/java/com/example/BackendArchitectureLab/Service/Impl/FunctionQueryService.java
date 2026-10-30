@@ -48,9 +48,6 @@ public class FunctionQueryService implements IFunctionQueryService {
 
     @Override
     public List<FunctionVo> getFunction() {
-        if (cacheExecutor == null) {
-            return functionDataAccess.findAll().stream().map(functionMapper::toVo).toList();
-        }
         return cacheExecutor.executeCacheableList(
                 "functions",
                 "all",
@@ -91,10 +88,6 @@ public class FunctionQueryService implements IFunctionQueryService {
 
     @Override
     public FunctionVo getFunctionByName(String name) {
-        if (cacheExecutor == null) {
-            Function function = functionDataAccess.findFunctionByName(name);
-            return function == null ? null : functionMapper.toVo(function);
-        }
         return cacheExecutor.executeCacheable("functions", "byname:" + name, () -> {
             Function function = functionDataAccess.findFunctionByName(name);
             return function == null ? null : functionMapper.toVo(function);
@@ -103,10 +96,6 @@ public class FunctionQueryService implements IFunctionQueryService {
 
     @Override
     public FunctionVo getFunctionByNameAndParent(String name, String parent) {
-        if (cacheExecutor == null) {
-            List<Function> functionList = functionDataAccess.findFunctionByNameAndParent(name, parent);
-            return functionList.isEmpty() ? null : functionMapper.toVo(functionList.getFirst());
-        }
         return cacheExecutor.executeCacheable("functions", "bynameparent:" + name + ":" + parent, () -> {
             List<Function> functionList = functionDataAccess.findFunctionByNameAndParent(name, parent);
             if (functionList.isEmpty()) {

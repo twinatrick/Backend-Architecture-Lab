@@ -72,10 +72,7 @@ public class ProjectCommandService implements IProjectCommandService {
             }
             return result;
         };
-        if (transactionExecutor != null) {
-            return transactionExecutor.executeWritable(addTask);
-        }
-        return addTask.get();
+        return transactionExecutor.executeWritable(addTask);
     }
 
     /**
@@ -112,11 +109,7 @@ public class ProjectCommandService implements IProjectCommandService {
                 }
             }
         };
-        if (transactionExecutor != null) {
-            transactionExecutor.runWritable(updateTask);
-        } else {
-            updateTask.run();
-        }
+        transactionExecutor.runWritable(updateTask);
     }
 
     /**

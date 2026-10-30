@@ -63,10 +63,6 @@ public class UserProjectService implements IUserProjectService {
             }
         };
 
-        if (transactionExecutor != null) {
-            transactionExecutor.runWritable(rebindTask);
-        } else {
-            rebindTask.run();
-        }
+        transactionExecutor.runWritable(rebindTask);
     }
 }

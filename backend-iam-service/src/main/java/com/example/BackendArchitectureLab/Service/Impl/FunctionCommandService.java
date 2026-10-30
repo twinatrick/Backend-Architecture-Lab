@@ -158,8 +158,6 @@ public class FunctionCommandService implements IFunctionCommandService {
     }
 
     private void evictLocalPermissionCache() {
-        if (iamLocalCacheManager != null) {
-            iamLocalCacheManager.evictAllPermissions();
-        }
+        iamLocalCacheManager.evictAllPermissions();
     }
 }

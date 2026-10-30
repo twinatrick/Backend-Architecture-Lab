@@ -325,9 +325,7 @@ public class UserService implements IUserService {
         if (email == null || email.isBlank()) {
             return;
         }
-        if (iamLocalCacheManager != null) {
-            iamLocalCacheManager.evictUser(email);
-        }
+        iamLocalCacheManager.evictUser(email);
     }
 
     private List<User> enrichUsersWithRoles(List<User> users) {

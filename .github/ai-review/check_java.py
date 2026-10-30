@@ -2,15 +2,11 @@ import os
 import re
 from typing import Any
 
+from check_dependency_cycles import check_java_acyclic_and_lazy
 from check_dual_rail import (
     check_forbidden_getall_endpoints,
     check_missing_dual_rail_endpoints,
     check_unimplemented_stubs,
-)
-from check_dependency_cycles import check_java_acyclic_and_lazy
-from check_openapi_dto import (
-    check_controller_openapi_contract,
-    check_dto_field_and_schema_contract,
 )
 from check_java_quality import (
     check_cross_module,
@@ -20,6 +16,10 @@ from check_java_quality import (
     check_self_feign_block,
     check_weak_typed_map,
     detect_module,
+)
+from check_openapi_dto import (
+    check_controller_openapi_contract,
+    check_dto_field_and_schema_contract,
 )
 from check_rules import (
     BANNED_PERMISSIONS,
