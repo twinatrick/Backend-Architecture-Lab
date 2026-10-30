@@ -80,3 +80,35 @@ def test_ci_import_smoke_uses_isolated_runtime_only_environment_without_secrets(
     assert '"$RUNNER_TEMP/ai-review-runtime/bin/python" -I -' in run
     assert "import review" in run and "import record_verdict" in run
     assert run.index("-m pip install") < run.index("import review")
+
+
+def test_java_jobs_do_not_restore_actions_maven_cache() -> None:
+    jobs = load_workflow("ci.yml")["jobs"]
+    for job_name in ("build", "integration-test"):
+        steps = jobs[job_name]["steps"]
+        setup = [step for step in steps if step.get("uses", "").startswith(
+            "actions/setup-java@",
+        )]
+        assert len(setup) == 1
+        assert setup[0]["with"]["java-version"] == "21"
+        assert setup[0]["with"]["distribution"] == "temurin"
+        assert "cache" not in setup[0]["with"]
+        assert not any(step.get("uses", "").startswith("actions/cache") for step in steps)
+
+
+def test_integration_timeout_preserves_real_test_and_failure_artifacts() -> None:
+    job = load_workflow("ci.yml")["jobs"]["integration-test"]
+    assert job["timeout-minutes"] == "30"
+    tests = [step for step in job["steps"] if step.get("name") == (
+        "Run Testcontainers Integration Tests"
+    )]
+    assert len(tests) == 1
+    assert tests[0]["run"] == "./mvnw verify -Pintegration-test -Dsurefire.skip=true"
+    assert "if" not in tests[0]
+    assert "continue-on-error" not in tests[0]
+    assert "continue-on-error" not in job
+    report = next(step for step in job["steps"] if step.get("name") == (
+        "Upload Integration Test Results"
+    ))
+    assert report["if"] == "always()"
+    assert report["with"]["path"] == "**/target/failsafe-reports/"
