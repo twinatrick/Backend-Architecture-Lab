@@ -51,7 +51,7 @@ class RuleClaim:
 
 @dataclass(frozen=True)
 class HumanClaimVerdict:
-    """具備主要分支合併權限之審查者針對特定規則主張與審查快照做出之可稽核人工裁定。"""
+    """經專案負責人核准的審核者針對特定主張與快照做出的可稽核人工裁定。"""
 
     claim_id: str
     head_sha: str
@@ -60,7 +60,8 @@ class HumanClaimVerdict:
     reason: str
     base_sha: str = ""
     rule_version: str = "v1"
-    can_merge_to_main: bool = False
+    reviewer_authorized: bool = False
+    reviewer_id: int = 0
     auth_verified: bool = False
     comment_id: int = 0
     supersedes_verdict_id: str = ""
@@ -74,7 +75,9 @@ class HumanClaimVerdict:
         )
         if not all(isinstance(value, str) for value in text_fields) or not self.claim_id:
             return False
-        if self.auth_verified is not True or self.can_merge_to_main is not True:
+        if self.auth_verified is not True or self.reviewer_authorized is not True:
+            return False
+        if type(self.reviewer_id) is not int or self.reviewer_id <= 0:
             return False
         if not isinstance(self.reviewer, str) or not self.reviewer.strip():
             return False

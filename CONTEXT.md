@@ -369,5 +369,8 @@ _Avoid_: Mixed branch grep, Floating head state, Cross-commit reuse.
 _Avoid_: Unchecked business suspicion, Vague risk blocking, Free-form LLM escalation.
 
 **Human Claim Verdict (人工主張裁定)**:
-由具備合併主要分支權限之審查者，針對特定規則主張、審查快照與查證證據所作出的可稽核正式判定（確認違規或判定誤判不成立），與高風險變更之架構安全人工簽核彼此獨立。
+由專案負責人明確核准之審核者，針對特定規則主張、審查快照與查證證據所作出的可稽核正式判定（確認違規或判定誤判不成立），與主要分支合併資格及高風險變更之架構安全人工簽核彼此獨立。
+
+**Approved Reviewer (核准審核者)**:
+經專案負責人明確授予人工主張裁定資格的人員；身分以固定帳號識別碼辨識，並非由帳號顯示名稱、職稱或模型推測決定。
 _Avoid_: Silent comment dismissal, Unscoped override, Mixing false-positive verdict with high-risk sign-off.

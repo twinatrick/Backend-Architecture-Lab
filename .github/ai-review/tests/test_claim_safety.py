@@ -165,7 +165,7 @@ def test_missing_content_stays_fail_closed_in_shadow_candidate():
 def _verdict(decision: str, comment_id: int, supersedes: str = "") -> HumanClaimVerdict:
     return HumanClaimVerdict(
         "claim", "head", decision, "reviewer", "理由", base_sha="base",
-        auth_verified=True, can_merge_to_main=True, comment_id=comment_id,
+        auth_verified=True, reviewer_authorized=True, reviewer_id=42, comment_id=comment_id,
         supersedes_verdict_id=supersedes,
     )
 
@@ -248,7 +248,7 @@ def test_conflicting_verdict_blocks_even_if_tool_found_compliance():
     claim = RuleRegistry().split_finding_into_claims(_finding())[0]
     verdict = HumanClaimVerdict(
         claim.claim_id, "head", "CONFLICTING", "reviewer", "矛盾尚未解決", base_sha="base",
-        auth_verified=True, can_merge_to_main=True,
+        auth_verified=True, reviewer_authorized=True, reviewer_id=42,
     )
     compliant = RuleInspectionResult(
         InspectionStatus.COMPLIANT, claim.rule_key, "src/A.java:3", "此主張合規",

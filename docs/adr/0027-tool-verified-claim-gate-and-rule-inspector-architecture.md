@@ -3,6 +3,9 @@
 Date: 2026-10-30
 Status: Accepted
 
+人工主張裁定的授權資格已由 [ADR 0028](0028-explicit-approved-reviewer-identity.md)
+取代為專案負責人明確核准的固定帳號身分；下列合併權限條件保留為原始決策脈絡。
+
 ## Context
 
 在既有 AI 審查管線（`ADR-0008`、`ADR-0014`、`ADR-0016`、`ADR-0026`）中，`review.py` 將語言模型直接輸出的 `llm_findings` 與確定性靜態掃描 `static_findings` 串接後交由 `evaluate()` 判定阻擋。然而，在大規模重構或跨檔案變更（如 IAM 單向級聯刪除與四層有向無環依賴治理）中，局部 Diff 視角容易導致語言模型對確定性工程規範產生高信心誤報（Hallucinated / Unverified Blockers）：

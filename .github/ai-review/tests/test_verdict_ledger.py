@@ -11,6 +11,7 @@ if str(AI_REVIEW_DIR) not in sys.path:
     sys.path.insert(0, str(AI_REVIEW_DIR))
 
 from verdict_ledger import append_comment_verdicts, configured_verdicts, require_ledger_protection
+import reviewer_authorization
 
 
 def protected():
@@ -42,8 +43,11 @@ def test_ledger_rejects_malformed_protection_flags(key):
         require_ledger_protection("owner/repo", lambda url: setting, "writer")
 
 
-def test_append_preserves_old_bytes_and_uses_compare_and_swap():
+def test_append_preserves_old_bytes_and_uses_compare_and_swap(monkeypatch):
+    monkeypatch.setattr(reviewer_authorization, "approved_reviewer_ids", lambda repo: {42})
     def getter(url, params=None):
+        if url == "https://api.github.com/users/reviewer":
+            return {"id": 42, "login": "reviewer", "type": "User"}
         if "/branches/ai-review-verdicts/" in url:
             return protected()
         if url.endswith("/pulls/1"):
@@ -59,7 +63,7 @@ def test_append_preserves_old_bytes_and_uses_compare_and_swap():
         return {"default_branch": "master"}
 
     putter = MagicMock()
-    comment = {"id": 123, "user": {"login": "reviewer"}, "body":
+    comment = {"id": 123, "user": {"login": "reviewer", "id": 42}, "body":
                '/ai-verdict claim_id=claim decision=FALSE_POSITIVE head_sha=head '
                'base_sha=base reason="有具體反證"'}
     assert append_comment_verdicts("owner/repo", 1, comment, getter, putter, "writer") == 1
@@ -68,6 +72,9 @@ def test_append_preserves_old_bytes_and_uses_compare_and_swap():
     assert payload["branch"] == "ai-review-verdicts"
     record = json.loads(base64.b64decode(payload["content"]).decode("utf-8"))
     assert record["auth_verified"] is True
+    assert record["reviewer_authorized"] is True
+    assert record["reviewer_id"] == 42
+    assert "can_merge_to_main" not in record
     assert record["comment_id"] == 123
 
 

@@ -10,6 +10,7 @@ import requests
 
 from github_client import gh_get
 from review_snapshot import HumanClaimVerdict
+from reviewer_authorization import verify_approved_reviewer
 
 VERDICT_CMD_RE = re.compile(r"^\s*/ai-verdict\s+(.+)$", re.MULTILINE)
 VALID_DECISIONS = {"CONFIRMED_VIOLATION", "FALSE_POSITIVE", "RETRACT", "SUPERSEDE"}
@@ -80,7 +81,7 @@ def verify_main_branch_merge_authorization(
     username: str,
     gh_get_fn: Any = None,
 ) -> tuple[bool, str]:
-    """Fail-Closed 驗證使用者是否具備將 PR 合併進主要分支（master/default）之權限。"""
+    """歷史合併資格檢查；非人工裁定授權入口，裁定改由核准名單驗證。"""
     if not repo_name or not username:
         return False, "缺少儲存庫名稱或使用者帳號，授權驗證未完成（Fail-Closed）。"
 
@@ -196,7 +197,8 @@ def resolve_effective_verdicts(
                 reviewer=last_item.reviewer,
                 base_sha=last_item.base_sha,
                 auth_verified=True,
-                can_merge_to_main=True,
+                reviewer_authorized=True,
+                reviewer_id=last_item.reviewer_id,
             )
         else:
             effective[claim_id] = active_decisions[-1]
@@ -243,24 +245,27 @@ def collect_verified_verdicts_from_comments(
     expected_base_sha: str = "",
     gh_get_fn: Any = None,
 ) -> dict[str, HumanClaimVerdict]:
-    """自 PR 留言清單解析 /ai-verdict 指令，經主要分支合併權限 Fail-Closed 驗證後產出有效裁定表。"""
-    auth_cache: dict[str, bool] = {}
+    """自 API 留言清單解析指令，經核准名單與固定 ID 驗證後產出有效裁定表。"""
+    auth_cache: dict[tuple[str, int], tuple[bool, str, int]] = {}
     verified_records: list[HumanClaimVerdict] = []
 
     for c_item in comments:
         if not isinstance(c_item, dict):
             continue
-        author = str((c_item.get("user") or {}).get("login", "")).strip()
+        user = c_item.get("user")
+        if not isinstance(user, dict) or type(user.get("id")) is not int:
+            continue
+        author = str(user.get("login", "")).strip()
         body = str(c_item.get("body", ""))
         comment_id = int(c_item.get("id", 0) or 0)
         parsed_cmds = parse_verdict_commands_from_comment(body, author, comment_id=comment_id)
         for cmd in parsed_cmds:
-            if author not in auth_cache:
-                is_ok, _ = verify_main_branch_merge_authorization(
-                    repo_name, author, gh_get_fn=gh_get_fn
+            identity = (author, user["id"])
+            if identity not in auth_cache:
+                auth_cache[identity] = verify_approved_reviewer(
+                    repo_name, author, gh_get_fn, expected_user_id=user["id"],
                 )
-                auth_cache[author] = is_ok
-            if auth_cache[author]:
+            if auth_cache[identity][0]:
                 verified_records.append(
                     HumanClaimVerdict(
                         claim_id=cmd.claim_id,
@@ -273,7 +278,8 @@ def collect_verified_verdicts_from_comments(
                         supersedes_verdict_id=cmd.supersedes_verdict_id,
                         comment_id=cmd.comment_id,
                         auth_verified=True,
-                        can_merge_to_main=True,
+                        reviewer_authorized=True,
+                        reviewer_id=auth_cache[identity][2],
                         replacement_decision=cmd.replacement_decision,
                     )
                 )

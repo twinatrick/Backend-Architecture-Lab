@@ -9,10 +9,10 @@ from typing import Any
 import requests
 
 from review_snapshot import HumanClaimVerdict
+from reviewer_authorization import approved_reviewer_ids, verify_approved_reviewer
 from verdict_manager import (
     parse_verdict_commands_from_comment,
     resolve_effective_verdicts,
-    verify_main_branch_merge_authorization,
 )
 
 LEDGER_BRANCH = "ai-review-verdicts"
@@ -73,10 +73,13 @@ def append_comment_verdicts(
     commands = parse_verdict_commands_from_comment(comment.get("body", ""), author, comment_id)
     if not commands:
         raise ValueError("未找到有效裁定指令。")
-    allowed, _ = verify_main_branch_merge_authorization(repo, author, getter)
+    allowed, _, reviewer_id = verify_approved_reviewer(
+        repo, author, getter, expected_user_id=comment.get("user", {}).get("id", 0),
+    )
     if not allowed:
-        raise PermissionError("主要分支合併授權驗證未完成。")
-    records = [replace(command, auth_verified=True, can_merge_to_main=True)
+        raise PermissionError("審核者核准名單身分驗證未完成。")
+    records = [replace(command, auth_verified=True, reviewer_authorized=True,
+                       reviewer_id=reviewer_id)
                for command in commands]
     if any(not record.is_valid_for(pr["head"]["sha"], pr["base"]["sha"])
            for record in records):
@@ -117,7 +120,10 @@ def read_protected_verdicts(repo: str, pr_number: int, getter: Any, writer: str)
         if exc.response is not None and exc.response.status_code == 404:
             return []
         raise
-    return [HumanClaimVerdict(**json.loads(line)) for line in content.splitlines() if line.strip()]
+    identities = approved_reviewer_ids(repo)
+    records = [HumanClaimVerdict(**json.loads(line))
+               for line in content.splitlines() if line.strip()]
+    return [record for record in records if record.reviewer_id in identities]
 
 
 def configured_verdicts(repo: str, pr_number: int, head: str, base: str) -> dict:

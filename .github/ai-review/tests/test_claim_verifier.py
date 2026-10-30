@@ -10,6 +10,7 @@ import claim_verifier
 import review_snapshot
 import rule_registry
 import verdict_manager
+import reviewer_authorization
 
 
 def _make_finding(
@@ -193,11 +194,12 @@ def test_multi_turn_locks_inconclusive_and_splits_multi_rule_claims():
     assert mock_caller.call_count == 1
 
 
-def test_verdict_manager_fail_closed_auth_and_conflict_resolution():
+def test_verdict_manager_fail_closed_auth_and_conflict_resolution(monkeypatch):
+    monkeypatch.setattr(reviewer_authorization, "approved_reviewer_ids", lambda repo: {42})
     comments = [
         {
             "id": 101,
-            "user": {"login": "dev_user"},
+            "user": {"login": "dev_user", "id": 42},
             "body": (
                 "/ai-verdict claim_id=abc1234567890123 decision=FALSE_POSITIVE "
                 "head_sha=sha_head base_sha=sha_base reason=確認為局部Diff誤判"
@@ -215,6 +217,8 @@ def test_verdict_manager_fail_closed_auth_and_conflict_resolution():
     assert verdicts_denied == {}
 
     def _admin_getter(url: str, params=None):
+        if url == "https://api.github.com/users/dev_user":
+            return {"id": 42, "login": "dev_user", "type": "User"}
         if url.endswith("/repos/owner/repo"):
             return {"default_branch": "master"}
         if "/collaborators/" in url:

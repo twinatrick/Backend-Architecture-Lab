@@ -24,7 +24,8 @@ from verdict_manager import (
 def _verdict(**changes):
     original = HumanClaimVerdict(
         claim_id="claim", head_sha="head", base_sha="base", decision="FALSE_POSITIVE",
-        reviewer="reviewer", reason="已核對證據", auth_verified=True, can_merge_to_main=True,
+        reviewer="reviewer", reason="已核對證據", auth_verified=True,
+        reviewer_authorized=True, reviewer_id=42,
         comment_id=1,
     )
     return replace(original, **changes)
@@ -56,7 +57,8 @@ def test_supersede_requires_and_applies_an_explicit_replacement():
 
 
 @pytest.mark.parametrize("changes", [
-    {"auth_verified": "false"}, {"can_merge_to_main": "true"}, {"reviewer": ""},
+    {"auth_verified": "false"}, {"reviewer_authorized": "true"}, {"reviewer": ""},
+    {"reviewer_id": True}, {"reviewer_id": 0},
     {"reason": 123}, {"head_sha": 123}, {"claim_id": ""},
 ])
 def test_verdict_rejects_truthy_strings_and_missing_identity(changes):

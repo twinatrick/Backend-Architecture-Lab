@@ -11,6 +11,7 @@ def trusted_rule_version() -> str:
     directory = Path(__file__).resolve().parent
     paths = sorted(directory.glob("*.py")) + [
         directory / "policy.json", directory / "requirements.txt",
+        directory / "approved_reviewers.json",
         directory.parents[1] / "開發規範.md",
     ]
     if not paths or not (directory / "rule_inspectors.py").is_file():

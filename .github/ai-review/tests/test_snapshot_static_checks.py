@@ -87,7 +87,7 @@ def test_static_confirmed_claim_is_retained_and_accepts_bound_human_verdict():
     assert audit[0]["claim_id"] == identity
     verdict = HumanClaimVerdict(
         identity, "head", "FALSE_POSITIVE", "reviewer", "已核對同名型別合法例外",
-        base_sha="base", auth_verified=True, can_merge_to_main=True,
+        base_sha="base", auth_verified=True, reviewer_authorized=True, reviewer_id=42,
     )
     assert verify_static_claims(
         [finding], snapshot, {identity: verdict}, time.monotonic() + 900, [],
