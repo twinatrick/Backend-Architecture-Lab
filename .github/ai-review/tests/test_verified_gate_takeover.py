@@ -71,7 +71,7 @@ def test_missing_or_partial_verification_never_falls_back(monkeypatch, results):
 @pytest.mark.parametrize("candidate", [None, {}, {"findings": [None]}])
 def test_invalid_static_candidate_cannot_be_published(monkeypatch, candidate):
     monkeypatch.setattr(
-        snapshot_static_checks, "evaluate_snapshot_shadow_review", lambda *args: candidate,
+        snapshot_static_checks, "evaluate_snapshot_shadow_review", lambda *args, **kw: candidate,
     )
     with pytest.raises(RuntimeError):
         snapshot_static_checks.evaluate_verified_review(
@@ -83,7 +83,7 @@ def test_invalid_static_candidate_cannot_be_published(monkeypatch, candidate):
 def test_policy_recomputes_decision_and_retains_mandatory_human_review(monkeypatch):
     monkeypatch.setattr(
         snapshot_static_checks, "evaluate_snapshot_shadow_review",
-        lambda *args: {"decision": "APPROVE", "findings": [], "requires_human_review": False},
+        lambda *args, **kw: {"decision": "APPROVE", "findings": [], "requires_human_review": False},
     )
     path = ".github/ai-review/sample.py"
     result = snapshot_static_checks.evaluate_verified_review(
@@ -135,7 +135,7 @@ def test_real_entry_publishes_verified_result_or_failure_never_raw_model(
     monkeypatch.setattr(review, "_process_batches_parallel", lambda *args, **kwargs: [batch])
     candidate = evaluate([], ["sample.py"], ["sample.py"], load_policy())
     monkeypatch.setattr(
-        snapshot_static_checks, "evaluate_snapshot_shadow_review", lambda *args: candidate,
+        snapshot_static_checks, "evaluate_snapshot_shadow_review", lambda *args, **kw: candidate,
     )
     publisher, failure = MagicMock(), MagicMock()
     monkeypatch.setattr(review, "publish_review", publisher)

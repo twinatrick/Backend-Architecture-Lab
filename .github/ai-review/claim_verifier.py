@@ -19,6 +19,7 @@ from review_snapshot import (
     RuleInspectionResult,
 )
 from rule_registry import RuleRegistry
+from source_budget import SourceReadBudget
 from verdict_ledger import configured_verdicts
 
 
@@ -40,7 +41,6 @@ class VerificationBudget:
     def can_call_tool(self) -> bool:
         return (
             not self.is_expired() and self.tool_calls_used < self.max_tool_calls_per_batch
-            and self.extra_context_tokens_used < self.max_extra_context_tokens
         )
 
 
@@ -86,12 +86,7 @@ def inspect_findings_as_claims(
                 inspected.append((claim, res))
                 continue
             active_budget.tool_calls_used += 1
-            used_before = snapshot.extra_tokens_used
-            snapshot.max_extra_tokens = used_before + max(
-                0, active_budget.max_extra_context_tokens - active_budget.extra_context_tokens_used
-            )
             res = inspector.inspect(claim.finding, snapshot)
-            active_budget.extra_context_tokens_used += snapshot.extra_tokens_used - used_before
             inspected.append((claim, res))
     return inspected
 
@@ -239,14 +234,8 @@ def verify_and_refine_batch_findings(
     merged = list(locked_claims.values()) + [
         (claim, res) for claim, res in claims_with_results if claim.claim_id not in locked_claims
     ]
-    used_before = snapshot.extra_tokens_used
-    snapshot.max_extra_tokens = used_before + max(
-        0, active_budget.max_extra_context_tokens - active_budget.extra_context_tokens_used
-    )
     merged = attribute_confirmed_claims(merged, snapshot, registry, active_budget)
-    used_before = snapshot.extra_tokens_used
     enforced = enforce_claim_gate(merged, snapshot, registry, human_verdicts=human_verdicts)
-    active_budget.extra_context_tokens_used += snapshot.extra_tokens_used - used_before
     if audit_records is not None:
         append_claim_audit(audit_records, all_results + merged, snapshot, active_budget)
     return enforced if mode == "enforce" else initial_findings
@@ -259,6 +248,8 @@ def apply_batch_claim_verification(
     session_start_monotonic: float | None = None,
     human_verdicts: dict[str, HumanClaimVerdict] | None = None, base_sha: str = "",
     budget: VerificationBudget | None = None, pr_number: int = 0,
+    source_budget: SourceReadBudget | None = None,
+    repository_getter: Any = None,
 ) -> None:
     """產生已查證結果與稽核軌跡；由正式或本地比較入口決定呈現方式。"""
     validate_claim_gate_mode()
@@ -270,11 +261,12 @@ def apply_batch_claim_verification(
         return
     snapshot = ReviewSnapshot(
         files=files, head_sha=head_sha, base_sha=base_sha,
-        repo_name=repo_name, content_fetcher=content_fetcher
+        repo_name=repo_name, content_fetcher=content_fetcher,
+        source_budget=source_budget or SourceReadBudget(),
+        repository_getter=repository_getter,
     )
     start = time.monotonic() if session_start_monotonic is None else session_start_monotonic
     budget = budget or VerificationBudget(session_start_monotonic=start)
-    snapshot.max_extra_tokens = max(0, snapshot.max_extra_tokens - budget.extra_context_tokens_used)
     records: list[dict[str, Any]] = []
     enforced = verify_and_refine_batch_findings(
         scope, index, paths, initial, snapshot, RuleRegistry(), caller, prompt,
