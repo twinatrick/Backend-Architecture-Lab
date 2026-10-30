@@ -1,9 +1,9 @@
 import base64
+from dataclasses import replace
 import json
 import logging
 import re
 import shlex
-from dataclasses import replace
 from typing import Any
 
 import requests

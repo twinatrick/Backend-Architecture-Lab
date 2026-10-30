@@ -15,8 +15,8 @@ from batch_runner import process_batches_parallel
 from batching import build_batches
 from claim_verifier import validate_claim_gate_mode
 from engine import evaluate, load_policy
-from github_content import enrich_files_with_full_content, fetch_all_pr_files
 from github_client import gh_get, normalize_paths
+from github_content import enrich_files_with_full_content, fetch_all_pr_files
 from key_pool import get_gemini_api_keys, get_groq_api_keys
 from redaction import redact_secrets
 from reporter import format_json_report
