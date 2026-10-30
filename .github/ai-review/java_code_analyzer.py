@@ -62,10 +62,12 @@ class JavaClassStructure:
         return None
 
 
-def strip_comments_and_strings(source: str, preserve_literals: bool = False) -> tuple[str, bool]:
+def strip_comments_and_strings(
+    source: str, preserve_literals: bool = False, *, allow_text_blocks: bool = False,
+) -> tuple[str, bool]:
     """移除 Java 單行/多行註解並清空字串常值內容，100% 保留原始行號與大括號位置。"""
     out: list[str] = []
-    if '"""' in source:
+    if '"""' in source and (not allow_text_blocks or preserve_literals):
         return "", False  # 尚不支援 Java text block，不推論合規。
     idx = 0
     length = len(source)
@@ -82,6 +84,13 @@ def strip_comments_and_strings(source: str, preserve_literals: bool = False) -> 
                 out.append("  ")
                 idx += 2
                 state = "BLOCK_COMMENT"
+            elif source.startswith('"""', idx):
+                # 開啟分隔符後必須換行；只遮罩內容，不解譯 SQL 或 Java 跳脫值。
+                if not re.match(r'"""[ \t\f]*\r?\n', source[idx:]):
+                    return "", False
+                out.append("   ")
+                idx += 3
+                state = "TEXT_BLOCK"
             elif ch_cur == '"':
                 out.append('"')
                 idx += 1
@@ -104,6 +113,17 @@ def strip_comments_and_strings(source: str, preserve_literals: bool = False) -> 
             if ch_cur == "*" and ch_next == "/":
                 out.append("  ")
                 idx += 2
+                state = "CODE"
+            else:
+                out.append("\n" if ch_cur == "\n" else " ")
+                idx += 1
+        elif state == "TEXT_BLOCK":
+            if ch_cur == "\\" and idx + 1 < length:
+                out.append(" " + ("\n" if ch_next == "\n" else " "))
+                idx += 2
+            elif source.startswith('"""', idx):
+                out.append("   ")
+                idx += 3
                 state = "CODE"
             else:
                 out.append("\n" if ch_cur == "\n" else " ")
