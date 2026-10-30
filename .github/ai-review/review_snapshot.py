@@ -115,6 +115,8 @@ class ReviewSnapshot:
     _changed_lines_map: dict[str, set[int]] = field(init=False, default_factory=dict)
     _repo_searcher: Callable[[str], list[str]] | None = field(init=False, default=None)
     _content_cache: dict[tuple[str, str], str] = field(init=False, default_factory=dict)
+    _unavailable: set[tuple[str, str]] = field(init=False, default_factory=set)
+    _budget_exhausted: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
         for file_item in self.files:
@@ -159,6 +161,8 @@ class ReviewSnapshot:
         identity = (canonical_path, target_sha)
         if identity in self._content_cache:
             return self._content_cache[identity]
+        if identity in self._unavailable or not self.can_fetch_more():
+            return ""
 
         if entry is not None:
             cached = entry.get(cache_key) or (None if is_base else entry.get("content"))
@@ -169,11 +173,17 @@ class ReviewSnapshot:
             fetched = self.content_fetcher(self.repo_name, canonical_path, target_sha)
             if isinstance(fetched, str) and fetched.strip():
                 return self._remember_content(identity, fetched)
+        self._unavailable.add(identity)
         return ""
+
+    def can_fetch_more(self) -> bool:
+        return not self._budget_exhausted and self.extra_tokens_used < self.max_extra_tokens
 
     def _remember_content(self, identity: tuple[str, str], content: str) -> str:
         estimated = max(1, len(content.encode("utf-8")))
         if self.extra_tokens_used + estimated > self.max_extra_tokens:
+            self._budget_exhausted = True
+            self._unavailable.add(identity)
             return ""
         self.extra_tokens_used += estimated
         self._content_cache[identity] = content

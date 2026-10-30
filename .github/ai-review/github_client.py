@@ -3,13 +3,17 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
+
 import requests
+
+from github_read_transport import GitHubReadTransport
 from redaction import get_gh_token, redact_secrets
 
 REPO = os.environ.get("REPO", "")
 EVENT_PATH = os.environ.get("EVENT_PATH", "")
 GH_TOKEN = os.environ.get("GH_TOKEN", "")
 REVIEW_MARKER = "<!-- ai-review-gate -->"
+READ_TRANSPORT = GitHubReadTransport()
 
 
 def get_repo() -> str:
@@ -42,9 +46,7 @@ def get_github_headers() -> dict[str, str]:
 
 
 def gh_get(url: str, params: dict[str, Any] | None = None) -> Any:
-    res = requests.get(url, headers=get_github_headers(), params=params, timeout=30)
-    res.raise_for_status()
-    return res.json()
+    return READ_TRANSPORT.get(url, get_github_headers(), params)
 
 
 def load_pr_metadata(metadata_path: Path | str | None = None) -> dict[str, Any] | None:
