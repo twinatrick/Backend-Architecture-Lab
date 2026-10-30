@@ -97,13 +97,17 @@ def format_markdown_report(
         report.extend(["## Findings", "無。"])
 
     if shadow_review is not None:
+        active = shadow_review.get("gate_role") == "active"
+        label = "正式" if active else "候選"
         report.extend([
-            "", "## 工具查證影子對照（不變更正式閘門）",
-            f"- 候選結論：`{shadow_review['decision']}`",
-            f"- 候選 Findings：{len(shadow_review['findings'])}；"
+            "", "## 工具查證正式閘門" if active else "## 工具查證影子對照（不變更正式閘門）",
+            f"- {label}結論：`{shadow_review['decision']}`",
+            f"- {label} Findings：{len(shadow_review['findings'])}；"
             f"阻擋項目：{len(shadow_review['blocking_findings'])}",
             "- 四態查證與缺失上下文詳見 JSON 報告的 claim_audit。",
         ])
+        if active:
+            report.append("- 正式決策採用工具查證結果；未查證的原始模型結果不直接決定閘門。")
     report.extend([
         "",
         "## 已通過檢查",

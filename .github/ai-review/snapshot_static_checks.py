@@ -5,6 +5,7 @@ from typing import Any
 import requests
 
 from check_rules import RULE_DEAD_CODE_REPOSITORY, make_finding
+from engine import evaluate, validate_finding
 from github_content import fetch_file_content_fallback
 from java_code_analyzer import strip_comments_and_strings
 from review_snapshot import ReviewSnapshot
@@ -154,3 +155,32 @@ def evaluate_snapshot_shadow_review(
     if result is not None:
         result["static_claim_audit"] = audit
     return result
+
+
+def evaluate_verified_review(
+    results: list[dict[str, Any]], files: list[dict[str, Any]], expected: list[str],
+    reviewed: list[str], policy: dict[str, Any], repo: str, sha: str,
+    getter: Any, deadline: float, base_sha: str = "", pr_number: int = 0,
+) -> dict[str, Any]:
+    """正式閘門僅使用工具查證結果；不回退使用未查證的模型或本機掃描。"""
+    if not results or not sha or not base_sha:
+        raise RuntimeError("正式查證缺少批次結果或固定 Base／Head SHA")
+    for batch in results:
+        verified = batch.get("shadow_verified_findings")
+        if not isinstance(verified, list) or any(
+            not validate_finding(item, allowed_files=expected) for item in verified
+        ):
+            raise RuntimeError("正式查證批次結果缺失或格式不符；禁止退回原始模型 Finding")
+    result = evaluate_snapshot_shadow_review(
+        results, files, expected, reviewed, policy, repo, sha, getter, deadline,
+        base_sha, pr_number,
+    )
+    if not isinstance(result, dict) or not isinstance(result.get("findings"), list):
+        raise RuntimeError("正式查證未完成；禁止套用舊引擎結果")
+    if any(not validate_finding(item, allowed_files=expected) for item in result["findings"]):
+        raise RuntimeError("固定版本靜態查證回傳不合法 Finding")
+    # 由確定性政策重新計算，不讓候選回傳的 decision 或旗標自行放行。
+    selected = evaluate(result["findings"], expected, reviewed, policy)
+    selected["static_claim_audit"] = result.get("static_claim_audit", [])
+    selected["gate_role"] = "active"
+    return selected

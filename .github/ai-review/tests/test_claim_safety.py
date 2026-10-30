@@ -195,7 +195,7 @@ def test_admin_is_not_automatic_proof_of_main_branch_merge_authorization():
 
 
 @pytest.mark.parametrize("mode", ["enforce", "invalid", ""])
-def test_unfinished_production_gate_cannot_be_enabled(monkeypatch, mode):
+def test_unsupported_claim_mode_cannot_bypass_verification(monkeypatch, mode):
     monkeypatch.setenv("AI_REVIEW_CLAIM_GATE_MODE", mode)
     with pytest.raises(RuntimeError, match="shadow"):
         validate_claim_gate_mode()

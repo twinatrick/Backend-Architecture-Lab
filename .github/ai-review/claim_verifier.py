@@ -45,10 +45,10 @@ class VerificationBudget:
 
 
 def validate_claim_gate_mode() -> None:
-    """第一階段僅部署影子模式；正式閘門須待裁定紀錄與變更歸責接線完成。"""
-    mode = os.environ.get("AI_REVIEW_CLAIM_GATE_MODE", "shadow").strip().lower()
-    if mode != "shadow":
-        raise RuntimeError("目前僅支援 shadow 部署；enforce 尚未通過完整上線條件。")
+    """正式入口固定採用已查證結果；shadow 僅供本地比較入口使用。"""
+    mode = os.environ.get("AI_REVIEW_CLAIM_GATE_MODE", "verified").strip().lower()
+    if mode not in ("verified", "shadow"):
+        raise RuntimeError("僅接受 verified 或本地 shadow；不接受其他查證模式。")
 
 
 def inspect_findings_as_claims(
@@ -260,7 +260,7 @@ def apply_batch_claim_verification(
     human_verdicts: dict[str, HumanClaimVerdict] | None = None, base_sha: str = "",
     budget: VerificationBudget | None = None, pr_number: int = 0,
 ) -> None:
-    """執行影子查證與稽核軌跡；正式模式在上線條件完成前拒絕啟用。"""
+    """產生已查證結果與稽核軌跡；由正式或本地比較入口決定呈現方式。"""
     validate_claim_gate_mode()
     if human_verdicts is None:
         human_verdicts = configured_verdicts(repo_name, pr_number, head_sha, base_sha)
@@ -285,5 +285,5 @@ def apply_batch_claim_verification(
     batch_data["shadow_verified_findings"] = enforced
     batch_data["claim_audit"] = records
     print(
-        f"[SHADOW CLAIM GATE] {scope}-{index}: {len(initial)} -> {len(enforced)}", flush=True,
+        f"[VERIFIED CLAIMS] {scope}-{index}: {len(initial)} -> {len(enforced)}", flush=True,
     )

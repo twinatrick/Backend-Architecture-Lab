@@ -3,6 +3,8 @@ from typing import Any
 from check_java import check_java_file
 from check_python import check_python_file
 import check_rules
+from package_version_inspector import PackageVersionInspector
+from python_claim_inspectors import PythonClaimInspector
 from review_snapshot import (
     InspectionStatus,
     ReviewSnapshot,
@@ -155,6 +157,10 @@ class RuleRegistry:
         tx_insp = RepositoryTransactionRuleInspector()
         self._inspectors["RULE_DERIVED_DELETE_TRANSACTIONAL"] = tx_insp
         self._inspectors[check_rules.RULE_DERIVED_DELETE_TRANSACTIONAL] = tx_insp
+        self._inspectors["RULE_PACKAGE_VERSION_EXISTS"] = PackageVersionInspector()
+        for key in ("RULE_PYTHON_DUPLICATE_DEFINITION", "RULE_PYTHON_UNDEFINED_NAME",
+                    "RULE_PYTHON_IMPORT_POSITION"):
+            self._inspectors[key] = PythonClaimInspector(key)
 
     def match_rule_keys(self, rule_text: str, problem_text: str = "") -> list[str]:
         """根據模型回報的 rule 與 problem 識別所有對應之已登錄規則（支援一疑點多規則拆分）。"""
@@ -167,6 +173,13 @@ class RuleRegistry:
                 matched_keys.append(key)
 
         keyword_rules = [
+            (("套件版本不存在", "不存在的 requests", "版本不存在", "package version does not exist"),
+             "RULE_PACKAGE_VERSION_EXISTS"),
+            (("重複定義", "函式重複", "函數重複", "duplicate definition"),
+             "RULE_PYTHON_DUPLICATE_DEFINITION"),
+            (("未定義", "未初始化", "nameerror", "undefined name"), "RULE_PYTHON_UNDEFINED_NAME"),
+            (("import 未置頂", "導入未置頂", "導入順序", "匯入未置頂", "import 順序"),
+             "RULE_PYTHON_IMPORT_POSITION"),
             (("fqn", "完全限定名稱", "fully qualified"), "RULE_NO_FQN_IN_CODE"),
             (
                 ("@lazy", "切面自調用", "self-invocation", "代理失效", "cacheexecutor"),

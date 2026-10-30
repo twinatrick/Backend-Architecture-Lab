@@ -45,9 +45,12 @@ def require_ledger_protection(repo: str, getter: Any, writer: str) -> None:
 
 def decode_ledger(data: Any) -> tuple[str, str]:
     """驗證完整舊紀錄；損毀時不得以空內容覆蓋。"""
-    if not isinstance(data, dict) or data.get("encoding") != "base64" or not data.get("sha"):
+    if (not isinstance(data, dict) or data.get("encoding") != "base64"
+            or not isinstance(data.get("sha"), str) or not data["sha"].strip()
+            or not isinstance(data.get("content"), str)):
         raise ValueError("裁定紀錄 API 回應不完整。")
-    content = base64.b64decode(data.get("content", ""), validate=False).decode("utf-8")
+    encoded = data["content"].replace("\r", "").replace("\n", "")
+    content = base64.b64decode(encoded, validate=True).decode("utf-8")
     for line in content.splitlines():
         if not line.strip():
             continue
@@ -104,8 +107,9 @@ def append_comment_verdicts(
         payload["sha"] = sha
     # 重新讀取快照，避免審查期間的 push 被當成同一版本裁定。
     current = getter(f"https://api.github.com/repos/{repo}/pulls/{pr_number}")
-    if current["head"]["sha"] != pr["head"]["sha"] or current["base"]["sha"] != pr["base"]["sha"]:
-        raise ValueError("裁定寫入前 PR 快照已更新。")
+    if (current.get("state") != "open" or current["head"]["sha"] != pr["head"]["sha"]
+            or current["base"]["sha"] != pr["base"]["sha"]):
+        raise ValueError("裁定寫入前 PR 已關閉或快照已更新。")
     putter(url, payload)
     return len(records)
 

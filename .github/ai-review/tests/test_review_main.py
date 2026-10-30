@@ -1,3 +1,4 @@
+import base64
 import os
 import sys
 from pathlib import Path
@@ -77,7 +78,7 @@ def test_main_with_static_checks_fail_closed(monkeypatch, tmp_path):
 
     mock_target_pr = {
         "state": "open",
-        "base": {"ref": "master", "repo": {"full_name": "owner/repo"}},
+        "base": {"ref": "master", "sha": "base123", "repo": {"full_name": "owner/repo"}},
         "head": {"sha": "sha123"},
     }
     mock_pr_files = [{
@@ -107,7 +108,7 @@ def test_main_with_static_checks_fail_closed(monkeypatch, tmp_path):
         review.main()
     assert exc_info.value.code == 1
     assert mock_publish.called
-    assert mock_publish.call_args[0][2] == "HUMAN_REVIEW_REQUIRED"
+    assert mock_publish.call_args[0][2] == "REQUEST_CHANGES"
 
 
 def test_main_toctou_head_sha_mismatch_raises_system_exit(monkeypatch, tmp_path):
@@ -229,7 +230,8 @@ def test_main_with_pr_metadata_artifact(monkeypatch, tmp_path):
     )
 
     mock_target_pr = {
-        "state": "open", "base": {"ref": "master", "repo": {"full_name": "owner/repo"}},
+        "state": "open",
+        "base": {"ref": "master", "sha": "base_meta", "repo": {"full_name": "owner/repo"}},
         "head": {"sha": "sha_meta"},
     }
     mock_pr_files = [{"filename": "App.java", "patch": "+ class App {}"}]
@@ -239,6 +241,8 @@ def test_main_with_pr_metadata_artifact(monkeypatch, tmp_path):
             return mock_pr_files
         if "/pulls/62" in url:
             return mock_target_pr
+        if "/contents/App.java" in url:
+            return {"encoding": "base64", "content": base64.b64encode(b"class App {}").decode()}
         return {}
 
     monkeypatch.setattr(review, "gh_get", mock_gh_get)

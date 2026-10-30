@@ -37,8 +37,13 @@ def fetch_file_content_fallback(
         data = getter(url, params={"ref": ref} if ref else None)
         if isinstance(data, dict) and data.get("encoding") == "base64" and data.get("content"):
             return base64.b64decode(data["content"]).decode("utf-8")
-    except (requests.RequestException, UnicodeDecodeError, ValueError, KeyError):
-        logging.warning("無法自 Contents API 讀取檔案 %s", path)
+    except (requests.RequestException, UnicodeDecodeError, ValueError, KeyError) as exc:
+        # 僅保留型別與 HTTP 狀態，不輸出可能含憑證或私有內容的例外訊息。
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        safe_status = status if type(status) is int and 100 <= status <= 599 else None
+        logging.warning("無法自 Contents API 讀取檔案 %s（%s，HTTP=%s）",
+                        path, type(exc).__name__, safe_status)
     return None
 
 

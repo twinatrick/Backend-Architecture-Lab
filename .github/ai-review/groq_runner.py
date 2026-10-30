@@ -1,4 +1,3 @@
-import json
 import time
 
 import requests
@@ -54,21 +53,23 @@ def execute_groq_loop(
                             prompt, model_name, api_key, use_json_mode=use_json_mode
                         )
                         if response.ok:
-                            raw_content = response.json()["choices"][0]["message"]["content"]
                             try:
+                                raw_content = response.json()["choices"][0]["message"]["content"]
                                 parser.extract_json_payload(raw_content)
                                 print(
                                     f"使用 Groq 模型：{model_name}（金鑰：{var_name} {masked_key}）"
                                 )
                                 groq_model_pool.promote(model_name)
                                 return raw_content
-                            except json.JSONDecodeError as json_exc:
-                                json_err_msg = f"第 {attempt} 次輸出非合法 JSON：{json_exc}"
+                            except (ValueError, KeyError, IndexError, TypeError) as json_exc:
+                                json_err_msg = (
+                                    f"第 {attempt} 次輸出格式無效：{type(json_exc).__name__}"
+                                )
                                 error_details.append((key_tag, redact_secrets(json_err_msg)))
                                 print(
                                     f"Groq 模型 {model_name} 金鑰 {var_name} 輸出非合法 JSON"
                                     f"（第 {attempt}/{max_retries_per_model} 次）："
-                                    f"{json_exc}，退避等待後重試..."
+                                    f"{type(json_exc).__name__}，退避等待後重試..."
                                 )
                                 if attempt < max_retries_per_model:
                                     wait_seconds = calculate_backoff_delay(
@@ -83,7 +84,10 @@ def execute_groq_loop(
                         status_code = response.status_code
                         full_resp_text = response.text or ""
                         resp_text = full_resp_text[:300]
-                        reason_msg = f"HTTP {status_code}: {resp_text}"
+                        safe_text = redact_secrets(
+                            full_resp_text.replace(api_key, "[REDACTED]")
+                        )[:300]
+                        reason_msg = f"HTTP {status_code}: {safe_text}"
                         error_details.append((key_tag, redact_secrets(reason_msg)))
 
                         if is_invalid_api_key_error(status_code, full_resp_text):
@@ -115,6 +119,9 @@ def execute_groq_loop(
                             groq_key_pool.mark_cooldown(api_key, cooldown_seconds, model=model_name)
 
                             active_keys = groq_key_pool.get_active_keys(groq_keys, model=model_name)
+                            if total_429_count >= max_429_retries:
+                                print("Groq 連續遭遇 429 達到預算上限，停止無效重試。")
+                                return None
                             if is_quota_or_rate:
                                 print(
                                     f"Groq 金鑰 {var_name} ({masked_key}) "
@@ -134,10 +141,6 @@ def execute_groq_loop(
                                 )
                                 time.sleep(1.0)
                                 break
-
-                            if total_429_count >= max_429_retries:
-                                print("Groq 連續遭遇 429 達到預算上限，停止無效重試。")
-                                return None
 
                             if len(active_keys) > 0 and len(groq_keys) > 1:
                                 print(
@@ -221,8 +224,9 @@ def execute_groq_loop(
                         time.sleep(2.0)
                         break
                     except requests.RequestException as req_exc:
-                        error_details.append((key_tag, redact_secrets(str(req_exc))))
-                        print(f"Groq 金鑰 {var_name} 連線異常：{req_exc}")
+                        safe_error = redact_secrets(str(req_exc).replace(api_key, "[REDACTED]"))
+                        error_details.append((key_tag, safe_error))
+                        print(f"Groq 金鑰 {var_name} 連線異常：{safe_error}")
                         if attempt < max_retries_per_model:
                             wait_seconds = calculate_backoff_delay(
                                 attempt, 2.0, base_delay=2.5, max_delay=60.0

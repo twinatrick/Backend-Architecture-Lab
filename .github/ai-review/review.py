@@ -15,7 +15,7 @@ from batch_runner import (
 )
 from batching import build_batches
 from claim_verifier import validate_claim_gate_mode
-from engine import evaluate, load_policy, validate_finding
+from engine import load_policy, validate_finding
 from github_client import (
     REPO,
     get_event_path,
@@ -32,15 +32,12 @@ from model_pool import get_gemini_candidate_models
 from orchestrator import chat_completion
 from redaction import get_gh_token
 from reporter import format_json_report, format_markdown_report
-from snapshot_static_checks import evaluate_snapshot_shadow_review
-from static_checks import run_static_checks
+from snapshot_static_checks import evaluate_verified_review
 
 ROOT = Path(__file__).resolve().parents[2]
 
 # 提供既有模組與單元測試相容之包裝介面
-def _fetch_file_content_fallback(
-    repo_name: str, path: str, ref: str | None = None
-) -> str | None:
+def _fetch_file_content_fallback(repo_name: str, path: str, ref: str | None = None) -> str | None:
     return fetch_file_content_fallback(repo_name, path, ref=ref, gh_get_fn=gh_get)
 
 
@@ -214,15 +211,18 @@ def main() -> None:
             )
             raise SystemExit(invalid_err)
     passed_checks = [chk for res in results for chk in res.get("passed_checks", [])]
-    static_findings = run_static_checks(files)
-    shadow_review = evaluate_snapshot_shadow_review(
-        results, files, normalize_paths(expected_files), reviewed_files, policy,
-        repo_name, head_sha, gh_get, shadow_deadline,
-        pr_data.get("base", {}).get("sha", ""), pr_number,
-    )
-    eval_result = evaluate(
-        llm_findings + static_findings, normalize_paths(expected_files), reviewed_files, policy,
-    )
+    try:
+        eval_result = evaluate_verified_review(
+            results, files, normalize_paths(expected_files), reviewed_files, policy,
+            repo_name, head_sha, gh_get, shadow_deadline,
+            pr_data.get("base", {}).get("sha", ""), pr_number,
+        )
+    except (RuntimeError, ValueError, requests.RequestException):
+        publish_failure_report(
+            pr_number, "工具查證未完成", "缺少有效查證結果，禁止退回舊引擎或自動通過。",
+            commit_id=head_sha, status_type="REVIEW_EXECUTION_FAILED",
+        )
+        raise SystemExit("工具查證未完成；正式閘門維持阻擋")
     decision, unique_findings, blocking_findings = (
         eval_result["decision"], eval_result["findings"], eval_result["blocking_findings"]
     )
@@ -272,7 +272,7 @@ def main() -> None:
         audit_info=audit_info,
         requires_human_review=requires_human,
         high_risk_files=high_risk_files,
-        shadow_review=shadow_review,
+        shadow_review=eval_result,
     )
     publish_review(
         pr_number, body, decision,
@@ -286,7 +286,7 @@ def main() -> None:
         audit_info=audit_info,
         requires_human_review=requires_human,
         high_risk_files=high_risk_files,
-        shadow_review=shadow_review,
+        shadow_review=eval_result,
         claim_audit=[item for result in results for item in result.get("claim_audit", [])],
     )
     Path("ai-review.json").write_text(json_report, encoding="utf-8")

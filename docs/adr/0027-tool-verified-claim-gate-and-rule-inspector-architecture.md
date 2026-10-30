@@ -6,6 +6,9 @@ Status: Accepted
 人工主張裁定的授權資格已由 [ADR 0028](0028-explicit-approved-reviewer-identity.md)
 取代為專案負責人明確核准的固定帳號身分；下列合併權限條件保留為原始決策脈絡。
 
+部署策略已由 [ADR 0029](0029-verified-gate-direct-takeover.md) 取代為新閘門直接試行接管；
+以下影子模式預設及切換前置條件保留為原始決策脈絡，不代表目前正式入口仍使用舊引擎。
+
 ## Context
 
 在既有 AI 審查管線（`ADR-0008`、`ADR-0014`、`ADR-0016`、`ADR-0026`）中，`review.py` 將語言模型直接輸出的 `llm_findings` 與確定性靜態掃描 `static_findings` 串接後交由 `evaluate()` 判定阻擋。然而，在大規模重構或跨檔案變更（如 IAM 單向級聯刪除與四層有向無環依賴治理）中，局部 Diff 視角容易導致語言模型對確定性工程規範產生高信心誤報（Hallucinated / Unverified Blockers）：
@@ -44,7 +47,7 @@ Status: Accepted
 
 本 ADR 的 Accepted 表示目標設計已確認，**不表示全部能力已完成或可正式啟用**。
 
-- 目前部署入口僅接受 `shadow`；設定 `enforce` 或未知模式會明確拒絕執行。影子結果與 `claim_audit` 另列於報告，不取代正式 Findings 或高風險變更人工簽核。
+- 正式入口已依 ADR 0029 改為只採已查證結果；缺失查證明確阻擋，不回退舊引擎。高風險人工簽核維持獨立。
 - 已實作同版完整內容讀取、局部 Patch 與完整內容隔離、證據核對、四態結果、主張保留，以及拆批共用查證預算。額外上下文以 UTF-8 位元組數保守計費，不宣稱為模型精確 Token 計數。
 - Java 分析目前是保守的詞法／有限結構分析，並非完整 Java AST 或跨檔案符號解析；不支援的語法與資訊不足情境必須保留為 `INCONCLUSIVE`。
 - 已接通 Groq／Gemini 原生工具傳輸、往返能力探測與跨模型保留狀態；實際 Groq 工具往返成功，Gemini 的失敗候選不得宣告支援。這不代表所有候選模型或正式工作流程均已驗收。
