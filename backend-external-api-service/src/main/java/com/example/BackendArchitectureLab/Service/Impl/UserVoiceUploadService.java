@@ -7,9 +7,9 @@ import com.example.BackendArchitectureLab.Entity.VoiceTranslation;
 import com.example.BackendArchitectureLab.Mapper.UserVoiceUploadMapper;
 import com.example.BackendArchitectureLab.Mapper.VoiceTranslationMapper;
 import com.example.BackendArchitectureLab.Service.IUserVoiceUploadService;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Query.VoiceUploadSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserVoiceUploadVo;
@@ -18,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,10 +43,9 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
     private final UserVoiceUploadMapper uploadMapper;
     private final VoiceTranslationMapper translationMapper;
     private final TransactionExecutor transactionExecutor;
+    private final CacheExecutor cacheExecutor;
     private final StringRedisTemplate stringRedisTemplate;
     private final CacheManager cacheManager;
-    @Lazy
-    private final IUserVoiceUploadService self;
 
     @Override
     @Transactional
@@ -122,19 +120,13 @@ public class UserVoiceUploadService implements IUserVoiceUploadService {
 
     @Override
     public List<VoiceTranslationVo> getTranslationsByUploadId(UUID uploadId) {
-        // 透過 self 代理調用，確保內部調用 AOP 快取依然 100% 生效
-        return self.getTranslationsByUploadIdCache(uploadId).getData();
-    }
-
-    @Override
-    @Cacheable(value = "voiceTranslations", key = "'byupload:' + #uploadId", sync = true)
-    public CacheListWrapper<VoiceTranslationVo> getTranslationsByUploadIdCache(UUID uploadId) {
-        return transactionExecutor.executeReadOnly(() -> {
-            List<VoiceTranslationVo> list = voiceTranslationDataAccess.findByVoiceUploadIdOrderByCreatedTimeDesc(uploadId).stream()
-                    .map(translationMapper::toVo)
-                    .toList();
-            return new CacheListWrapper<>(list);
-        });
+        return cacheExecutor.executeCacheableList("voiceTranslations", "byupload:" + uploadId, () ->
+                transactionExecutor.executeReadOnly(() ->
+                        voiceTranslationDataAccess.findByVoiceUploadIdOrderByCreatedTimeDesc(uploadId).stream()
+                                .map(translationMapper::toVo)
+                                .toList()
+                )
+        );
     }
 
     private void evictUserVoiceUploadsSearchCache(String userId) {

@@ -39,6 +39,11 @@ public class UserDataAccessImpl implements IUserDataAccess {
     }
 
     @Override
+    public void delete(User user) {
+        userRepository.delete(user);
+    }
+
+    @Override
     public List<User> findAll() {
         return userRepository.findAll();
     }
@@ -140,7 +145,24 @@ public class UserDataAccessImpl implements IUserDataAccess {
 
     @Override
     public Page<User> findAllPaged(Pageable pageable) {
-        return userRepository.findAll(pageable);
+        Page<User> page = userRepository.findAll(pageable);
+        if (page.isEmpty()) {
+            return page;
+        }
+        List<UUID> ids = page.getContent().stream().map(User::getId).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) {
+            return page;
+        }
+        List<User> enriched = userRepository.findAllByIdsWithRoles(ids);
+        if (enriched == null || enriched.isEmpty()) {
+            return page;
+        }
+        Map<UUID, User> enrichedMap = enriched.stream()
+                .collect(Collectors.toMap(User::getId, u -> u, (existing, replacement) -> existing));
+        List<User> ordered = page.getContent().stream()
+                .map(u -> enrichedMap.getOrDefault(u.getId(), u))
+                .toList();
+        return new PageImpl<>(ordered, page.getPageable(), page.getTotalElements());
     }
 
     @Override

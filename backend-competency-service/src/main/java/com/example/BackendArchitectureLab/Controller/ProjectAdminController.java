@@ -12,14 +12,13 @@ import com.example.BackendArchitectureLab.Service.IUserProjectService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.SkillLevelBindingMapper;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,7 +44,8 @@ public class ProjectAdminController {
     @PostMapping("/user-project/rebind")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "重新綁定使用者專案", description = "以 diff 策略重新綁定所有使用者-專案關聯。")
-    public ResponseType<String> rebindUserProjects(@Valid @RequestBody UserProjectRebindRequest request) {
+    public ResponseType<String> rebindUserProjects(
+            @ApiBody(description = "重新綁定使用者專案請求") UserProjectRebindRequest request) {
         UUID userId = parseUuid(request.getUserId(), "userId");
         List<UUID> projectIds = request.getProjectIds() == null
                 ? List.of()
@@ -59,7 +59,8 @@ public class ProjectAdminController {
     @PostMapping("/user-skill/rebind")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "重新綁定使用者技能", description = "以等級 diff 策略重新綁定所有使用者-技能關聯。")
-    public ResponseType<String> rebindUserSkills(@Valid @RequestBody UserSkillRebindRequest request) {
+    public ResponseType<String> rebindUserSkills(
+            @ApiBody(description = "重新綁定使用者技能請求") UserSkillRebindRequest request) {
         UUID userId = parseUuid(request.getUserId(), "userId");
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("Admin rebinding user {} with {} skill bindings", userId, bindingCount);
@@ -71,7 +72,8 @@ public class ProjectAdminController {
     @PostMapping("/project-skill/rebind")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "重新綁定專案技能", description = "以等級 diff 策略重新綁定所有專案-技能關聯。")
-    public ResponseType<String> rebindProjectSkills(@Valid @RequestBody ProjectSkillRebindRequest request) {
+    public ResponseType<String> rebindProjectSkills(
+            @ApiBody(description = "重新綁定專案技能請求") ProjectSkillRebindRequest request) {
         UUID projectId = parseUuid(request.getProjectId(), "projectId");
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("Admin rebinding project {} with {} skill bindings", projectId, bindingCount);
@@ -86,7 +88,8 @@ public class ProjectAdminController {
             summary = "重新綁定專案成員技能",
             description = "完整覆蓋式綁定專案成員技能。使用者必須已是專案成員（user_project 存在），否則拋出異常。"
     )
-    public ResponseType<String> rebindProjectMemberSkills(@Valid @RequestBody ProjectMemberSkillsRebindRequest request) {
+    public ResponseType<String> rebindProjectMemberSkills(
+            @ApiBody(description = "重新綁定專案成員技能請求") ProjectMemberSkillsRebindRequest request) {
         UUID projectId = parseUuid(request.getProjectId(), "projectId");
         int memberCount = request.getMembers() == null ? 0 : request.getMembers().size();
         log.info("Admin rebinding project {} member skills for {} members", projectId, memberCount);

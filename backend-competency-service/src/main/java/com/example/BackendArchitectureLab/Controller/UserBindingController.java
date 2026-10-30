@@ -6,16 +6,15 @@ import com.example.BackendArchitectureLab.Service.IProjectSkillService;
 import com.example.BackendArchitectureLab.Service.ISkillService;
 import com.example.BackendArchitectureLab.Util.SkillLevelBindingMapper;
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,7 +36,8 @@ public class UserBindingController {
     @PostMapping("/skill/rebind")
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "重新綁定當前使用者技能", description = "以 diff 策略重新綁定當前使用者的技能等級關聯。")
-    public ResponseType<String> rebindCurrentUserSkills(@Valid @RequestBody SkillBindingsRebindRequest request) {
+    public ResponseType<String> rebindCurrentUserSkills(
+            @ApiBody(description = "重新綁定技能清單請求") SkillBindingsRebindRequest request) {
         UUID currentUserId = securityUtil.requireCurrentUserId();
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("User {} rebinding own skills with {} bindings", currentUserId, bindingCount);
@@ -50,8 +50,8 @@ public class UserBindingController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "重新綁定當前使用者專案技能", description = "以 diff 策略重新綁定可管理專案的技能關聯。")
     public ResponseType<String> rebindCurrentUserProjectSkills(
-            @PathVariable UUID projectId,
-            @Valid @RequestBody SkillBindingsRebindRequest request) {
+            @ApiPath(name = "projectId", description = "目標專案 UUID", format = "uuid") UUID projectId,
+            @ApiBody(description = "重新綁定技能清單請求") SkillBindingsRebindRequest request) {
         int bindingCount = request.getBindings() == null ? 0 : request.getBindings().size();
         log.info("User {} rebinding project {} with {} skill bindings", securityUtil.requireCurrentUserId(), projectId, bindingCount);
         projectSkillService.rebindPersonalProjectSkills(projectId, SkillLevelBindingMapper.toSkillLevelMap(request.getBindings()));

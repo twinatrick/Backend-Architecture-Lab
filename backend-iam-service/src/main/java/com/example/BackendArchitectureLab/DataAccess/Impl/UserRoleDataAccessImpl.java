@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,6 +24,7 @@ public class UserRoleDataAccessImpl implements IUserRoleDataAccess {
     private final UserRoleRepository userRoleRepository;
 
     @Override
+    @Transactional
     public void deleteAllByUserInAndRoleIn(List<User> users, List<Role> roles) {
         userRoleRepository.deleteAllByUserInAndRoleIn(users, roles);
     }
@@ -43,12 +45,38 @@ public class UserRoleDataAccessImpl implements IUserRoleDataAccess {
     }
 
     @Override
+    @Transactional
     public void deleteByUserId(UUID userId) {
         userRoleRepository.deleteByUserId(userId);
     }
 
     @Override
+    @Transactional
+    public void deleteByRoleId(UUID roleId) {
+        userRoleRepository.deleteByRoleId(roleId);
+    }
+
+    @Override
+    @Transactional
     public void deleteByUserIdAndRoleId(UUID userId, UUID roleId) {
         userRoleRepository.deleteByUserIdAndRoleId(userId, roleId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByUserIdAndRoleIds(UUID userId, Collection<UUID> roleIds) {
+        if (userId == null || roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+        userRoleRepository.deleteByUserIdAndRoleIds(userId, roleIds);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByUserIdsAndRoleId(Collection<UUID> userIds, UUID roleId) {
+        if (userIds == null || userIds.isEmpty() || roleId == null) {
+            return;
+        }
+        userRoleRepository.deleteByUserIdsAndRoleId(userIds, roleId);
     }
 }

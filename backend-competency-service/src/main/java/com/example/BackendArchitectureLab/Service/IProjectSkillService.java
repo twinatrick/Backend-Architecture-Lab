@@ -1,6 +1,5 @@
 package com.example.BackendArchitectureLab.Service;
 
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 
 import java.util.List;
@@ -19,8 +18,6 @@ public interface IProjectSkillService {
      * @return 技能資訊列表
      */
     List<ProjectSkillVo> getProjectSkills(UUID projectId);
-
-    CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId);
 
     /**
      * 獲取個人專案綁定的所有技能資訊

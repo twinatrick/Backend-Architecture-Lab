@@ -5,10 +5,13 @@ import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Service.ILearnService;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -33,9 +36,9 @@ public class SttController {
                     + "mode: 輸出模式 (pinyin, zhuyin, romaji, none)，預設 none。"
     )
     public ResponseType<AudioRecognizeVo> recognizeWithWhisper(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "language", defaultValue = "zh") String language,
-            @RequestParam(value = "mode", defaultValue = "none") String mode) {
+            @ApiQuery(name = "file", required = true, description = "上傳之音訊檔案") MultipartFile file,
+            @ApiQuery(name = "language", defaultValue = "zh", description = "目標語言代碼", example = "zh") String language,
+            @ApiQuery(name = "mode", defaultValue = "none", description = "拼音轉換模式", example = "none") String mode) {
         if (!whisperEnabled) {
             return ResponseType.Fail("NOT_AVAILABLE", "Whisper provider 未啟用", 404);
         }
@@ -55,9 +58,9 @@ public class SttController {
                     + "mode: 輸出模式 (pinyin, zhuyin, romaji, none)，預設 none。"
     )
     public ResponseType<AudioRecognizeVo> recognizeWithSenseVoice(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "language", defaultValue = "zh") String language,
-            @RequestParam(value = "mode", defaultValue = "none") String mode) {
+            @ApiQuery(name = "file", required = true, description = "上傳之音訊檔案") MultipartFile file,
+            @ApiQuery(name = "language", defaultValue = "zh", description = "目標語言代碼", example = "zh") String language,
+            @ApiQuery(name = "mode", defaultValue = "none", description = "拼音轉換模式", example = "none") String mode) {
         if (!sensevoiceEnabled) {
             return ResponseType.Fail("NOT_AVAILABLE", "SenseVoice provider 未啟用", 404);
         }

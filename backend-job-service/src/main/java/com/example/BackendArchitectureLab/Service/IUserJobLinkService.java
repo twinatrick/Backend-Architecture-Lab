@@ -1,7 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Query.UserJobLinkSearchQuery;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
@@ -26,10 +25,8 @@ public interface IUserJobLinkService {
     void deleteUserJobLink(String id);
 
     List<UserJobLinkVo> getUserJobLinksByUserId(String userId);
-    CacheListWrapper<UserJobLinkVo> getUserJobLinksByUserIdCache(String userId);
 
     List<UserJobLinkVo> getUserJobLinksByJobPostingId(String jobPostingId);
-    CacheListWrapper<UserJobLinkVo> getUserJobLinksByJobPostingIdCache(String jobPostingId);
 
     UserJobLinkVo updateUserJobLink(UserJobLinkVo userJobLinkVo);
 
@@ -38,5 +35,4 @@ public interface IUserJobLinkService {
     void removeJobFromCurrentUser(String currentUserId, String jobPostingId);
 
     List<UserJobLinkVo> getCurrentUserJobLinks(String currentUserId);
-    CacheListWrapper<UserJobLinkVo> getCurrentUserJobLinksCache(String currentUserId);
 }

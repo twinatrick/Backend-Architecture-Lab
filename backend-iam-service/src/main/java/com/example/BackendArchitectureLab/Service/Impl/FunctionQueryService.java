@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import org.springframework.cache.CacheManager;
 import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.Entity.Function;
@@ -9,14 +10,12 @@ import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Dto.Query.FunctionSearchQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -45,20 +44,15 @@ public class FunctionQueryService implements IFunctionQueryService {
     private final FunctionMapper functionMapper;
     private final TransactionExecutor transactionExecutor;
     private final CacheManager cacheManager;
-
-    @Lazy
-    private final IFunctionQueryService self;
+    private final CacheExecutor cacheExecutor;
 
     @Override
     public List<FunctionVo> getFunction() {
-        return self.getFunctionListCache().getData();
-    }
-
-    @Override
-    @Cacheable(value = "functions", key = "'all'", sync = true)
-    public CacheListWrapper<FunctionVo> getFunctionListCache() {
-        List<FunctionVo> list = functionDataAccess.findAll().stream().map(functionMapper::toVo).toList();
-        return new CacheListWrapper<>(list);
+        return cacheExecutor.executeCacheableList(
+                "functions",
+                "all",
+                () -> functionDataAccess.findAll().stream().map(functionMapper::toVo).toList()
+        );
     }
 
     @Override
@@ -93,33 +87,38 @@ public class FunctionQueryService implements IFunctionQueryService {
     }
 
     @Override
-    @Cacheable(value = "functions", key = "'byname:' + #name", sync = true)
     public FunctionVo getFunctionByName(String name) {
-        Function function = functionDataAccess.findFunctionByName(name);
-        return function == null ? null : functionMapper.toVo(function);
+        return cacheExecutor.executeCacheable("functions", "byname:" + name, () -> {
+            Function function = functionDataAccess.findFunctionByName(name);
+            return function == null ? null : functionMapper.toVo(function);
+        });
     }
 
     @Override
-    @Cacheable(value = "functions", key = "'bynameparent:' + #name + ':' + #parent", sync = true)
     public FunctionVo getFunctionByNameAndParent(String name, String parent) {
-        List<Function> functionList = functionDataAccess.findFunctionByNameAndParent(name, parent);
-        if (functionList.isEmpty()) {
-            return null;
-        }
-        return functionMapper.toVo(functionList.getFirst());
+        return cacheExecutor.executeCacheable("functions", "bynameparent:" + name + ":" + parent, () -> {
+            List<Function> functionList = functionDataAccess.findFunctionByNameAndParent(name, parent);
+            if (functionList.isEmpty()) {
+                return null;
+            }
+            return functionMapper.toVo(functionList.getFirst());
+        });
     }
 
     @Override
     public FunctionVo getFunctionByPath(String oneLayer, String twoLayer, String threeLayer) {
-        FunctionVo one = self.getFunctionByName(oneLayer);
+        FunctionVo one = getFunctionByNameAndParent(oneLayer, "");
+        if (one == null) {
+            one = getFunctionByName(oneLayer);
+        }
         if (one == null) {
             return null;
         }
-        FunctionVo two = self.getFunctionByNameAndParent(twoLayer, one.getId());
+        FunctionVo two = getFunctionByNameAndParent(twoLayer, one.getId());
         if (two == null) {
             return null;
         }
-        return self.getFunctionByNameAndParent(threeLayer, two.getId());
+        return getFunctionByNameAndParent(threeLayer, two.getId());
     }
 
     @Override
@@ -128,7 +127,7 @@ public class FunctionQueryService implements IFunctionQueryService {
         SEARCH_SORT_POLICY.validate(query.getSortBy(), query.getSortDir());
 
         // 從快取取得所有 functions，避免重複 DB 查詢（解決 6s N+1/full-scan 問題）
-        List<FunctionVo> allFunctions = self.getFunctionListCache().getData();
+        List<FunctionVo> allFunctions = getFunction();
 
         // 記憶體篩選
         List<FunctionVo> filtered = allFunctions.stream()

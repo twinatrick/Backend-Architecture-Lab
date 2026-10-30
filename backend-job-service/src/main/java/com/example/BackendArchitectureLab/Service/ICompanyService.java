@@ -1,7 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Request.CreateCompanyRequest;
@@ -18,7 +17,6 @@ public interface ICompanyService {
     CompanyVo createCompany(CreateCompanyRequest request);
 
     List<CompanyVo> getAllCompanies();
-    CacheListWrapper<CompanyVo> getAllCompaniesCache();
 
     CompanyVo getCompanyById(String id);
 

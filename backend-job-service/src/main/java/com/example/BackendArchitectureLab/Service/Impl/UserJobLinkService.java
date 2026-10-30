@@ -1,7 +1,5 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
-import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserJobLinkDataAccess;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
@@ -12,6 +10,7 @@ import com.example.BackendArchitectureLab.Feign.UserServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.UserJobLinkMapper;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
 import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
@@ -56,9 +55,7 @@ public class UserJobLinkService implements IUserJobLinkService {
     private final CacheManager cacheManager;
     private final UserServiceFeignClient userServiceFeignClient;
     private final TransactionExecutor transactionExecutor;
-
-    @Lazy
-    private final IUserJobLinkService self;
+    private final CacheExecutor cacheExecutor;
 
     @Override
     @Caching(put = {
@@ -224,40 +221,32 @@ public class UserJobLinkService implements IUserJobLinkService {
 
     @Override
     public List<UserJobLinkVo> getUserJobLinksByUserId(String userId) {
-        return self.getUserJobLinksByUserIdCache(userId).getData();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    @Cacheable(value = "userJobLinks", key = "'byuser:' + #userId", sync = true)
-    public CacheListWrapper<UserJobLinkVo> getUserJobLinksByUserIdCache(String userId) {
-        UUID uuid = mapUuid(userId);
-        if (uuid == null) {
-            throw new IllegalArgumentException("User ID must not be null");
-        }
-        List<UserJobLinkVo> list = userJobLinkDataAccess.findByUserId(uuid).stream()
-                .map(userJobLinkMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return cacheExecutor.executeCacheableList("userJobLinks", "byuser:" + userId, () ->
+                transactionExecutor.executeReadOnly(() -> {
+                    UUID uuid = mapUuid(userId);
+                    if (uuid == null) {
+                        throw new IllegalArgumentException("User ID must not be null");
+                    }
+                    return userJobLinkDataAccess.findByUserId(uuid).stream()
+                            .map(userJobLinkMapper::toVo)
+                            .toList();
+                })
+        );
     }
 
     @Override
     public List<UserJobLinkVo> getUserJobLinksByJobPostingId(String jobPostingId) {
-        return self.getUserJobLinksByJobPostingIdCache(jobPostingId).getData();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    @Cacheable(value = "userJobLinks", key = "'byjob:' + #jobPostingId", sync = true)
-    public CacheListWrapper<UserJobLinkVo> getUserJobLinksByJobPostingIdCache(String jobPostingId) {
-        UUID uuid = mapUuid(jobPostingId);
-        if (uuid == null) {
-            throw new IllegalArgumentException("Job posting ID must not be null");
-        }
-        List<UserJobLinkVo> list = userJobLinkDataAccess.findByJobPostingId(uuid).stream()
-                .map(userJobLinkMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
+        return cacheExecutor.executeCacheableList("userJobLinks", "byjob:" + jobPostingId, () ->
+                transactionExecutor.executeReadOnly(() -> {
+                    UUID uuid = mapUuid(jobPostingId);
+                    if (uuid == null) {
+                        throw new IllegalArgumentException("Job posting ID must not be null");
+                    }
+                    return userJobLinkDataAccess.findByJobPostingId(uuid).stream()
+                            .map(userJobLinkMapper::toVo)
+                            .toList();
+                })
+        );
     }
 
     @Override
@@ -340,13 +329,9 @@ public class UserJobLinkService implements IUserJobLinkService {
 
     @Override
     public List<UserJobLinkVo> getCurrentUserJobLinks(String currentUserId) {
-        return self.getCurrentUserJobLinksCache(currentUserId).getData();
-    }
-
-    @Override
-    @Cacheable(value = "userJobLinks", key = "'currentuser:' + #currentUserId", sync = true)
-    public CacheListWrapper<UserJobLinkVo> getCurrentUserJobLinksCache(String currentUserId) {
-        return self.getUserJobLinksByUserIdCache(currentUserId);
+        return cacheExecutor.executeCacheableList("userJobLinks", "currentuser:" + currentUserId, () ->
+                getUserJobLinksByUserId(currentUserId)
+        );
     }
 
     @Override

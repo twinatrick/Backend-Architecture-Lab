@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Vo.CompanyVo;
 import com.example.BackendArchitectureLab.Dto.Request.CreateCompanyRequest;
 import com.example.BackendArchitectureLab.Dto.Request.UpdateCompanyRequest;
 import com.example.BackendArchitectureLab.Entity.Company;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +40,9 @@ class CompanyServiceTest {
     private TransactionExecutor transactionExecutor;
 
     @Mock
+    private CacheExecutor cacheExecutor;
+
+    @Mock
     private ICompanyDataAccess companyDataAccess;
 
     @Mock
@@ -59,6 +63,10 @@ class CompanyServiceTest {
         });
         lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
             Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
             return supplier.get();
         });
         testId = UUID.randomUUID();

@@ -5,6 +5,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Entity.Project;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +39,8 @@ class UserProjectServiceTest {
     private IProjectDataAccess projectDataAccess;
     @Mock
     private IUserGateway userGateway;
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @InjectMocks
     private UserProjectService userProjectService;
@@ -53,14 +55,11 @@ class UserProjectServiceTest {
         projectId1 = UUID.randomUUID();
         projectId2 = UUID.randomUUID();
 
-        // Inject self reference
-        try {
-            Field selfField = UserProjectService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(userProjectService, userProjectService);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self into UserProjectService", e);
-        }
+        lenient().doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(transactionExecutor).runWritable(any());
     }
 
     private UserProject userProject(UUID projectId) {

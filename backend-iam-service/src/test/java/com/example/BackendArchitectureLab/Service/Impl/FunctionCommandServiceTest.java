@@ -4,6 +4,7 @@ import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IRoleFunctionDataAccess;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.domain.Example;
 
 import java.util.*;
 
@@ -39,6 +39,9 @@ class FunctionCommandServiceTest {
 
     @Mock
     private FunctionMapper functionMapper;
+
+    @Mock
+    private IamLocalCacheManager iamLocalCacheManager;
 
     @InjectMocks
     private FunctionCommandService functionCommandService;
@@ -85,14 +88,14 @@ class FunctionCommandServiceTest {
         FunctionVo newFunction = new FunctionVo();
         newFunction.setName("New Function");
 
-        when(functionDataAccess.exists(any(Example.class))).thenReturn(false);
+        when(functionDataAccess.findFunctionByNameAndParent("New Function", "")).thenReturn(List.of());
         when(functionDataAccess.save(any(Function.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         FunctionVo result = functionCommandService.addFunction(newFunction);
 
         assertNotNull(result);
         assertEquals("New Function", result.getName());
-        verify(functionDataAccess).exists(any(Example.class));
+        verify(functionDataAccess).findFunctionByNameAndParent("New Function", "");
         verify(functionDataAccess).save(any(Function.class));
     }
 
@@ -128,7 +131,8 @@ class FunctionCommandServiceTest {
         FunctionVo newFunction = new FunctionVo();
         newFunction.setName("Existing Function");
 
-        when(functionDataAccess.exists(any(Example.class))).thenReturn(true);
+        when(functionDataAccess.findFunctionByNameAndParent("Existing Function", ""))
+                .thenReturn(List.of(testFunction));
 
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
             functionCommandService.addFunction(newFunction);
@@ -198,16 +202,19 @@ class FunctionCommandServiceTest {
 
     @Test
     void testDeleteFunction_Success() {
-        doNothing().when(roleFunctionDataAccess).deleteByFunction(testId);
-        doNothing().when(functionDataAccess).delete(any(Function.class));
+        List<UUID> subtreeIds = List.of(testId);
+        when(functionDataAccess.collectSubtreeIds(List.of(testId))).thenReturn(subtreeIds);
+        doNothing().when(roleFunctionDataAccess).deleteByFunctionIds(subtreeIds);
+        doNothing().when(functionDataAccess).deleteByIds(subtreeIds);
 
         FunctionVo deleteVo = new FunctionVo();
         deleteVo.setId(testId.toString());
         deleteVo.setName("Test Function");
         functionCommandService.deleteFunction(deleteVo);
 
-        verify(roleFunctionDataAccess).deleteByFunction(testId);
-        verify(functionDataAccess).delete(any(Function.class));
+        verify(functionDataAccess).collectSubtreeIds(List.of(testId));
+        verify(roleFunctionDataAccess).deleteByFunctionIds(subtreeIds);
+        verify(functionDataAccess).deleteByIds(subtreeIds);
     }
 
     @Test
@@ -219,14 +226,15 @@ class FunctionCommandServiceTest {
         });
 
         assertEquals("Key must not be null", exception.getMessage());
-        verify(roleFunctionDataAccess, never()).deleteByFunction(any());
-        verify(functionDataAccess, never()).delete(any());
+        verify(roleFunctionDataAccess, never()).deleteByFunctionIds(any());
+        verify(functionDataAccess, never()).deleteByIds(any());
     }
 
     @Test
     void testDeleteFunction_WithList_Success() {
         UUID id1 = UUID.randomUUID();
         UUID id2 = UUID.randomUUID();
+        List<UUID> subtreeIds = List.of(id1, id2);
 
         FunctionVo vo1 = new FunctionVo();
         vo1.setId(id1.toString());
@@ -235,21 +243,15 @@ class FunctionCommandServiceTest {
 
         List<FunctionVo> functionVos = Arrays.asList(vo1, vo2);
 
-        Function f1 = new Function();
-        f1.setId(id1);
-        Function f2 = new Function();
-        f2.setId(id2);
-        List<Function> functions = Arrays.asList(f1, f2);
-
-        when(functionDataAccess.findAllById(anyList())).thenReturn(functions);
-        doNothing().when(roleFunctionDataAccess).deleteAllByFunctionIn(functions);
-        doNothing().when(functionDataAccess).deleteAll(functions);
+        when(functionDataAccess.collectSubtreeIds(List.of(id1, id2))).thenReturn(subtreeIds);
+        doNothing().when(roleFunctionDataAccess).deleteByFunctionIds(subtreeIds);
+        doNothing().when(functionDataAccess).deleteByIds(subtreeIds);
 
         functionCommandService.deleteFunction(functionVos);
 
-        verify(functionDataAccess).findAllById(anyList());
-        verify(roleFunctionDataAccess).deleteAllByFunctionIn(functions);
-        verify(functionDataAccess).deleteAll(functions);
+        verify(functionDataAccess).collectSubtreeIds(List.of(id1, id2));
+        verify(roleFunctionDataAccess).deleteByFunctionIds(subtreeIds);
+        verify(functionDataAccess).deleteByIds(subtreeIds);
     }
 
     @Test

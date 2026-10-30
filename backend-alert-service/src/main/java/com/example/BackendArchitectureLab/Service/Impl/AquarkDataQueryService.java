@@ -167,7 +167,7 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
         List<CriteriaApiFilter> criteriaAPIFilterList = new ArrayList<>();
         criteriaAPIFilterList.add(criteriaAPIFilterStart);
         criteriaAPIFilterList.add(criteriaAPIFilterEnd);
-        List<AquarkDataRaw> rawList = getAquarkDataWithFilter(criteriaAPIFilterList);
+        List<AquarkDataRaw> rawList = queryAquarkDataWithFilter(criteriaAPIFilterList);
         List<AverageAquark> avangeList = rawList.stream().map(AquarkDataRaw::toAverageAquark).toList();
         Map<String, List<AverageAquark>> collect = avangeList.stream()
                 .collect(Collectors.groupingBy((a) -> a.getStation_id() + a.getDate()));
@@ -196,8 +196,12 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<AquarkDataRaw> getAquarkDataWithFilter(List<CriteriaApiFilter> fillterList) {
+        return queryAquarkDataWithFilter(fillterList);
+    }
+
+    private List<AquarkDataRaw> queryAquarkDataWithFilter(List<CriteriaApiFilter> fillterList) {
         if (fillterList.isEmpty()) {
-            return getAquarkData();
+            return aquarkDataDataAccess.findAll().stream().map(aquarkDataMapper::toVo).toList();
         }
         return aquarkDataDataAccess.findByCriteria(fillterList).stream().map(aquarkDataMapper::toVo).toList();
     }

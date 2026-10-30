@@ -1,7 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Dto.Request.CreateJobPostingRequest;
 import com.example.BackendArchitectureLab.Vo.JobPostingVo;
@@ -27,7 +26,6 @@ public interface IJobPostingService {
     void deleteJobPosting(String id);
 
     List<JobPostingVo> getJobPostingsByCompanyId(String companyId);
-    CacheListWrapper<JobPostingVo> getJobPostingsByCompanyIdCache(String companyId);
 
     List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId);
 

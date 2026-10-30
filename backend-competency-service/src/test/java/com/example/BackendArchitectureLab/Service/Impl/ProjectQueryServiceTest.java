@@ -9,6 +9,7 @@ import com.example.BackendArchitectureLab.DataAccess.IProjectDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.AfterEach;
@@ -41,6 +42,8 @@ class ProjectQueryServiceTest {
     @Mock
     private TransactionExecutor transactionExecutor;
     @Mock
+    private CacheExecutor cacheExecutor;
+    @Mock
     private IProjectDataAccess projectDataAccess;
     @Mock
     private IUserProjectDataAccess userProjectDataAccess;
@@ -64,6 +67,10 @@ class ProjectQueryServiceTest {
         });
         lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
             Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
             return supplier.get();
         });
 

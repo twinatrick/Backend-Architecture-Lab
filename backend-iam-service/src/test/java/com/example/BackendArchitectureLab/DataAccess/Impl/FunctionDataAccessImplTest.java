@@ -458,5 +458,43 @@ class FunctionDataAccessImplTest {
         assertTrue(functionDataAccess.findAllParentHierarchyByChildIds(List.of()).isEmpty());
         assertTrue(functionDataAccess.findAllParentHierarchyByChildIds(null).isEmpty());
     }
+
+    @Test
+    @DisplayName("collectSubtreeIds should collect 3-level descendants and deleteByIds should bulk remove them")
+    void testCollectSubtreeIds_AndDeleteByIds() {
+        Function root = new Function();
+        root.setName("Iam");
+        root.setParent("");
+        root.setType(1);
+        functionRepository.save(root);
+
+        Function module = new Function();
+        module.setName("User");
+        module.setParent(root.getId().toString());
+        module.setType(2);
+        functionRepository.save(module);
+
+        Function actionView = new Function();
+        actionView.setName("View");
+        actionView.setParent(module.getId().toString());
+        actionView.setType(3);
+        functionRepository.save(actionView);
+
+        Function unrelatedRoot = new Function();
+        unrelatedRoot.setName("Competency");
+        unrelatedRoot.setParent("");
+        unrelatedRoot.setType(1);
+        functionRepository.save(unrelatedRoot);
+
+        List<UUID> subtreeIds = functionDataAccess.collectSubtreeIds(List.of(root.getId()));
+        assertEquals(3, subtreeIds.size());
+        assertTrue(subtreeIds.containsAll(List.of(root.getId(), module.getId(), actionView.getId())));
+
+        functionDataAccess.deleteByIds(subtreeIds);
+
+        List<Function> remaining = functionRepository.findAll();
+        assertEquals(1, remaining.size());
+        assertEquals(unrelatedRoot.getId(), remaining.get(0).getId());
+    }
 }
 

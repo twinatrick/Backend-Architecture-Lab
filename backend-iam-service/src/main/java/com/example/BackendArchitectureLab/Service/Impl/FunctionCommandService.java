@@ -5,12 +5,12 @@ import com.example.BackendArchitectureLab.DataAccess.IRoleFunctionDataAccess;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Service.IFunctionCommandService;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Caching;
-import org.springframework.data.domain.Example;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +23,7 @@ public class FunctionCommandService implements IFunctionCommandService {
     private final IFunctionDataAccess functionDataAccess;
     private final IRoleFunctionDataAccess roleFunctionDataAccess;
     private final FunctionMapper functionMapper;
+    private final IamLocalCacheManager iamLocalCacheManager;
 
     @Override
     @Transactional
@@ -40,15 +41,16 @@ public class FunctionCommandService implements IFunctionCommandService {
         } else if (function.getName() == null) {
             throw new IllegalArgumentException("Name must not be null");
         } else {
-            Function f = new Function();
-            f.setName(function.getName());
-            Example<Function> example = Example.of(f);
-            if (functionDataAccess.exists(example)) {
+            String normalizedParent = function.getParent() != null ? function.getParent() : "";
+            function.setParent(normalizedParent);
+            if (!functionDataAccess.findFunctionByNameAndParent(function.getName(), normalizedParent).isEmpty()) {
                 throw new IllegalArgumentException("Name already exists");
             }
         }
 
-        return functionMapper.toVo(functionDataAccess.save(function));
+        FunctionVo saved = functionMapper.toVo(functionDataAccess.save(function));
+        evictLocalPermissionCache();
+        return saved;
     }
 
     @Override
@@ -73,15 +75,22 @@ public class FunctionCommandService implements IFunctionCommandService {
         if (functionDataAccess.findById(function.getId()).isEmpty()) {
             throw new IllegalArgumentException("Function not found");
         }
+        String normalizedParent = function.getParent() != null ? function.getParent() : "";
+        function.setParent(normalizedParent);
+        boolean duplicateSibling = functionDataAccess.findFunctionByNameAndParent(function.getName(), normalizedParent)
+                .stream()
+                .anyMatch(existing -> existing.getId() != null && !existing.getId().equals(function.getId()));
+        if (duplicateSibling) {
+            throw new IllegalArgumentException("Name already exists");
+        }
         functionDataAccess.save(function);
-
+        evictLocalPermissionCache();
     }
 
     @Override
     @Transactional
     @Caching(evict = {
-        @CacheEvict(value = "functions", key = "#functionVo.id"),
-        @CacheEvict(value = "functions", key = "'all'"),
+        @CacheEvict(value = "functions", allEntries = true),
         @CacheEvict(value = "roles", allEntries = true),
         @CacheEvict(value = "roleFunctions", allEntries = true),
         @CacheEvict(value = "userPermissionsVo", allEntries = true),
@@ -92,10 +101,12 @@ public class FunctionCommandService implements IFunctionCommandService {
         if (function.getId() == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
-        roleFunctionDataAccess.deleteByFunction(function.getId());
-        functionDataAccess.delete(function);
-
+        List<UUID> subtreeIds = functionDataAccess.collectSubtreeIds(List.of(function.getId()));
+        roleFunctionDataAccess.deleteByFunctionIds(subtreeIds);
+        functionDataAccess.deleteByIds(subtreeIds);
+        evictLocalPermissionCache();
     }
+
     @Transactional
     @Override
     @Caching(evict = {
@@ -106,15 +117,22 @@ public class FunctionCommandService implements IFunctionCommandService {
         @CacheEvict(value = "userInfo", allEntries = true)
     })
     public void deleteFunction(List<FunctionVo> function) {
-        // 批次刪除無法精確反推 key，保留全量清除
-        if (function.isEmpty()) {
+        // 批次刪除向下遞迴收集子孫節點並一併清除綁定與節點
+        if (function == null || function.isEmpty()) {
             return;
         }
-        List<Function> f= functionDataAccess.findAllById(function.stream().map(
-                FunctionVo::getId
-        ).map(UUID::fromString).toList());
-        roleFunctionDataAccess.deleteAllByFunctionIn(f)  ;
-        functionDataAccess.deleteAll(f);
+        List<UUID> rootIds = function.stream()
+                .map(FunctionVo::getId)
+                .filter(id -> id != null && !id.isBlank())
+                .map(UUID::fromString)
+                .toList();
+        if (rootIds.isEmpty()) {
+            return;
+        }
+        List<UUID> subtreeIds = functionDataAccess.collectSubtreeIds(rootIds);
+        roleFunctionDataAccess.deleteByFunctionIds(subtreeIds);
+        functionDataAccess.deleteByIds(subtreeIds);
+        evictLocalPermissionCache();
     }
 
     @Transactional
@@ -128,7 +146,7 @@ public class FunctionCommandService implements IFunctionCommandService {
     })
     public void saveFunction(List<FunctionVo> function) {
         // 批次儲存無法精確反推 key，保留全量清除
-        if (function.isEmpty()) {
+        if (function == null || function.isEmpty()) {
             return;
         }
         List<Function> f = function.stream()
@@ -136,5 +154,10 @@ public class FunctionCommandService implements IFunctionCommandService {
                 .toList();
 
         functionDataAccess.saveAll(f);
+        evictLocalPermissionCache();
+    }
+
+    private void evictLocalPermissionCache() {
+        iamLocalCacheManager.evictAllPermissions();
     }
 }

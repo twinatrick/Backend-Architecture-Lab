@@ -36,8 +36,8 @@ public class User extends BaseEntity {
     private boolean disabled =false;
     @JsonIgnore
     @BatchSize(size = 50)
-    @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
-    private List<UserRole> roles =new ArrayList<>();
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<UserRole> roles = new ArrayList<>();
 
     @JsonIgnore
     @Transient

@@ -1,12 +1,14 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.DataAccess.IFunctionDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IRoleDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Mapper.FunctionMapper;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Entity.Function;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
@@ -31,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -61,6 +64,10 @@ class AuthServiceTest {
     private UserMapper userMapper;
     @Mock
     private FunctionMapper functionMapper;
+    @Mock
+    private IRoleDataAccess roleDataAccess;
+    @Mock
+    private CacheExecutor cacheExecutor;
 
     @InjectMocks
     private AuthService authService;
@@ -70,7 +77,10 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "superUserKey", "test-super-key");
-        ReflectionTestUtils.setField(authService, "self", authService);
+        lenient().when(cacheExecutor.executeCacheable(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
+            return supplier.get();
+        });
 
         testUser = new User();
         testUser.setId(UUID.randomUUID());

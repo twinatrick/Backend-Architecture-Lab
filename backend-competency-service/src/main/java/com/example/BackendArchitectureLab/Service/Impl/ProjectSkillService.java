@@ -12,14 +12,12 @@ import com.example.BackendArchitectureLab.Entity.Skill;
 import com.example.BackendArchitectureLab.Entity.SkillLevel;
 import com.example.BackendArchitectureLab.Entity.UserProject;
 import com.example.BackendArchitectureLab.Service.IProjectSkillService;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +37,7 @@ import java.util.stream.Collectors;
 public class ProjectSkillService implements IProjectSkillService {
 
     private final TransactionExecutor transactionExecutor;
+    private final CacheExecutor cacheExecutor;
     private final IProjectDataAccess projectDataAccess;
     private final IProjectSkillDataAccess projectSkillDataAccess;
     private final IUserProjectDataAccess userProjectDataAccess;
@@ -46,47 +45,39 @@ public class ProjectSkillService implements IProjectSkillService {
     private final ISkillLevelDataAccess skillLevelDataAccess;
     private final ISkillDataAccess skillDataAccess;
     private final SecurityUtil securityUtil;
-    @Lazy
-    private final IProjectSkillService self;
 
     @Override
     public List<ProjectSkillVo> getProjectSkills(UUID projectId) {
-        CacheListWrapper<ProjectSkillVo> wrapper = self.getProjectSkillsCache(projectId);
-        return (wrapper != null && wrapper.getData() != null) ? wrapper.getData() : List.of();
-    }
+        return cacheExecutor.executeCacheableList("projectSkills", projectId, () ->
+                transactionExecutor.executeReadOnly(() -> {
+                    if (projectId == null) {
+                        throw new IllegalArgumentException("Project ID must not be null");
+                    }
 
-    @Override
-    @Cacheable(value = "projectSkills", key = "#projectId", sync = true)
-    public CacheListWrapper<ProjectSkillVo> getProjectSkillsCache(UUID projectId) {
-        return transactionExecutor.executeReadOnly(() -> {
-            if (projectId == null) {
-                throw new IllegalArgumentException("Project ID must not be null");
-            }
+                    if (!projectDataAccess.existsById(projectId)) {
+                        throw new IllegalArgumentException("Project not found");
+                    }
 
-            if (!projectDataAccess.existsById(projectId)) {
-                throw new IllegalArgumentException("Project not found");
-            }
+                    List<ProjectSkill> projectSkills = projectSkillDataAccess.findByProjectId(projectId);
 
-            List<ProjectSkill> projectSkills = projectSkillDataAccess.findByProjectId(projectId);
+                    return projectSkills.stream().map(ps -> {
+                        ProjectSkillVo vo = new ProjectSkillVo();
+                        vo.setProjectId(ps.getProject().getId());
+                        vo.setSkillId(ps.getSkill().getId());
+                        vo.setSkillName(ps.getSkill().getName());
+                        vo.setSkillDescription(ps.getSkill().getDescription());
 
-            List<ProjectSkillVo> list = projectSkills.stream().map(ps -> {
-                ProjectSkillVo vo = new ProjectSkillVo();
-                vo.setProjectId(ps.getProject().getId());
-                vo.setSkillId(ps.getSkill().getId());
-                vo.setSkillName(ps.getSkill().getName());
-                vo.setSkillDescription(ps.getSkill().getDescription());
-
-                SkillLevel level = ps.getSkillLevel();
-                if (level != null) {
-                    vo.setSkillLevelId(level.getId());
-                    vo.setLevelValue(level.getLevelValue());
-                    vo.setLevelTitle(level.getTitle());
-                    vo.setLevelDescription(level.getDescription());
-                }
-                return vo;
-            }).toList();
-            return new CacheListWrapper<>(list);
-        });
+                        SkillLevel level = ps.getSkillLevel();
+                        if (level != null) {
+                            vo.setSkillLevelId(level.getId());
+                            vo.setLevelValue(level.getLevelValue());
+                            vo.setLevelTitle(level.getTitle());
+                            vo.setLevelDescription(level.getDescription());
+                        }
+                        return vo;
+                    }).toList();
+                })
+        );
     }
 
     @Override
@@ -168,6 +159,10 @@ public class ProjectSkillService implements IProjectSkillService {
     @Override
     @CacheEvict(value = "projectSkills", key = "#projectId")
     public void rebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping) {
+        doRebindProjectSkills(projectId, skillLevelMapping);
+    }
+
+    private void doRebindProjectSkills(UUID projectId, Map<UUID, UUID> skillLevelMapping) {
         if (projectId == null) {
             throw new IllegalArgumentException("Key must not be null");
         }
@@ -227,7 +222,7 @@ public class ProjectSkillService implements IProjectSkillService {
             ensureSkillVisibleToCurrentUser(skillId, currentUserId);
         }
 
-        self.rebindProjectSkills(projectId, targetMap);
+        doRebindProjectSkills(projectId, targetMap);
     }
 
     @Override
