@@ -14,6 +14,7 @@ import com.example.BackendArchitectureLab.Entity.CompanyWebsite;
 import com.example.BackendArchitectureLab.Entity.JobPosting;
 import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -67,6 +68,9 @@ class JobPostingServiceTest {
     @Mock
     private TransactionExecutor transactionExecutor;
 
+    @Mock
+    private CacheExecutor cacheExecutor;
+
     @InjectMocks
     private JobPostingService jobPostingService;
 
@@ -84,6 +88,10 @@ class JobPostingServiceTest {
         });
         when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
             Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
             return supplier.get();
         });
 
@@ -127,8 +135,6 @@ class JobPostingServiceTest {
             vo.setGeminiAnalysis(jp.getGeminiAnalysis());
             return vo;
         });
-
-        ReflectionTestUtils.setField(jobPostingService, "self", jobPostingService);
     }
 
     @Test

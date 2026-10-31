@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Controller;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Vo.ResponseType;
 import com.example.BackendArchitectureLab.Vo.UserJobLinkVo;
 import com.example.BackendArchitectureLab.Service.IUserJobLinkService;
@@ -12,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,9 +31,10 @@ public class UserJobBindingController {
     private final IUserJobLinkService userJobLinkService;
     private final SecurityUtil securityUtil;
 
-    @PostMapping("/add/{jobPostingId}")
+    @PostMapping("/{jobPostingId}")
     @ApiOperationBadRequest(summary = "綁定職缺", description = "當前使用者綁定一筆職缺。")
-    public ResponseType<UserJobLinkVo> addJob(@PathVariable String jobPostingId) {
+    public ResponseType<UserJobLinkVo> addJob(
+            @ApiPath(name = "jobPostingId", description = "目標職缺 UUID", format = "uuid") String jobPostingId) {
         UUID currentUserId = securityUtil.requireCurrentUserId();
         log.info("User {} binding job {}", currentUserId, jobPostingId);
         UserJobLinkVo result = userJobLinkService.addJobToCurrentUser(currentUserId.toString(), jobPostingId);
@@ -42,7 +43,8 @@ public class UserJobBindingController {
 
     @DeleteMapping("/{jobPostingId}")
     @ApiOperationBadRequest(summary = "解除綁定職缺", description = "當前使用者解除綁定一筆職缺。")
-    public ResponseType<String> removeJob(@PathVariable String jobPostingId) {
+    public ResponseType<String> removeJob(
+            @ApiPath(name = "jobPostingId", description = "目標職缺 UUID", format = "uuid") String jobPostingId) {
         UUID currentUserId = securityUtil.requireCurrentUserId();
         log.info("User {} unbinding job {}", currentUserId, jobPostingId);
         userJobLinkService.removeJobFromCurrentUser(currentUserId.toString(), jobPostingId);

@@ -1,7 +1,5 @@
 package com.example.BackendArchitectureLab.Service.Impl;
 
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
-import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Crawler.Impl.CompositeJobCrawler;
 import com.example.BackendArchitectureLab.DataAccess.ICompanyDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IJobPostingDataAccess;
@@ -18,6 +16,7 @@ import com.example.BackendArchitectureLab.Feign.ExternalApiServiceFeignClient;
 import com.example.BackendArchitectureLab.Mapper.JobPostingMapper;
 import com.example.BackendArchitectureLab.Service.IJobPostingService;
 import com.example.BackendArchitectureLab.Util.BatchCacheHelper;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
 import lombok.RequiredArgsConstructor;
@@ -60,9 +59,7 @@ public class JobPostingService implements IJobPostingService {
     private final CacheManager cacheManager;
     private final StringRedisTemplate stringRedisTemplate;
     private final TransactionExecutor transactionExecutor;
-
-    @Lazy
-    private final IJobPostingService self;
+    private final CacheExecutor cacheExecutor;
 
     @Override
     @Transactional
@@ -264,28 +261,20 @@ public class JobPostingService implements IJobPostingService {
 
     @Override
     public List<JobPostingVo> getJobPostingsByCompanyId(String companyId) {
-        return self.getJobPostingsByCompanyIdCache(companyId).getData();
+        return cacheExecutor.executeCacheableList("jobPostings", "bycompany:" + companyId, () ->
+                transactionExecutor.executeReadOnly(() -> {
+                    UUID uuid = mapUuid(companyId);
+                    if (uuid == null) {
+                        throw new IllegalArgumentException("Company ID must not be null");
+                    }
+                    return jobPostingDataAccess.findByCompanyId(uuid).stream()
+                            .map(jobPostingMapper::toVo)
+                            .toList();
+                })
+        );
     }
 
     @Override
-    @Transactional(readOnly = true)
-    @Cacheable(value = "jobPostings", key = "'bycompany:' + #companyId", sync = true)
-    public CacheListWrapper<JobPostingVo> getJobPostingsByCompanyIdCache(String companyId) {
-        UUID uuid = mapUuid(companyId);
-        if (uuid == null) {
-            throw new IllegalArgumentException("Company ID must not be null");
-        }
-        List<JobPostingVo> list = jobPostingDataAccess.findByCompanyId(uuid).stream()
-                .map(jobPostingMapper::toVo)
-                .toList();
-        return new CacheListWrapper<>(list);
-    }
-
-    @Override
-    @Caching(evict = {
-        @CacheEvict(value = "jobPostings", key = "'bycompany:' + #companyId"),
-        @CacheEvict(value = "companies", key = "'all'")
-    })
     public List<JobPostingVo> scrapeAndAnalyzeJobs(String companyId) {
         UUID uuid = mapUuid(companyId);
         if (uuid == null) {
@@ -305,6 +294,8 @@ public class JobPostingService implements IJobPostingService {
 
         if (websiteUrls.isEmpty()) {
             log.warn("Company {} has no websites to scrape", companyName);
+            cacheExecutor.evict("jobPostings", "bycompany:" + companyId);
+            cacheExecutor.evict("companies", "all");
             return List.of();
         }
 
@@ -387,6 +378,8 @@ public class JobPostingService implements IJobPostingService {
         }
 
         evictJobPostingsSearchCache();
+        cacheExecutor.evict("jobPostings", "bycompany:" + companyId);
+        cacheExecutor.evict("companies", "all");
         log.info("Completed scraping for company: {}, total saved/updated: {}", companyName, allSavedJobs.size());
         return allSavedJobs;
     }

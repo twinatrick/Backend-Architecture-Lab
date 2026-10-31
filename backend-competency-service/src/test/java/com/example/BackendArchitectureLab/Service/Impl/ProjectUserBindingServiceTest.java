@@ -15,6 +15,7 @@ import com.example.BackendArchitectureLab.Service.ICompensationOutboxService;
 import com.example.BackendArchitectureLab.Service.IExternalSyncCommandService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
 import com.example.BackendArchitectureLab.Event.CompensationAction;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Vo.ProjectMemberSkillVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,6 @@ import org.springframework.cache.CacheManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Date;
@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -66,6 +67,8 @@ class ProjectUserBindingServiceTest {
     private ICompensationOutboxService compensationOutboxService;
     @Mock
     private IExternalSyncCommandService externalSyncCommandService;
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @InjectMocks
     private ProjectUserBindingService projectUserBindingService;
@@ -75,15 +78,15 @@ class ProjectUserBindingServiceTest {
         // 提供 saveAndFlush 的預設行為（觸發 Auditing 與樂觀鎖 version 遞增後回傳同一實體）
         lenient().when(projectDataAccess.saveAndFlush(any(Project.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Inject self reference（自我代理：交易外驗證後呼叫自身交易方法）
-        try {
-            Field selfField = ProjectUserBindingService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(projectUserBindingService, projectUserBindingService);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self into ProjectUserBindingService", e);
-        }
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(transactionExecutor).runWritable(any());
     }
 
     @Test

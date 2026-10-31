@@ -4,12 +4,14 @@ import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
 import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.User;
 import com.example.BackendArchitectureLab.Entity.UserRole;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -30,6 +32,9 @@ class CustomUserDetailsServiceTest {
 
     @Mock
     private IUserDataAccess userDataAccess;
+
+    @Spy
+    private IamLocalCacheManager iamLocalCacheManager = new IamLocalCacheManager();
 
     @InjectMocks
     private CustomUserDetailsService customUserDetailsService;

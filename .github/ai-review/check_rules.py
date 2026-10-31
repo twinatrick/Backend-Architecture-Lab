@@ -36,6 +36,13 @@ RULE_FORBIDDEN_GETALL_ENDPOINT = "開發規範 §6.1 根除無界端點原則（
 RULE_MISSING_DUAL_RAIL_RETRIEVAL = "開發規範 §6.2 雙軌實體獲取標準（必須同時提供 /search 與 /stream 端點）"
 RULE_OPENAPI_DTO_CONTRACT = "開發規範 §3.2 輸入參數與 DTO 契約規範"
 RULE_RESTFUL_ENDPOINT_NAMING = "開發規範 §3.3 RESTful 路由命名慣例"
+RULE_PROHIBIT_CROSS_BEAN_LAZY = "開發規範 §1.4/§5.10 全面嚴禁 @Lazy 遮蔽環形依賴與自我代理注入規範"
+RULE_SELF_INVOCATION_BYPASS = (
+    "開發規範 §1.4/§5.10 禁止同類別切面自調用繞過代理規範（請改用 TransactionExecutor / CacheExecutor）"
+)
+RULE_CIRCULAR_DEPENDENCY = "開發規範 §5.10 有向無環依賴圖（嚴禁環形依賴 DAG）規範"
+RULE_SPRING_CIRCULAR_REF_CONFIG = "開發規範 §1.4/§5.10 嚴禁開啟 allow-circular-references 規範"
+RULE_JPA_CHILD_CASCADE = "開發規範 §5.10.1 JPA 實體單向級聯規範（禁止 @ManyToOne 反向 Cascade REMOVE/ALL）"
 
 PENDING_DUAL_RAIL_MIGRATION = frozenset()
 

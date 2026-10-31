@@ -8,6 +8,7 @@ import com.example.BackendArchitectureLab.Entity.RoleFunction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Example;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
@@ -34,6 +35,7 @@ public class RoleFunctionDataAccessImpl implements IRoleFunctionDataAccess {
     }
 
     @Override
+    @Transactional
     public void deleteByFunctionAndRole(List<Function> functions, List<Role> roles) {
         roleFunctionRepository.deleteByFunctionAndRole(functions, roles);
     }
@@ -44,17 +46,29 @@ public class RoleFunctionDataAccessImpl implements IRoleFunctionDataAccess {
     }
 
     @Override
+    @Transactional
     public void deleteByFunction(UUID functionId) {
         roleFunctionRepository.deleteByFunction(functionId);
     }
 
     @Override
+    @Transactional
     public void deleteByRoleKey(UUID roleId) {
         roleFunctionRepository.deleteByRoleKey(roleId);
     }
 
     @Override
+    @Transactional
     public void deleteAllByFunctionIn(Collection<Function> functions) {
         roleFunctionRepository.deleteAllByFunctionIn(functions);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByFunctionIds(Collection<UUID> functionIds) {
+        if (functionIds == null || functionIds.isEmpty()) {
+            return;
+        }
+        roleFunctionRepository.deleteByFunctionIds(functionIds);
     }
 }

@@ -38,5 +38,11 @@ public interface IUserRoleDataAccess {
 
     void deleteByUserId(UUID userId);
 
+    void deleteByRoleId(UUID roleId);
+
     void deleteByUserIdAndRoleId(UUID userId, UUID roleId);
+
+    void deleteByUserIdAndRoleIds(UUID userId, Collection<UUID> roleIds);
+
+    void deleteByUserIdsAndRoleId(Collection<UUID> userIds, UUID roleId);
 }

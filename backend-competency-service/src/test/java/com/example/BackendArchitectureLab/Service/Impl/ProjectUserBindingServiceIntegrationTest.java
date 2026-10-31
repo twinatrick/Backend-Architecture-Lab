@@ -28,6 +28,7 @@ import com.example.BackendArchitectureLab.Repository.UserProjectRepository;
 import com.example.BackendArchitectureLab.Repository.UserProjectSkillRepository;
 import com.example.BackendArchitectureLab.Service.ICompensationRestoreService;
 import com.example.BackendArchitectureLab.Service.IUserGateway;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import com.example.BackendArchitectureLab.Bo.BindingSnapshot;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -104,6 +105,7 @@ class ProjectUserBindingServiceIntegrationTest {
             SkillLevelDataAccessImpl.class,
             CompensationOutboxServiceImpl.class,
             ExternalSyncServiceImpl.class,
+            TransactionExecutor.class,
             TransactionalRestoreFacade.class})
     static class CompensationTestApp {
 

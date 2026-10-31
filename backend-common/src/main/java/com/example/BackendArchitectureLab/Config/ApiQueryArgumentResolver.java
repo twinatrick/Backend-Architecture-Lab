@@ -11,6 +11,8 @@ import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartRequest;
 
 /**
  * Controller 專屬 @ApiQuery 參數解析器。
@@ -40,6 +42,16 @@ public class ApiQueryArgumentResolver implements HandlerMethodArgumentResolver {
         if (!StringUtils.hasText(name)) {
             name = parameter.getParameter().getName();
         }
+
+        if (MultipartFile.class.isAssignableFrom(parameter.getParameterType())) {
+            MultipartRequest multipartRequest = webRequest.getNativeRequest(MultipartRequest.class);
+            MultipartFile file = multipartRequest != null ? multipartRequest.getFile(name) : null;
+            if (file == null && apiQuery.required()) {
+                throw new MissingServletRequestParameterException(name, parameter.getParameterType().getSimpleName());
+            }
+            return file;
+        }
+
         String value = webRequest.getParameter(name);
 
         if (value == null && StringUtils.hasText(apiQuery.defaultValue())) {

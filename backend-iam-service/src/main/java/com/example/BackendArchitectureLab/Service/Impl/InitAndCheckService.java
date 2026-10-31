@@ -132,21 +132,21 @@ public class InitAndCheckService implements IInitAndCheckService {
         }
     }
     @Override
-    public void insertFunctionByList(List<String> functionList , String parent) {
+    public void insertFunctionByList(List<String> functionList, String parent) {
         if (functionList.isEmpty()) {
             return;
         }
-        FunctionVo sameFunction = functionQueryService.getFunctionByNameAndParent(functionList.getFirst(), parent);
+        String normalizedParent = parent != null ? parent : "";
+        FunctionVo sameFunction = functionQueryService.getFunctionByNameAndParent(functionList.getFirst(), normalizedParent);
         if (sameFunction != null) {
             insertFunctionByList(functionList.subList(1, functionList.size()), sameFunction.getId());
-        }else {
+        } else {
             FunctionVo f = new FunctionVo();
             f.setName(functionList.getFirst());
-            f.setParent(parent);
+            f.setParent(normalizedParent);
             f = functionCommandService.addFunction(f);
             insertFunctionByList(functionList.subList(1, functionList.size()), f.getId());
         }
-
     }
 
 }

@@ -1,9 +1,11 @@
 package com.example.BackendArchitectureLab.Controller;
 
 import com.example.BackendArchitectureLab.Annotation.RequirePermission;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiBody;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiControllerTag;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationBadRequest;
 import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiOperationOk;
+import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Service.IUserVoiceUploadService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
@@ -13,13 +15,10 @@ import com.example.BackendArchitectureLab.Vo.UserVoiceUploadVo;
 import com.example.BackendArchitectureLab.Vo.VoiceTranslationVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,7 +34,8 @@ public class VoiceUploadController {
     @PostMapping
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "建立語音上傳", description = "建立新的語音上傳記錄並綁定當前使用者。")
-    public ResponseType<UserVoiceUploadVo> createUpload(@Valid @RequestBody UserVoiceUploadVo vo) {
+    public ResponseType<UserVoiceUploadVo> createUpload(
+            @ApiBody(description = "語音上傳記錄資料") UserVoiceUploadVo vo) {
         String currentUserId = securityUtil.requireCurrentUserId().toString();
         vo.setUserId(currentUserId);
         UserVoiceUploadVo saved = voiceUploadService.saveUpload(vo);
@@ -45,7 +45,8 @@ public class VoiceUploadController {
     @GetMapping("/{id}")
     @RequirePermission("View")
     @ApiOperationOk(summary = "依 ID 取得語音上傳", description = "依 ID 取得語音上傳記錄，僅限擁有者。")
-    public ResponseType<UserVoiceUploadVo> getUpload(@PathVariable("id") UUID id) {
+    public ResponseType<UserVoiceUploadVo> getUpload(
+            @ApiPath(name = "id", description = "語音上傳記錄 UUID", format = "uuid") UUID id) {
         UserVoiceUploadVo upload = voiceUploadService.getUploadById(id);
         String currentUserId = securityUtil.requireCurrentUserId().toString();
         
@@ -61,7 +62,7 @@ public class VoiceUploadController {
     @RequirePermission("View")
     @ApiOperationOk(summary = "搜尋當前使用者上傳記錄", description = "分頁搜尋當前使用者的語音上傳記錄。")
     public ResponseType<PageResult<UserVoiceUploadVo>> searchCurrentUserUploads(
-            @Valid @RequestBody VoiceUploadSearchQuery query) {
+            @ApiBody(description = "語音上傳分頁搜尋條件") VoiceUploadSearchQuery query) {
         String currentUserId = securityUtil.requireCurrentUserId().toString();
         PageResult<UserVoiceUploadVo> result = voiceUploadService.searchUserUploads(currentUserId, query);
         return new ResponseType<>(result);
@@ -71,8 +72,8 @@ public class VoiceUploadController {
     @RequirePermission("Edit")
     @ApiOperationBadRequest(summary = "建立語音翻譯", description = "為指定語音上傳建立翻譯記錄，僅限擁有者。")
     public ResponseType<VoiceTranslationVo> createTranslation(
-            @PathVariable("id") UUID uploadId,
-            @Valid @RequestBody VoiceTranslationVo vo) {
+            @ApiPath(name = "id", description = "語音上傳記錄 UUID", format = "uuid") UUID uploadId,
+            @ApiBody(description = "語音翻譯記錄資料") VoiceTranslationVo vo) {
         UserVoiceUploadVo upload = voiceUploadService.getUploadById(uploadId);
         String currentUserId = securityUtil.requireCurrentUserId().toString();
 
@@ -89,7 +90,8 @@ public class VoiceUploadController {
     @GetMapping("/{id}/translations")
     @RequirePermission("View")
     @ApiOperationOk(summary = "取得語音翻譯列表", description = "取得指定語音上傳的所有翻譯記錄，僅限擁有者。")
-    public ResponseType<List<VoiceTranslationVo>> getTranslations(@PathVariable("id") UUID uploadId) {
+    public ResponseType<List<VoiceTranslationVo>> getTranslations(
+            @ApiPath(name = "id", description = "語音上傳記錄 UUID", format = "uuid") UUID uploadId) {
         UserVoiceUploadVo upload = voiceUploadService.getUploadById(uploadId);
         String currentUserId = securityUtil.requireCurrentUserId().toString();
 

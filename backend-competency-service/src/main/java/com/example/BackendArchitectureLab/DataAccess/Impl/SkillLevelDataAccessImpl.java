@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,7 @@ public class SkillLevelDataAccessImpl implements ISkillLevelDataAccess {
     }
 
     @Override
+    @Transactional
     public void deleteBySkillId(UUID skillId) {
         skillLevelRepository.deleteBySkillId(skillId);
     }

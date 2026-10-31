@@ -62,6 +62,10 @@ public class LineGfService implements ILineGfService {
     @Override
     @Transactional
     public void handleText(String replyToken, String text, String userId) {
+        doHandleText(replyToken, text, userId);
+    }
+
+    private void doHandleText(String replyToken, String text, String userId) {
         if (userId == null || userId.isBlank()) {
             log.warn("LINE 女友服務收到無效的 userId: replyToken={}", replyToken);
             return;
@@ -328,8 +332,8 @@ public class LineGfService implements ILineGfService {
                 return;
             }
 
-            // 直接呼叫 handleText，啟動 AI 思考與語音回覆！
-            handleText(replyToken, text, userId);
+            // 直接呼叫 doHandleText，啟動 AI 思考與語音回覆！
+            doHandleText(replyToken, text, userId);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("LINE 女友聽取語音中斷", e);

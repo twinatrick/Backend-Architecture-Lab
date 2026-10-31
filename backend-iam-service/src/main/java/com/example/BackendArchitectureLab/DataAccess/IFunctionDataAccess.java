@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -142,4 +143,27 @@ public interface IFunctionDataAccess {
      * @return 父層與祖父層功能清單
      */
     List<Function> findAllParentHierarchyByChildIds(List<UUID> childIds);
+
+    /**
+     * 依父節點 UUID 集合查詢直屬子功能清單
+     *
+     * @param parentIds 父節點 UUID 集合
+     * @return 直屬子功能清單
+     */
+    List<Function> findAllByParentIn(Collection<UUID> parentIds);
+
+    /**
+     * 依功能 UUID 集合批次刪除功能
+     *
+     * @param ids 功能 UUID 集合
+     */
+    void deleteByIds(Collection<UUID> ids);
+
+    /**
+     * 向下遞迴（BFS）收集目標節點及其所有子孫節點的 UUID 清單（包含根節點自身）
+     *
+     * @param rootIds 起始根節點 UUID 集合
+     * @return 目標節點與所有子孫節點的 UUID 清單
+     */
+    List<UUID> collectSubtreeIds(Collection<UUID> rootIds);
 }

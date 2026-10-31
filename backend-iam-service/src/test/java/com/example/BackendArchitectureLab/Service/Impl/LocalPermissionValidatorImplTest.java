@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 
 import com.example.BackendArchitectureLab.Service.IFunctionQueryService;
 import com.example.BackendArchitectureLab.Service.IUserService;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -29,6 +31,9 @@ class LocalPermissionValidatorImplTest {
 
     @Mock
     private IUserService userService;
+
+    @Spy
+    private IamLocalCacheManager iamLocalCacheManager = new IamLocalCacheManager();
 
     @InjectMocks
     private LocalPermissionValidatorImpl validator;

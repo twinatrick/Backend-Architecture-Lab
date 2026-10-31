@@ -10,6 +10,7 @@ import com.example.BackendArchitectureLab.DataAccess.IUserProjectDataAccess;
 import com.example.BackendArchitectureLab.Mapper.ProjectMapper;
 import com.example.BackendArchitectureLab.Service.IProjectUserBindingService;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
+import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,11 +20,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,6 +45,8 @@ class ProjectCommandServiceTest {
     private SecurityUtil securityUtil;
     @Mock
     private IProjectUserBindingService projectUserBindingService;
+    @Mock
+    private TransactionExecutor transactionExecutor;
 
     @InjectMocks
     private ProjectCommandService projectCommandService;
@@ -54,14 +57,15 @@ class ProjectCommandServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Inject self reference（自我代理：交易外驗證後呼叫自身交易方法）
-        try {
-            Field selfField = ProjectCommandService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(projectCommandService, projectCommandService);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self into ProjectCommandService", e);
-        }
+        lenient().when(transactionExecutor.executeWritable(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        lenient().doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(transactionExecutor).runWritable(any());
 
         testId = UUID.randomUUID();
         testProject = new Project();

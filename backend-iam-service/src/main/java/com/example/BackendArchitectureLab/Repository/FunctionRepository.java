@@ -3,9 +3,11 @@ package com.example.BackendArchitectureLab.Repository;
 import com.example.BackendArchitectureLab.Entity.Function;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +17,13 @@ public interface FunctionRepository extends JpaRepository<Function, UUID>, JpaSp
 
     @Query("select f from Function f where f.parent IN ?1")
     List<Function> findAllByGrandParentId(List<String> grandParentId);
+
+    @Query("select f from Function f where f.parent in :parentIds")
+    List<Function> findAllByParentIn(@Param("parentIds") Collection<String> parentIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Function f where f.id in :ids")
+    void deleteByIds(@Param("ids") Collection<UUID> ids);
 
     @Query("select f from Function f where f.parent IN ?1")
     List<Function> getParent(List<String> parent);

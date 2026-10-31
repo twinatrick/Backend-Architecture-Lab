@@ -13,6 +13,7 @@ import com.example.BackendArchitectureLab.DataAccess.ISkillDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.ISkillLevelDataAccess;
 import com.example.BackendArchitectureLab.Service.IProjectSkillService;
 import com.example.BackendArchitectureLab.Vo.ProjectSkillVo;
+import com.example.BackendArchitectureLab.Util.CacheExecutor;
 import com.example.BackendArchitectureLab.Util.SecurityUtil;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +23,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,8 +34,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +46,8 @@ class ProjectSkillServiceTest {
 
     @Mock
     private TransactionExecutor transactionExecutor;
+    @Mock
+    private CacheExecutor cacheExecutor;
     @Mock
     private IProjectDataAccess projectDataAccess;
     @Mock
@@ -70,18 +74,13 @@ class ProjectSkillServiceTest {
             Supplier<?> supplier = invocation.getArgument(0);
             return supplier.get();
         });
+        lenient().when(cacheExecutor.executeCacheableList(anyString(), any(), any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(2);
+            return supplier.get();
+        });
 
         testProject = new Project();
         testProject.setId(UUID.randomUUID());
-
-        // Inject self reference（自我代理：交易外驗證後呼叫自身交易方法）
-        try {
-            Field selfField = ProjectSkillService.class.getDeclaredField("self");
-            selfField.setAccessible(true);
-            selfField.set(projectSkillService, projectSkillService);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not inject self into ProjectSkillService", e);
-        }
     }
 
     private void setupSecurityContext(UUID userId) {
@@ -216,14 +215,11 @@ class ProjectSkillServiceTest {
     }
 
     @Test
-    void getProjectSkills_shouldReturnEmptyList_whenCacheReturnsNull() throws Exception {
-        IProjectSkillService mockSelf = mock(IProjectSkillService.class);
-        Field selfField = ProjectSkillService.class.getDeclaredField("self");
-        selfField.setAccessible(true);
-        selfField.set(projectSkillService, mockSelf);
-
+    void getProjectSkills_shouldReturnEmptyList_whenCacheReturnsEmpty() {
         UUID projectId = UUID.randomUUID();
-        when(mockSelf.getProjectSkillsCache(projectId)).thenReturn(null);
+        doReturn(List.of())
+                .when(cacheExecutor)
+                .executeCacheableList(eq("projectSkills"), eq(projectId), any());
 
         List<ProjectSkillVo> result = projectSkillService.getProjectSkills(projectId);
 

@@ -242,11 +242,109 @@ class RoleFunctionDataAccessImplTest {
         // Act
         roleFunctionDataAccess.deleteAllByFunctionIn(functionsToDelete);
         entityManager.flush();
+        entityManager.clear();
 
         // Assert
         assertEquals(1, roleFunctionRepository.count());
         List<RoleFunction> remaining = roleFunctionRepository.findAll();
         assertEquals("UPDATE_USER", remaining.get(0).getFunction().getName());
+        assertNotNull(entityManager.find(Role.class, role.getId()), "刪除 RoleFunction 不得反向級聯刪除父實體 Role");
+        assertNotNull(entityManager.find(Function.class, function1.getId()), "刪除 RoleFunction 不得反向級聯刪除父實體 Function");
+        assertNotNull(entityManager.find(Function.class, function2.getId()), "刪除 RoleFunction 不得反向級聯刪除父實體 Function");
+    }
+
+    @Test
+    @DisplayName("Should delete role-function associations by function IDs without cascading to Role or other Roles")
+    void testDeleteByFunctionIds_ShouldPreserveParentRoleAndOtherBindings() {
+        Role adminRole = new Role();
+        adminRole.setName("admin");
+        entityManager.persist(adminRole);
+
+        Role customRole = new Role();
+        customRole.setName("auditor");
+        entityManager.persist(customRole);
+
+        Function sharedFunc = new Function();
+        sharedFunc.setName("View");
+        sharedFunc.setParent("");
+        entityManager.persist(sharedFunc);
+
+        Function keptFunc = new Function();
+        keptFunc.setName("Edit");
+        keptFunc.setParent("");
+        entityManager.persist(keptFunc);
+
+        RoleFunction rfAdminShared = new RoleFunction();
+        rfAdminShared.setRole(adminRole);
+        rfAdminShared.setFunction(sharedFunc);
+        roleFunctionRepository.save(rfAdminShared);
+
+        RoleFunction rfCustomShared = new RoleFunction();
+        rfCustomShared.setRole(customRole);
+        rfCustomShared.setFunction(sharedFunc);
+        roleFunctionRepository.save(rfCustomShared);
+
+        RoleFunction rfAdminKept = new RoleFunction();
+        rfAdminKept.setRole(adminRole);
+        rfAdminKept.setFunction(keptFunc);
+        roleFunctionRepository.save(rfAdminKept);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // Act: 刪除 sharedFunc 對應的所有 RoleFunction
+        roleFunctionDataAccess.deleteByFunctionIds(List.of(sharedFunc.getId()));
+        entityManager.flush();
+        entityManager.clear();
+
+        // Assert: 父實體 Role 與 Function 皆必須完整保留，且 keptFunc 的綁定不受影響
+        assertNotNull(entityManager.find(Role.class, adminRole.getId()));
+        assertNotNull(entityManager.find(Role.class, customRole.getId()));
+        assertNotNull(entityManager.find(Function.class, sharedFunc.getId()));
+        assertNotNull(entityManager.find(Function.class, keptFunc.getId()));
+        assertEquals(1, roleFunctionRepository.count());
+    }
+
+    @Test
+    @DisplayName("Should delete role-function associations by role key without deleting shared Function or other Role bindings")
+    void testDeleteByRoleKey_ShouldPreserveSharedFunctionsAndOtherRoleBindings() {
+        Role adminRole = new Role();
+        adminRole.setName("admin");
+        entityManager.persist(adminRole);
+
+        Role tempRole = new Role();
+        tempRole.setName("temp_role");
+        entityManager.persist(tempRole);
+
+        Function sharedFunc = new Function();
+        sharedFunc.setName("View");
+        sharedFunc.setParent("");
+        entityManager.persist(sharedFunc);
+
+        RoleFunction rfAdmin = new RoleFunction();
+        rfAdmin.setRole(adminRole);
+        rfAdmin.setFunction(sharedFunc);
+        roleFunctionRepository.save(rfAdmin);
+
+        RoleFunction rfTemp = new RoleFunction();
+        rfTemp.setRole(tempRole);
+        rfTemp.setFunction(sharedFunc);
+        roleFunctionRepository.save(rfTemp);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // Act: 刪除 tempRole 的 RoleFunction
+        roleFunctionDataAccess.deleteByRoleKey(tempRole.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        // Assert: sharedFunc 與 adminRole 的綁定必須完整保留
+        assertNotNull(entityManager.find(Function.class, sharedFunc.getId()));
+        assertNotNull(entityManager.find(Role.class, adminRole.getId()));
+        List<RoleFunction> remaining = roleFunctionRepository.findAll();
+        assertEquals(1, remaining.size());
+        assertEquals(adminRole.getId(), remaining.get(0).getRole().getId());
     }
 }
 

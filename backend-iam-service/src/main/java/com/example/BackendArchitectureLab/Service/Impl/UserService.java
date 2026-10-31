@@ -5,10 +5,15 @@ import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Exception.AppException;
 import com.example.BackendArchitectureLab.Service.IRoleService;
 import com.example.BackendArchitectureLab.Service.IUserService;
+import com.example.BackendArchitectureLab.Util.IamLocalCacheManager;
 import com.example.BackendArchitectureLab.Util.SearchSortPolicy;
+import com.example.BackendArchitectureLab.DataAccess.IRoleDataAccess;
 import com.example.BackendArchitectureLab.DataAccess.IUserDataAccess;
+import com.example.BackendArchitectureLab.DataAccess.IUserRoleDataAccess;
 import com.example.BackendArchitectureLab.Mapper.UserMapper;
+import com.example.BackendArchitectureLab.Entity.Role;
 import com.example.BackendArchitectureLab.Entity.User;
+import com.example.BackendArchitectureLab.Entity.UserRole;
 import com.example.BackendArchitectureLab.Vo.UserVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
@@ -32,10 +37,14 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.context.annotation.Lazy;
 import com.example.BackendArchitectureLab.Util.TransactionExecutor;
 
 @Slf4j
@@ -47,6 +56,7 @@ public class UserService implements IUserService {
             "id", "name", "email", "phone", "disabled",
             "createdBy", "updatedBy", "createdTime", "updatedTime"
     );
+    private static final String DEFAULT_ADMIN_EMAIL = "admin";
 
     private final TransactionExecutor transactionExecutor;
     private final IUserDataAccess userDataAccess;
@@ -54,6 +64,9 @@ public class UserService implements IUserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final CacheManager cacheManager;
+    private final IUserRoleDataAccess userRoleDataAccess;
+    private final IRoleDataAccess roleDataAccess;
+    private final IamLocalCacheManager iamLocalCacheManager;
     @Transactional
     @Caching(put = {
         @CachePut(value = "users", key = "#result.id"),
@@ -77,20 +90,25 @@ public class UserService implements IUserService {
     @Override
     @Transactional(readOnly = true)
     public List<UserVo> getUser() {
-        return userDataAccess.findAll().stream().map(userMapper::toVo).toList();
+        List<User> users = enrichUsersWithRoles(userDataAccess.findAll());
+        return users.stream().map(userMapper::toVo).toList();
     }
     @Override
     @Transactional(readOnly = true)
     public List<UserVo> getUserByEmail(String email) {
-        return userDataAccess.findByEmail(email).map(userMapper::toVo).map(List::of).orElseGet(List::of);
+        return userDataAccess.findByEmailWithRoles(email)
+                .or(() -> userDataAccess.findByEmail(email))
+                .map(userMapper::toVo)
+                .map(List::of)
+                .orElseGet(List::of);
     }
     @Cacheable(value = "users", key = "#email", sync = true)
     @Override
     public UserVo getOnlyUserByEmail(String email) {
         return transactionExecutor.executeReadOnly(() -> {
-            User user = userDataAccess.findByEmail(email).orElseThrow(
-                    () -> new IllegalArgumentException("User not found")
-            );
+            User user = userDataAccess.findByEmailWithRoles(email)
+                    .or(() -> userDataAccess.findByEmail(email))
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
             return userMapper.toVo(user);
         });
     }
@@ -102,6 +120,31 @@ public class UserService implements IUserService {
             User user = userDataAccess.findByEmailWithRoles(email).orElseThrow(
                     () -> new IllegalArgumentException("User not found")
             );
+            if (roleDataAccess != null && user.getRoles() != null && !user.getRoles().isEmpty()) {
+                List<UUID> roleIds = user.getRoles().stream()
+                        .map(UserRole::getRole)
+                        .filter(Objects::nonNull)
+                        .map(Role::getId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+                if (!roleIds.isEmpty()) {
+                    List<Role> rolesWithFunctions = roleDataAccess.findAllByIdsWithFunctions(roleIds);
+                    if (rolesWithFunctions != null && !rolesWithFunctions.isEmpty()) {
+                        Map<UUID, Role> roleMap = rolesWithFunctions.stream()
+                                .filter(r -> r.getId() != null)
+                                .collect(Collectors.toMap(Role::getId, r -> r, (first, second) -> first));
+                        for (UserRole userRole : user.getRoles()) {
+                            if (userRole.getRole() != null && userRole.getRole().getId() != null) {
+                                Role enrichedRole = roleMap.get(userRole.getRole().getId());
+                                if (enrichedRole != null) {
+                                    userRole.setRole(enrichedRole);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             return userMapper.toVoWithPermissions(user);
         });
     }
@@ -114,9 +157,9 @@ public class UserService implements IUserService {
             if (userId == null) {
                 throw new AppException("NOT_FOUND", "使用者不存在", 404);
             }
-            User user = userDataAccess.findById(userId).orElseThrow(
-                    () -> new AppException("NOT_FOUND", "使用者不存在", 404)
-            );
+            User user = userDataAccess.findByIdWithRoles(userId)
+                    .or(() -> userDataAccess.findById(userId))
+                    .orElseThrow(() -> new AppException("NOT_FOUND", "使用者不存在", 404));
             return userMapper.toVo(user);
         });
     }
@@ -202,6 +245,39 @@ public class UserService implements IUserService {
         }
         userDataAccess.save(u);
         roleService.userBindRole(u.getId().toString(), userVo.getRoles());
+        evictUserLocalCaches(u.getEmail());
+    }
+
+    @Caching(evict = {
+        @CacheEvict(value = "users", allEntries = true),
+        @CacheEvict(value = "roles", key = "'byuser:' + #id"),
+        @CacheEvict(value = "userRoles", allEntries = true),
+        @CacheEvict(value = "userPermissionsVo", allEntries = true),
+        @CacheEvict(value = "userInfo", allEntries = true)
+    })
+    @Override
+    @Transactional
+    public void deleteUser(String id) {
+        UUID userId = mapUuid(id);
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID must not be null");
+        }
+        User user = userDataAccess.findById(userId).orElseThrow(
+                () -> new AppException("NOT_FOUND", "使用者不存在", 404)
+        );
+        if (DEFAULT_ADMIN_EMAIL.equalsIgnoreCase(user.getEmail())) {
+            throw new AppException("FORBIDDEN_SYSTEM_USER", "系統預設管理員帳號不可刪除", 400);
+        }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getName() != null
+                && authentication.getName().equalsIgnoreCase(user.getEmail())) {
+            throw new AppException("FORBIDDEN_SELF_DELETE", "不可刪除當前登入之自身帳號", 400);
+        }
+        if (userRoleDataAccess != null) {
+            userRoleDataAccess.deleteByUserId(userId);
+        }
+        userDataAccess.delete(user);
+        evictUserLocalCaches(user.getEmail());
     }
 
     @Caching(evict = {
@@ -219,11 +295,12 @@ public class UserService implements IUserService {
             throw new IllegalArgumentException("Role list is required");
         }
 
-        if (userDataAccess.findById(userId).isEmpty()) {
-            throw new IllegalArgumentException("User not found");
-        }
+        User user = userDataAccess.findById(userId).orElseThrow(
+                () -> new IllegalArgumentException("User not found")
+        );
 
         roleService.userBindRole(userId.toString(), roleIds);
+        evictUserLocalCaches(user.getEmail());
     }
 
     private UUID mapUuid(String id) {
@@ -242,6 +319,37 @@ public class UserService implements IUserService {
         if (password != null && !password.startsWith("{") && !password.startsWith("$2a$") && !password.startsWith("$2b$") && !password.startsWith("$2y$")) {
             user.setPassword(passwordEncoder.encode(password));
         }
+    }
+
+    private void evictUserLocalCaches(String email) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        iamLocalCacheManager.evictUser(email);
+    }
+
+    private List<User> enrichUsersWithRoles(List<User> users) {
+        if (users == null || users.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> ids = users.stream()
+                .map(User::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return users;
+        }
+        List<User> enriched = userDataAccess.findAllByIdsWithRoles(ids);
+        if (enriched == null || enriched.isEmpty()) {
+            return users;
+        }
+        Map<UUID, User> enrichedMap = enriched.stream()
+                .filter(u -> u.getId() != null)
+                .collect(Collectors.toMap(User::getId, u -> u, (first, second) -> first));
+        return users.stream()
+                .map(u -> u.getId() != null ? enrichedMap.getOrDefault(u.getId(), u) : u)
+                .toList();
     }
     
     @Override

@@ -1,7 +1,6 @@
 package com.example.BackendArchitectureLab.Service;
 
 import com.example.BackendArchitectureLab.Vo.BatchResultVo;
-import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import com.example.BackendArchitectureLab.Vo.Common.PageResult;
 import com.example.BackendArchitectureLab.Vo.FunctionVo;
 import com.example.BackendArchitectureLab.Dto.Query.FunctionSearchQuery;
@@ -13,8 +12,6 @@ import java.util.UUID;
 
 public interface IFunctionQueryService {
     List<FunctionVo> getFunction();
-
-    CacheListWrapper<FunctionVo> getFunctionListCache();
 
     FunctionVo getFunctionById(String id);
 
