@@ -113,3 +113,30 @@ def test_duplicate_outside_direct_change_stays_pending_not_new_violation(monkeyp
     assert data["claim_audit"][0]["status"] == "INCONCLUSIVE"
     assert "base_head_impact_attribution" in data["claim_audit"][0]["missing_context"]
     assert data["shadow_verified_findings"][0]["severity"] == "HIGH"
+
+
+def test_pytorch_multi_package_false_positive_is_removed_from_verified_report(monkeypatch):
+    source = ("--extra-index-url https://download.pytorch.org/whl/cu126\n"
+              "torch==2.13.0+cu126\ntorchaudio==2.11.1")
+    getter = MagicMock(side_effect=[
+        MagicMock(status_code=200, text='<a href="https://download.pytorch.org/whl/cu126/'
+                  'torch-2.13.0%2Bcu126-cp311-cp311-win_amd64.whl">wheel</a>'),
+        MagicMock(status_code=200, json=lambda: {
+            "info": {"name": "torchaudio", "version": "2.11.1"},
+            "urls": [{"filename": "torchaudio.whl", "yanked": False}],
+        }),
+    ])
+    original_init = RuleRegistry._register_defaults
+
+    def registered(registry):
+        original_init(registry)
+        registry._inspectors["RULE_PACKAGE_VERSION_EXISTS"] = PackageVersionInspector(getter)
+
+    monkeypatch.setattr(RuleRegistry, "_register_defaults", registered)
+    original = finding("requirements.txt", 2, "依賴規範", "指定了不存在的套件版本，尚未發布",
+                       "torch==2.13.0+cu126\ntorchaudio==2.11.1")
+    data = {"findings": [original]}
+    apply(data, "requirements.txt", source, monkeypatch)
+    assert data["findings"] == [original]  # 影子模式保留原始報告供比較。
+    assert data["shadow_verified_findings"] == []
+    assert data["claim_audit"][0]["status"] == "COMPLIANT"
