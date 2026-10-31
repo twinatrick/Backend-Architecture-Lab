@@ -44,10 +44,14 @@ public interface IAquarkDataQueryService {
     List<AverageAquark> getAverageAquark(Date start, Date end);
 
     /**
-     * 依條件清單查詢 Aquark 資料；空清單時回傳全部資料。
+     * 依非空條件清單查詢 Aquark 資料，不將空條件默認為全量查詢。
+     * 無條件查詢請使用分頁搜尋或分塊串流；本方法不截斷有效條件的查詢結果。
      *
      * @param fillterList 條件清單
      * @return 符合條件的 Vo 清單
+     * @throws IllegalArgumentException 條件清單為 null 或空清單
+     * @see #searchAquarkData(AquarkDataSearchQuery)
+     * @see #streamAquarkDataChunked(int)
      */
     List<AquarkDataRaw> getAquarkDataWithFilter(List<CriteriaApiFilter> fillterList);
 

@@ -138,15 +138,20 @@ class AquarkDataQueryServiceTest {
     }
 
     @Test
-    void testGetAquarkDataWithFilter_EmptyList() {
-        AquarkData data = buildAquarkData(UUID.randomUUID(), "S1", baseDate, 10f, 30f, 20f, 1f, 2f, false);
-        when(aquarkDataDataAccess.findAll()).thenReturn(List.of(data));
+    void testGetAquarkDataWithFilter_EmptyListRejectedBeforeQuery() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> aquarkDataQueryService.getAquarkDataWithFilter(List.of()));
 
-        List<AquarkDataRaw> result = aquarkDataQueryService.getAquarkDataWithFilter(List.of());
+        assertTrue(exception.getMessage().contains("分頁搜尋或分塊串流"));
+        verifyNoInteractions(aquarkDataDataAccess);
+    }
 
-        assertEquals(1, result.size());
-        verify(aquarkDataDataAccess, times(1)).findAll();
-        verify(aquarkDataDataAccess, never()).findByCriteria(any());
+    @Test
+    void testGetAquarkDataWithFilter_NullRejectedBeforeQuery() {
+        assertThrows(IllegalArgumentException.class,
+                () -> aquarkDataQueryService.getAquarkDataWithFilter(null));
+
+        verifyNoInteractions(aquarkDataDataAccess);
     }
 
     @Test
@@ -165,6 +170,7 @@ class AquarkDataQueryServiceTest {
         assertEquals(1, result.size());
         assertEquals("S2", result.get(0).getStation_id());
         verify(aquarkDataDataAccess, times(1)).findByCriteria(List.of(filter));
+        verify(aquarkDataDataAccess, never()).findAll();
     }
 
     @Test
