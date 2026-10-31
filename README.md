@@ -877,7 +877,7 @@ graph LR
     subgraph "Python AI-PY 雙引擎 STT 管線"
         PySidecar -->|主引擎 GPU CUDA 12| Whisper["Faster-Whisper<br/>large-v3-turbo"]
         PySidecar -->|備援引擎 純 CPU 離線| SenseVoice["Sherpa-ONNX SenseVoice<br/>中英日韓粵 5 語系"]
-        PySidecar -->|獨立 Conda 子進程隔離| PyAnnote["PyAnnote 3.1 語者分離<br/>pyannote-env 環境"]
+        PySidecar -->|獨立 Conda 子進程隔離| PyAnnote["PyAnnote 4.x 語者分離（3.1 模型）<br/>pyannote-env 環境"]
     end
 
     Whisper & SenseVoice -->|3. 上傳轉存音訊| MinIO[("MinIO S3 儲存")]
