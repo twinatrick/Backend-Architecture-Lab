@@ -2,9 +2,11 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import ModuleType
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -65,9 +67,7 @@ def test_disabled_plda_rejects_accidental_use(worker: ModuleType) -> None:
         _ = plda.phi
 
 
-def test_legacy_model_rejects_plda_based_clustering(
-    worker: ModuleType, tmp_path: Path
-) -> None:
+def test_legacy_model_rejects_plda_based_clustering(worker: ModuleType, tmp_path: Path) -> None:
     config = tmp_path / "config.yaml"
     config.write_text("pipeline:\n  params:\n    clustering: VBxClustering\n", encoding="utf-8")
     worker.hf_hub_download.return_value = str(config)
@@ -107,9 +107,7 @@ def test_main_preserves_json_and_handles_both_output_formats(
     monkeypatch.setenv("DIARIZATION_MODEL", "organization/custom-model")
     monkeypatch.setenv("HF_TOKEN", "test-token")
     annotation = SimpleNamespace(
-        itertracks=MagicMock(
-            return_value=[(SimpleNamespace(start=1.25, end=2.5), None, "語者甲")]
-        )
+        itertracks=MagicMock(return_value=[(SimpleNamespace(start=1.25, end=2.5), None, "語者甲")])
     )
     pipeline = worker.Pipeline.from_pretrained.return_value
     pipeline.return_value = (
@@ -121,9 +119,7 @@ def test_main_preserves_json_and_handles_both_output_formats(
 
     worker.main()
 
-    worker.soundfile.read.assert_called_once_with(
-        "input.wav", dtype="float32", always_2d=True
-    )
+    worker.soundfile.read.assert_called_once_with("input.wav", dtype="float32", always_2d=True)
     worker.torch.from_numpy.assert_called_once_with(samples.T.copy.return_value)
     pipeline.assert_called_once_with(
         {"waveform": worker.torch.from_numpy.return_value, "sample_rate": 16000}
