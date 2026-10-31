@@ -200,8 +200,8 @@ public class AquarkDataQueryService implements IAquarkDataQueryService {
     }
 
     private List<AquarkDataRaw> queryAquarkDataWithFilter(List<CriteriaApiFilter> fillterList) {
-        if (fillterList.isEmpty()) {
-            return aquarkDataDataAccess.findAll().stream().map(aquarkDataMapper::toVo).toList();
+        if (fillterList == null || fillterList.isEmpty()) {
+            throw new IllegalArgumentException("篩選條件不可為空；無條件查詢請使用分頁搜尋或分塊串流");
         }
         return aquarkDataDataAccess.findByCriteria(fillterList).stream().map(aquarkDataMapper::toVo).toList();
     }
