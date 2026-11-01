@@ -123,11 +123,11 @@ SonarQube 標記了 10 處需進行人工架構審查的安全熱點：
 ### 5.1 SonarQube 本地一鍵檢測
 * **啟動與檢測指令**：
   ```powershell
-  .\run-sonar.ps1
+  .\scripts\quality\run-sonar.ps1
   ```
 * **工作流程**：
   1. 自動驗證 Docker 守護行程與環境變數 `JAVA_NOW_HOME`。
-  2. 自動啟動 `docker-compose.sonarqube.yaml`。
+   2. 自動啟動 `docker/compose/sonarqube.yaml`，並以專案根目錄作為 Compose 路徑與專案名稱基準。
   3. 以單執行緒限制 (`-DforkCount=1`) 執行 JaCoCo 測試與覆蓋率收集。
   4. 執行 `./mvnw sonar:sonar` 將指標推送至本機 SonarQube Server。
 
@@ -135,15 +135,15 @@ SonarQube 標記了 10 處需進行人工架構審查的安全熱點：
 * **執行指令**：
   ```powershell
   # 白盒模式 (Diff-Scope)
-  .\run-strix.ps1 -Mode white -DiffBase origin/master
+  .\scripts\quality\run-strix.ps1 -Mode white -ScopeMode diff
 
   # 灰盒模式 (啟動本地 Spring Boot 後針對 OpenAPI 進行動態探測)
-  .\run-strix.ps1 -Mode gray -ApiDocs "http://localhost:8000/v3/api-docs"
+  .\scripts\quality\run-strix.ps1 -Mode gray -Target "http://localhost:8000"
   ```
 
 ### 5.3 CI/CD 品質與安全閘門
 * `.github/workflows/ci.yml`：在 PR 與 push 時自動執行單元測試並綁定 SonarQube 檢測。
-* `.github/workflows/strix-security-scan.yml`：建立具備 trusted `apikey` 保護邊界之 AI 滲透掃描工作流程。
+* 歷史上曾建立 `.github/workflows/strix-security-scan.yml`；該自動掃描工作流程現已移除。本機腳本仍保留，執行前須確認 Strix 授權與費用。
 
 ---
 

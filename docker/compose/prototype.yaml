@@ -1,3 +1,4 @@
+# 從根目錄搭配 --project-directory . 執行，維持建置、掛載與資料卷基準。
 services:
   postgres:
     image: postgres:16-alpine
@@ -12,7 +13,7 @@ services:
       - "${ALLOW_HOST:-127.0.0.2}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql
+      - ./docker/postgres/init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 3s
@@ -143,7 +144,7 @@ services:
   gateway:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/backend/Dockerfile
       args:
         SERVICE_NAME: backend-gateway
     image: backend-architecture-lab-gateway:latest
@@ -176,7 +177,7 @@ services:
   iam-service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/backend/Dockerfile
       args:
         SERVICE_NAME: backend-iam-service
     image: backend-architecture-lab-iam-service:latest
@@ -220,7 +221,7 @@ services:
   competency-service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/backend/Dockerfile
       args:
         SERVICE_NAME: backend-competency-service
     image: backend-architecture-lab-competency-service:latest
@@ -263,7 +264,7 @@ services:
   job-service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/backend/Dockerfile
       args:
         SERVICE_NAME: backend-job-service
     image: backend-architecture-lab-job-service:latest
@@ -306,7 +307,7 @@ services:
   external-api-service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/backend/Dockerfile
       args:
         SERVICE_NAME: backend-external-api-service
     image: backend-architecture-lab-external-api-service:latest
@@ -370,7 +371,7 @@ services:
   alert-service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/backend/Dockerfile
       args:
         SERVICE_NAME: backend-alert-service
     image: backend-architecture-lab-alert-service:latest

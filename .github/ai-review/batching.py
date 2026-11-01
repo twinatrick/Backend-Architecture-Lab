@@ -50,7 +50,8 @@ def _classify_file(filename: str, file_item: dict[str, Any]) -> str:
     if (
         path_lower.startswith(".github/")
         or path_lower.endswith((".yml", ".yaml"))
-        or filename in ("Dockerfile", "compose.yaml", "pom.xml")
+        or path_lower.rsplit("/", 1)[-1] == "dockerfile"
+        or filename in ("compose.yaml", "pom.xml")
     ):
         return "ci"
 

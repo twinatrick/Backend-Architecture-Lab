@@ -113,7 +113,7 @@ docker-images-build:
       allow_failure: true
   script:
     - echo "===> Building all microservice Docker images with --no-cache (Gateway + 5 microservices)..."
-    - docker compose -p backend-architecture-lab -f compose.prototype.yaml build --no-cache
+    - docker compose --project-directory . -p backend-architecture-lab -f docker/compose/prototype.yaml build --no-cache
     - |
       # 避免不同 Pipeline 的 latest 標籤互相覆蓋部署版本。
       for SERVICE in gateway iam-service competency-service job-service external-api-service alert-service; do

@@ -1,3 +1,4 @@
+# 從根目錄執行時請搭配 --project-directory .，維持既有專案與資料卷名稱。
 services:
   sonarqube:
     image: ${SONARQUBE_IMAGE:-sonarqube:lts-community}

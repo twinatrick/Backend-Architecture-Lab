@@ -9,6 +9,13 @@
 
 ## Language
 - **必須使用繁體中文**與使用者進行溝通、撰寫說明與註解 (MUST use Traditional Chinese for communication and documentation).
+
+## 本機檔案放置預設
+- **不打算提交 Git 的檔案，預設優先放入專案根目錄的 `.local/`**，不得任意散落根目錄；目錄名稱統一使用小寫 `.local`。
+- 依用途分為 `handover/`（交接與本機手冊）、`notes/`（筆記與待辦）、`review/`（臨時審查、驗證報告與診斷）、`audio/`（音訊）、`transcripts/`（逐字稿）、`exports/`（匯出資料）；其他暫存內容可放 `.local/tmp/`。
+- `.local/` 必須維持整個目錄由 `.gitignore` 忽略，禁止強制加入版本控制；正式原始碼、測試及預計提交的文件仍放既有正式目錄，不因尚未追蹤就移入 `.local/`。
+- 工具要求固定位置的設定與產物（例如根目錄 `.env`、`.run/`、Maven `target/`、CI 約定的審查輸出）維持工具契約，不為整理目錄擅自搬移或改變 CI 行為。
+
 ## Build & Run Environment
 - **Java 環境變數自動配置 (優先級極高)**：
   - 在執行任何需要 Java 21 的指令（如 `./mvnw test`）之前，**必須**先讀取專案根目錄下的 `.env` 檔案。

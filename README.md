@@ -34,7 +34,7 @@
   - GitHub Actions / GitLab CI 多階段自動化管線（Java 嚴格要求單執行緒測試與 BUNDLE 覆蓋率 >= 80% + Python Ruff/Pytest + 整合 Gemini 3.8 Flash 最高優先級模型池之 AI Code Review + SonarQube / Strix 安全掃描）。
   - 完整 JMeter 500 併發壓力測試套件（含 10 個 SQL 大量測試數據生成腳本與效能報告）。
   - 嚴格代碼規範：全面建構子注入（`@RequiredArgsConstructor` + `private final`）、Mapper 僅限 Service Impl、Controller 嚴禁出現 Entity、禁止完全限定名稱 (FQN)。
-- 🚢 **雙軌部署架構**：提供「模式一：本機開發與單模組除錯軌道（`compose.yaml`）」與「模式二：一鍵全微服務叢集原型軌道（`compose.prototype.yaml` 一鍵啟動 7 服務 + 中間件）」。
+- 🚢 **雙軌部署架構**：提供「模式一：本機開發與單模組除錯軌道（`compose.yaml`）」與「模式二：一鍵全微服務叢集原型軌道（`docker/compose/prototype.yaml` 一鍵啟動 7 服務 + 中間件）」。
 
 ---
 
@@ -88,6 +88,62 @@ graph TB
     GW & IAM & COMP & JOB & EXT & ALT -->|Loki4j 非同步 HTTP 推送| LOKI
     LOKI -.->|LogQL / TraceID 關聯| GF
 ```
+
+### 根目錄與輔助檔案配置
+
+根目錄保留 Maven、主要 Docker Compose、工具設定與專案文件入口；其餘檔案依用途歸位：
+
+| 位置 | 用途 |
+|---|---|
+| `docker/compose/` | 原型叢集、監控、SonarQube Compose |
+| `docker/backend/Dockerfile` | Java 微服務共用建置檔；建置 context 保留專案根目錄 |
+| `docker/postgres/init-dbs.sql` | PostgreSQL 首次啟動資料庫初始化 |
+| `docker/prometheus/prometheus.yml` | Prometheus 抓取設定 |
+| `config/quality/` | 團隊共用 Qodana 掃描設定 |
+| `scripts/quality/` | 本機 SonarQube、Strix、Qodana 工具腳本 |
+| `docs/` | 正式文件、ADR 與工程規範快照 |
+| `.local/` | 本機交接、筆記、審查輸出、音訊、逐字稿與匯出資料；整個目錄不提交 |
+
+以下輔助工具指令從專案根目錄執行。Compose 必須保留 `--project-directory .`，讓 `.env`、相對掛載路徑、專案名稱與既有資料卷命名維持原有基準：
+
+```powershell
+docker compose --project-directory . -f docker/compose/monitoring.yaml up -d
+docker compose --project-directory . -f docker/compose/sonarqube.yaml up -d
+./scripts/quality/run-sonar.ps1
+```
+
+兩個輔助 Compose 原本即共用專案名稱；此處不另外建立新專案或遷移資料卷。監控與主要部署的 Grafana 連接埠可能重疊，請擇一啟用或先調整設定。本機 Strix 腳本保留於 `scripts/quality/run-strix.ps1`，自動掃描 workflow 已移除；手動執行前須自行確認服務授權與費用。
+
+不打算提交 Git 的新增檔案，預設優先放入 `.local/`，不要散落根目錄；正式原始碼與預計提交的文件仍放正式目錄。`.local/` 分為 `handover/`、`notes/`、`review/`、`audio/`、`transcripts/`、`exports/`，其他暫存內容放 `tmp/`。工具固定路徑與 CI 輸出契約不變；AI Review 仍可能在根目錄產生已忽略的 `review.md` 與 `ai-review.json`。
+
+Ruff 快取由根目錄 `ruff.toml` 指向 `.local/cache/ruff/`；pytest 由根目錄 `pytest.ini` 指向 `.local/cache/pytest/`。保留這兩個工具的自動探索入口，避免每位成員及 CI 額外傳入快取參數。`CONTEXT.md` 保留根目錄供跨專案 skill 使用。
+
+若不透過 Compose 而直接建置 Java 服務映像，從專案根目錄指定 Dockerfile，末尾的 `.` 不可改成 Dockerfile 所在資料夾：
+
+```powershell
+docker build -f docker/backend/Dockerfile --build-arg SERVICE_NAME=backend-gateway -t backend-gateway:local .
+```
+
+#### 團隊共用 Qodana 入口
+
+共用設定為 [config/quality/qodana.yaml](config/quality/qodana.yaml)，不再依賴根目錄的預設檔名。請先依 [官方 CLI 說明](https://github.com/JetBrains/qodana-cli#installation)安裝 Qodana CLI，確認 `qodana --version` 可執行；目前設定使用 JVM Docker 分析器，因此也須啟動 Docker，並確認所選版本的授權與 `QODANA_TOKEN` 需求。Token 由執行環境或安全憑證機制提供，不寫入設定檔或腳本。
+
+從專案根目錄執行：
+
+```powershell
+./scripts/quality/run-qodana.ps1
+```
+
+腳本會自動定位專案根目錄、指定共用設定，並將分析結果放入已忽略的 `.local/review/qodana/`；Qodana 的結束碼會原樣回傳。也可從其他工作目錄以腳本的完整路徑呼叫。這是手動掃描入口，不會自動執行掃描或加入 CI；是否上傳雲端仍依 Qodana 本身的認證與執行設定決定。
+
+IDEA 使用方式（需啟用 Shell Script 執行設定支援）：
+
+1. 開啟 **Run → Edit Configurations → 新增 Shell Script**，名稱設為 `Qodana－本專案`。
+2. 使用 **Script text** 模式，命令填入 `powershell.exe -NoProfile -File "$PROJECT_DIR$/scripts/quality/run-qodana.ps1"`；若使用 PowerShell 7，可將 `powershell.exe` 換成 `pwsh`。
+3. 工作目錄設為 `$PROJECT_DIR$`，並確認此執行環境的 PATH 能找到 Qodana CLI。
+4. 如需另存執行設定，放在本機 `.run/`；此目錄不提交。團隊共用的是設定檔與腳本，不是個人的 `.idea/`、`.iml` 或 Token。
+
+不使用 IDEA 的成員可直接呼叫共用腳本。若改用 Qodana 外掛原本的預設掃描按鈕，不能假設它會讀取搬移後的設定；必須確認其自訂路徑支援，否則仍使用上述共用入口。
 
 ### 微服務清單與職責劃分
 
@@ -1087,7 +1143,7 @@ sequenceDiagram
 ### 2. 壓力測試套件 (`stress-test/`)：Grafana k6 (本機推薦) + Apache JMeter
 - **CI/CD 與壓測邊界明確隔離**：CI 專注於單元測試與 Testcontainers 整合測試，極限高併發壓力測試則由本機腳本（`stress-test/`）手動觸發執行。
 - **Grafana k6 超輕量零失真本機壓測（推薦）**：基於 Go 協程非同步架構（`stress-test/k6/`），500 併發僅需 ~25MB 記憶體，完全消除同機壓測時客戶端與 Spring Boot / 資料庫之間的 CPU/RAM 資源爭奪與假性延遲毛刺。支援一鍵執行腳本 `run-k6-stress.ps1`。
-- **資料庫一鍵初始化**：`init-dbs.sql` 一鍵建立 5 大獨立資料庫。
+- **資料庫一鍵初始化**：`docker/postgres/init-dbs.sql` 一鍵建立 5 大獨立資料庫。
 - **10 個 SQL 大量測試數據生成腳本**：包含 50,003 筆使用者、50,000 個專案、200,000 筆水質時序數據（具備 `ON CONFLICT` 冪等防重特性）。
 - **4 大壓測場景 (`.jmx` 與 `.js`)**：
   - `test-iam`：高頻讀取（Login / Users Search / Role / Function）。
@@ -1148,7 +1204,7 @@ sequenceDiagram
 
 本專案支援**兩種部署與開發軌道**：
 - **軌道一：本機開發與單模組除錯軌道（Local Dev Track）**：使用 `compose.yaml` 僅啟動資料庫與中間件，後端微服務於本機 IDE 或命令列依需求啟動。
-- **軌道二：一鍵全微服務叢集原型軌道（Prototype Cluster Track）**：使用 `compose.prototype.yaml` 一鍵啟動全套 7 個微服務容器、Python AI 側車及全套基礎設施，快速體驗完整系統。
+- **軌道二：一鍵全微服務叢集原型軌道（Prototype Cluster Track）**：使用 `docker/compose/prototype.yaml` 一鍵啟動全套 7 個微服務容器、Python AI 側車及全套基礎設施，快速體驗完整系統。
 
 ---
 
@@ -1164,7 +1220,7 @@ cp .env.example .env
 ```bash
 docker compose -f compose.yaml up -d
 ```
-> 初始化會自動執行 `init-dbs.sql` 建立 5 個微服務獨立資料庫，並同步啟動 Redis、Kafka、MinIO 以及 Grafana Loki (Port 3100) 與 Grafana (Port 3000)。
+> 初始化會自動執行 `docker/postgres/init-dbs.sql` 建立 5 個微服務獨立資料庫，並同步啟動 Redis、Kafka、MinIO 以及 Grafana Loki (Port 3100) 與 Grafana (Port 3000)。
 
 #### 步驟 2：啟動 Python AI 側車服務
 ```bash
@@ -1192,13 +1248,13 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 #### 步驟 1：環境設定與一鍵建置啟動
 ```bash
 cp .env.example .env
-docker compose -f compose.prototype.yaml up -d --build
+docker compose --project-directory . -f docker/compose/prototype.yaml up -d --build
 ```
 > 該命令將自動編譯並啟動全部 7 個微服務映像檔（含 6 個 Java 服務與 1 個 Python FastAPI 側車），並自帶健康檢查與啟動相依順序（PostgreSQL/Redis/Kafka 就緒 -> IAM/AI-PY 啟動 -> 業務服務 -> Gateway）。各服務於啟動時自動透過 Liquibase 執行 Schema 遷移與校驗。
 
 #### 步驟 2：檢視叢集狀態
 ```bash
-docker compose -f compose.prototype.yaml ps
+docker compose --project-directory . -f docker/compose/prototype.yaml ps
 ```
 
 ---
@@ -1226,9 +1282,9 @@ docker compose -f compose.prototype.yaml ps
 - 透過容器命令驗證連線：`docker exec -it redis_container redis-cli ping`（預期回傳 `PONG`）。
 
 ### 3. PostgreSQL 資料庫不存在 (`database "xxx" does not exist`)
-- 若非透過 Docker Compose 首次啟動，請手動執行 `init-dbs.sql` 建立 5 個獨立 Database：
+- 若非透過 Docker Compose 首次啟動，請從專案根目錄手動執行 `docker/postgres/init-dbs.sql` 建立 5 個獨立 Database：
   ```bash
-  docker exec -i postgres_db_backend psql -U postgres < init-dbs.sql
+  docker exec -i postgres_db_backend psql -U postgres < docker/postgres/init-dbs.sql
   ```
 
 ### 4. WebSocket 連線失敗 (`ws://localhost:8000/ws/alarm`)
@@ -1251,7 +1307,7 @@ docker compose -f compose.prototype.yaml ps
 - [x] Distributed Tracing (Micrometer Tracing + OpenTelemetry Bridge + W3C Trace Context)
 - [x] Log Sensitive Data Masking (LogMaskingConverter 敏感資料脫敏防護)
 - [x] Liquibase 宣告式資料庫版本控制 (5 個微服務獨立 Changelog 遷移治理，hibernate validate)
-- [x] Prototype Cluster Deployment (`compose.prototype.yaml` 7 服務全微服務原型環境一鍵拉起)
+- [x] Prototype Cluster Deployment (`docker/compose/prototype.yaml` 7 服務全微服務原型環境一鍵拉起)
 - [x] GitLab CI 多階段管線整合 (`.gitlab-ci.yml` 靜態分析、單元測試、建置驗證)
 
 ### Architecture & Distributed Patterns
