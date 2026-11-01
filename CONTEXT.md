@@ -421,3 +421,7 @@ _Avoid_: Caller existence, No-reference equals unreachable.
 **Claim Counterevidence (主張反證)**:
 足以否定單一規則主張的可核對證據，其成立不要求其他無關搜尋完成，也不會連帶解除其他主張或整場審查的未完成狀態。
 _Avoid_: Whole-review approval, Partial search means compliance.
+
+**Vulnerability Applicability (漏洞適用性)**:
+特定漏洞公告所列的套件身分與受影響版本範圍，是否涵蓋受檢套件及其版本的可驗證關係；與漏洞能否在實際業務環境被利用、套件是否另有漏洞，以及發布版本是否穩定或相容，均為獨立主張。
+_Avoid_: Package name alone proves vulnerability, Not affected means universally safe.
