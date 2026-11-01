@@ -47,10 +47,12 @@
 - **Package Quirks**: 請遵守現有的 Package 命名與大小寫慣例：
   - 首字母大寫: `Aop`, `Vo`, `Entity`, `Repository`, `Service`, `Timer`, `Util`, `WebSocket`,`Annotation`, `Config`, `Controller`, `Dataaccess`, `Exception`, `Filter`, `Mapper`
 - **Dependency Injection**: 專案全面採用 **建構子注入 (Constructor Injection)** 作為預設注入方式，統一透過 Lombok 的 `@RequiredArgsConstructor` 搭配 `private final` 欄位宣告依賴，**嚴禁**在生產程式碼中使用 `@Autowired` 進行欄位注入（除 `@Autowired(required = false)` 等特殊可選注入或 Spring Test 測試類別外）。
-- **嚴禁環形依賴與跨元件 `@Lazy` (Strict DAG Standard)**:
+- **嚴禁環形依賴、全面禁止 `@Lazy` 與切面自調用 (Strict DAG & Explicit Aspect Executor Standard)**:
   - 全系統微服務間、架構分層間、同層 Spring Bean、JPA 實體級聯與 Python 模組間必須維持嚴格的 **有向無環依賴圖 (Directed Acyclic Dependency Graph, DAG)**。
-  - **嚴禁**在注入其他 Bean 時標註 `@Lazy`（僅豁免同類別自我代理注入 `@Lazy private final I<Self>Service self;`），亦嚴禁開啟 `spring.main.allow-circular-references: true`。
+  - 生產程式碼全面禁止 `@Lazy`（含同類別自我代理注入 `self`），亦嚴禁開啟 `spring.main.allow-circular-references: true`。
   - 若發現環形依賴，必須透過 **職責下沉（Dependency Demotion，如抽離底層 `Util` / `DataAccess`）**、**上提編排（Orchestrator）** 或 **領域事件（ApplicationEvent）** 重構為單向無環結構。
+  - 同類別內部需觸發事務或快取切面時，嚴禁自我注入或以 `this.xxx()` 自調用，必須單向委派 `com.example.BackendArchitectureLab.Util.TransactionExecutor` 或 `com.example.BackendArchitectureLab.Util.CacheExecutor`。
+  - **ADP／SDP／SAP 接軌修訂**：依《開發規範.md》§5.10.3 檢視無環、穩定依賴與適度抽象；不得以目錄名稱或修改頻率直接推定穩定程度。本補充經使用者核准，集中庫工作版尚未發布，不修改既有 `0.1.0` 快照。
 - **Service 層與 Mapper 使用規範 (重要)**：
   - Mapper 僅可在 Service Impl 層中使用，Controller **嚴禁**注入或呼叫 Mapper
   - Service 介面方法簽名必須回傳 Vo（如 `UserVo`、`BotConfigVo`），嚴禁回傳 Entity
