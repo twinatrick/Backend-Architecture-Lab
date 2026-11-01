@@ -9,6 +9,17 @@ from pathlib import Path
 
 
 PROFILES = {"backend", "frontend"}
+VERSION_PATTERN = re.compile(
+    r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
+RELEASE_GATES = {
+    "license_review": "approved",
+    "conflicts": "resolved",
+    "public_redaction": "approved",
+}
 SHARED = {
     "standards/common.md",
     "governance/adoption.md",
@@ -86,33 +97,33 @@ def validate_source(
         errors.append("缺少版本")
         version = ""
     status = source.get("status")
-    if status not in {"draft", "published"}:
+    if status not in {"draft", "prerelease", "published"}:
         errors.append("未知發布狀態")
-    if require_published or (is_manifest and status == "published"):
+    version_match = VERSION_PATTERN.fullmatch(version)
+    if status in {"prerelease", "published"}:
+        if version_match is None:
+            errors.append("發布版本必須符合 SemVer")
+        elif status == "published" and version_match.group(4) is not None:
+            errors.append("正式發布版本不得包含預發布標記")
+        elif status == "prerelease" and version_match.group(4) is None:
+            errors.append("預發布版本必須包含預發布標記")
+        if document.get("release_gates") != RELEASE_GATES:
+            errors.append("發布授權、衝突或脫敏審查未完成")
+    if require_published or (is_manifest and status in {"prerelease", "published"}):
         revision = source.get("commit")
         if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
-            errors.append("正式採用需要真實的 40 位 commit SHA")
-        if status != "published" or "draft" in version:
-            errors.append("目前仍為未發布草案")
-        if document.get("release_gates") != {
-            "license_review": "approved",
-            "conflicts": "resolved",
-            "public_redaction": "approved",
-        }:
-            errors.append("發布授權、衝突或脫敏審查未完成")
-    elif not is_manifest and status == "published":
-        if "draft" in version:
-            errors.append("已發布狀態不應包含 draft 版本字串")
-        if document.get("release_gates") != {
-            "license_review": "approved",
-            "conflicts": "resolved",
-            "public_redaction": "approved",
-        }:
+            errors.append("發布快照需要格式有效的 40 位 commit SHA；存在性與可信來源須另行核對")
+    if require_published and status != "published":
+        errors.append("目前仍為未發布草案或僅供試採用的預發布版本")
+    if require_published and status not in {"prerelease", "published"}:
+        if document.get("release_gates") != RELEASE_GATES:
             errors.append("發布授權、衝突或脫敏審查未完成")
     return errors
 
 
-def verify_manifest(path: Path, require_published: bool = False) -> list[str]:
+def verify_manifest(
+    path: Path, require_published: bool = False, checker_path: Path | None = None
+) -> list[str]:
     document = read_document(path)
     profile = document.get("profile")
     expected = required_paths(profile)
@@ -127,7 +138,9 @@ def verify_manifest(path: Path, require_published: bool = False) -> list[str]:
     checker_digest = document.get("checker_sha256")
     if (
         document.get("checker_source_path") != "scripts/check_snapshot.py"
-        or checker_digest != hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        or checker_digest != hashlib.sha256(
+            (checker_path or Path(__file__)).read_bytes()
+        ).hexdigest()
     ):
         errors.append("檢查器與清單記錄的來源不符")
     for folder in ("standards", "governance"):
@@ -162,14 +175,17 @@ def main() -> int:
     )
     parser.add_argument("--catalog", type=Path)
     parser.add_argument("--require-published", action="store_true")
+    parser.add_argument("--checker-file", type=Path, help="核對歷史快照的檢查器檔案，只讀取不執行")
     arguments = parser.parse_args()
     try:
         if arguments.catalog:
-            if arguments.require_published:
-                raise ValueError("--require-published 僅適用消費端 manifest")
+            if arguments.require_published or arguments.checker_file:
+                raise ValueError("--require-published 與 --checker-file 僅適用消費端 manifest")
             errors = verify_catalog(arguments.catalog)
         else:
-            errors = verify_manifest(arguments.manifest, arguments.require_published)
+            errors = verify_manifest(
+                arguments.manifest, arguments.require_published, arguments.checker_file
+            )
     except (OSError, ValueError, TypeError, KeyError) as exception:
         print(f"檢查失敗：{exception}", file=sys.stderr)
         return 1

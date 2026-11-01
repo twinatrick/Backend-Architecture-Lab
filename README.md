@@ -2,7 +2,7 @@
 
 > 個人後端架構設計、技術驗證與工程實踐平台
 
-工程規範：[現行規範](開發規範.md)／[集中治理快照 (0.1.0 正式接軌)](docs/engineering-standards/README.md)。本專案已正式鎖定集中規範 `0.1.0`（來源：[engineering-standards](https://github.com/twinatrick/engineering-standards)）。
+工程規範：[現行規範](開發規範.md)／[集中治理快照 (0.2.1 正式接軌)](docs/engineering-standards/README.md)。本專案鎖定集中規範 `0.2.1`（來源：[engineering-standards](https://github.com/twinatrick/engineering-standards)，提交 `d208c9275519a5fac2a96f1ae8035a0ee2254f05`）；差異、舊基準與回復方式見 [升版紀錄](docs/engineering-standards-upgrade-0.2.1.md)。
 
 本專案並非單純的教學範例，而是作為後端架構設計、技術驗證與工程實踐的平台，持續驗證企業級分散式系統常見的設計模式、系統架構與開發流程。
 

@@ -1,9 +1,9 @@
 # OpenCode Agent Instructions
 
-## 工程規範集中治理正式接軌 (0.1.0)
+## 工程規範集中治理正式接軌 (0.2.1)
 
 - 集中權威來源為 <https://github.com/twinatrick/engineering-standards>，本地集中庫為 `../engineering-standards`。
-- 本專案保留已發布 `0.1.0` 的共通＋後端完整快照，入口為 [工程規範快照說明](docs/engineering-standards/README.md)，來源與雜湊見同目錄 `manifest.json`；已明確鎖定集中庫 Commit SHA (`c882cc38ed778b099ee3fdf5f2205ade40f2a4a3`)。
+- 本專案保留已發布 `0.2.1` 的共通＋後端完整快照，入口為 [工程規範快照說明](docs/engineering-standards/README.md)，來源與雜湊見同目錄 `manifest.json`；已明確鎖定集中庫 Commit SHA (`d208c9275519a5fac2a96f1ae8035a0ee2254f05`)。舊版基準與回復方式見 [升版紀錄](docs/engineering-standards-upgrade-0.2.1.md)。
 - 本專案工程規範與集中標準庫保持一致，現行根目錄 `開發規範.md` 與以下執行指示與其對齊；禁止直接修改快照。
 - 可手動執行 `python scripts/check_engineering_standards.py`（支援 `--require-published`）進行離線唯讀完整性檢查；目前不接 CI／hooks、不自動升版。專案例外另記錄於快照目錄的 `exceptions.md`，須有明確核准。
 
@@ -52,7 +52,7 @@
   - 生產程式碼全面禁止 `@Lazy`（含同類別自我代理注入 `self`），亦嚴禁開啟 `spring.main.allow-circular-references: true`。
   - 若發現環形依賴，必須透過 **職責下沉（Dependency Demotion，如抽離底層 `Util` / `DataAccess`）**、**上提編排（Orchestrator）** 或 **領域事件（ApplicationEvent）** 重構為單向無環結構。
   - 同類別內部需觸發事務或快取切面時，嚴禁自我注入或以 `this.xxx()` 自調用，必須單向委派 `com.example.BackendArchitectureLab.Util.TransactionExecutor` 或 `com.example.BackendArchitectureLab.Util.CacheExecutor`。
-  - **ADP／SDP／SAP 接軌修訂**：依《開發規範.md》§5.10.3 檢視無環、穩定依賴與適度抽象；不得以目錄名稱或修改頻率直接推定穩定程度。本補充經使用者核准，集中庫工作版尚未發布，不修改既有 `0.1.0` 快照。
+  - **ADP／SDP／SAP 接軌修訂**：依《開發規範.md》§5.10.3 與已採用 `0.2.1` 的共通 C-10–C-12、後端 Profile 檢視無環、穩定依賴與適度抽象；不得以目錄名稱或修改頻率直接推定穩定程度。歷史 `0.1.0` 基準保持不變。
 - **Service 層與 Mapper 使用規範 (重要)**：
   - Mapper 僅可在 Service Impl 層中使用，Controller **嚴禁**注入或呼叫 Mapper
   - Service 介面方法簽名必須回傳 Vo（如 `UserVo`、`BotConfigVo`），嚴禁回傳 Entity
