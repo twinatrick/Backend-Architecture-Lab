@@ -18,23 +18,28 @@ PyTorch（pyannote.audio）與 faster-whisper（ctranslate2）在同一程序載
 
 ```
 backend-ai-py/requirements_diarization.txt
-```內容鎖定版本如下（請務必遵守，勿隨意升級）：
+```
+
+內容鎖定版本如下（請務必遵守，勿隨意升級）：
 
 ```
---extra-index-url https://download.pytorch.org/whl/cu121
-torch==2.5.1+cu121
-torchaudio==2.5.1+cu121
-pyannote.audio==3.1.1
-numpy==1.26.4
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.13.0+cu126
+torchaudio==2.11.1
+pyannote.audio==4.0.7
+numpy==2.2.6
 soundfile==0.14.0
-huggingface_hub==0.26.3
+huggingface_hub==0.36.2
 ```
 
-> **重要**：`numpy` 必須鎖定為 1.x（`1.26.4`）。若 pip 自動安裝 NumPy 2.x，
-> 會導致 `pyannote.audio` 與 `torch` 相依性衝突。
-> `huggingface_hub` 必須鎖定 0.x（`0.26.3`）：`pyannote.audio 3.1.1` 仍使用
-> 已於 1.x 移除的 `use_auth_token` 參數，升級至 1.x 會導致 pipeline 載入失敗
-> （`TypeError: hf_hub_download() got an unexpected keyword argument use_auth_token`）。
+> **重要**：此次安全升級需要整組更新，請勿只升級 `torch`。
+> `pyannote.audio 3.1.1` 使用新版 torchaudio 已移除的音訊 API，故同步升級至 4.x，
+> 並採用其相依套件需要的 NumPy 2.x。`torchaudio 2.11.1` 為 ABI 穩定版本，
+> 宣告支援 `torch>=2.11`，版本號不必與 torch 相同。
+> Hugging Face 改用原生 `token` 參數，不再安裝 `use_auth_token` monkey patch。
+>
+> 建議先建立新的 Python 3.11 環境驗證，確認成功後才切換 `diarization_env_name`；
+> 不要將這些套件安裝到執行 faster-whisper 的 `backend-ai-py` 主環境。
 
 ## 建立環境步驟
 
@@ -48,10 +53,12 @@ conda create -n pyannote-env python=3.11 -y
 
 ```bash
 conda activate pyannote-env
-pip install -r backend-ai-py/requirements_diarization.txt
+python -X utf8 -m pip install -r backend-ai-py/requirements_diarization.txt
 ```
 
-安裝完成後即擁有 CUDA 12.1 版 PyTorch、torchaudio 與 pyannote.audio 3.1.1。
+安裝完成後即擁有 CUDA 12.6 版 PyTorch、torchaudio 與 pyannote.audio 4.0.7。
+`-X utf8` 可避免 Windows 使用舊版 pip 時，以系統編碼讀取需求清單內的繁體中文註解而失敗。
+GPU 執行需要支援 CUDA 12.6 的 NVIDIA 驅動；沒有可用 CUDA 時，worker 仍可使用 CPU。
 
 ### 3. 驗證 CUDA 可用
 
@@ -59,7 +66,18 @@ pip install -r backend-ai-py/requirements_diarization.txt
 conda run -n pyannote-env python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-預期輸出類似：`2.5.1+cu121 True`。
+預期輸出類似：`2.13.0+cu126 True`。另請執行 `python -m pip check` 檢查相依性。
+
+### 4. 模型與輸出相容性
+
+- 預設模型仍是 `pyannote/speaker-diarization-3.1`，不自動切換模型或要求 community-1 授權。
+- worker 保留原模型的 `AgglomerativeClustering` 分群參數並設定 `legacy=True`。
+  新版建構子不接受 `plda=None`，因此使用不載入權重的 `DisabledPLDA` 相容物件，
+  避免額外下載 community-1 模型；此物件不參與凝聚式分群，誤用時會明確失敗。
+- 音訊以 SoundFile 讀取為 float32 波形後傳入 pipeline，避免內建解碼依賴
+  TorchCodec 與 FFmpeg 的平台 DLL；主程序原有的 FFmpeg 格式轉換仍保留。
+- 同時接受舊的 `Annotation` 與新版 `DiarizeOutput`，輸出仍為 `start`、`end`、`speaker` JSON 陣列。
+- 模型 checkpoint 只能使用已信任的來源；不得藉由全域關閉 `weights_only` 安全檢查來載入不可信模型。
 
 ## HuggingFace Token 設定（必須）
 

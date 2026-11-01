@@ -1,31 +1,49 @@
 import json
 import os
 import sys
-from typing import Any
 
-import huggingface_hub
+import soundfile
 import torch
+import yaml
+from huggingface_hub import hf_hub_download
+from numpy import ndarray
 from pyannote.audio import Pipeline
+from pyannote.audio.core.plda import PLDA
 
 # 避免 Windows 下 OpenMP 重複載入衝突
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-# HuggingFace 參數相容層：huggingface_hub 新版本已移除 use_auth_token，
-# pyannote.audio 3.1.1 內部仍以舊參數呼叫 hf_hub_download，於此統一轉為 token。
-try:
-    _orig_download = huggingface_hub.hf_hub_download
 
-    def _patched_download(*args: Any, **kwargs: Any) -> Any:
-        if "use_auth_token" in kwargs:
-            kwargs["token"] = kwargs.pop("use_auth_token")
-        return _orig_download(*args, **kwargs)
+class DisabledPLDA(PLDA):
+    """舊版凝聚式分群不使用 PLDA，僅滿足新版建構子的型別契約。"""
 
-    huggingface_hub.hf_hub_download = _patched_download
-    if hasattr(huggingface_hub, "file_download"):
-        huggingface_hub.file_download.hf_hub_download = _patched_download
-except (AttributeError, TypeError, RuntimeError) as exc:
-    # 相容層 patch 失敗時退回首版行為，不影響後續語者分離流程
-    print(f"[Diarization Worker] HF download patch failed: {exc}")
+    def __init__(self) -> None:
+        """刻意不載入新版 PLDA 權重；僅能搭配不使用 PLDA 的分群。"""
+
+    @property
+    def phi(self) -> ndarray:
+        raise RuntimeError("既有 3.1 模型已停用 PLDA，請勿改用 VBx 分群。")
+
+    def __call__(self, embeddings: ndarray) -> ndarray:
+        raise RuntimeError("既有 3.1 模型已停用 PLDA，請勿改用 VBx 分群。")
+
+
+def load_pipeline(model_name: str, hf_token: str) -> Pipeline:
+    # 保留既有 3.1 模型與授權；避免 4.x 預設額外下載 community-1 的 PLDA。
+    checkpoint = model_name
+    if model_name == "pyannote/speaker-diarization-3.1":
+        config_path = hf_hub_download(model_name, "config.yaml", token=hf_token)
+        with open(config_path, encoding="utf-8") as config_file:
+            checkpoint = yaml.safe_load(config_file)
+        parameters = checkpoint["pipeline"]["params"]
+        if parameters.get("clustering") != "AgglomerativeClustering":
+            raise RuntimeError("既有 3.1 模型相容設定僅支援 AgglomerativeClustering。")
+        parameters.update(plda=DisabledPLDA(), legacy=True)
+
+    pipeline = Pipeline.from_pretrained(checkpoint, token=hf_token)
+    if pipeline is None:
+        raise RuntimeError("無法載入語者分離模型，請確認 HF_TOKEN 與模型存取權限。")
+    return pipeline
 
 
 def main() -> None:
@@ -44,7 +62,7 @@ def main() -> None:
     model_name = os.environ.get("DIARIZATION_MODEL", "pyannote/speaker-diarization-3.1")
 
     print(f"[Diarization Worker] Loading pipeline {model_name} on device '{device}'...")
-    pipeline = Pipeline.from_pretrained(model_name, use_auth_token=hf_token)
+    pipeline = load_pipeline(model_name, hf_token)
 
     if device == "cuda" and torch.cuda.is_available():
         pipeline.to(torch.device("cuda"))
@@ -53,7 +71,11 @@ def main() -> None:
         print("[Diarization Worker] Running pipeline on CPU.")
 
     print(f"[Diarization Worker] Analyzing audio: {file_path}")
-    diarization = pipeline(file_path)
+    # 以既有 soundfile 解碼，避免引入平台相依的 TorchCodec / FFmpeg DLL 需求。
+    samples, sample_rate = soundfile.read(file_path, dtype="float32", always_2d=True)
+    waveform = torch.from_numpy(samples.T.copy())
+    result = pipeline({"waveform": waveform, "sample_rate": sample_rate})
+    diarization = getattr(result, "speaker_diarization", result)
 
     turns = []
     for turn, _, speaker in diarization.itertracks(yield_label=True):

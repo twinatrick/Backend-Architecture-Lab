@@ -1,18 +1,17 @@
 # 語者分離 (Speaker Diarization) 環境需求清單
 # 用於 pyannote-env (pyannote.audio + PyTorch CUDA) 獨立子進程環境
 # 安裝方式：pip install -r requirements_diarization.txt
---extra-index-url https://download.pytorch.org/whl/cu121
+--extra-index-url https://download.pytorch.org/whl/cu126
 
-# PyTorch CUDA 12.1 (與專案標準環境 backend-ai-py 的 faster-whisper/ctranslate2 分離，避免 DLL 衝突)
-torch==2.5.1+cu121
-torchaudio==2.5.1+cu121
+# PyTorch CUDA 12.6（仍與主環境隔離，避免 faster-whisper/ctranslate2 的 DLL 衝突）
+torch==2.13.0+cu126
+torchaudio==2.11.1
 
 # 語者分離核心
-pyannote.audio==3.1.1
+pyannote.audio==4.0.7
 
-# 相依性鎖定（numpy 必須為 1.x，避免與 PyTorch/PyAnnote 衝突）
-numpy==1.26.4
+# pyannote.audio 4.x 的 pyannote.core / metrics 需要 NumPy 2.x
+numpy==2.2.6
 soundfile==0.14.0
-# huggingface_hub 必須為 0.x：pyannote.audio 3.1.1 仍使用 use_auth_token，
-# 1.x 已移除該參數，會導致 pipeline 載入失敗（TypeError: unexpected keyword argument）
-huggingface_hub==0.26.3
+# 使用原生 token 介面，不再依賴 use_auth_token 相容層
+huggingface_hub==0.36.2
