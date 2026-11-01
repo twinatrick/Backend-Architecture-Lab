@@ -116,7 +116,17 @@
 | 取消收藏職缺 | `/api/user/bindings/job/{jobPostingId}` | `/api/user/bindings/job/{jobPostingId}` | `DELETE` | 維持不變 |
 | 查詢已收藏職缺列表 | `/api/user/bindings/job` | `/api/user/bindings/job` | `GET` | 維持不變 |
 
-### 1.12 使用者管理新增刪除端點與保護邊界 (IAM - User / Role / Function)
+### 1.12 IAM 新增、更新與刪除端點 (User / Role / Function)
+
+新增與更新不再使用 `/create`、`/saveUser`、`/add`、`/update` 或 `WithFunctions` 路徑：
+
+| 資源 | 新增 | 更新 | 說明 |
+| :--- | :--- | :--- | :--- |
+| 使用者 | `POST /api/users` | `PUT /api/users/{id}` | 更新以路徑中的使用者 UUID 為準。 |
+| 角色 | `POST /api/role` | `PUT /api/role/{id}` | 同步處理 `functionIds`；更新時 `null` 保留、`[]` 清空、有值則覆蓋權限綁定。 |
+| 功能節點 | `POST /api/function` | `PUT /api/function/{id}` | 批次變更另使用 `POST /api/function/batch`，取代 `/saveAllFunction`。 |
+
+刪除端點及保護邊界如下：
 | 業務動作 | 新增/標準 RESTful API | HTTP Method | 行為與錯誤碼說明 |
 | :--- | :--- | :--- | :--- |
 | 刪除使用者 | `/api/users/{id}` | `DELETE` | 單向清除該使用者的 `UserRole` 並刪除 `User`（不會反向影響 `Role`）。<br>⚠️ 禁止刪除系統預設管理員 `admin`（回傳 `400 FORBIDDEN_SYSTEM_ADMIN`）或刪除當前登入者自身（回傳 `400 FORBIDDEN_SELF_DELETE`）。 |
@@ -124,11 +134,11 @@
 | 刪除權限節點 | `/api/function/{id}` | `DELETE` | 自動向下（BFS）收集該節點下所有第 2、3 層子孫節點，先清除關聯 `RoleFunction` 再一次刪除整棵子樹（不會反向刪除 `Role`）。 |
 
 ### 1.13 全專案 11 大實體批次查詢 API (全新支援，消滅前端 N+1)
-所有業務實體全面支援 `POST /api/{resource}/batch-query` 批次載入詳情（單次最多 100 筆，回傳 `items`、`itemMap` 字典與 `missingIds`），詳細規範請參閱本地手冊 `BATCH_API_SPEC_FOR_FE.md`：
+下列 11 類資源支援 `POST /api/{resource}/batch-query` 批次載入詳情（單次最多 100 筆，回傳 `items`、`itemMap` 字典與 `missingIds`），詳細請求與回應契約見 [批次查詢 API 規格](docs/batch-query-api.md)：
 | 業務實體 | 批次查詢端點 (POST) | Payload 格式 | 說明 |
 | :--- | :--- | :--- | :--- |
 | 使用者 | `/api/users/batch-query` | `{ "ids": ["uuid", ...] }` | 批次依 ID 獲取使用者詳情 |
-| 角色 | `/api/role/batch-query` | `{ "ids": ["ADMIN", ...] }` | 批次依角色名稱獲取完整功能清單 |
+| 角色 | `/api/role/batch-query` | `{ "ids": ["uuid", ...] }` | 批次依角色 UUID 獲取詳情與功能清單，不接受角色名稱 |
 | 功能節點 | `/api/function/batch-query` | `{ "ids": ["uuid", ...] }` | 批次依 ID 獲取功能節點 |
 | 專案 | `/api/project/batch-query` | `{ "ids": ["uuid", ...] }` | 批次依 ID 獲取專案詳情 |
 | 技能 | `/api/skill/batch-query` | `{ "ids": ["uuid", ...] }` | 批次依 ID 獲取技能詳情 |
@@ -143,14 +153,22 @@
 
 ## 🏷️ 2. Request / Response 欄位更名對照表 (Field Renaming)
 
-### 2.1 CriteriaAPIFilter (感測器數值篩選條件)
+### 2.1 CriteriaApiFilter (感測器篩選條件)
 - **影響端點**：`POST /api/aquarkData/search` 的 filters 陣列
-- **欄位更名**：
-  | 舊欄位名稱 (已廢除) | 新欄位名稱 (唯一標準) | 型別 | 說明 |
-  | :--- | :--- | :--- | :--- |
-  | `string` | `stringValue` | `String` | 字串模糊或精確比對值 |
-  | `large` | `greaterThan` | `Double` | 大於門檻值 (數值下限) |
-  | `small` | `lessThan` | `Double` | 小於門檻值 (數值上限) |
+- **現行契約**：以 `com.example.BackendArchitectureLab.DataAccess.specification.CriteriaApiFilter` 為準，不能將舊的數值上下限直接改名成比較旗標。
+  | 欄位 | 型別 | 說明 |
+  | :--- | :--- | :--- |
+  | `columnName` | `String` | 實體欄位名稱，例如 `temperature`；不是 `column`。 |
+  | `type` | `int` | `0` 字串、`1` 數值、`2` 日期、`3` 布林。 |
+  | `stringValue` | `String` | 字串比對值，取代舊 `string`。 |
+  | `doubleValue` | `double` | 數值門檻；上下限分別建立一個條件。 |
+  | `date` | `Date` | 日期比對值。 |
+  | `booleanValue` | `boolean` | 布林比對值。 |
+  | `greaterThan` / `lessThan` | `boolean` | 比較方向，不是數值上下限；每個條件只選一個方向。 |
+  | `equal` | `boolean` | 是否包含等於；數值條件未指定比較方向時，`true` 為等於、`false` 為不等於。 |
+  | `like` | `boolean` | 字串是否使用模糊比對。 |
+
+  多個條件以 AND 組合。無條件查詢可使用分頁 `/search` 或分塊 `/stream`；內部清單方法 `com.example.BackendArchitectureLab.Service.Impl.AquarkDataQueryService.getAquarkDataWithFilter` 不接受 `null` 或空條件，不能將此限制誤套到分頁搜尋。
 
 ### 2.2 SuperUserRequest (建立超級管理員)
 - **影響端點**：`POST /api/auth/superuser`
@@ -175,7 +193,8 @@
   | `saveMainFunction` | `toSave` | `List<FunctionVo>` | 欲儲存的主要功能清單 |
   | `saveFunctionNewChild`| `toSaveChildren`| `List<FunctionVo>` | 欲儲存的子功能清單 |
 
-### 2.5 RoleOutVo (角色列表與詳情)
+### 2.5 RoleVo (角色列表與詳情)
+- **回應型別**：`com.example.BackendArchitectureLab.Vo.RoleVo`，不再使用舊名稱 `RoleOutVo`。
 - **影響端點**：`POST /api/role/search` 與 `GET /api/role/{id}`
 - **欄位說明**：
   - `POST /api/role/search`（列表）：`functionIds` 永遠為空陣列 `[]`，請讀取 `functionCount`（整數）直接顯示權限數量！
@@ -239,7 +258,7 @@ await api.post(`/api/user/bindings/job/${jobPostingId}`);
 await api.delete(`/api/user/bindings/job/${jobPostingId}`);
 ```
 
-### 範例 3：Aquark 數值範圍搜尋 (CriteriaAPIFilter)
+### 範例 3：Aquark 數值範圍搜尋 (CriteriaApiFilter)
 ```typescript
 // 舊寫法 (已廢除)
 // filters: [{ column: 'temp', large: 20.5, small: 30.0 }]
@@ -248,19 +267,29 @@ await api.delete(`/api/user/bindings/job/${jobPostingId}`);
 const query = {
   page: 0,
   size: 20,
-  sortBy: 'time',
+  sortBy: 'trans_time',
   sortDir: 'desc',
   filters: [
     {
-      column: 'temperature',
-      greaterThan: 20.5,
-      lessThan: 30.0,
-      stringValue: ''
+      columnName: 'temperature',
+      type: 1,
+      doubleValue: 20.5,
+      greaterThan: true,
+      equal: true
+    },
+    {
+      columnName: 'temperature',
+      type: 1,
+      doubleValue: 30.0,
+      lessThan: true,
+      equal: true
     }
   ]
 };
 const res = await api.post('/api/aquarkData/search', query);
 ```
+
+此範例搜尋 `20.5 ≤ temperature ≤ 30.0`。時間排序可用 `trans_time` 或別名 `transTime`，不可使用 `time`。
 
 ---
 

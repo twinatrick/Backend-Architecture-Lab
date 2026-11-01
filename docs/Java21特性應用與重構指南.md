@@ -261,14 +261,19 @@ public class SequencedCollectionsExample {
 
 #### 專案應用實例
 - **純內部資料結構**：
-  - `com.example.BackendArchitectureLab.Vo.BindingSnapshot`
-  - `com.example.BackendArchitectureLab.Vo.CacheStatsEvent`
+  - `com.example.BackendArchitectureLab.Bo.BindingSnapshot`
+  - `com.example.BackendArchitectureLab.Event.CacheStatsEvent`
 
 ```java
+import java.util.UUID;
+
 // ✅ 專案內部無快取資料結構：宣告為 Java Record (不可變、簡潔)
 public record BindingSnapshot(UUID userId, UUID skillId, UUID levelId) {}
+```
 
-public record CacheStatsEvent(String cacheName, String field) {}
+```java
+// count 支援批次快取操作一次累計多筆命中或未命中。
+public record CacheStatsEvent(String cacheName, String field, long count) {}
 ```
 
 #### ⚠️ 重大踩坑陷阱與設計防線 (Redis Cache Serialization Pitfall)
