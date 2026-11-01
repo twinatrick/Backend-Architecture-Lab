@@ -30,6 +30,7 @@ class RuleInspectionResult:
     verified_snippet: str = ""
     missing_context: tuple[str, ...] = ()
     confirmed_findings: tuple[dict[str, Any], ...] = ()
+    verification_evidence: dict[str, Any] | None = None
 
 
 def compute_claim_identity(location: str, rule_key: str, evidence: str = "") -> str:

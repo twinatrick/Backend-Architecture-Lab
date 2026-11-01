@@ -22,6 +22,11 @@ from rule_inspectors import (
     RepositoryTransactionRuleInspector,
     RestfulEndpointRuleInspector,
 )
+from vulnerability_inspector import (
+    VulnerabilityApplicabilityInspector,
+    claim_evidence_identity,
+    claim_routing_problem,
+)
 
 # 舊掃描器只具備找違規的能力，未命中不得當成語意合規證明。
 PROVABLE_DETERMINISTIC_RULES: set[str] = set()
@@ -164,6 +169,7 @@ class RuleRegistry:
         self._inspectors["RULE_DERIVED_DELETE_TRANSACTIONAL"] = tx_insp
         self._inspectors[check_rules.RULE_DERIVED_DELETE_TRANSACTIONAL] = tx_insp
         self._inspectors["RULE_PACKAGE_VERSION_EXISTS"] = PackageVersionInspector()
+        self._inspectors["RULE_VULNERABILITY_APPLICABILITY"] = VulnerabilityApplicabilityInspector()
         for key in ("RULE_PYTHON_DUPLICATE_DEFINITION", "RULE_PYTHON_UNDEFINED_NAME",
                     "RULE_PYTHON_IMPORT_POSITION"):
             self._inspectors[key] = PythonClaimInspector(key)
@@ -179,6 +185,8 @@ class RuleRegistry:
                 matched_keys.append(key)
 
         keyword_rules = [
+            (("cve-", "ghsa-", "漏洞適用", "已知漏洞", "vulnerability"),
+             "RULE_VULNERABILITY_APPLICABILITY"),
             (("非私有", "非 private", "公開方法", "公開的", "方法不存在"),
              "RULE_JAVA_METHOD_FACT"),
             (("沒有呼叫端", "無任何呼叫端", "無呼叫端", "孤島死代碼"),
@@ -192,23 +200,16 @@ class RuleRegistry:
             (("import 未置頂", "導入未置頂", "導入順序", "匯入未置頂", "import 順序"),
              "RULE_PYTHON_IMPORT_POSITION"),
             (("fqn", "完全限定名稱", "fully qualified"), "RULE_NO_FQN_IN_CODE"),
-            (
-                ("@lazy", "切面自調用", "self-invocation", "代理失效", "cacheexecutor"),
-                "RULE_ASPECT_SELF_INVOCATION_AND_LAZY",
-            ),
-            (
-                ("restful", "動詞", "複數名詞", "路徑命名"),
-                "RULE_RESTFUL_PLURAL_NO_VERBS",
-            ),
+            (("@lazy", "切面自調用", "self-invocation", "代理失效", "cacheexecutor"),
+             "RULE_ASPECT_SELF_INVOCATION_AND_LAZY"),
+            (("restful", "動詞", "複數名詞", "路徑命名"), "RULE_RESTFUL_PLURAL_NO_VERBS"),
             (
                 ("直接注入 repository", "跨過 dataaccess", "注入 repository", "呼叫 repository"),
                 "RULE_SERVICE_DIRECT_REPOSITORY",
             ),
             (("entitymanager",), "RULE_SERVICE_DIRECT_EM"),
-            (
-                ("衍生刪除", "deleteby", "modifying", "@transactional"),
-                "RULE_DERIVED_DELETE_TRANSACTIONAL",
-            ),
+            (("衍生刪除", "deleteby", "modifying", "@transactional"),
+             "RULE_DERIVED_DELETE_TRANSACTIONAL"),
             (("雙軌", "分頁與", "findall()", "無上限查詢"), "RULE_MISSING_DUAL_RAIL_RETRIEVAL"),
             (("@requirepermission", "權限註解"), "RULE_PERMISSION_DICTIONARY"),
             (
@@ -233,7 +234,7 @@ class RuleRegistry:
     def split_finding_into_claims(self, finding: dict[str, Any]) -> list[RuleClaim]:
         """將單一 Finding 拆分為獨立可裁定之 RuleClaim（若觸及多條規則則拆為多筆獨立主張）。"""
         raw_rule = str(finding.get("rule", "")).strip()
-        raw_prob = str(finding.get("problem", "")).strip()
+        raw_prob = claim_routing_problem(finding).strip()
         parts = [
             part_str.strip()
             for part_str in raw_rule.replace("；", ";").split(";")
@@ -244,7 +245,9 @@ class RuleRegistry:
         for part in parts or [raw_rule]:
             matched = self.match_rule_keys(part, raw_prob if len(parts) <= 1 else "")
             # 事實反證只能處理該子主張；未知業務規則不可因方法引用錯誤而一併消失。
-            if "RULE_JAVA_METHOD_FACT" in matched and part not in self._inspectors:
+            if (any(key in matched for key in ("RULE_JAVA_METHOD_FACT",
+                                               "RULE_VULNERABILITY_APPLICABILITY"))
+                    and part not in self._inspectors):
                 matched.append(part or "UNCLASSIFIED_BUSINESS_CLAIM")
             for key in matched or [part or "UNCLASSIFIED_BUSINESS_CLAIM"]:
                 inspector = self._inspectors.get(key)
@@ -256,7 +259,8 @@ class RuleRegistry:
                 seen.add(canonical)
                 sub_finding = dict(finding, rule=canonical)
                 cid = compute_claim_identity(
-                    str(finding.get("location", "")), canonical, str(finding.get("evidence", ""))
+                    str(finding.get("location", "")), canonical,
+                    claim_evidence_identity(finding, canonical),
                 )
                 claims.append(RuleClaim(claim_id=cid, rule_key=key, finding=sub_finding))
         return claims

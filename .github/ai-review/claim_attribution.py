@@ -80,3 +80,5 @@ def append_claim_audit(records: list, results: list[Any], snapshot: Any, budget:
             "attribution": attribution.status.value, "attribution_reason": attribution.reason,
             "base_line": attribution.base_line,
         })
+        if result and result.verification_evidence:
+            records[-1]["verification_evidence"] = result.verification_evidence
