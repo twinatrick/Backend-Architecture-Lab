@@ -474,7 +474,7 @@ erDiagram
 
 ### 2. 完整 API 端點清單
 
-以下列出目前 Controller 路由；RESTful 遷移與請求欄位差異見 [前端遷移指南](API_MIGRATION_GUIDE_FOR_FE.md)，11 類資源的批次載入契約見 [批次查詢 API 規格](docs/batch-query-api.md)。對外呼叫走 Gateway，內部 `/inner/` 端點不對外開放。
+以下列出目前 Controller 路由；11 類資源的批次載入契約見 [批次查詢 API 規格](docs/batch-query-api.md)。對外呼叫走 Gateway，內部 `/inner/` 端點不對外開放。
 
 #### (1) backend-gateway (埠號: 8000)
 | HTTP 方法與子路徑 | 內部直接存取路徑 | Gateway 對外存取路徑 | 端點類型 | 說明 |

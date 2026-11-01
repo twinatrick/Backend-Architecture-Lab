@@ -1,6 +1,6 @@
 # 批次查詢 API 規格
 
-本文件補充 [前端 API 遷移指南](../API_MIGRATION_GUIDE_FOR_FE.md) §1.13 的批次載入契約；端點一覽亦列於 [README](../README.md#2-完整-api-端點清單)。
+本文件說明 11 類資源的批次載入契約；端點一覽亦列於 [README](../README.md#2-完整-api-端點清單)。
 
 ## 適用端點與權限
 
