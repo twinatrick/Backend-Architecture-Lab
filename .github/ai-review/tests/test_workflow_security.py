@@ -118,6 +118,11 @@ def test_java_jobs_do_not_restore_actions_maven_cache() -> None:
 
 def test_integration_timeout_preserves_real_test_and_failure_artifacts() -> None:
     job = load_workflow("ci.yml")["jobs"]["integration-test"]
+    options = job["container"]["options"]
+    assert "--network" not in options
+    assert "--add-host=host.docker.internal:host-gateway" in options
+    assert "/var/run/docker.sock:/var/run/docker.sock" in options
+    assert job["env"]["TESTCONTAINERS_HOST_OVERRIDE"] == "host.docker.internal"
     assert job["timeout-minutes"] == "30"
     tests = [
         step

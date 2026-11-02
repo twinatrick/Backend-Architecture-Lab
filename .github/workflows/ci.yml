@@ -92,12 +92,13 @@ jobs:
     timeout-minutes: 30
     container:
       image: maven:3.9.8-eclipse-temurin-21@sha256:de18e4e51396ad9266f76669779ed6d6b49fbb0f45ed6f39169d87378d548d7d
-      options: --network host -v /var/run/docker.sock:/var/run/docker.sock
+      options: --add-host=host.docker.internal:host-gateway -v /var/run/docker.sock:/var/run/docker.sock
     env:
       RUN_JAVA_INTEGRATION: ${{ needs.impact-scope.outputs.run_java_integration }}
       STATUS_JAVA_INTEGRATION: ${{ needs.impact-scope.outputs.status_java_integration }}
       DOCKER_API_VERSION: "1.44"
       TESTCONTAINERS_RYUK_DISABLED: "true"
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

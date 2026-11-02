@@ -26,6 +26,11 @@ if [ "${RUN_PYTHON:-true}" = "false" ]; then
   exit 0
 fi
 
+if ! command -v git >/dev/null 2>&1; then
+  echo "[verify_python] 容器內未偵測到 git，正在安裝 git..."
+  apt-get update && apt-get install -y --no-install-recommends git ca-certificates >/dev/null
+fi
+
 echo "=== [1/4] 安裝共通鎖定 Python CI 依賴 (backend-ai-py/requirements-ci.txt) ==="
 python3 -m pip install --upgrade pip
 python3 -m pip install -r backend-ai-py/requirements-ci.txt

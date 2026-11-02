@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 import unittest
 from dataclasses import asdict
 from pathlib import Path
+from unittest.mock import patch
 
 from assert_junit_non_empty import (
     assert_non_empty_suite,
@@ -138,7 +140,12 @@ class DetectCiImpactTest(unittest.TestCase):
         self.assertTrue(report.java_unit.should_run)
         self.assertTrue(report.java_integration.should_run)
 
-    def test_missing_or_zero_sha_and_tag_or_manual_fallback_to_full_run(self) -> None:
+    @patch("detect_ci_impact.shutil.which", return_value="/usr/bin/git")
+    @patch("detect_ci_impact.subprocess.run")
+    def test_missing_or_zero_sha_and_tag_or_manual_fallback_to_full_run(
+        self, run_mock, _which_mock
+    ) -> None:
+        run_mock.return_value = subprocess.CompletedProcess(["git"], 128, "", "invalid SHA")
         with tempfile.TemporaryDirectory() as tmp_dir_name:
             tmp_dir = Path(tmp_dir_name)
             for event_name, base_val, head_val in [
@@ -156,6 +163,18 @@ class DetectCiImpactTest(unittest.TestCase):
                 )
                 self.assertTrue(fallback, msg=f"{event_name}:{reason}")
                 self.assertTrue(bool(reason))
+
+    @patch("detect_ci_impact.shutil.which", return_value=None)
+    @patch("detect_ci_impact.subprocess.run")
+    def test_missing_git_conservatively_runs_all_groups(self, run_mock, _which_mock) -> None:
+        for event_name in ["pull_request", "merge_request", "push"]:
+            fallback, reason, _, files = resolve_git_changes(
+                event_name, "abc1234", "def5678", Path.cwd()
+            )
+            self.assertTrue(fallback)
+            self.assertIn("缺少 git", reason)
+            self.assertEqual(files, [])
+        run_mock.assert_not_called()
 
 
 class NonEmptySuiteAndGateTest(unittest.TestCase):

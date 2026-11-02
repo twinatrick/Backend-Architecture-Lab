@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -115,6 +116,8 @@ def resolve_git_changes(
         return True, f"未知的事件類型 ({normalized_event or 'empty'})，保守全跑", "", []
     if is_null_or_missing_sha(base_sha) or is_null_or_missing_sha(head_sha):
         return True, "比較基準 SHA 或當前 SHA 缺失／為全零，保守執行全量共通驗證", "", []
+    if shutil.which("git") is None:
+        return True, "環境缺少 git，無法可靠判定變更範圍，保守全跑", "", []
 
     comparison_base = base_sha.strip()
     resolved_head = head_sha.strip()
