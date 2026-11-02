@@ -11,7 +11,6 @@ from check_java import check_java_file
 from check_java_quality import default_repo_searcher
 from check_python import check_python_file
 from check_rules import (
-    RULE_PYTHON_MODULE_LOC,
     RULE_SECRET_PROTECTION,
     SECRET_REGEXES,
     make_finding,
@@ -102,6 +101,7 @@ def _build_pr_repo_searcher(files: list[dict[str, Any]]) -> Any:
 def run_static_checks(
     files: list[dict[str, Any]], *, repo_searcher: Any = None,
     allow_local_fallback: bool = True,
+    verified_renames: frozenset[str] = frozenset(),
 ) -> list[dict[str, Any]]:
     """對變更檔案清單執行確定性靜態規則檢查。"""
     all_findings: list[dict[str, Any]] = []
@@ -118,10 +118,12 @@ def run_static_checks(
         lines_count = len(content.splitlines()) if content else 0
 
         # 如果檔案有內容但無 patch 且狀態非新增，代表 patch 缺失無法界定變更範圍
-        if content and not patch and status not in ("added", "new") and lines_count > 0:
+        content_rename = status == "renamed" and path in verified_renames
+        if (content and not patch and status not in ("added", "new")
+                and lines_count > 0 and not content_rename):
             all_findings.append(make_finding(
                 path, 1, "HIGH", "COMPLIANCE",
-                RULE_PYTHON_MODULE_LOC,
+                "REVIEW_INCOMPLETE",
                 f"檔案 {path} 缺少 Diff Patch，無法精確界定變更範圍",
                 "Patch unavailable for modified file in diff inspection",
                 "缺少 Patch 將導致行級靜態檢查與安全審查產生盲區",
@@ -130,6 +132,9 @@ def run_static_checks(
             continue
 
         changed_lines = extract_changed_lines(patch, status=status, total_lines=lines_count)
+        if content_rename:
+            # 無內容差異仍檢查新路徑下的完整內容，不跳過安全與架構規則。
+            changed_lines = set(range(1, lines_count + 1))
         clean_content = sanitize_source_content(content)
 
         if content:
