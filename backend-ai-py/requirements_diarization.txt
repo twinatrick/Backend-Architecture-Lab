@@ -15,3 +15,5 @@ numpy==2.2.6
 soundfile==0.14.0
 # 使用原生 token 介面，不再依賴 use_auth_token 相容層
 huggingface_hub==0.36.2
+PyYAML==6.0.2
+

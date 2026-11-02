@@ -81,5 +81,7 @@ semgrep*.json
 review.md
 ai-review.json
 .ai-review-meta/
+.ci-artifacts/
+backend-ai-py/test-results/
 交接手冊.md
 HANDOVER*.md

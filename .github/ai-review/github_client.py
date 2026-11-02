@@ -229,7 +229,6 @@ def publish_review(
     pr_number: int, body: str, decision: str = "COMMENT",
     commit_id: str | None = None, requires_human_review: bool = False,
 ) -> bool:
-    comment_res = post_issue_comment(pr_number, body)
     review_event = decision if decision in ("APPROVE", "REQUEST_CHANGES") else "COMMENT"
     review_res = post_pr_review(pr_number, body, review_event, commit_id=commit_id)
 
@@ -241,7 +240,8 @@ def publish_review(
         if commit_id:
             post_commit_status(commit_id, "failure", f"Review 發布失敗 ({decision})")
         raise RuntimeError(f"無法在 PR #{pr_number} 提交正式 PR Review，觸發 Fail-Closed。")
-    if is_422 and comment_res is None:
+    # 正式 Review 為主要報告；僅於 422 時使用一般留言備援，避免重複發布。
+    if is_422 and post_issue_comment(pr_number, body) is None:
         if commit_id:
             post_commit_status(commit_id, "failure", f"Review 發布失敗 ({decision})")
         raise RuntimeError("PR Review 因 422 跳過且 Issue 留言失敗，觸發 Fail-Closed。")

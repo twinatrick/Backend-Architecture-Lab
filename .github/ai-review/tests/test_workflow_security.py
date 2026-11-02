@@ -28,9 +28,13 @@ def test_both_secret_workflows_checkout_pinned_trusted_source_without_credential
         workflow = load_workflow(filename)
         for job in workflow["jobs"].values():
             steps = job["steps"]
-            checkout = [step for step in steps if step.get("uses", "").startswith(
-                "actions/checkout@",
-            )]
+            checkout = [
+                step
+                for step in steps
+                if step.get("uses", "").startswith(
+                    "actions/checkout@",
+                )
+            ]
             assert len(checkout) == 1
             assert re.fullmatch(r"actions/checkout@[0-9a-f]{40}", checkout[0]["uses"])
             assert checkout[0]["with"]["ref"] == "${{ github.event.repository.default_branch }}"
@@ -42,9 +46,15 @@ def test_reader_has_no_ledger_write_secret_and_recorder_keeps_credentials_separa
     reader = load_workflow("ai-review-trusted.yml")["jobs"]["review"]["steps"]
     assert "AI_REVIEW_LEDGER_WRITE_TOKEN" not in str(reader)
     recorder = load_workflow("ai-review-verdict.yml")["jobs"]["record"]["steps"]
-    env = next(step["env"] for step in recorder if "AI_REVIEW_LEDGER_WRITE_TOKEN" in step.get(
-        "env", {},
-    ))
+    env = next(
+        step["env"]
+        for step in recorder
+        if "AI_REVIEW_LEDGER_WRITE_TOKEN"
+        in step.get(
+            "env",
+            {},
+        )
+    )
     assert env["GH_TOKEN"] == "${{ secrets.AI_REVIEW_LEDGER_READ_TOKEN }}"
     assert env["AI_REVIEW_LEDGER_WRITE_TOKEN"] == "${{ secrets.AI_REVIEW_LEDGER_WRITE_TOKEN }}"
 
@@ -52,11 +62,17 @@ def test_reader_has_no_ledger_write_secret_and_recorder_keeps_credentials_separa
 def test_both_workflows_install_trusted_requirements_before_running_python():
     for filename in ("ai-review-verdict.yml", "ai-review-trusted.yml"):
         steps = next(iter(load_workflow(filename)["jobs"].values()))["steps"]
-        install = next(index for index, step in enumerate(steps)
-                       if "-r .github/ai-review/requirements.txt" in step.get("run", ""))
-        executions = [index for index, step in enumerate(steps)
-                      if step.get("run", "").startswith("python3 ")
-                      and ".github/ai-review/" in step["run"].splitlines()[0]]
+        install = next(
+            index
+            for index, step in enumerate(steps)
+            if "-r .github/ai-review/requirements.txt" in step.get("run", "")
+        )
+        executions = [
+            index
+            for index, step in enumerate(steps)
+            if step.get("run", "").startswith("python3 ")
+            and ".github/ai-review/" in step["run"].splitlines()[0]
+        ]
         assert executions and all(index > install for index in executions)
 
 
@@ -84,31 +100,45 @@ def test_ci_import_smoke_uses_isolated_runtime_only_environment_without_secrets(
 
 def test_java_jobs_do_not_restore_actions_maven_cache() -> None:
     jobs = load_workflow("ci.yml")["jobs"]
+    expected_image = (
+        "maven:3.9.8-eclipse-temurin-21@"
+        "sha256:de18e4e51396ad9266f76669779ed6d6b49fbb0f45ed6f39169d87378d548d7d"
+    )
     for job_name in ("build", "integration-test"):
-        steps = jobs[job_name]["steps"]
-        setup = [step for step in steps if step.get("uses", "").startswith(
-            "actions/setup-java@",
-        )]
-        assert len(setup) == 1
-        assert setup[0]["with"]["java-version"] == "21"
-        assert setup[0]["with"]["distribution"] == "temurin"
-        assert "cache" not in setup[0]["with"]
+        job = jobs[job_name]
+        assert job["container"]["image"] == expected_image
+        steps = job["steps"]
         assert not any(step.get("uses", "").startswith("actions/cache") for step in steps)
+        assert not any(
+            "cache" in step.get("with", {})
+            for step in steps
+            if step.get("uses", "").startswith("actions/setup-java@")
+        )
 
 
 def test_integration_timeout_preserves_real_test_and_failure_artifacts() -> None:
     job = load_workflow("ci.yml")["jobs"]["integration-test"]
+    options = job["container"]["options"]
+    assert "--network" not in options
+    assert "--add-host=host.docker.internal:host-gateway" in options
+    assert "/var/run/docker.sock:/var/run/docker.sock" in options
+    assert job["env"]["TESTCONTAINERS_HOST_OVERRIDE"] == "host.docker.internal"
     assert job["timeout-minutes"] == "30"
-    tests = [step for step in job["steps"] if step.get("name") == (
-        "Run Testcontainers Integration Tests"
-    )]
+    tests = [
+        step
+        for step in job["steps"]
+        if step.get("name") == ("Run Testcontainers Integration Tests")
+    ]
     assert len(tests) == 1
-    assert tests[0]["run"] == "./mvnw verify -Pintegration-test -Dsurefire.skip=true"
+    assert tests[0]["run"] == "bash scripts/ci/verify_java_integration.sh"
+    script_path = WORKFLOWS.parents[1] / "scripts" / "ci" / "verify_java_integration.sh"
+    script_text = script_path.read_text(encoding="utf-8")
+    assert "./mvnw -B verify -Pintegration-test -Dsurefire.skip=true" in script_text
     assert "if" not in tests[0]
     assert "continue-on-error" not in tests[0]
     assert "continue-on-error" not in job
-    report = next(step for step in job["steps"] if step.get("name") == (
-        "Upload Integration Test Results"
-    ))
+    report = next(
+        step for step in job["steps"] if step.get("name") == ("Upload Integration Test Results")
+    )
     assert report["if"] == "always()"
     assert report["with"]["path"] == "**/target/failsafe-reports/"

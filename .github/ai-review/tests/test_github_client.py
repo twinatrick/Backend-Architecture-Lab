@@ -101,20 +101,21 @@ def test_validate_target_pr_scenarios():
 
 @pytest.mark.parametrize("decision", ["COMMENT", "REQUEST_CHANGES"])
 def test_publish_review_raises_fail_closed_when_pr_review_fails(decision):
-    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
+    with patch("github_client.post_issue_comment", return_value={"id": 123}) as comment_mock, \
          patch("github_client.post_pr_review", return_value=None):
         with pytest.raises(RuntimeError) as exc_info:
             github_client.publish_review(42, "review body", decision)
         assert "無法在 PR #42 提交正式 PR Review" in str(exc_info.value)
+        comment_mock.assert_not_called()
 
 
-def test_publish_review_succeeds_when_request_changes_review_succeeds():
-    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
+@pytest.mark.parametrize("decision", ["APPROVE", "REQUEST_CHANGES", "HUMAN_REVIEW_REQUIRED"])
+def test_publish_review_succeeds_without_duplicate_comment(decision):
+    with patch("github_client.post_issue_comment", return_value={"id": 123}) as comment_mock, \
          patch("github_client.post_pr_review", return_value={"id": 456}), \
          patch("github_client.post_commit_status", return_value={"id": 789}):
-        assert github_client.publish_review(
-            42, "review body", "REQUEST_CHANGES", commit_id="commit123"
-        ) is True
+        assert github_client.publish_review(42, "review body", decision, "commit123") is True
+        comment_mock.assert_not_called()
 
 
 def test_publish_review_raises_fail_closed_when_commit_status_fails():
@@ -169,12 +170,11 @@ def test_post_pr_review_handles_422_gracefully():
 
 def test_publish_review_succeeds_when_pr_review_returns_422_and_comment_succeeds():
     mock_review_skipped = {"status": "skipped_422", "body": "422"}
-    with patch("github_client.post_issue_comment", return_value={"id": 123}), \
+    with patch("github_client.post_issue_comment", return_value={"id": 123}) as comment_mock, \
          patch("github_client.post_pr_review", return_value=mock_review_skipped), \
          patch("github_client.post_commit_status", return_value={"id": 789}):
-        assert github_client.publish_review(
-            42, "review body", "APPROVE", commit_id="commit123"
-        ) is True
+        assert github_client.publish_review(42, "review body", "APPROVE", "commit123") is True
+        comment_mock.assert_called_once_with(42, "review body")
 
 
 def test_publish_review_fails_when_pr_review_returns_422_and_comment_fails():
