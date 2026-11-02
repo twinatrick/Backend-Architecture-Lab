@@ -1,14 +1,13 @@
 import time
 from typing import Any
 
-import requests
-
 from check_rules import RULE_DEAD_CODE_REPOSITORY, make_finding
 from engine import evaluate, validate_finding
 from github_content import fetch_file_content_fallback
+from rename_verification import verified_content_rename
+from reporter import evaluate_shadow_review
 from repository_call_search import SnapshotRepositorySearch
 from review_snapshot import ReviewSnapshot
-from reporter import evaluate_shadow_review
 from source_budget import SourceReadBudget
 from static_checks import run_static_checks
 from static_claim_gate import verify_static_claims
@@ -35,6 +34,7 @@ def run_snapshot_static_checks(
     deadline = time.monotonic() + 900 if deadline is None else deadline
     pending: list[dict[str, Any]] = []
     full_files: list[dict[str, Any]] = []
+    verified_renames: set[str] = set()
     snapshot = ReviewSnapshot(
         [dict(item, full_content=None, content=None) for item in files],
         head_sha=head_sha, base_sha=base_sha, repo_name=repo_name,
@@ -56,11 +56,21 @@ def run_snapshot_static_checks(
         if not content:
             pending.append(incomplete_finding(path, "無法取得固定 Head SHA 完整檔案"))
             continue
+        if not item.get("patch") and verified_content_rename(item, snapshot, content):
+            verified_renames.add(path)
+            if audit is not None:
+                audit.append({
+                    "check": "identical_content_rename", "location": path,
+                    "previous_filename": item["previous_filename"],
+                    "base_sha": base_sha, "head_sha": head_sha,
+                    "status": "verified",
+                })
         full_files.append(dict(item, filename=path, full_content=content, content=content))
 
     searcher = SnapshotRepositorySearch(snapshot, getter, deadline)
     findings = run_static_checks(
         full_files, repo_searcher=searcher, allow_local_fallback=False,
+        verified_renames=frozenset(verified_renames),
     )
     findings = [
         item for item in findings
