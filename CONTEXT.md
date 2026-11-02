@@ -425,3 +425,20 @@ _Avoid_: Whole-review approval, Partial search means compliance.
 **Vulnerability Applicability (漏洞適用性)**:
 特定漏洞公告所列的套件身分與受影響版本範圍，是否涵蓋受檢套件及其版本的可驗證關係；與漏洞能否在實際業務環境被利用、套件是否另有漏洞，以及發布版本是否穩定或相容，均為獨立主張。
 _Avoid_: Package name alone proves vulnerability, Not affected means universally safe.
+
+**Shared CI Verification (共通 CI 驗證)**:
+雙平台（GitHub Actions 與 GitLab CI）共同執行的自動化品質與測試防線（包含 Python 靜態檢查與測試、Java 單元測試與覆蓋率、Java Testcontainers 端到端整合測試），強制共享單一驗證入口腳本、固定容器基底映像與鎖定相依版本，消除雙平台手動複製造成的驗證漂移。
+_Avoid_: Duplicate inline YAML scripts, Drifted platform checks, Unpinned ad-hoc pip install.
+
+**Platform-Specific Verification (平台專屬驗證)**:
+僅存在於單一託管平台、針對特定平台交付或工作流程契約所設的獨立檢驗（如 GitHub 的 AI Review 執行環境匯入檢驗、GitLab 的 Portainer 部署契約檢驗），保留於原平台獨立維護，不納入跨平台共用驗證腳本。
+_Avoid_: Forced cross-platform extraction, Universal job wrapper.
+
+**Impact-Scoped Verification (變更影響範圍驗證)**:
+依據受檢提交相對於基準版本的實際變更檔案集（含新增、修改、刪除與重新命名），判定各共通驗證群組是否受影響並決定執行或標記為「不適用（Not Applicable）」的機制；當比較基準缺失、歷史不足或命中跨領域設定時，一律強制退回全量驗證（Fail-Closed Full Run）。
+_Avoid_: Blind path skip, Optimistic skip on unknown base, Untracked test bypass.
+
+**Non-Empty Test Suite Guard (非空測試集守衛)**:
+在共通驗證執行期間，強制檢驗測試框架實際收集並執行的測試案例數必須大於零（Collected Tests > 0），防止因路徑偏移、篩選錯誤或環境異常導致「零測試空跑綠燈」的防禦機制。
+_Avoid_: Zero-test green build, Silent test discovery failure, Empty suite pass.
+

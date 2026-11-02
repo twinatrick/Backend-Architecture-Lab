@@ -10,78 +10,100 @@ on:
 
 jobs:
   # ============================================
-  # Job 1：Maven 編譯 + 測試 + 覆蓋率檢查
+  # Job 0：共通變更影響範圍判定 (Impact-Scoped Verification)
   # ============================================
-  build:
+  impact-scope:
     runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    container:
+      image: python:3.11-slim@sha256:673719e071ecf27434fd2635bbd8d00f49f4fdd81f243143438a42ced8bedf60
+    outputs:
+      impact_head_sha: ${{ steps.detect.outputs.IMPACT_HEAD_SHA }}
+      run_python: ${{ steps.detect.outputs.RUN_PYTHON }}
+      status_python: ${{ steps.detect.outputs.STATUS_PYTHON }}
+      run_java_unit: ${{ steps.detect.outputs.RUN_JAVA_UNIT }}
+      status_java_unit: ${{ steps.detect.outputs.STATUS_JAVA_UNIT }}
+      run_java_integration: ${{ steps.detect.outputs.RUN_JAVA_INTEGRATION }}
+      status_java_integration: ${{ steps.detect.outputs.STATUS_JAVA_INTEGRATION }}
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+      - name: Detect CI Change Impact Scope
+        id: detect
+        env:
+          GH_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: bash scripts/ci/run_impact_scope.sh
+
+      - name: Upload Impact Scope Report
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
-          java-version: '21'
-          distribution: 'temurin'
-          # 帳戶快取傳出流量超額時會拖延還原；改由 Maven 直接下載依賴。
+          name: ci-impact-report
+          path: .ci-artifacts/impact_report.json
 
-      - name: Make mvnw executable
-        run: chmod +x mvnw
+  # ============================================
+  # Job 1：共通 Java 單元測試 + JaCoCo 覆蓋率門檻 + 條件式 Sonar
+  # ============================================
+  build:
+    needs: [impact-scope]
+    runs-on: ubuntu-latest
+    container:
+      image: maven:3.9.8-eclipse-temurin-21@sha256:de18e4e51396ad9266f76669779ed6d6b49fbb0f45ed6f39169d87378d548d7d
+    env:
+      RUN_JAVA_UNIT: ${{ needs.impact-scope.outputs.run_java_unit }}
+      STATUS_JAVA_UNIT: ${{ needs.impact-scope.outputs.status_java_unit }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
 
-      - name: Build, Test & Check Coverage
-        run: ./mvnw test jacoco:check
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
-      - name: Upload JaCoCo Coverage Report
+      - name: Run Shared Java Unit & Coverage Verification
+        run: bash scripts/ci/verify_java_unit.sh
+
+      - name: Upload JaCoCo Coverage Reports
+        if: always() && needs.impact-scope.outputs.run_java_unit == 'true'
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: jacoco-report
-          path: target/site/jacoco/
+          path: "**/target/site/jacoco/"
 
-      - name: SonarQube Code Quality & Coverage Analysis
-        if: env.SONAR_TOKEN != ''
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
-        run: |
-          ./mvnw sonar:sonar \
-            -Dsonar.host.url="${SONAR_HOST_URL}" \
-            -Dsonar.token="${SONAR_TOKEN}" \
-            -Dsonar.login="${SONAR_TOKEN}"
-
-      - name: Upload Test Results
+      - name: Upload Java Unit Test JUnit XML Results
         if: always()
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: test-results
-          path: target/surefire-reports/
+          path: "**/target/surefire-reports/"
 
   # ============================================
-  # Job 1.2：Testcontainers 端到端整合測試
+  # Job 1.2：共通 Java Testcontainers 端到端整合測試
   # ============================================
   integration-test:
+    needs: [impact-scope]
     permissions:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    container:
+      image: maven:3.9.8-eclipse-temurin-21@sha256:de18e4e51396ad9266f76669779ed6d6b49fbb0f45ed6f39169d87378d548d7d
+      options: --network host -v /var/run/docker.sock:/var/run/docker.sock
+    env:
+      RUN_JAVA_INTEGRATION: ${{ needs.impact-scope.outputs.run_java_integration }}
+      STATUS_JAVA_INTEGRATION: ${{ needs.impact-scope.outputs.status_java_integration }}
+      DOCKER_API_VERSION: "1.44"
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          # 與 build 一致，避免 Actions 快取還原耗盡整合測試時間。
-
-      - name: Make mvnw executable
-        run: chmod +x mvnw
-
       - name: Run Testcontainers Integration Tests
-        run: ./mvnw verify -Pintegration-test -Dsurefire.skip=true
+        run: bash scripts/ci/verify_java_integration.sh
 
       - name: Upload Integration Test Results
         if: always()
@@ -90,7 +112,9 @@ jobs:
           name: integration-test-results
           path: "**/target/failsafe-reports/"
 
-  # 以獨立環境驗證正式依賴，避免開發或測試套件掩蓋啟動時缺少的套件。
+  # ============================================
+  # 平台專屬驗證：AI Review 乾淨環境匯入驗證
+  # ============================================
   ai-review-runtime:
     permissions:
       contents: read
@@ -119,45 +143,53 @@ jobs:
           PY
 
   # ============================================
-  # Job 1.5：Python 服務驗證 (Ruff & Pytest)
+  # Job 1.5：共通 Python 服務驗證 (Ruff & Pytest)
   # ============================================
   python-verify:
+    needs: [impact-scope]
     runs-on: ubuntu-latest
+    container:
+      image: python:3.11-slim@sha256:673719e071ecf27434fd2635bbd8d00f49f4fdd81f243143438a42ced8bedf60
+    env:
+      RUN_PYTHON: ${{ needs.impact-scope.outputs.run_python }}
+      STATUS_PYTHON: ${{ needs.impact-scope.outputs.status_python }}
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      - name: Run Shared Python Verification
+        run: bash scripts/ci/verify_python.sh
+
+      - name: Upload Python Test JUnit XML Results
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff pytest httpx fastapi pydantic-settings python-multipart requests av minio nacos-sdk-python==2.0.11 opencc soundfile numpy faster-whisper sherpa-onnx
-
-      - name: Run Ruff Linter
-        run: ruff check backend-ai-py
-
-      - name: Run Ruff Formatter Check
-        run: ruff format --check backend-ai-py
-
-      - name: Run pytest
-        run: |
-          cd backend-ai-py
-          pytest
+          name: python-test-results
+          path: backend-ai-py/test-results/junit.xml
 
   # ============================================
   # Job 2：Docker 映像建置（僅 tag push 或手動觸發）
   # ============================================
   docker:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    needs: [build, integration-test, python-verify]
+    needs: [impact-scope, build, integration-test, python-verify]
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Verify Shared CI Gate and Commit SHA Consistency
+        env:
+          IMPACT_HEAD_SHA: ${{ needs.impact-scope.outputs.impact_head_sha }}
+          EXPECTED_SHA: ${{ github.sha }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          INTEGRATION_RESULT: ${{ needs.integration-test.result }}
+          PYTHON_RESULT: ${{ needs.python-verify.result }}
+        run: |
+          test -n "${IMPACT_HEAD_SHA}" && test "${IMPACT_HEAD_SHA}" = "${EXPECTED_SHA}"
+          test "${BUILD_RESULT}" = "success"
+          test "${INTEGRATION_RESULT}" = "success"
+          test "${PYTHON_RESULT}" = "success"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@b5ca514310cf821330a829b5da369d4379add1da # v3.10.0
