@@ -8,6 +8,20 @@ if str(AI_REVIEW_DIR) not in sys.path:
 import batching
 
 
+def test_relocated_dockerfiles_keep_ci_scope():
+    filenames = [
+        "Dockerfile",
+        "docker/backend/Dockerfile",
+        "docker\\backend\\Dockerfile",
+        "backend-ai-py/Dockerfile",
+        "docker/compose/prototype.yaml",
+    ]
+    files = [{"filename": filename, "patch": "+ change"} for filename in filenames]
+    batches = batching.build_batches(files, max_chars=10000)
+    scope_map = {path: scope for scope, paths in batches for path in paths}
+    assert all(scope_map[filename] == "ci" for filename in filenames)
+
+
 def test_build_batches_categorization_and_chunking():
     files = [
         {"filename": ".github/workflows/ci.yml", "patch": "diff -- ci"},

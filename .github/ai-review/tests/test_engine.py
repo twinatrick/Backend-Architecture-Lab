@@ -8,6 +8,17 @@ if str(AI_REVIEW_DIR) not in sys.path:
 import engine
 
 
+def test_relocated_infrastructure_keeps_high_risk_scope():
+    for filename in [
+        "Dockerfile",
+        "docker/backend/Dockerfile",
+        "docker\\backend\\Dockerfile",
+        "docker/compose/prototype.yaml",
+    ]:
+        assert engine.is_high_risk_path(filename)
+    assert not engine.is_high_risk_path("docs/docker-layout.md")
+
+
 def test_evaluate_policy_severity_and_decision():
     policy = {
         "blocking_severities": ["CRITICAL", "HIGH"],

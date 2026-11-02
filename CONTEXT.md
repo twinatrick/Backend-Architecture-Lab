@@ -149,7 +149,7 @@ _Avoid_: Error forwarding, Dropped connection, Gateway crash.
 _Avoid_: Central-only auth, Remote call on every hit, Unbounded token cache.
 
 **Prototype Cluster Deployment (全微服務叢集原型部署)**:
-透過整合式容器編排定義檔（如 compose.prototype.yaml）一鍵拉起包含所有微服務、Python AI 側車及全套中間件之自包含可運行原型環境。
+透過整合式容器編排定義檔（如 `docker/compose/prototype.yaml`，從根目錄搭配 `--project-directory .` 執行）一鍵拉起包含所有微服務、Python AI 側車及全套中間件之自包含可運行原型環境。
 _Avoid_: Partial mock run, Incomplete local stack, Manual service start.
 
 **Reactive Stream Bridge (響應式串流橋接)**:

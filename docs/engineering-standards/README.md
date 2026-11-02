@@ -1,13 +1,13 @@
 # 工程規範快照：後端正式接軌
 
-**狀態：`0.1.0` 正式發布，已正式接軌。** 現行根目錄 `開發規範.md`、`AGENTS.md` 及審查合約與本快照保持對齊。
+**狀態：採用 `0.2.1` 正式發布基準。** 現行根目錄 `開發規範.md`、`AGENTS.md` 及審查合約與本快照保持對齊。來源核對、遷移審查、驗證與回復方式見 [升版紀錄](../engineering-standards-upgrade-0.2.1.md)；舊版基準保存在 [歷史目錄](../engineering-standards-history/0.1.0/backend/)。
 
 | 欄位 | 內容 |
 | --- | --- |
 | 集中權威來源 | <https://github.com/twinatrick/engineering-standards> |
 | 本地集中庫 | `../../../engineering-standards`（相對本文件所在目錄） |
-| 發布版本／Profile | `0.1.0`／`backend` |
-| 標準庫 commit | `c882cc38ed778b099ee3fdf5f2205ade40f2a4a3` |
+| 發布版本／Profile | `0.2.1`／`backend` |
+| 標準庫 commit | `d208c9275519a5fac2a96f1ae8035a0ee2254f05` |
 | 原始後端基準 | `cb0d97685b2d3b8b1aaafa0a08ba858ee31163ae` |
 | 精確檔案清單 | [manifest.json](manifest.json)，逐檔列來源路徑及 SHA-256 |
 

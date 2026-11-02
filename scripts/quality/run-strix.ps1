@@ -50,6 +50,9 @@ param (
     [switch]$NonInteractive
 )
 
+# 固定以專案根目錄讀取設定與啟動掃描器。
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+
 # 1. Check Docker
 Write-Host "[1/4] Checking Docker status..." -ForegroundColor Cyan
 try {
@@ -66,7 +69,7 @@ try {
 
 # 2. Check/Load Environment Variables (.env)
 Write-Host "[2/4] Checking LLM API configuration..." -ForegroundColor Cyan
-$envFile = Join-Path $PSScriptRoot ".env"
+$envFile = Join-Path $repoRoot ".env"
 if (Test-Path $envFile) {
     Get-Content $envFile | ForEach-Object {
         $line = $_.Trim()
@@ -206,9 +209,14 @@ $displayArgs = $strixArgs | ForEach-Object {
 Write-Host "   Command: python .github/scripts/strix_key_runner.py $($displayArgs -join ' ')" -ForegroundColor Gray
 Write-Host "==========================================================" -ForegroundColor DarkGray
 
-$runnerScript = Join-Path $PSScriptRoot ".github\scripts\strix_key_runner.py"
-if (Test-Path $runnerScript) {
-    python $runnerScript @strixArgs
-} else {
-    & strix @strixArgs
+$runnerScript = Join-Path $repoRoot ".github/scripts/strix_key_runner.py"
+Push-Location $repoRoot
+try {
+    if (Test-Path $runnerScript) {
+        python $runnerScript @strixArgs
+    } else {
+        & strix @strixArgs
+    }
+} finally {
+    Pop-Location
 }

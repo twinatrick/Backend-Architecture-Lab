@@ -75,6 +75,8 @@ gitleaks.json
 semgrep*.json
 
 # 非原始碼文件（不提交）
+/.local/
+/API_MIGRATION_GUIDE_FOR_FE.md
 代辦清單.md
 review.md
 ai-review.json

@@ -32,11 +32,19 @@ Deterministic Aggregator
 
 ## 建議 GitHub Repository 設定
 
+正式閘門已採 `verified` 工具查證結果及固定 Base／Head SHA 靜態查證，原始模型 Finding 不直接決定合併。查證失敗須 fail-closed，不自動退回舊模型閘門；`shadow` 僅供本地唯讀比較。詳見 [AI Review 規範](../AI_REVIEW.md#7-batch--aggregator) 與 [ADR 0029](../../docs/adr/0029-verified-gate-direct-takeover.md)。
+
 - 保護 `master` / `main`。
 - 要求 PR Review 才能修改 `.github/workflows/**`。
 - 將 AI Review workflow 的 Secret 放在受保護 Environment。
 - 對 workflow 修改啟用必要的人工 approval。
 - 使用最小化 `GITHUB_TOKEN` permissions。
+
+## 維運與證據文件
+
+- [發布驗證與待驗收事項](../../docs/ai-review-release-validation.md)
+- [本地唯讀比較流程](../../docs/ai-review-shadow-trial.md)
+- [CVE／GHSA 漏洞證據與適用性查證](../../docs/ai-review-vulnerability-evidence.md)
 
 ## 套件版本存在性查證
 

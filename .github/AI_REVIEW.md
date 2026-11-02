@@ -93,8 +93,8 @@ AI 必須先分析 PR diff，再依依賴關係向外追查必要 context：Cont
 
 ## 5. Severity / Confidence
 
-- **CRITICAL**：權限繞過、敏感資料洩漏、重大注入、重大資料破壞等。deterministic Gate 必須阻擋。
-- **HIGH**：明確 BOLA、Architecture Boundary violation、Permission violation、CI Secret/Supply-chain boundary violation、重大功能錯誤等。deterministic Gate 必須阻擋。
+- **CRITICAL**：權限繞過、敏感資料洩漏、重大注入、重大資料破壞等。經正式工具查證成立且符合 blocking policy 時，deterministic Gate 必須阻擋。
+- **HIGH**：明確 BOLA、Architecture Boundary violation、Permission violation、CI Secret/Supply-chain boundary violation、重大功能錯誤等。經正式工具查證成立且符合 blocking policy 時，deterministic Gate 必須阻擋。
 - **MEDIUM**：明顯 maintainability / coupling / error-handling 問題。預設不阻擋。
 - **LOW**：可讀性、命名、小型 refactor 建議。不阻擋。
 
@@ -113,7 +113,7 @@ Confidence：`HIGH` / `MEDIUM` / `LOW`。LOW confidence 不得單獨阻擋 PR。
 - Severity
 - Confidence
 
-**不得輸出 `Blocking` 或 `Decision` 欄位。** AI 只能提出 Finding；是否阻擋由 Aggregator 的 deterministic policy 決定。
+**不得輸出 `Blocking` 或 `Decision` 欄位。** AI 只能提出待查證的 Finding；原始模型主張不直接控制 Gate，必須經工具查證，再由 Aggregator 的 deterministic policy 決定是否阻擋。
 
 ## 7. Batch / Aggregator
 
@@ -121,12 +121,15 @@ Confidence：`HIGH` / `MEDIUM` / `LOW`。LOW confidence 不得單獨阻擋 PR。
 
 Aggregator 必須：
 
-1. 驗證所有預期 Batch 都產生結果。
-2. 驗證每個 Batch JSON schema。
-3. Deduplicate Findings。
-4. 重新依 `severity + confidence + policy` 計算 blocking。
-5. Batch 缺失、AI response invalid、artifact 缺失、coverage 不完整時一律 fail-closed。
-6. 最終只由 deterministic policy 決定 `APPROVE` / `REQUEST_CHANGES`。
+1. 驗證所有預期 Batch 都產生合法結果，並驗證 JSON schema 與 coverage。
+2. 固定 Base／Head SHA；工具查證及靜態查證均針對固定快照，不以工作目錄現況代替 PR 證據。
+3. 依規則登錄與工具查證結果建立裁定紀錄，再去重 Findings；原始模型 Finding 不直接作為正式閘門輸入。
+4. 對已查證結果重新依 `severity + confidence + policy` 計算 blocking，並計算高風險變更的人工簽核要求，不信任候選結果自帶的通過旗標。
+5. Batch 查證結果、固定 Base／Head、合法 Finding、artifact 或 coverage 缺失時一律 fail-closed；證據不足或未知語意不得直接視為通過，依規則待人工／阻擋。
+6. 正式 `review.py` 預設使用 `verified`，不提供查證失敗後退回舊模型閘門的自動降級。本地 `shadow` 僅供唯讀比較，不是正式入口的備援開關。
+7. 最終只由 deterministic policy 決定 `APPROVE` / `REQUEST_CHANGES`；回退須透過正常 Git 變更與審查流程。
+
+接管決策見 [ADR 0029](../docs/adr/0029-verified-gate-direct-takeover.md)；操作與驗收見 [發布驗證](../docs/ai-review-release-validation.md)，漏洞主張查證另見 [CVE／GHSA 證據規格](../docs/ai-review-vulnerability-evidence.md)。程式接管不代表所有語意工具及遠端人工裁定流程皆已驗收。
 
 ## 8. 語言要求
 

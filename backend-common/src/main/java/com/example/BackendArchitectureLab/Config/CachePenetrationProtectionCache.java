@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Config;
 
 import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
+import com.example.BackendArchitectureLab.Util.CacheKeyValidator;
 import com.example.BackendArchitectureLab.Util.NullValue;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -20,7 +21,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 public class CachePenetrationProtectionCache implements Cache, BatchCacheOperations {
 
@@ -29,14 +29,6 @@ public class CachePenetrationProtectionCache implements Cache, BatchCacheOperati
     private static final long LOCK_TRY_WAIT_MILLIS = 200;
     static long pollTimeoutMillis = 30000;
     static long pollIntervalMillis = 200;
-
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-    );
-
-    static boolean isUuidKey(String key) {
-        return key != null && UUID_PATTERN.matcher(key).matches();
-    }
 
     private final String name;
 
@@ -429,7 +421,7 @@ public class CachePenetrationProtectionCache implements Cache, BatchCacheOperati
     }
 
     private boolean bloomFilterMightContain(String cacheKey) {
-        if (!isUuidKey(cacheKey)) {
+        if (!CacheKeyValidator.isUuidKey(cacheKey)) {
             return true;
         }
         try {
@@ -457,7 +449,7 @@ public class CachePenetrationProtectionCache implements Cache, BatchCacheOperati
     }
 
     private void addToBloomFilter(String cacheKey) {
-        if (!isUuidKey(cacheKey)) {
+        if (!CacheKeyValidator.isUuidKey(cacheKey)) {
             return;
         }
         try {

@@ -1,3 +1,4 @@
+# 從根目錄執行時請搭配 --project-directory .，維持既有掛載與資料卷名稱。
 services:
   prometheus:
     image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
@@ -6,7 +7,7 @@ services:
       - "${LOCAL_BIND_IP:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
       - "${ALLOW_HOST:-127.0.0.2}:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'

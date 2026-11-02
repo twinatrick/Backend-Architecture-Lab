@@ -3,7 +3,7 @@
     SonarQube Code Quality and Test Coverage Scanner Launcher
 
 .DESCRIPTION
-    1. Check and start local SonarQube Docker container (docker-compose.sonarqube.yaml)
+    1. Check and start local SonarQube Docker container (docker/compose/sonarqube.yaml)
     2. Read Java 21 path from .env (JAVA_NOW_HOME)
     3. Run single-thread unit tests and generate JaCoCo reports
     4. Run sonar-maven-plugin to publish analysis to SonarQube
@@ -29,9 +29,12 @@ param (
     [switch]$StartServer
 )
 
+# 固定以專案根目錄定位設定與建置入口，不依賴呼叫端的工作目錄。
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+
 # 1. Check JAVA_HOME
 Write-Host "[1/4] Checking Java 21 environment..." -ForegroundColor Cyan
-$envFile = Join-Path $PSScriptRoot ".env"
+$envFile = Join-Path $repoRoot ".env"
 if (Test-Path $envFile) {
     Get-Content $envFile | ForEach-Object {
         $line = $_.Trim()
@@ -68,13 +71,13 @@ try {
 
 if (-not $serverReady) {
     Write-Host "   [INFO] SonarQube server not ready. Starting Docker container..." -ForegroundColor Yellow
-    $composeFile = Join-Path $PSScriptRoot "docker-compose.sonarqube.yaml"
+    $composeFile = Join-Path $repoRoot "docker/compose/sonarqube.yaml"
     if (-not (Test-Path $composeFile)) {
         Write-Error "Error: Could not find $composeFile"
         exit 1
     }
 
-    docker compose -f $composeFile up -d
+    docker compose --project-directory $repoRoot -f $composeFile up -d
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Error: Docker Compose failed to start."
         exit 1
@@ -106,7 +109,12 @@ if (-not $SkipTest) {
     
     $testCommand = "rtk ./mvnw clean test `"-DforkCount=1`" `"-Dsurefire.useFile=false`""
     Write-Host "   Running: $testCommand" -ForegroundColor Gray
-    Invoke-Expression $testCommand
+    Push-Location $repoRoot
+    try {
+        Invoke-Expression $testCommand
+    } finally {
+        Pop-Location
+    }
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Error: Unit tests failed. Aborting SonarQube analysis."
@@ -136,7 +144,12 @@ $displayArgs = $sonarArgs | ForEach-Object {
     }
 }
 Write-Host "   Running: ./mvnw $($displayArgs -join ' ')" -ForegroundColor Gray
-& ./mvnw @sonarArgs
+Push-Location $repoRoot
+try {
+    & ./mvnw @sonarArgs
+} finally {
+    Pop-Location
+}
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""

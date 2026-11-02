@@ -2,6 +2,7 @@ package com.example.BackendArchitectureLab.Config;
 
 import com.example.BackendArchitectureLab.Service.CacheStatsPublisher;
 import com.example.BackendArchitectureLab.Service.IBloomFilterService;
+import com.example.BackendArchitectureLab.Util.CacheKeyValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.cache.RedisCache;
@@ -92,7 +93,7 @@ public class BatchRedisCacheOperations {
         }
 
         List<String> bloomKeys = values.keySet().stream()
-                .filter(CachePenetrationProtectionCache::isUuidKey)
+                .filter(CacheKeyValidator::isUuidKey)
                 .toList();
         if (!bloomKeys.isEmpty()) {
             try {

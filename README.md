@@ -2,7 +2,7 @@
 
 > 個人後端架構設計、技術驗證與工程實踐平台
 
-工程規範：[現行規範](開發規範.md)／[集中治理快照 (0.1.0 正式接軌)](docs/engineering-standards/README.md)。本專案已正式鎖定集中規範 `0.1.0`（來源：[engineering-standards](https://github.com/twinatrick/engineering-standards)）。
+工程規範：[現行規範](開發規範.md)／[集中治理快照 (0.2.1 正式接軌)](docs/engineering-standards/README.md)。本專案鎖定集中規範 `0.2.1`（來源：[engineering-standards](https://github.com/twinatrick/engineering-standards)，提交 `d208c9275519a5fac2a96f1ae8035a0ee2254f05`）；差異、舊基準與回復方式見 [升版紀錄](docs/engineering-standards-upgrade-0.2.1.md)。
 
 本專案並非單純的教學範例，而是作為後端架構設計、技術驗證與工程實踐的平台，持續驗證企業級分散式系統常見的設計模式、系統架構與開發流程。
 
@@ -23,7 +23,7 @@
 - ⚡ **快取防穿透**：六層快取防禦機制（Null Marker + Redisson 布隆過濾器 + 本機公平信號量 + 請求合併 Request Collapsing + Redisson 分散式互斥鎖 + 隨機 Jitter 抖動），涵蓋 19 個 Cache Names。
 - 🔄 **分散式事務與補償**：Durable Command + Transactional Outbox + Lease/Fencing Token + SAGA 補償機制，具備原子 CAS 領取、指數退避重試、死信佇列（DLT）與自動還原閉環。
 - 📬 **事件驅動架構**：Kafka 4 大主題（告警推播 `socketSend`、分散式補償 `transaction-compensation`、死信隔離 `transaction-compensation.DLT`、快取統計 `cache-stats`）。
-- 📡 **即時通訊廣播**：Jakarta WebSocket (`/ws/alarm`) 搭配 Kafka Fan-out 跨節點廣播推送。
+- 📡 **即時通訊廣播**：Spring WebSocket (`/ws/alarm`) 搭配 Reactor Sink 訂閱與 Kafka Fan-out 跨節點廣播推送。
 - 🤖 **AI 深度整合**：
   - **Python 側車 (`backend-ai-py`)**：Faster-Whisper (CUDA 12 DLLs 動態加載) + Sherpa-ONNX SenseVoice 雙引擎 STT、PyAnnote 語者分離 Conda 獨立子進程隔離、GPT-SoVITS + Sherpa-ONNX 雙引擎 TTS、Ollama 本地 LLM SSE 串流。
   - **Java 整合中心**：LINE Bot 串流端點、Discord Bot 動態 Webhook 偽裝、多模型瀑布級聯降級（Gemini 3.8/3.7 Flash → Groq → DeepSeek → GitHub Models）。
@@ -34,7 +34,7 @@
   - GitHub Actions / GitLab CI 多階段自動化管線（Java 嚴格要求單執行緒測試與 BUNDLE 覆蓋率 >= 80% + Python Ruff/Pytest + 整合 Gemini 3.8 Flash 最高優先級模型池之 AI Code Review + SonarQube / Strix 安全掃描）。
   - 完整 JMeter 500 併發壓力測試套件（含 10 個 SQL 大量測試數據生成腳本與效能報告）。
   - 嚴格代碼規範：全面建構子注入（`@RequiredArgsConstructor` + `private final`）、Mapper 僅限 Service Impl、Controller 嚴禁出現 Entity、禁止完全限定名稱 (FQN)。
-- 🚢 **雙軌部署架構**：提供「模式一：本機開發與單模組除錯軌道（`compose.yaml`）」與「模式二：一鍵全微服務叢集原型軌道（`compose.prototype.yaml` 一鍵啟動 7 服務 + 中間件）」。
+- 🚢 **雙軌部署架構**：提供「模式一：本機開發與單模組除錯軌道（`compose.yaml`）」與「模式二：一鍵全微服務叢集原型軌道（`docker/compose/prototype.yaml` 一鍵啟動 7 服務 + 中間件）」。
 
 ---
 
@@ -45,7 +45,7 @@
 ```mermaid
 graph TB
     Client["客戶端 Web / App / LINE / Discord"] -->|HTTP / REST| GW["API Gateway<br/>Port: 8000<br/>(Resilience4j 斷路降級 /fallback)"]
-    Client -->|WebSocket| WS["AlarmWebSocket<br/>Port: 8008"]
+    Client -->|WebSocket| WS["AlarmWebSocketHandler<br/>Port: 8008"]
 
     subgraph "服務註冊中心"
         NC(("Nacos 註冊中心<br/>Port: 8848"))
@@ -88,6 +88,62 @@ graph TB
     GW & IAM & COMP & JOB & EXT & ALT -->|Loki4j 非同步 HTTP 推送| LOKI
     LOKI -.->|LogQL / TraceID 關聯| GF
 ```
+
+### 根目錄與輔助檔案配置
+
+根目錄保留 Maven、主要 Docker Compose、工具設定與專案文件入口；其餘檔案依用途歸位：
+
+| 位置 | 用途 |
+|---|---|
+| `docker/compose/` | 原型叢集、監控、SonarQube Compose |
+| `docker/backend/Dockerfile` | Java 微服務共用建置檔；建置 context 保留專案根目錄 |
+| `docker/postgres/init-dbs.sql` | PostgreSQL 首次啟動資料庫初始化 |
+| `docker/prometheus/prometheus.yml` | Prometheus 抓取設定 |
+| `config/quality/` | 團隊共用 Qodana 掃描設定 |
+| `scripts/quality/` | 本機 SonarQube、Strix、Qodana 工具腳本 |
+| `docs/` | 正式文件、ADR 與工程規範快照 |
+| `.local/` | 本機交接、筆記、審查輸出、音訊、逐字稿與匯出資料；整個目錄不提交 |
+
+以下輔助工具指令從專案根目錄執行。Compose 必須保留 `--project-directory .`，讓 `.env`、相對掛載路徑、專案名稱與既有資料卷命名維持原有基準：
+
+```powershell
+docker compose --project-directory . -f docker/compose/monitoring.yaml up -d
+docker compose --project-directory . -f docker/compose/sonarqube.yaml up -d
+./scripts/quality/run-sonar.ps1
+```
+
+兩個輔助 Compose 原本即共用專案名稱；此處不另外建立新專案或遷移資料卷。監控與主要部署的 Grafana 連接埠可能重疊，請擇一啟用或先調整設定。本機 Strix 腳本保留於 `scripts/quality/run-strix.ps1`，自動掃描 workflow 已移除；手動執行前須自行確認服務授權與費用。
+
+不打算提交 Git 的新增檔案，預設優先放入 `.local/`，不要散落根目錄；正式原始碼與預計提交的文件仍放正式目錄。`.local/` 分為 `handover/`、`notes/`、`review/`、`audio/`、`transcripts/`、`exports/`，其他暫存內容放 `tmp/`。工具固定路徑與 CI 輸出契約不變；AI Review 仍可能在根目錄產生已忽略的 `review.md` 與 `ai-review.json`。
+
+Ruff 快取由根目錄 `ruff.toml` 指向 `.local/cache/ruff/`；pytest 由根目錄 `pytest.ini` 指向 `.local/cache/pytest/`。保留這兩個工具的自動探索入口，避免每位成員及 CI 額外傳入快取參數。`CONTEXT.md` 保留根目錄供跨專案 skill 使用。
+
+若不透過 Compose 而直接建置 Java 服務映像，從專案根目錄指定 Dockerfile，末尾的 `.` 不可改成 Dockerfile 所在資料夾：
+
+```powershell
+docker build -f docker/backend/Dockerfile --build-arg SERVICE_NAME=backend-gateway -t backend-gateway:local .
+```
+
+#### 團隊共用 Qodana 入口
+
+共用設定為 [config/quality/qodana.yaml](config/quality/qodana.yaml)，不再依賴根目錄的預設檔名。請先依 [官方 CLI 說明](https://github.com/JetBrains/qodana-cli#installation)安裝 Qodana CLI，確認 `qodana --version` 可執行；目前設定使用 JVM Docker 分析器，因此也須啟動 Docker，並確認所選版本的授權與 `QODANA_TOKEN` 需求。Token 由執行環境或安全憑證機制提供，不寫入設定檔或腳本。
+
+從專案根目錄執行：
+
+```powershell
+./scripts/quality/run-qodana.ps1
+```
+
+腳本會自動定位專案根目錄、指定共用設定，並將分析結果放入已忽略的 `.local/review/qodana/`；Qodana 的結束碼會原樣回傳。也可從其他工作目錄以腳本的完整路徑呼叫。這是手動掃描入口，不會自動執行掃描或加入 CI；是否上傳雲端仍依 Qodana 本身的認證與執行設定決定。
+
+IDEA 使用方式（需啟用 Shell Script 執行設定支援）：
+
+1. 開啟 **Run → Edit Configurations → 新增 Shell Script**，名稱設為 `Qodana－本專案`。
+2. 使用 **Script text** 模式，命令填入 `powershell.exe -NoProfile -File "$PROJECT_DIR$/scripts/quality/run-qodana.ps1"`；若使用 PowerShell 7，可將 `powershell.exe` 換成 `pwsh`。
+3. 工作目錄設為 `$PROJECT_DIR$`，並確認此執行環境的 PATH 能找到 Qodana CLI。
+4. 如需另存執行設定，放在本機 `.run/`；此目錄不提交。團隊共用的是設定檔與腳本，不是個人的 `.idea/`、`.iml` 或 Token。
+
+不使用 IDEA 的成員可直接呼叫共用腳本。若改用 Qodana 外掛原本的預設掃描按鈕，不能假設它會讀取搬移後的設定；必須確認其自訂路徑支援，否則仍使用上述共用入口。
 
 ### 微服務清單與職責劃分
 
@@ -145,7 +201,7 @@ graph TB
 - `created_by` / `created_time` (建立者與建立時間)
 - `updated_by` / `updated_time` (更新者與更新時間)
 
-### 完整 30 個 JPA Entity 清冊
+### 完整 32 個 JPA Entity 清冊（另列共用 MappedSuperclass）
 
 | 模組名稱 | 實體類別完整路徑 | 對應資料表 | 實體類型 | 業務用途與核心約束 |
 |---|---|---|:---:|---|
@@ -174,7 +230,9 @@ graph TB
 | | `com.example.BackendArchitectureLab.Entity.ApiUsageLog` | `api_usage_log` | 審計表 | 外部 API / LLM 呼叫紀錄與成本估算日誌。 |
 | | `com.example.BackendArchitectureLab.Entity.VoiceDiary` | `voice_diary` | 主實體 | 語音日記轉譯文本、語言與音訊來源。 |
 | | `com.example.BackendArchitectureLab.Entity.LineGfSession` | `line_gf_session` | 主實體 | LINE 女友對話狀態、Prompt 與歷史上下文 (`user_id` 唯一約束)。 |
+| | `com.example.BackendArchitectureLab.Entity.LineGfMessage` | `line_gf_message` | 子實體 | 以 `session_id` 關聯 LINE 會話，逐筆保存角色、訊息內容與發話者。 |
 | | `com.example.BackendArchitectureLab.Entity.DiscordGfSession` | `discord_gf_session` | 主實體 | Discord 女友對話狀態與頻道設定 (`channel_id, user_id` 唯一)。 |
+| | `com.example.BackendArchitectureLab.Entity.DiscordGfMessage` | `discord_gf_message` | 子實體 | 以 `session_id` 關聯 Discord 會話，逐筆保存角色、訊息內容與發話者。 |
 | | `com.example.BackendArchitectureLab.Entity.DiscordSubscription` | `discord_subscription` | 主實體 | Discord 頻道 Webhook 訂閱與推播設定。 |
 | | `com.example.BackendArchitectureLab.Entity.UserVoiceUpload` | `user_voice_upload` | 主實體 | 使用者語音檔案上傳記錄與處理狀態。 |
 | | `com.example.BackendArchitectureLab.Entity.VoiceTranslation` | `voice_translation` | 子實體 | 多語系語音轉譯與辨識結果明細。 |
@@ -472,6 +530,8 @@ erDiagram
 
 ### 2. 完整 API 端點清單
 
+以下列出目前 Controller 路由；11 類資源的批次載入契約見 [批次查詢 API 規格](docs/batch-query-api.md)。對外呼叫走 Gateway，內部 `/inner/` 端點不對外開放。
+
 #### (1) backend-gateway (埠號: 8000)
 | HTTP 方法與子路徑 | 內部直接存取路徑 | Gateway 對外存取路徑 | 端點類型 | 說明 |
 |---|---|---|:---:|---|
@@ -480,130 +540,146 @@ erDiagram
 #### (2) backend-iam-service (埠號: 8002, 路由: `/api/auth/**`, `/api/users/**`, `/api/role/**`, `/api/function/**`)
 | Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
 |---|---|---|---|:---:|---|
-| `AuthController` | `POST /signup` | `/auth/signup` | `/api/auth/signup` | **Public** | 註冊新使用者 (`@Ignore`)。 |
+| `com.example.BackendArchitectureLab.Controller.AuthController` | `POST /signup` | `/auth/signup` | `/api/auth/signup` | **Public** | 註冊新使用者 (`@Ignore`)。 |
 | | `POST /login` | `/auth/login` | `/api/auth/login` | **Public** | 登入取得 JWT Token (`@Ignore`)。 |
 | | `POST /superuser` | `/auth/superuser` | `/api/auth/superuser` | **Public** | 透過 Superuser Key 初始化系統管理者。 |
-| `UserController` | `POST /create` | `/users/create` | `/api/users/create` | **Protected** | `Create` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.UserController` | `POST /` | `/users` | `/api/users` | **Protected** | `Create` 權限。 |
 | | `GET /infoVo` | `/users/infoVo` | `/api/users/infoVo` | **Protected** | 取得當前登入使用者詳細資料。 |
 | | `GET /{id}` | `/users/{id}` | `/api/users/{id}` | **Protected** | `View` 權限。 |
 | | `GET /stream` | `/users/stream` | `/api/users/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `POST /saveUser` | `/users/saveUser` | `/api/users/saveUser` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/users/{id}` | `/api/users/{id}` | **Protected** | `Edit` 權限。 |
+| | `POST /batch-query` | `/users/batch-query` | `/api/users/batch-query` | **Protected** | `View` 權限；依 UUID 批次載入。 |
 | | `POST /{userId}/roles/rebind` | `/users/{userId}/roles/rebind` | `/api/users/{userId}/roles/rebind` | **Protected** | `Edit` 權限（重新綁定使用者角色）。 |
 | | `DELETE /{id}` | `/users/{id}` | `/api/users/{id}` | **Protected** | `Edit` 權限（單向解除角色綁定並刪除使用者）。 |
 | | `POST /search` | `/users/search` | `/api/users/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
-| `UserInternalController` | `GET /{id}` | `/users/inner/{id}` | *Gateway 阻擋* | **Internal** | Feign 查詢使用者是否存在與詳情。 |
+| `com.example.BackendArchitectureLab.Controller.UserInternalController` | `GET /{id}` | `/users/inner/{id}` | *Gateway 阻擋* | **Internal** | Feign 查詢使用者是否存在與詳情。 |
 | | `POST /by-email` | `/users/inner/by-email` | *Gateway 阻擋* | **Internal** | Feign 依 Email 取得使用者。 |
 | | `GET /exists/{id}` | `/users/inner/exists/{id}` | *Gateway 阻擋* | **Internal** | Feign 檢查使用者 ID 存在性。 |
 | | `GET /by-email-exists` | `/users/inner/by-email-exists` | *Gateway 阻擋* | **Internal** | Feign 檢查 Email 存在性。 |
-| `RoleController` | `POST /add` | `/role/add` | `/api/role/add` | **Protected** | `Edit` 權限。 |
-| | `POST /addWithFunctions` | `/role/addWithFunctions` | `/api/role/addWithFunctions` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.RoleController` | `POST /` | `/role` | `/api/role` | **Protected** | `Edit` 權限；可同時綁定功能。 |
 | | `GET /stream` | `/role/stream` | `/api/role/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `POST /update` | `/role/update` | `/api/role/update` | **Protected** | `Edit` 權限。 |
-| | `POST /updateWithFunctions` | `/role/updateWithFunctions` | `/api/role/updateWithFunctions` | **Protected** | `Edit` 權限。 |
-| | `POST /delete` | `/role/delete` | `/api/role/delete` | **Protected** | `Edit` 權限。 |
-| | `POST /roleBindFunction` | `/role/roleBindFunction` | `/api/role/roleBindFunction` | **Protected** | `Edit` 權限。 |
+| | `GET /{id}` | `/role/{id}` | `/api/role/{id}` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/role/batch-query` | `/api/role/batch-query` | **Protected** | `View` 權限；依角色 UUID 而非名稱查詢。 |
+| | `PUT /{id}` | `/role/{id}` | `/api/role/{id}` | **Protected** | `Edit` 權限；可覆蓋功能綁定。 |
+| | `DELETE /{id}` | `/role/{id}` | `/api/role/{id}` | **Protected** | `Edit` 權限。 |
 | | `POST /functionBindRole` | `/role/functionBindRole` | `/api/role/functionBindRole` | **Protected** | `Edit` 權限。 |
 | | `POST /roleBindUser` | `/role/roleBindUser` | `/api/role/roleBindUser` | **Protected** | `Edit` 權限。 |
-| | `POST /userBindRole` | `/role/userBindRole` | `/api/role/userBindRole` | **Protected** | `Edit` 權限。 |
 | | `POST /roleUnbindUser` | `/role/roleUnbindUser` | `/api/role/roleUnbindUser` | **Protected** | `Edit` 權限。 |
 | | `POST /userUnbindRole` | `/role/userUnbindRole` | `/api/role/userUnbindRole` | **Protected** | `Edit` 權限。 |
-| | `POST /roleUnbindFunction` | `/role/roleUnbindFunction` | `/api/role/roleUnbindFunction` | **Protected** | `Edit` 權限。 |
 | | `POST /functionUnbindRole` | `/role/functionUnbindRole` | `/api/role/functionUnbindRole` | **Protected** | `Edit` 權限。 |
 | | `POST /getFunctionByRole` | `/role/getFunctionByRole` | `/api/role/getFunctionByRole` | **Protected** | `View` 權限。 |
 | | `POST /getRoleByFunction` | `/role/getRoleByFunction` | `/api/role/getRoleByFunction` | **Protected** | `View` 權限。 |
 | | `POST /getRoleByUser` | `/role/getRoleByUser` | `/api/role/getRoleByUser` | **Protected** | `View` 權限。 |
 | | `POST /getUserByRole` | `/role/getUserByRole` | `/api/role/getUserByRole` | **Protected** | `View` 權限。 |
 | | `POST /search` | `/role/search` | `/api/role/search` | **Protected** | `View` 權限。 |
-| `FunctionController` | `POST /add` | `/function/add` | `/api/function/add` | **Protected** | `Edit` 權限。 |
-| | `POST /update` | `/function/update` | `/api/function/update` | **Protected** | `Edit` 權限。 |
-| | `POST /delete` | `/function/delete` | `/api/function/delete` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.FunctionController` | `POST /` | `/function` | `/api/function` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/function/{id}` | `/api/function/{id}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/function/{id}` | `/api/function/{id}` | **Protected** | `Edit` 權限。 |
+| | `GET /{id}` | `/function/{id}` | `/api/function/{id}` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/function/batch-query` | `/api/function/batch-query` | **Protected** | `View` 權限。 |
 | | `GET /stream` | `/function/stream` | `/api/function/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `POST /saveAllFunction` | `/function/saveAllFunction` | `/api/function/saveAllFunction` | **Protected** | `Edit` 權限。 |
+| | `POST /batch` | `/function/batch` | `/api/function/batch` | **Protected** | `Edit` 權限；批次變更功能。 |
 | | `POST /search` | `/function/search` | `/api/function/search` | **Protected** | `View` 權限。 |
-| `PermissionInternalController` | `GET /all` | `/role/inner/all` | *Gateway 阻擋* | **Internal** | Feign 獲取全部角色。 |
+| `com.example.BackendArchitectureLab.Controller.PermissionInternalController` | `GET /all` | `/role/inner/all` | *Gateway 阻擋* | **Internal** | Feign 獲取全部角色。 |
 | | `GET /by-name/{name}` | `/role/inner/by-name/{name}` | *Gateway 阻擋* | **Internal** | Feign 依名稱查詢角色。 |
 | | `POST /user-bind-role` | `/role/inner/user-bind-role` | *Gateway 阻擋* | **Internal** | Feign 使用者角色綁定。 |
 | | `POST /validate` | `/role/inner/validate` | *Gateway 阻擋* | **Internal** | Feign 動態校驗三層權限。 |
-| `SkillController` | `POST /add` | `/skill/add` | `/api/skill/add` | **Protected** | `Edit` 權限。 |
+| | `GET /user-permissions` | `/role/inner/user-permissions` | *Gateway 阻擋* | **Internal** | 依 Email 取得使用者完整權限。 |
+
+#### (3) backend-competency-service (埠號: 8004, 路由: `/api/skill/**`, `/api/project/**`, `/api/user/bindings/skill/**`, `/api/user/bindings/project/**`)
+| Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
+|---|---|---|---|:---:|---|
+| `com.example.BackendArchitectureLab.Controller.SkillController` | `POST /` | `/skill` | `/api/skill` | **Protected** | `Edit` 權限。 |
 | | `GET /stream` | `/skill/stream` | `/api/skill/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `POST /update` | `/skill/update` | `/api/skill/update` | **Protected** | `Edit` 權限。 |
-| | `POST /delete` | `/skill/delete` | `/api/skill/delete` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/skill/{id}` | `/api/skill/{id}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/skill/{id}` | `/api/skill/{id}` | **Protected** | `Edit` 權限。 |
+| | `GET /{id}` | `/skill/{id}` | `/api/skill/{id}` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/skill/batch-query` | `/api/skill/batch-query` | **Protected** | `View` 權限。 |
 | | `POST /search` | `/skill/search` | `/api/skill/search` | **Protected** | `View` 權限。 |
 | | `GET /current` | `/skill/current` | `/api/skill/current` | **Protected** | `View` 權限（查詢當前使用者技能）。 |
 | | `POST /current/search` | `/skill/current/search` | `/api/skill/current/search` | **Protected** | `View` 權限。 |
-| `SkillLevelController` | `POST /add` | `/skill/level/add` | `/api/skill/level/add` | **Protected** | `Edit` 權限。 |
-| | `GET /get/{skillId}` | `/skill/level/get/{skillId}` | `/api/skill/level/get/{skillId}` | **Protected** | `View` 權限。 |
-| | `POST /update` | `/skill/level/update` | `/api/skill/level/update` | **Protected** | `Edit` 權限。 |
-| | `POST /delete` | `/skill/level/delete` | `/api/skill/level/delete` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.SkillLevelController` | `POST /` | `/skill/level` | `/api/skill/level` | **Protected** | `Edit` 權限。 |
+| | `GET /by-skill/{skillId}` | `/skill/level/by-skill/{skillId}` | `/api/skill/level/by-skill/{skillId}` | **Protected** | `View` 權限。 |
+| | `GET /{id}` | `/skill/level/{id}` | `/api/skill/level/{id}` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/skill/level/batch-query` | `/api/skill/level/batch-query` | **Protected** | `View` 權限。 |
+| | `PUT /{id}` | `/skill/level/{id}` | `/api/skill/level/{id}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/skill/level/{id}` | `/api/skill/level/{id}` | **Protected** | `Edit` 權限。 |
 | | `POST /search` | `/skill/level/search` | `/api/skill/level/search` | **Protected** | `View` 權限。 |
-| `PersonalSkillController` | `POST ` | `/skill/personal` | `/api/skill/personal` | **Protected** | `Edit` 權限（個人技能新增）。 |
+| `com.example.BackendArchitectureLab.Controller.PersonalSkillController` | `POST /` | `/skill/personal` | `/api/skill/personal` | **Protected** | `Edit` 權限（個人技能新增）。 |
 | | `PUT /{skillId}` | `/skill/personal/{skillId}` | `/api/skill/personal/{skillId}` | **Protected** | `Edit` 權限（修改個人技能）。 |
 | | `PUT /{skillId}/level` | `/skill/personal/{skillId}/level` | `/api/skill/personal/{skillId}/level` | **Protected** | `Edit` 權限（修改個人技能綁定等級）。 |
 | | `DELETE /{skillId}` | `/skill/personal/{skillId}` | `/api/skill/personal/{skillId}` | **Protected** | `Edit` 權限（解除個人技能綁定）。 |
-| `ProjectController` | `POST /add` | `/project/add` | `/api/project/add` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.ProjectController` | `POST /` | `/project` | `/api/project` | **Protected** | `Edit` 權限。 |
 | | `GET /stream` | `/project/stream` | `/api/project/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `POST /update` | `/project/update` | `/api/project/update` | **Protected** | `Edit` 權限。 |
-| | `POST /delete` | `/project/delete` | `/api/project/delete` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/project/{id}` | `/api/project/{id}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/project/{id}` | `/api/project/{id}` | **Protected** | `Edit` 權限。 |
+| | `GET /{id}` | `/project/{id}` | `/api/project/{id}` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/project/batch-query` | `/api/project/batch-query` | **Protected** | `View` 權限。 |
 | | `GET /{projectId}/skills` | `/project/{projectId}/skills` | `/api/project/{projectId}/skills` | **Protected** | `View` 權限。 |
 | | `POST /search` | `/project/search` | `/api/project/search` | **Protected** | `View` 權限。 |
 | | `GET /current` | `/project/current` | `/api/project/current` | **Protected** | `View` 權限（查詢當前使用者專案）。 |
 | | `POST /current/search` | `/project/current/search` | `/api/project/current/search` | **Protected** | `View` 權限。 |
-| `PersonalProjectController` | `POST ` | `/project/personal` | `/api/project/personal` | **Protected** | `Edit` 權限（個人專案新增）。 |
+| `com.example.BackendArchitectureLab.Controller.PersonalProjectController` | `POST /` | `/project/personal` | `/api/project/personal` | **Protected** | `Edit` 權限（個人專案新增）。 |
 | | `PUT /{projectId}` | `/project/personal/{projectId}` | `/api/project/personal/{projectId}` | **Protected** | `Edit` 權限（個人專案修改）。 |
 | | `DELETE /{projectId}` | `/project/personal/{projectId}` | `/api/project/personal/{projectId}` | **Protected** | `Edit` 權限（個人專案刪除）。 |
 | | `GET /{projectId}/skills` | `/project/personal/{projectId}/skills` | `/api/project/personal/{projectId}/skills` | **Protected** | `View` 權限。 |
 | | `POST /{projectId}/skill/bind` | `/project/personal/{projectId}/skill/bind` | `/api/project/personal/{projectId}/skill/bind` | **Protected** | `Edit` 權限。 |
 | | `PUT /{projectId}/skill/{skillId}/level` | `/project/personal/{projectId}/skill/{skillId}/level` | `/api/project/personal/{projectId}/skill/{skillId}/level` | **Protected** | `Edit` 權限。 |
 | | `DELETE /{projectId}/skill/{skillId}` | `/project/personal/{projectId}/skill/{skillId}` | `/api/project/personal/{projectId}/skill/{skillId}` | **Protected** | `Edit` 權限。 |
-| `ProjectManagementController` | `POST /bindSkill` | `/project/bindSkill` | `/api/project/bindSkill` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.ProjectManagementController` | `POST /bindSkill` | `/project/bindSkill` | `/api/project/bindSkill` | **Protected** | `Edit` 權限。 |
 | | `GET /{projectId}/member-skills` | `/project/{projectId}/member-skills` | `/api/project/{projectId}/member-skills` | **Protected** | `View` 權限。 |
-| `ProjectAdminController` | `POST /user-project/rebind` | `/project/admin/bindings/user-project/rebind` | `/api/project/admin/bindings/user-project/rebind` | **Protected** | `Edit` 權限（覆蓋式綁定）。 |
+| `com.example.BackendArchitectureLab.Controller.ProjectAdminController` | `POST /user-project/rebind` | `/project/admin/bindings/user-project/rebind` | `/api/project/admin/bindings/user-project/rebind` | **Protected** | `Edit` 權限（覆蓋式綁定）。 |
 | | `POST /user-skill/rebind` | `/project/admin/bindings/user-skill/rebind` | `/api/project/admin/bindings/user-skill/rebind` | **Protected** | `Edit` 權限。 |
 | | `POST /project-skill/rebind` | `/project/admin/bindings/project-skill/rebind` | `/api/project/admin/bindings/project-skill/rebind` | **Protected** | `Edit` 權限。 |
 | | `POST /project-members-skills/rebind` | `/project/admin/bindings/project-members-skills/rebind` | `/api/project/admin/bindings/project-members-skills/rebind` | **Protected** | `Edit` 權限（觸發 SAGA 外部同步與 Outbox 事務補償）。 |
-| `UserBindingController` | `POST /skill/rebind` | `/user/bindings/skill/rebind` | `/api/user/bindings/skill/rebind` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.UserBindingController` | `POST /skill/rebind` | `/user/bindings/skill/rebind` | `/api/user/bindings/skill/rebind` | **Protected** | `Edit` 權限。 |
 | | `POST /project/{projectId}/skill/rebind` | `/user/bindings/project/{projectId}/skill/rebind` | `/api/user/bindings/project/{projectId}/skill/rebind` | **Protected** | `Edit` 權限。 |
 
 #### (4) backend-job-service (埠號: 8006, 路由: `/api/company/**`, `/api/job-posting/**`, `/api/user-job-link/**`, `/api/user/bindings/job/**`)
 | Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
 |---|---|---|---|:---:|---|
-| `CompanyController` | `POST /add` | `/company/add` | `/api/company/add` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.CompanyController` | `POST /` | `/company` | `/api/company` | **Protected** | `Edit` 權限。 |
 | | `GET /stream` | `/company/stream` | `/api/company/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `GET /get/{id}` | `/company/get/{id}` | `/api/company/get/{id}` | **Protected** | `View` 權限。 |
-| | `PUT /update` | `/company/update` | `/api/company/update` | **Protected** | `Edit` 權限。 |
+| | `GET /{id}` | `/company/{id}` | `/api/company/{id}` | **Protected** | `View` 權限。 |
+| | `PUT /{id}` | `/company/{id}` | `/api/company/{id}` | **Protected** | `Edit` 權限。 |
 | | `POST /search` | `/company/search` | `/api/company/search` | **Protected** | `View` 權限。 |
-| | `DELETE /delete/{id}` | `/company/delete/{id}` | `/api/company/delete/{id}` | **Protected** | `Edit` 權限。 |
-| `JobPostingController` | `POST /add` | `/job-posting/add` | `/api/job-posting/add` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/company/{id}` | `/api/company/{id}` | **Protected** | `Edit` 權限。 |
+| | `POST /batch-query` | `/company/batch-query` | `/api/company/batch-query` | **Protected** | `View` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.JobPostingController` | `POST /` | `/job-posting` | `/api/job-posting` | **Protected** | `Edit` 權限。 |
 | | `GET /stream` | `/job-posting/stream` | `/api/job-posting/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `GET /get/{id}` | `/job-posting/get/{id}` | `/api/job-posting/get/{id}` | **Protected** | `View` 權限。 |
+| | `GET /{id}` | `/job-posting/{id}` | `/api/job-posting/{id}` | **Protected** | `View` 權限。 |
 | | `GET /company/{companyId}` | `/job-posting/company/{companyId}` | `/api/job-posting/company/{companyId}` | **Protected** | `View` 權限。 |
-| | `PUT /update` | `/job-posting/update` | `/api/job-posting/update` | **Protected** | `Edit` 權限。 |
-| | `DELETE /delete/{id}` | `/job-posting/delete/{id}` | `/api/job-posting/delete/{id}` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/job-posting/{id}` | `/api/job-posting/{id}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/job-posting/{id}` | `/api/job-posting/{id}` | **Protected** | `Edit` 權限。 |
 | | `POST /scrape/{companyId}` | `/job-posting/scrape/{companyId}` | `/api/job-posting/scrape/{companyId}` | **Protected** | `Scrape` 權限（啟動爬蟲與 AI 分析）。 |
 | | `POST /search` | `/job-posting/search` | `/api/job-posting/search` | **Protected** | `View` 權限。 |
-| `UserJobLinkController` | `POST /add` | `/user-job-link/add` | `/api/user-job-link/add` | **Protected** | `Edit` 權限。 |
-| | `PUT /update` | `/user-job-link/update` | `/api/user-job-link/update` | **Protected** | `Edit` 權限。 |
+| | `POST /batch-query` | `/job-posting/batch-query` | `/api/job-posting/batch-query` | **Protected** | `View` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.UserJobLinkController` | `POST /` | `/user-job-link` | `/api/user-job-link` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/user-job-link/{id}` | `/api/user-job-link/{id}` | **Protected** | `Edit` 權限。 |
+| | `POST /search` | `/user-job-link/search` | `/api/user-job-link/search` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/user-job-link/batch-query` | `/api/user-job-link/batch-query` | **Protected** | `View` 權限。 |
 | | `GET /stream` | `/user-job-link/stream` | `/api/user-job-link/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `GET /get/{id}` | `/user-job-link/get/{id}` | `/api/user-job-link/get/{id}` | **Protected** | `View` 權限。 |
+| | `GET /{id}` | `/user-job-link/{id}` | `/api/user-job-link/{id}` | **Protected** | `View` 權限。 |
 | | `GET /user/{userId}` | `/user-job-link/user/{userId}` | `/api/user-job-link/user/{userId}` | **Protected** | `View` 權限。 |
 | | `GET /job-posting/{jobPostingId}` | `/user-job-link/job-posting/{jobPostingId}` | `/api/user-job-link/job-posting/{jobPostingId}` | **Protected** | `View` 權限。 |
-| | `DELETE /delete/{id}` | `/user-job-link/delete/{id}` | `/api/user-job-link/delete/{id}` | **Protected** | `Edit` 權限。 |
-| `UserJobBindingController` | `POST /{jobPostingId}` | `/user/bindings/job/{jobPostingId}` | `/api/user/bindings/job/{jobPostingId}` | **Protected** | 當前登入使用者收藏職缺。 |
+| | `DELETE /{id}` | `/user-job-link/{id}` | `/api/user-job-link/{id}` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.UserJobBindingController` | `POST /{jobPostingId}` | `/user/bindings/job/{jobPostingId}` | `/api/user/bindings/job/{jobPostingId}` | **Protected** | 當前登入使用者收藏職缺。 |
 | | `DELETE /{jobPostingId}` | `/user/bindings/job/{jobPostingId}` | `/api/user/bindings/job/{jobPostingId}` | **Protected** | 當前登入使用者取消收藏。 |
 | | `GET ` | `/user/bindings/job` | `/api/user/bindings/job` | **Protected** | 查詢當前登入使用者收藏職缺清單。 |
 
 #### (5) backend-external-api-service (埠號: 8007, 路由: `/api/stt/**`, `/api/ai/**`, `/api/external/**`, `/api/voice-uploads/**`)
 | Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
 |---|---|---|---|:---:|---|
-| `DiaryController` | `GET ` | `/external/diary` | `/api/external/diary` | **Protected** | 查詢當前使用者語音日記。 |
-| `ConfigController` | `POST /search` | `/external/config/search` | `/api/external/config/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
+| `com.example.BackendArchitectureLab.Controller.DiaryController` | `GET /` | `/external/diary` | `/api/external/diary` | **Protected** | 查詢當前使用者語音日記。 |
+| `com.example.BackendArchitectureLab.Controller.ConfigController` | `POST /search` | `/external/config/search` | `/api/external/config/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
 | | `GET /stream` | `/external/config/stream` | `/api/external/config/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `GET /status` | `/external/config/status` | `/api/external/config/status` | **Protected** | `View` 權限（外部平台執行時狀態探針）。 |
 | | `GET /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/external/config/batch-query` | `/api/external/config/batch-query` | **Protected** | `View` 權限。 |
 | | `POST ` | `/external/config` | `/api/external/config` | **Protected** | `Edit` 權限。 |
 | | `PUT /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `Edit` 權限。 |
 | | `DELETE /{id}` | `/external/config/{id}` | `/api/external/config/{id}` | **Protected** | `Edit` 權限。 |
-| `DiscordManagementController` | `POST /sessions/search` | `/external/discord/sessions/search` | `/api/external/discord/sessions/search` | **Protected** | `View` 權限（會話動態條件分頁搜尋）。 |
+| `com.example.BackendArchitectureLab.Controller.DiscordManagementController` | `POST /sessions/search` | `/external/discord/sessions/search` | `/api/external/discord/sessions/search` | **Protected** | `View` 權限（會話動態條件分頁搜尋）。 |
 | | `GET /sessions/stream` | `/external/discord/sessions/stream` | `/api/external/discord/sessions/stream` | **Protected** | `View` 權限（會話響應式分塊 SSE 串流）。 |
 | | `GET /sessions/{id}` | `/external/discord/sessions/{id}` | `/api/external/discord/sessions/{id}` | **Protected** | `View` 權限（單筆會話明細）。 |
 | | `GET /sessions/{id}/messages` | `/external/discord/sessions/{id}/messages` | `/api/external/discord/sessions/{id}/messages` | **Protected** | `View` 權限（按需調閱歷史訊息）。 |
@@ -612,35 +688,38 @@ erDiagram
 | | `POST /subscriptions/search` | `/external/discord/subscriptions/search` | `/api/external/discord/subscriptions/search` | **Protected** | `View` 權限（訂閱動態條件分頁搜尋）。 |
 | | `GET /subscriptions/stream` | `/external/discord/subscriptions/stream` | `/api/external/discord/subscriptions/stream` | **Protected** | `View` 權限（訂閱響應式分塊 SSE 串流）。 |
 | | `DELETE /subscriptions/{id}` | `/external/discord/subscriptions/{id}` | `/api/external/discord/subscriptions/{id}` | **Protected** | `Edit` 權限（刪除訂閱）。 |
-| `VoiceUploadController` | `POST ` | `/api/voice-uploads` | `/api/voice-uploads` | **Protected** | 上傳使用者語音檔案。 |
+| `com.example.BackendArchitectureLab.Controller.VoiceUploadController` | `POST /` | `/api/voice-uploads` | `/api/voice-uploads` | **Protected** | 上傳使用者語音檔案。 |
 | | `GET /{id}` | `/api/voice-uploads/{id}` | `/api/voice-uploads/{id}` | **Protected** | 取得特定語音上傳狀態與明細。 |
 | | `POST /current/search` | `/api/voice-uploads/current/search` | `/api/voice-uploads/current/search` | **Protected** | 搜尋當前使用者之語音上傳紀錄。 |
 | | `POST /{id}/translations` | `/api/voice-uploads/{id}/translations` | `/api/voice-uploads/{id}/translations` | **Protected** | 執行/新增語音轉譯任務。 |
 | | `GET /{id}/translations` | `/api/voice-uploads/{id}/translations` | `/api/voice-uploads/{id}/translations` | **Protected** | 取得轉譯多語系結果。 |
-| `UsageController` | `GET ` | `/external/usage` | `/api/external/usage` | **Protected** | 查詢 API 呼叫用量記錄。 |
+| `com.example.BackendArchitectureLab.Controller.UsageController` | `GET /` | `/external/usage` | `/api/external/usage` | **Protected** | 查詢 API 呼叫用量記錄。 |
 | | `GET /summary` | `/external/usage/summary` | `/api/external/usage/summary` | **Protected** | 取得 API 用量與成本統計摘要。 |
-| `TtsRefAudioController` | `POST /external/tts/ref-audio` | `/external/tts/ref-audio` | `/api/external/tts/ref-audio` | **Public** | 上傳 GPT-SoVITS 參考音訊 (`@Ignore`)。 |
-| `SttController` | `POST /whisper` | `/stt/whisper` | `/api/stt/whisper` | **Protected** | 指定 Faster-Whisper 轉錄。 |
+| `com.example.BackendArchitectureLab.Controller.TtsRefAudioController` | `POST /external/tts/ref-audio` | `/external/tts/ref-audio` | `/api/external/tts/ref-audio` | **Public** | 上傳 GPT-SoVITS 參考音訊 (`@Ignore`)。 |
+| `com.example.BackendArchitectureLab.Controller.SttController` | `POST /whisper` | `/stt/whisper` | `/api/stt/whisper` | **Protected** | 指定 Faster-Whisper 轉錄。 |
 | | `POST /sensevoice` | `/stt/sensevoice` | `/api/stt/sensevoice` | **Protected** | 指定 SenseVoice 轉錄。 |
-| `LineWebhookController` | `POST /external/line/callback` | `/external/line/callback` | `/api/external/line/callback` | **Public** | LINE 女友機器人 Webhook 回呼 (`@Ignore`)。 |
+| `com.example.BackendArchitectureLab.Controller.LineWebhookController` | `POST /external/line/callback` | `/external/line/callback` | `/api/external/line/callback` | **Public** | LINE 女友機器人 Webhook 回呼 (`@Ignore`)。 |
 | | `POST /external/line/diary/callback` | `/external/line/diary/callback` | `/api/external/line/diary/callback` | **Public** | LINE 語音日記 Webhook 回呼 (`@Ignore`)。 |
 | | `GET /external/public/audio/stream/{fileName}` | `/external/public/audio/stream/{fileName}` | `/api/external/public/audio/stream/{fileName}` | **Public** | LINE 音訊公開串流播放端點 (`@Ignore`)。 |
-| `LearnController` | `POST /{lan}/{mode}` | `/stt/v1/{lan}/{mode}` | `/api/stt/v1/{lan}/{mode}` | **Protected** | 語音轉文字 + 本地 NLP 拼音注音轉換。 |
-| `AiInternalController` | `POST /analyze-jobs` | `/ai/inner/analyze-jobs` | *Gateway 阻擋* | **Internal** | Feign 多模型瀑布分析職缺資料。 |
+| `com.example.BackendArchitectureLab.Controller.LearnController` | `POST /{lan}/{mode}` | `/stt/v1/{lan}/{mode}` | `/api/stt/v1/{lan}/{mode}` | **Protected** | 語音轉文字 + 本地 NLP 拼音注音轉換。 |
+| `com.example.BackendArchitectureLab.Controller.AiStreamController` | `POST /chat` | `/ai/stream/chat` | `/api/ai/stream/chat` | **Protected** | 需登入；以 SSE 串流回傳 AI 對話，支援取消連線。 |
+| `com.example.BackendArchitectureLab.Controller.AiInternalController` | `POST /analyze-jobs` | `/ai/inner/analyze-jobs` | *Gateway 阻擋* | **Internal** | Feign 多模型瀑布分析職缺資料。 |
 
 #### (6) backend-alert-service (埠號: 8008, 路由: `/api/alertCheckLimit/**`, `/api/aquarkData/**`, `/api/cache-stats`)
 | Controller 類別名稱 | HTTP 方法與子路徑 | 內部直接路徑 | Gateway 對外路徑 | 端點類型 | 權限需求 / 說明 |
 |---|---|---|---|:---:|---|
-| `AlertCheckLimitController` | `POST /add` | `/alertCheckLimit/add` | `/api/alertCheckLimit/add` | **Protected** | `Edit` 權限。 |
+| `com.example.BackendArchitectureLab.Controller.AlertCheckLimitController` | `POST /` | `/alertCheckLimit` | `/api/alertCheckLimit` | **Protected** | `Edit` 權限。 |
 | | `GET /stream` | `/alertCheckLimit/stream` | `/api/alertCheckLimit/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
-| | `POST /update` | `/alertCheckLimit/update` | `/api/alertCheckLimit/update` | **Protected** | `Edit` 權限。 |
-| | `POST /delete` | `/alertCheckLimit/delete` | `/api/alertCheckLimit/delete` | **Protected** | `Edit` 權限。 |
+| | `PUT /{id}` | `/alertCheckLimit/{id}` | `/api/alertCheckLimit/{id}` | **Protected** | `Edit` 權限。 |
+| | `DELETE /{id}` | `/alertCheckLimit/{id}` | `/api/alertCheckLimit/{id}` | **Protected** | `Edit` 權限。 |
+| | `GET /{id}` | `/alertCheckLimit/{id}` | `/api/alertCheckLimit/{id}` | **Protected** | `View` 權限。 |
+| | `POST /batch-query` | `/alertCheckLimit/batch-query` | `/api/alertCheckLimit/batch-query` | **Protected** | `View` 權限。 |
 | | `POST /search` | `/alertCheckLimit/search` | `/api/alertCheckLimit/search` | **Protected** | `View` 權限。 |
-| `AquarkDataController` | `POST /search` | `/aquarkData/search` | `/api/aquarkData/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
+| `com.example.BackendArchitectureLab.Controller.AquarkDataController` | `POST /search` | `/aquarkData/search` | `/api/aquarkData/search` | **Protected** | `View` 權限（動態條件分頁搜尋）。 |
 | | `GET /stream` | `/aquarkData/stream` | `/api/aquarkData/stream` | **Protected** | `View` 權限（響應式分塊 SSE 串流）。 |
 | | `GET /getColumnNameList` | `/aquarkData/getColumnNameList` | `/api/aquarkData/getColumnNameList` | **Protected** | `View` 權限。 |
 | | `POST /getAverage` | `/aquarkData/getAverage` | `/api/aquarkData/getAverage` | **Public** | 計算數值平均值 (`@Ignore`)。 |
-| `CacheStatsController` | `GET ` | `/cache-stats` | `/api/cache-stats` | **Protected** | 查詢全微服務聚合之快取指標與命中率。 |
+| `com.example.BackendArchitectureLab.Controller.CacheStatsController` | `GET /` | `/cache-stats` | `/api/cache-stats` | **Protected** | 查詢全微服務聚合之快取指標與命中率。 |
 
 #### (7) backend-ai-py (FastAPI 側車, 埠號: 5001, 僅供 Java 微服務內部調用)
 | 模組 / Router | HTTP 方法與子路徑 | 內部直接路徑 | 對外狀態 | 說明 |
@@ -808,13 +887,13 @@ graph TD
     PollRedis --> ReturnData
 ```
 
-### 19 個 Cache Names 與 TTL / Jitter 配置表
+### 19 個顯式 Cache Names 與 TTL / Jitter 配置表
 
-系統在 `com.example.BackendArchitectureLab.Config.RedisConfig` 中為各業務資料精細化配置了快取存活時間（TTL）與隨機 Jitter 抖動（預設最大 30%），徹底杜絕快取雪崩：
+系統在 `com.example.BackendArchitectureLab.Config.RedisConfig` 中為下列 19 個快取名稱顯式配置存活時間（TTL）與隨機 Jitter 抖動（預設最大 30%），降低快取同時過期的風險。此表不是執行時快取名稱全集；`userInfo`、`userPermissionsVo`、`botConfigs` 等未列入顯式表的名稱仍可由 CacheManager 建立，TTL 依預設配置處理。
 
 | Cache Name | 配置 TTL | 抖動防護 (Jitter) | 作用領域與業務對象 |
 |---|:---:|:---:|---|
-| `users` | 2 小時 | + 隨機 Jitter | 使用者基本資料、Email 與動態條件搜尋快取。 |
+| `users` | 2 小時 | + 隨機 Jitter | 依 ID 或 Email 查詢的使用者資料；動態分頁搜尋不快取。 |
 | `alertCheckLimit` | 1 小時 | + 隨機 Jitter | 水情告警閥值設定快取。 |
 | `aquarkData` | 1 小時 | + 隨機 Jitter | 感測器水情歷史時序資料快取。 |
 | `skills` | 24 小時 | + 隨機 Jitter | 技能定義與技能列表快取。 |
@@ -823,7 +902,7 @@ graph TD
 | `roleFunctions` | 6 小時 | + 隨機 Jitter | 角色對應之功能權限列表快取。 |
 | `functions` | 24 小時 | + 隨機 Jitter | 系統功能權限清單快取。 |
 | `companies` | 6 小時 | + 隨機 Jitter | 企業公司資訊快取。 |
-| `jobPostings` | 1 小時 | + 隨機 Jitter | 職缺清單與搜尋結果快取。 |
+| `jobPostings` | 1 小時 | + 隨機 Jitter | 職缺單筆與依公司查詢清單快取；動態分頁搜尋不快取。 |
 | `projectSkills` | 30 分鐘 | + 隨機 Jitter | 專案所需技能關聯快取。 |
 | `projectMemberSkills` | 30 分鐘 | + 隨機 Jitter | 專案成員技能關聯快取。 |
 | `projects` | 10 分鐘 | + 隨機 Jitter | 專案基本資料與個人專案清單快取。 |
@@ -849,9 +928,9 @@ sequenceDiagram
     participant Ctrl as "CacheStatsController"
 
     App ->> App: 觸發快取事件 (Hit / Miss / Bloom Filter 阻擋)
-    App ->> Kafka: 非同步發送 CacheStatsEvent (cacheName, metricType)
+    App ->> Kafka: 非同步發送 CacheStatsEvent (cacheName, field, count)
     Kafka -->> Consumer: 批次消費指標事件
-    Consumer ->> Redis: 原子遞增 HINCRBY (cache:stats:{name} metric 1)
+    Consumer ->> Redis: 原子遞增 HINCRBY (cache:stats:{name} field count)
     
     rect rgb(240, 248, 255)
         Note over Admin, Ctrl: 管理員查詢快取命中率
@@ -938,6 +1017,8 @@ sequenceDiagram
 
 # 八、 WebSocket 即時告警架構 (Alert WebSocket)
 
+告警服務使用 `com.example.BackendArchitectureLab.WebSocket.AlarmWebSocketHandler`（Spring `TextWebSocketHandler`），透過 `com.example.BackendArchitectureLab.WebSocket.AlarmReactiveSink` 訂閱事件。每個連線各自訂閱，慢消費者以 `onBackpressureDrop` 丟棄事件；每 30 秒發送 Ping，關閉連線時釋放告警與保活訂閱。Gateway 採 WebFlux／Reactor Netty，不代表告警服務也改用 Netty WebSocket Handler。
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -949,7 +1030,8 @@ sequenceDiagram
     participant KafkaPub as "AlarmKafkaPublisher"
     participant Kafka as "Kafka Topic: socketSend"
     participant Consumer as "KafkaConsumerService"
-    participant WS as "AlarmWebSocket (/ws/alarm)"
+    participant Sink as "AlarmReactiveSink"
+    participant WS as "AlarmWebSocketHandler (/ws/alarm)"
     actor Frontend as "前端監控看板"
 
     Timer ->> Aquark: 定時拉取即時感測水質數據
@@ -960,10 +1042,11 @@ sequenceDiagram
     
     alt 數值異常超過閥值
         Service ->> KafkaPub: 觸發告警事件
-        KafkaPub ->> Kafka: 發布 AlarmMessage 至 Topic "socketSend"
+        KafkaPub ->> Kafka: 發布 AlarmEvent 至 Topic "socketSend"
         Kafka ->> Consumer: 叢集各節點廣播消費
-        Consumer ->> WS: AlarmWebSocket.broadcast(alarmMessage)
-        WS ->> Frontend: 非同步推送 WebSocket JSON 告警通知
+        Consumer ->> Sink: tryEmitNext(alarmEvent)
+        Sink -->> WS: asFlux() 向各連線訂閱者分發
+        WS ->> Frontend: 推送 WebSocket JSON 告警通知
     end
 ```
 
@@ -1049,10 +1132,18 @@ sequenceDiagram
 - **AI Code Review**：獨立之 `ai-review-trigger.yml` 與 `ai-review-trusted.yml` 提供自動化 PR 程式碼審查（支援 Gemini 3.8 Flash 最高優先級模型池、多層級降級防線與二維金鑰冷卻機制）。
 - **映像檔建置**：Docker Buildx 多架構建置與 Docker Hub 自動推送。
 
+#### 部署、驗證與維運文件
+
+- [Portainer CI/CD 部署與回復](docs/portainer-cicd.md)：同主機映像標記、部署開關、Buildx 快取清理與回復步驟。
+- [部署環境與網路設定](docs/deployment-env-and-network-guide.md)：容器命名、環境變數與服務連線設定。
+- [效能檢查報告](docs/performance-review-report.md) 與 [壓力測試結果](stress-test/壓力測試結果.md)：測試條件、結果及限制；不同環境數字不可直接比較。
+- [AI Review 規範](.github/AI_REVIEW.md) 與 [發布驗證](docs/ai-review-release-validation.md)：正式工具查證閘門及待驗收事項。
+- [AI Review 漏洞證據查證](docs/ai-review-vulnerability-evidence.md)：CVE／GHSA 主張的來源與適用性判定。
+
 ### 2. 壓力測試套件 (`stress-test/`)：Grafana k6 (本機推薦) + Apache JMeter
 - **CI/CD 與壓測邊界明確隔離**：CI 專注於單元測試與 Testcontainers 整合測試，極限高併發壓力測試則由本機腳本（`stress-test/`）手動觸發執行。
 - **Grafana k6 超輕量零失真本機壓測（推薦）**：基於 Go 協程非同步架構（`stress-test/k6/`），500 併發僅需 ~25MB 記憶體，完全消除同機壓測時客戶端與 Spring Boot / 資料庫之間的 CPU/RAM 資源爭奪與假性延遲毛刺。支援一鍵執行腳本 `run-k6-stress.ps1`。
-- **資料庫一鍵初始化**：`init-dbs.sql` 一鍵建立 5 大獨立資料庫。
+- **資料庫一鍵初始化**：`docker/postgres/init-dbs.sql` 一鍵建立 5 大獨立資料庫。
 - **10 個 SQL 大量測試數據生成腳本**：包含 50,003 筆使用者、50,000 個專案、200,000 筆水質時序數據（具備 `ON CONFLICT` 冪等防重特性）。
 - **4 大壓測場景 (`.jmx` 與 `.js`)**：
   - `test-iam`：高頻讀取（Login / Users Search / Role / Function）。
@@ -1113,7 +1204,7 @@ sequenceDiagram
 
 本專案支援**兩種部署與開發軌道**：
 - **軌道一：本機開發與單模組除錯軌道（Local Dev Track）**：使用 `compose.yaml` 僅啟動資料庫與中間件，後端微服務於本機 IDE 或命令列依需求啟動。
-- **軌道二：一鍵全微服務叢集原型軌道（Prototype Cluster Track）**：使用 `compose.prototype.yaml` 一鍵啟動全套 7 個微服務容器、Python AI 側車及全套基礎設施，快速體驗完整系統。
+- **軌道二：一鍵全微服務叢集原型軌道（Prototype Cluster Track）**：使用 `docker/compose/prototype.yaml` 一鍵啟動全套 7 個微服務容器、Python AI 側車及全套基礎設施，快速體驗完整系統。
 
 ---
 
@@ -1129,7 +1220,7 @@ cp .env.example .env
 ```bash
 docker compose -f compose.yaml up -d
 ```
-> 初始化會自動執行 `init-dbs.sql` 建立 5 個微服務獨立資料庫，並同步啟動 Redis、Kafka、MinIO 以及 Grafana Loki (Port 3100) 與 Grafana (Port 3000)。
+> 初始化會自動執行 `docker/postgres/init-dbs.sql` 建立 5 個微服務獨立資料庫，並同步啟動 Redis、Kafka、MinIO 以及 Grafana Loki (Port 3100) 與 Grafana (Port 3000)。
 
 #### 步驟 2：啟動 Python AI 側車服務
 ```bash
@@ -1157,13 +1248,13 @@ conda run -n backend-ai-py uvicorn main:app --port 5001
 #### 步驟 1：環境設定與一鍵建置啟動
 ```bash
 cp .env.example .env
-docker compose -f compose.prototype.yaml up -d --build
+docker compose --project-directory . -f docker/compose/prototype.yaml up -d --build
 ```
 > 該命令將自動編譯並啟動全部 7 個微服務映像檔（含 6 個 Java 服務與 1 個 Python FastAPI 側車），並自帶健康檢查與啟動相依順序（PostgreSQL/Redis/Kafka 就緒 -> IAM/AI-PY 啟動 -> 業務服務 -> Gateway）。各服務於啟動時自動透過 Liquibase 執行 Schema 遷移與校驗。
 
 #### 步驟 2：檢視叢集狀態
 ```bash
-docker compose -f compose.prototype.yaml ps
+docker compose --project-directory . -f docker/compose/prototype.yaml ps
 ```
 
 ---
@@ -1191,9 +1282,9 @@ docker compose -f compose.prototype.yaml ps
 - 透過容器命令驗證連線：`docker exec -it redis_container redis-cli ping`（預期回傳 `PONG`）。
 
 ### 3. PostgreSQL 資料庫不存在 (`database "xxx" does not exist`)
-- 若非透過 Docker Compose 首次啟動，請手動執行 `init-dbs.sql` 建立 5 個獨立 Database：
+- 若非透過 Docker Compose 首次啟動，請從專案根目錄手動執行 `docker/postgres/init-dbs.sql` 建立 5 個獨立 Database：
   ```bash
-  docker exec -i postgres_db_backend psql -U postgres < init-dbs.sql
+  docker exec -i postgres_db_backend psql -U postgres < docker/postgres/init-dbs.sql
   ```
 
 ### 4. WebSocket 連線失敗 (`ws://localhost:8000/ws/alarm`)
@@ -1216,7 +1307,7 @@ docker compose -f compose.prototype.yaml ps
 - [x] Distributed Tracing (Micrometer Tracing + OpenTelemetry Bridge + W3C Trace Context)
 - [x] Log Sensitive Data Masking (LogMaskingConverter 敏感資料脫敏防護)
 - [x] Liquibase 宣告式資料庫版本控制 (5 個微服務獨立 Changelog 遷移治理，hibernate validate)
-- [x] Prototype Cluster Deployment (`compose.prototype.yaml` 7 服務全微服務原型環境一鍵拉起)
+- [x] Prototype Cluster Deployment (`docker/compose/prototype.yaml` 7 服務全微服務原型環境一鍵拉起)
 - [x] GitLab CI 多階段管線整合 (`.gitlab-ci.yml` 靜態分析、單元測試、建置驗證)
 
 ### Architecture & Distributed Patterns

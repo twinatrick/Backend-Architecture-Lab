@@ -1,6 +1,6 @@
 # 部署環境變數、容器網路與存取控制設定手冊
 
-本文件說明 `Backend-Architecture-Lab` 微服務叢集在容器化部署（`compose.prototype.yaml` / `compose.yaml`）與 CI/CD 流水線（`.gitlab-ci.yml`）中之**環境變數注入規範**、**容器名稱互連機制**以及**受控網路綁定策略（`ALLOW_HOST`）**。
+本文件說明 `Backend-Architecture-Lab` 微服務叢集在容器化部署（`docker/compose/prototype.yaml` / `compose.yaml`）與 CI/CD 流水線（`.gitlab-ci.yml`）中之**環境變數注入規範**、**容器名稱互連機制**以及**受控網路綁定策略（`ALLOW_HOST`）**。原型叢集指令須從專案根目錄搭配 `--project-directory .` 執行，維持根目錄 `.env`、相對掛載、建置 context 與既有專案及資料卷名稱；Java 服務共用 Dockerfile 位於 `docker/backend/Dockerfile`。
 
 > 🔒 **資安治理原則**：版本控制庫內嚴禁硬編碼任何真實外部／內網 IP、資料庫密碼或第三方 API 金鑰。所有環境相關參數均透過環境變數注入，請具備部署權限之維運人員依本手冊於 CI/CD 平台或主機環境配置。
 
@@ -8,7 +8,7 @@
 
 ## 一、受控連接埠綁定機制（僅允許本機與 Tailscale / 指定內網）
 
-為防止容器連接埠因綁定 `0.0.0.0` 而暴露於公網或未授權區網，同時讓授權維運人員能透過 Tailscale 等虛擬專網直接檢視容器狀態（如 Loki、Nacos、MinIO、各微服務 Actuator），`compose.prototype.yaml` 採用**雙介面變數綁定**設計：
+為防止容器連接埠因綁定 `0.0.0.0` 而暴露於公網或未授權區網，同時讓授權維運人員能透過 Tailscale 等虛擬專網直接檢視容器狀態（如 Loki、Nacos、MinIO、各微服務 Actuator），`docker/compose/prototype.yaml` 採用**雙介面變數綁定**設計：
 
 ```yaml
 ports:
