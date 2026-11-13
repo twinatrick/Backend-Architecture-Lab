@@ -207,6 +207,12 @@ deploy-cluster:
 
       # 接管 Stack 使用 JSON（合法 YAML）；只改六個應用映像。
       jq -e '.services | type == "object"' "$WORK_DIR/stack.json" >/dev/null
+      # Portainer 內的 Stack 檔不一定含 healthcheck，需補上，否則容器 Up 但應用啟動失敗會被誤判成功。
+      jq -e '.services.gateway.healthcheck = {
+          test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8000 && printf \"GET /actuator/health HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q \"\\\"status\\\":\\\"UP\\\"\" <&3"],
+          interval: "10s", timeout: "5s", retries: 6, start_period: "60s"
+        }' "$WORK_DIR/stack.json" > "$WORK_DIR/next.json"
+      mv "$WORK_DIR/next.json" "$WORK_DIR/stack.json"
       for SERVICE in gateway iam-service competency-service job-service external-api-service alert-service; do
         IMAGE="backend-architecture-lab-${SERVICE}:${CI_COMMIT_SHA}"
         docker image inspect "$IMAGE" >/dev/null
@@ -229,8 +235,8 @@ deploy-cluster:
         READY=false
         for ATTEMPT in $(seq 1 60); do
           if docker inspect "backend-architecture-lab-$SERVICE" > "$WORK_DIR/container.json" 2>/dev/null && \
-            jq -e --arg image "$EXPECTED_ID" --arg stack "$PORTAINER_STACK_NAME" \
-              '.[0] | .Image == $image and .Config.Labels["com.docker.compose.project"] == $stack and .State.Running == true and (.State.Health.Status // "healthy") == "healthy"' \
+            jq -e --arg image "$EXPECTED_ID" --arg stack "$PORTAINER_STACK_NAME" --arg service "$SERVICE" \
+              '.[0] | .Image == $image and .Config.Labels["com.docker.compose.project"] == $stack and .State.Running == true and (if $service == "gateway" then .State.Health.Status == "healthy" else (.State.Health.Status // "healthy") == "healthy" end)' \
               "$WORK_DIR/container.json" >/dev/null; then
             READY=true
             break

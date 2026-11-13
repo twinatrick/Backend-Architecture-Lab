@@ -4,7 +4,6 @@ import com.example.BackendArchitectureLab.Vo.Cache.CacheListWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -13,8 +12,10 @@ import java.util.function.Supplier;
  * 顯式快取切面執行器 (Explicit Cache Aspect Executor)
  * 封裝 Spring CacheManager 操作，使同類別內部方法呼叫無需透過 @Lazy self 自我代理注入，
  * 即可完整觸發 CachePenetrationProtectionCache（布隆過濾器、Request Collapsing 與 Redisson 分散式鎖）。
+ * <p>
+ * 本類別刻意不標 {@code @Component}：由 {@code com.example.BackendArchitectureLab.Config.CachingConfiguration}
+ * 與 CacheManager 同條件註冊，避免未提供快取基礎設施的服務（如 Reactive Gateway）因元件掃描而啟動失敗。
  */
-@Component
 @RequiredArgsConstructor
 public class CacheExecutor {
 
