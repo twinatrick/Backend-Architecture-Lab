@@ -171,6 +171,17 @@ services:
     ports:
       - "${LOCAL_BIND_IP:-127.0.0.1}:${GATEWAY_PORT:-8000}:8000"
       - "${ALLOW_HOST:-127.0.0.2}:${GATEWAY_PORT:-8000}:8000"
+    # 不依賴映像內是否有 curl；Spring 啟動失敗但 JVM 仍存活時，容器會被標為 unhealthy。
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - 'exec 3<>/dev/tcp/127.0.0.1/8000 && printf "GET /actuator/health HTTP/1.0\r\n\r\n" >&3 && grep -q "\"status\":\"UP\"" <&3'
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
     networks:
       - backend-architecture-lab-net
 
