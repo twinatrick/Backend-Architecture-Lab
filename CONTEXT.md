@@ -105,7 +105,7 @@ _Avoid_: Mock server, Stub proxy, Traffic sniffer.
 _Avoid_: Retry storm, Hard dependency, Fail cascade.
 
 **Stale Worker Fencing (陳舊工作者隔離防護)**:
-當分散式工作者因長時間 GC 停頓或網路隔絕導致租約過期後，藉由資料庫原子單調遞增的代數 Token（Fencing Version）徹底阻絕其甦醒後產生的過期髒寫入。
+當分散式工作者因長時間 GC 停頓或網路隔絕導致租約過期後，藉由資料庫原子單調遞增的代數 Token（Fencing Version）阻擋其甦醒後產生的過期髒寫入。
 _Avoid_: Race lock, Lease renewal, Soft check.
 
 **Fail-Closed Authorization (閉合失敗授權)**:
@@ -237,7 +237,7 @@ _Avoid_: Monolithic conversation JSON, Unbounded history string, JSON array colu
 _Avoid_: Heavy session list payload, All-in-one conversation dump.
 
 **Dual-Rail Retrieval (雙軌實體獲取標準)**:
-在系統微服務架構中，針對全域聚合根實體，強制且僅提供「分頁搜尋軌（POST /search）」與「非阻塞串流軌（GET /stream?chunkSize=250）」兩種標準端點，徹底根除無界 getAll 的雙軌存取模型。
+在系統微服務架構中，針對全域聚合根實體，強制且僅提供「分頁搜尋軌（POST /search）」與「非阻塞串流軌（GET /stream?chunkSize=250）」兩種標準端點，移除無界 getAll 的雙軌存取模型。
 _Avoid_: Monolithic getAll, Unbounded findAll endpoint, Inconsistent listing APIs.
 
 **Unbounded Endpoint Eradication (無界端點根除紀律)**:
@@ -249,7 +249,7 @@ _Avoid_: Public findAll, Memory-exhausting listing, Gateway timeout bypass.
 _Avoid_: UnsupportedOperationException stub, Fake empty return, Forgotten TODO.
 
 **Dual-Rail Migration Burn-down (雙軌遷移燃盡名單)**:
-在規範稽核規則中維護既有未遷移 Controller 的暫時容許白名單。所有新增實體控制器必須 100% 遵守雙軌規範，既有遺留控制器則隨重構進度逐一移出名單，實現無痛漸進式收斂。
+在規範稽核規則中維護既有未遷移 Controller 的暫時容許白名單。所有新增實體控制器必須提供搜尋軌與串流軌，既有遺留控制器則隨重構進度逐一移出名單，實現無痛漸進式收斂。
 _Avoid_: Blanket rule exception, Permanent legacy immunity, Uncontrolled architectural drift.
 
 **In-Memory Pagination (記憶體假分頁)**:
@@ -269,7 +269,7 @@ _Avoid_: Undocumented parameter, Weak schema, Fuzzy example value.
 _Avoid_: RPC verb path, Action-based URL, Inconsistent HTTP method.
 
 **Batch Query (批次識別碼查詢)**:
-在 HTTP API 設計中，以 `POST /api/{resource}/batch-query` 傳入識別碼集合，單次取得多筆實體並同時回傳陣列、字典視角與遺失清單的端點架構，徹底消除前端 N+1 查詢與 URL 長度限制。
+在 HTTP API 設計中，以 `POST /api/{resource}/batch-query` 傳入識別碼集合，單次取得多筆實體並同時回傳陣列、字典視角與遺失清單的端點架構，避免前端 N+1 查詢與 URL 長度限制。
 _Avoid_: In-loop single query, Query string ID joining, Multi-GET loop.
 
 **Granular Multi-Key Cache (細粒度多鍵快取)**:

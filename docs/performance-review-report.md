@@ -262,7 +262,7 @@ public class ApiPathParameterNameResolutionExample {
    - `backend-job-service`（`db.changelog-0002-add-job-performance-indexes.yaml`）：新增 `idx_user_job_link_created_time_id`、`idx_job_posting_created_time_id`、`idx_company_created_time_id`。
    - `backend-alert-service`（`db.changelog-0002-add-alert-performance-indexes.yaml`）：新增 `idx_aquark_data_trans_time`、`idx_aquark_data_station_trans_time`、`idx_aquark_data_created_time`、`idx_alert_check_limit_created_time`。
 2. **兩階段延遲關聯（ID-First Deferred Join）與大表短效計數快取**：
-   - 於 `com.example.BackendArchitectureLab.DataAccess.Impl.AquarkDataDataAccessImpl`、`com.example.BackendArchitectureLab.DataAccess.Impl.UserDataAccessImpl`、`com.example.BackendArchitectureLab.DataAccess.Impl.ProjectDataAccessImpl`、`com.example.BackendArchitectureLab.DataAccess.Impl.UserJobLinkDataAccessImpl` 實作兩階段延遲關聯：第一階段僅投影查詢分頁 `id`（觸發 PostgreSQL `Index Only Scan`，將 20 萬筆 `aquark_data` 排序由 `23.27 ms` / `5,376` buffers 降至 **`0.37 ms`** / `5` buffers；5 萬筆 `"user"` 由 `14.02 ms` / `1,670` buffers 降至 **`0.66 ms`** / `4` buffers），第二階段再以 `WHERE id IN (...)` 批次取回當頁 20 筆完整實體與關聯，並對 `>= 1,000` 筆之大表無條件總數啟用 5 秒短效快取，徹底消除 500 VUs 重複掃描全表 `COUNT(*)`。
+   - 於 `com.example.BackendArchitectureLab.DataAccess.Impl.AquarkDataDataAccessImpl`、`com.example.BackendArchitectureLab.DataAccess.Impl.UserDataAccessImpl`、`com.example.BackendArchitectureLab.DataAccess.Impl.ProjectDataAccessImpl`、`com.example.BackendArchitectureLab.DataAccess.Impl.UserJobLinkDataAccessImpl` 實作兩階段延遲關聯：第一階段僅投影查詢分頁 `id`（觸發 PostgreSQL `Index Only Scan`，將 20 萬筆 `aquark_data` 排序由 `23.27 ms` / `5,376` buffers 降至 **`0.37 ms`** / `5` buffers；5 萬筆 `"user"` 由 `14.02 ms` / `1,670` buffers 降至 **`0.66 ms`** / `4` buffers），第二階段再以 `WHERE id IN (...)` 批次取回當頁 20 筆完整實體與關聯，並對 `>= 1,000` 筆之大表無條件總數啟用 5 秒短效快取，避免 500 VUs 重複掃描全表 `COUNT(*)`。
 3. **角色權限計數聚合與企業網站預載（消除三表 `JOIN FETCH` 膨脹與 LAZY N+1）**：
    - 於 `com.example.BackendArchitectureLab.DataAccess.Impl.RoleDataAccessImpl.searchRoles` 改用 `SELECT rf.role.id, COUNT(rf.id) ... GROUP BY rf.role.id` 聚合查詢填入 `Role.functionCount`，取代原本拉取 140 筆 `RoleFunction + Function` 實體的三表 `LEFT JOIN FETCH`。
    - 於 `com.example.BackendArchitectureLab.DataAccess.Impl.CompanyDataAccessImpl.searchCompanies` 新增 `findAllByIdsWithWebsites` 二次批量預載，消除 `CompanyMapper.toVo` 的 LAZY N+1。
@@ -301,7 +301,7 @@ public class ApiPathParameterNameResolutionExample {
    - 於 `com.example.BackendArchitectureLab.Config.ApiPathArgumentResolver` 與 `com.example.BackendArchitectureLab.Config.ApiQueryArgumentResolver` 中呼叫 `parameter.initParameterNameDiscovery(DefaultParameterNameDiscoverer.getSharedInstance())`，並以 `parameter.getParameter().getName()` 作為保底，讓所有 `GET /{id}` 端點恢復正常。
 2. **為四大微服務大表補齊 `created_time DESC` B-Tree 索引（解決 F-03）**：
    - 新增 Liquibase Changelog，為 `"user"`、`project`、`job_posting`、`user_job_link`、`aquark_data` 建立 `(created_time DESC)` 索引。
-   - **預期效益**：單次預設分頁 `POST /*/search` 的 DB 查詢耗時由 `13~40 ms` 直接降至 `< 0.5 ms`，徹底消除 500 VUs 下 IAM 與 Alert 的 Gateway 慢呼叫熔斷。
+   - **預期效益**：單次預設分頁 `POST /*/search` 的 DB 查詢耗時由 `13~40 ms` 直接降至 `< 0.5 ms`，降低 500 VUs 下 IAM 與 Alert 的 Gateway 慢呼叫熔斷。
 3. **調整布隆過濾器預設容量與分批預熱機制（解決 F-02）**：
    - 將 `com.example.BackendArchitectureLab.Config.BloomFilterProperties.defaultExpectedInsertions` 調升至 `200,000L`~`500,000L`（或於各服務 `application.yml` 的 `cache.bloom-filter.overrides` 依表規模配置）。
    - 於 `com.example.BackendArchitectureLab.Config.BloomFilterInitializer` 中將 `BloomFilterDataAccessImpl.findAllEntityIds` 與 `bloomFilterService.addAll` 分開 `try-catch`，並以 `10,000` 筆為一個 Chunk 分批寫入，避免啟動期單次巨型 Lua 腳本阻塞。
@@ -312,7 +312,7 @@ public class ApiPathParameterNameResolutionExample {
    - 將 `concurrencySemaphore` 移至 **Cache Miss 之後、實際回源查詢資料庫（`valueLoader.call()`）之前**，讓 Redis 快取命中與 `activeRedisFetches`（Request Collapsing）完全無鎖直通。
    - 將空值快取標記（`NULL_VALUE`）直接存入同一個快取鍵中，省去每次讀取額外的 `hasNullMarker` (`EXISTS null:...`) Redis 網路往返。
    - 將非 `sync` 的 `get(Object key)` 在布隆過濾器判定不存在時的回傳值由 `null` 修正為 `() -> null`，符合 Spring `Cache` 契約。
-2. **全面根除生產路徑中的 Redis `KEYS` 呼叫（解決 F-05）**：
+2. **生產路徑已改用 `SCAN` + Pipeline 取代 Redis `KEYS` 呼叫（解決 F-05）**：
    - 移除 `com.example.BackendArchitectureLab.Service.Impl.JobPostingService`、`com.example.BackendArchitectureLab.Service.Impl.SkillService`、`com.example.BackendArchitectureLab.Service.Impl.UserVoiceUploadService` 中共 12 處無對應快取寫入端的「孤兒快取清除（Orphan Cache Eviction）」，並刪除 `RoleService.getRoleListCache`、`SkillService.getSkillListCache`、`CompanyService.getAllCompaniesCache` 三個死快取方法。
    - 將 `com.example.BackendArchitectureLab.Service.Impl.CacheStatsServiceImpl.getAllCacheStats` 改寫為 `SCAN` + `executePipelined`（如 Probe 1 所示，加速 `10.27x`）：
    ```java
