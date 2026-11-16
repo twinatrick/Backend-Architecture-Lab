@@ -71,7 +71,15 @@ elif name == "docker":
     elif "-f" in args:
         print("healthy")
     elif args[0] == "inspect":
-        print(json.dumps([{"Image": "sha256:expected", "State": {"Running": True},
+        container_state = {"Running": True}
+        if args[1] == "backend-architecture-lab-gateway":
+            if scenario != "gateway-missing-health":
+                health_status = {
+                    "gateway-starting": "starting",
+                    "gateway-unhealthy": "unhealthy",
+                }.get(scenario, "healthy")
+                container_state["Health"] = {"Status": health_status}
+        print(json.dumps([{"Image": "sha256:expected", "State": container_state,
             "Config": {"Labels": {"com.docker.compose.project": "backend-managed"}}}]))
     else:
         print("containers")
@@ -110,7 +118,7 @@ class PortainerDeploymentTest(unittest.TestCase):
 
     def test_updates_only_application_images_and_preserves_stack_environment(self):
         result = self.run_scenario()
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads((self.directory / "request.json").read_text())
         self.assertFalse(payload["Prune"])
         self.assertFalse(payload["PullImage"])
@@ -126,6 +134,29 @@ class PortainerDeploymentTest(unittest.TestCase):
         self.assertEqual(stack["volumes"]["existing"]["name"], "unchanged-volume")
         self.assertEqual(stack["networks"], {"existing": {"external": True}})
         self.assertNotIn("test-only-secret", result.stdout + result.stderr)
+
+    def test_injects_only_gateway_healthcheck_matching_compose(self):
+        result = self.run_scenario()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads((self.directory / "request.json").read_text())
+        stack = json.loads(payload["StackFileContent"])
+        compose = yaml.safe_load(
+            (PROJECT_ROOT / "docker/compose/prototype.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(stack["services"]["gateway"]["healthcheck"],
+            compose["services"]["gateway"]["healthcheck"])
+        for service, configuration in stack["services"].items():
+            if service != "gateway":
+                self.assertNotIn("healthcheck", configuration)
+
+    def test_rejects_gateway_without_healthy_status(self):
+        for scenario in ("gateway-missing-health", "gateway-starting", "gateway-unhealthy"):
+            with self.subTest(scenario=scenario):
+                result = self.run_scenario(scenario)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("gateway 未在期限內完成更新", result.stdout)
+                calls = (self.directory / "calls.txt").read_text().splitlines()
+                self.assertEqual(calls.count("curl PUT"), 1)
+                (self.directory / "calls.txt").unlink()
 
     def test_rejects_unsafe_inputs_before_any_update(self):
         for scenario in ("stale", "missing-image", "missing-stack", "yaml-stack"):
