@@ -1,0 +1,224 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0006-personal-meals-and-private-photos
+      author: architecture-lab
+      comment: 個人餐點、私有據點、共用消費明細、專用 LINE 草稿與持久化媒體清理責任
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE meal_restaurant_location (
+                id UUID PRIMARY KEY,
+                owner_user_id UUID NOT NULL,
+                google_place_id VARCHAR(255),
+                google_maps_url VARCHAR(1024),
+                display_name VARCHAR(200) NOT NULL,
+                normalized_name VARCHAR(200) NOT NULL,
+                floor_text VARCHAR(64),
+                normalized_floor VARCHAR(64),
+                location_description VARCHAR(500),
+                latitude NUMERIC(10,7),
+                longitude NUMERIC(10,7),
+                business_status VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
+                moved_from_location_id UUID,
+                moved_to_location_id UUID,
+                last_checked_at TIMESTAMP,
+                next_check_due_at TIMESTAMP,
+                pending_user_confirmation BOOLEAN NOT NULL DEFAULT FALSE,
+                last_notified_cycle VARCHAR(32),
+                version BIGINT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                CONSTRAINT ck_meal_location_status CHECK (business_status IN ('OPEN', 'TEMPORARILY_CLOSED', 'PERMANENTLY_CLOSED', 'MOVED', 'UNKNOWN'))
+              );
+              CREATE INDEX idx_meal_loc_user_place ON meal_restaurant_location (owner_user_id, google_place_id);
+              CREATE INDEX idx_meal_loc_user_norm ON meal_restaurant_location (owner_user_id, normalized_name, normalized_floor);
+              CREATE INDEX idx_meal_loc_due ON meal_restaurant_location (next_check_due_at);
+
+              CREATE TABLE meal_google_quota_usage (
+                quota_month VARCHAR(7) PRIMARY KEY,
+                request_count INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP NOT NULL
+              );
+
+              CREATE TABLE meal_receipt (
+                id UUID PRIMARY KEY,
+                owner_user_id UUID NOT NULL,
+                idempotency_key VARCHAR(100) NOT NULL,
+                request_fingerprint VARCHAR(64) NOT NULL,
+                ocr_status VARCHAR(32) NOT NULL DEFAULT 'NOT_RUN',
+                ocr_raw_text VARCHAR(8000),
+                ocr_candidates_json VARCHAR(8000),
+                ocr_error_message VARCHAR(500),
+                deleted BOOLEAN NOT NULL DEFAULT FALSE,
+                deleted_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                CONSTRAINT uk_meal_receipt_op UNIQUE (owner_user_id, idempotency_key)
+              );
+              CREATE INDEX idx_meal_receipt_user ON meal_receipt (owner_user_id, deleted);
+
+              CREATE TABLE meal_receipt_photo (
+                id UUID PRIMARY KEY,
+                receipt_id UUID NOT NULL,
+                owner_user_id UUID NOT NULL,
+                idempotency_key VARCHAR(100) NOT NULL,
+                request_fingerprint VARCHAR(64) NOT NULL,
+                bucket_name VARCHAR(100) NOT NULL,
+                object_key VARCHAR(255) NOT NULL UNIQUE,
+                original_filename VARCHAR(255),
+                content_type VARCHAR(64) NOT NULL,
+                file_size_bytes BIGINT NOT NULL,
+                width_px INTEGER NOT NULL,
+                height_px INTEGER NOT NULL,
+                sha256_hex VARCHAR(64) NOT NULL,
+                sort_order INTEGER NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                CONSTRAINT fk_meal_receipt_photo_parent FOREIGN KEY (receipt_id) REFERENCES meal_receipt(id),
+                CONSTRAINT uk_meal_receipt_photo_op UNIQUE (receipt_id, idempotency_key)
+              );
+              CREATE INDEX idx_meal_receipt_photo_parent ON meal_receipt_photo (receipt_id, sort_order);
+
+              CREATE TABLE meal_record (
+                id UUID PRIMARY KEY,
+                created_by VARCHAR(255), updated_by VARCHAR(255),
+                created_time TIMESTAMP, updated_time TIMESTAMP,
+                user_id UUID NOT NULL, operation_id UUID NOT NULL,
+                request_hash VARCHAR(64) NOT NULL, version BIGINT NOT NULL DEFAULT 0,
+                meal_name VARCHAR(200) NOT NULL, eaten_at TIMESTAMP NOT NULL,
+                amount NUMERIC(8,2) NOT NULL, amount_explanation VARCHAR(500),
+                receipt_id UUID, receipt_item_index INTEGER,
+                restaurant_location_id UUID,
+                google_maps_url VARCHAR(1024),
+                restaurant_name VARCHAR(200), location_description VARCHAR(500),
+                floor VARCHAR(50),
+                latitude NUMERIC(10,7), longitude NUMERIC(10,7),
+                rating INTEGER, review VARCHAR(4000), deleted_at TIMESTAMP,
+                CONSTRAINT fk_meal_record_location FOREIGN KEY (restaurant_location_id) REFERENCES meal_restaurant_location(id),
+                CONSTRAINT fk_meal_record_receipt FOREIGN KEY (receipt_id) REFERENCES meal_receipt(id),
+                CONSTRAINT uk_meal_operation UNIQUE (user_id, operation_id),
+                CONSTRAINT ck_meal_amount CHECK (amount >= 0 AND amount <= 999999.99),
+                CONSTRAINT ck_meal_rating CHECK (rating IS NULL OR rating BETWEEN 1 AND 5)
+              );
+              CREATE INDEX idx_meal_owner_time ON meal_record (user_id, deleted_at, eaten_at, id);
+              CREATE INDEX idx_meal_receipt_ref ON meal_record (receipt_id, deleted_at);
+
+              CREATE TABLE meal_photo (
+                id UUID PRIMARY KEY,
+                created_by VARCHAR(255), updated_by VARCHAR(255),
+                created_time TIMESTAMP, updated_time TIMESTAMP,
+                meal_id UUID NOT NULL, operation_id UUID NOT NULL,
+                content_hash VARCHAR(64) NOT NULL, object_key VARCHAR(300) NOT NULL,
+                state VARCHAR(20) NOT NULL, content_type VARCHAR(30) NOT NULL,
+                byte_size BIGINT NOT NULL, lease_until TIMESTAMP NOT NULL,
+                CONSTRAINT fk_meal_photo_record FOREIGN KEY (meal_id) REFERENCES meal_record(id),
+                CONSTRAINT uk_meal_photo_operation UNIQUE (meal_id, operation_id),
+                CONSTRAINT uk_meal_photo_object UNIQUE (object_key),
+                CONSTRAINT ck_meal_photo_state CHECK (state IN ('UPLOADING', 'READY', 'FAILED', 'DELETED'))
+              );
+              CREATE INDEX idx_meal_photo_parent_state ON meal_photo (meal_id, state);
+
+              CREATE TABLE meal_media_cleanup (
+                id UUID PRIMARY KEY,
+                created_by VARCHAR(255), updated_by VARCHAR(255),
+                created_time TIMESTAMP, updated_time TIMESTAMP,
+                object_key VARCHAR(300) NOT NULL UNIQUE,
+                next_attempt_at TIMESTAMP NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0, last_error VARCHAR(100)
+              );
+              CREATE INDEX idx_meal_cleanup_due ON meal_media_cleanup (next_attempt_at);
+
+              CREATE TABLE meal_line_binding_code (
+                id UUID PRIMARY KEY,
+                owner_user_id UUID NOT NULL,
+                binding_code VARCHAR(32) NOT NULL UNIQUE,
+                expires_at TIMESTAMP NOT NULL,
+                consumed BOOLEAN NOT NULL DEFAULT FALSE,
+                consumed_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL
+              );
+
+              CREATE TABLE meal_line_binding (
+                id UUID PRIMARY KEY,
+                owner_user_id UUID NOT NULL UNIQUE,
+                line_user_id VARCHAR(100) NOT NULL UNIQUE,
+                notification_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                bound_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL
+              );
+
+              CREATE TABLE meal_draft (
+                id UUID PRIMARY KEY,
+                owner_user_id UUID NOT NULL,
+                line_user_id VARCHAR(100) NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                meal_name VARCHAR(200),
+                dined_at TIMESTAMP,
+                paid_amount NUMERIC(8,2),
+                amount_explanation VARCHAR(500),
+                receipt_id UUID,
+                receipt_item_index INTEGER,
+                restaurant_location_id UUID,
+                restaurant_name VARCHAR(200),
+                floor_text VARCHAR(64),
+                location_description VARCHAR(500),
+                google_maps_url VARCHAR(1024),
+                latitude NUMERIC(10,7),
+                longitude NUMERIC(10,7),
+                rating INTEGER,
+                review_text VARCHAR(4000),
+                pending_photo_keys_json VARCHAR(4000),
+                confirmed_meal_id UUID,
+                expires_at TIMESTAMP NOT NULL,
+                version BIGINT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                CONSTRAINT ck_meal_draft_status CHECK (status IN ('ACTIVE', 'CONFIRMED', 'CANCELLED', 'EXPIRED'))
+              );
+              CREATE INDEX idx_meal_draft_user_status ON meal_draft (owner_user_id, status);
+
+              CREATE TABLE meal_line_event_dedup (
+                event_key VARCHAR(128) PRIMARY KEY,
+                line_user_id VARCHAR(100) NOT NULL,
+                processed_at TIMESTAMP NOT NULL
+              );
+
+              CREATE TABLE meal_line_notification_outbox (
+                id UUID PRIMARY KEY,
+                owner_user_id UUID NOT NULL,
+                line_user_id VARCHAR(100) NOT NULL,
+                dedup_key VARCHAR(160) NOT NULL UNIQUE,
+                message_text VARCHAR(4000) NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at TIMESTAMP NOT NULL,
+                last_error VARCHAR(500),
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                CONSTRAINT ck_meal_line_outbox_status CHECK (status IN ('PENDING', 'SENT', 'FAILED'))
+              );
+              CREATE INDEX idx_meal_line_outbox_due ON meal_line_notification_outbox (status, next_attempt_at);
+      rollback:
+        - dropTable:
+            tableName: meal_line_notification_outbox
+        - dropTable:
+            tableName: meal_line_event_dedup
+        - dropTable:
+            tableName: meal_draft
+        - dropTable:
+            tableName: meal_line_binding
+        - dropTable:
+            tableName: meal_line_binding_code
+        - dropTable:
+            tableName: meal_media_cleanup
+        - dropTable:
+            tableName: meal_photo
+        - dropTable:
+            tableName: meal_record
+        - dropTable:
+            tableName: meal_receipt_photo
+        - dropTable:
+            tableName: meal_receipt
+        - dropTable:
+            tableName: meal_google_quota_usage
+        - dropTable:
+            tableName: meal_restaurant_location

@@ -43,6 +43,13 @@ FROM eclipse-temurin:21-jre
 ARG SERVICE_NAME
 WORKDIR /app
 
+# 僅在 backend-external-api-service 容器安裝本機消費明細 OCR 套件（tesseract 與繁中／英文語言包），不影響其他服務映像
+RUN if [ "${SERVICE_NAME}" = "backend-external-api-service" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-eng && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
 # 從 build 階段複製指定服務 JAR
 COPY --from=build /app/${SERVICE_NAME}/target/*.jar app.jar
 
