@@ -56,7 +56,8 @@ public class MealLineDataAccess {
     }
 
     public Optional<MealDraft> findActiveDraft(UUID userId) {
-        return draftRepository.findFirstByOwnerUserIdAndStatusOrderByUpdatedAtDesc(userId, "ACTIVE");
+        String status = "ACTIVE";
+        return draftRepository.findFirstByOwnerUserIdAndStatusOrderByUpdatedAtDesc(userId, status);
     }
 
     public Optional<MealDraft> findDraftById(UUID draftId) {
@@ -64,12 +65,14 @@ public class MealLineDataAccess {
     }
 
     public long countActiveDraftsForReceipt(UUID userId, UUID receiptId, Date now) {
+        String status = "ACTIVE";
         return draftRepository.countByOwnerUserIdAndReceiptIdAndStatusAndExpiresAtGreaterThan(
-                userId, receiptId, "ACTIVE", now);
+                userId, receiptId, status, now);
     }
 
     public List<MealDraft> findExpiredActiveDrafts(Date now) {
-        return draftRepository.findTop20ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc("ACTIVE", now);
+        String status = "ACTIVE";
+        return draftRepository.findTop20ByStatusAndExpiresAtLessThanEqualOrderByExpiresAtAsc(status, now);
     }
 
     public MealDraft saveDraft(MealDraft draft) {
@@ -89,8 +92,9 @@ public class MealLineDataAccess {
     }
 
     public List<MealLineNotificationOutbox> findDueOutbox(Date now) {
+        List<String> statuses = List.of("PENDING", "FAILED");
         return outboxRepository.findTop20ByStatusInAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(
-                List.of("PENDING", "FAILED"), now);
+                statuses, now);
     }
 
     public MealLineNotificationOutbox saveOutbox(MealLineNotificationOutbox outbox) {

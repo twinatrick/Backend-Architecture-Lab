@@ -23,7 +23,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.Semaphore;
 
 @Service
 @RequiredArgsConstructor
@@ -35,13 +34,11 @@ public class MealPhotoService implements IMealPhotoService {
     private final MealImageValidator validator;
     private final MealProperties properties;
     private final TransactionExecutor transactions;
-    private final Semaphore uploadSlot = new Semaphore(1);
 
     @Override
     public MealPhotoVo upload(UUID userId, UUID mealId, UUID operationId, MultipartFile file) throws IOException {
         transactions.runReadOnly(() -> meals.owned(userId, mealId, false));
         if (operationId == null) throw new AppException("INVALID_OPERATION", "必須提供操作識別碼", 400);
-        if (!uploadSlot.tryAcquire()) throw new AppException("PHOTO_BUSY", "目前有照片正在處理，請稍後以相同操作識別碼重試", 503);
         try (ValidatedImage image = validator.validate(file)) {
             MealPhoto reserved = transactions.executeWritable(() -> reserve(userId, mealId, operationId, image));
             if ("READY".equals(reserved.getState())) return mapper.toVo(reserved);
@@ -69,8 +66,6 @@ public class MealPhotoService implements IMealPhotoService {
                 });
                 throw exception;
             }
-        } finally {
-            uploadSlot.release();
         }
     }
 

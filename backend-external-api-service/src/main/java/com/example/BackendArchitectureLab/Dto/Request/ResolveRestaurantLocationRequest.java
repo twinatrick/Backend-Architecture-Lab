@@ -16,7 +16,7 @@ import java.util.UUID;
 @Setter
 @ApiDto(description = "建立或更新私有店家據點請求")
 public class ResolveRestaurantLocationRequest {
-    @ApiField(description = "既有據點識別碼（指定更新或確認時使用）", format = "uuid", example = "00000000-0000-0000-0000-000000000010")
+    @ApiField(description = "既有據點識別碼（指定更新或確認時使用）", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
     private UUID locationId;
 
     @ApiField(description = "店家名稱", example = "巷口麵店", required = true)
@@ -36,7 +36,7 @@ public class ResolveRestaurantLocationRequest {
     @Size(max = 1024)
     private String googleMapsUrl;
 
-    @ApiField(description = "Google Place 識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000030")
+    @ApiField(description = "Google Place 識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
     @Size(max = 255)
     private String googlePlaceId;
 

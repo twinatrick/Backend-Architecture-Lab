@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Repository.MealPhotoRepository;
 import com.example.BackendArchitectureLab.Repository.MealReceiptPhotoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -30,11 +31,13 @@ public class MealMediaDataAccess {
     }
 
     public List<MealPhoto> ready(UUID mealId) {
-        return photos.findByMealIdAndState(mealId, "READY");
+        String state = "READY";
+        return photos.findByMealIdAndState(mealId, state);
     }
 
     public long occupied(UUID mealId) {
-        return photos.countOccupied(mealId, new Date());
+        Date now = new Date();
+        return photos.countOccupied(mealId, now);
     }
 
     public MealPhoto save(MealPhoto photo) {
@@ -57,11 +60,14 @@ public class MealMediaDataAccess {
     }
 
     public Optional<MealMediaCleanup> nextCleanup() {
-        return cleanups.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(new Date(), PageRequest.of(0, 1)).stream().findFirst();
+        Date now = new Date();
+        Pageable pageable = PageRequest.of(0, 1);
+        return cleanups.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(now, pageable).stream().findFirst();
     }
 
     public boolean isReferenced(String objectKey) {
-        return photos.existsByObjectKeyAndState(objectKey, "READY")
+        String state = "READY";
+        return photos.existsByObjectKeyAndState(objectKey, state)
                 || receiptPhotos.existsByObjectKey(objectKey);
     }
 

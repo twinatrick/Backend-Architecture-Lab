@@ -43,8 +43,9 @@ public class MealRestaurantLocationDataAccess {
     }
 
     public List<MealRestaurantLocation> findDueForCheck(Date now) {
+        List<String> excludedStatuses = List.of("PERMANENTLY_CLOSED", "MOVED");
         return locationRepository.findTop20ByBusinessStatusNotInAndNextCheckDueAtLessThanEqualOrderByNextCheckDueAtAsc(
-                List.of("PERMANENTLY_CLOSED", "MOVED"), now);
+                excludedStatuses, now);
     }
 
     public List<MealRestaurantLocation> findPendingUserConfirmations(UUID userId) {

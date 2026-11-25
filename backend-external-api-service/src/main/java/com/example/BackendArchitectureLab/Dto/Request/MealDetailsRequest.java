@@ -37,19 +37,19 @@ public class MealDetailsRequest {
     @ApiField(description = "無消費明細或覆寫明細金額時的金額說明，與心得分開", example = "現場付款，未取得收據")
     @Size(max = 500)
     private String amountExplanation;
-    @ApiField(description = "共用消費明細識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000020")
+    @ApiField(description = "共用消費明細識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
     private UUID receiptId;
     @ApiField(description = "對應之消費明細 OCR 候選品項序號", example = "0")
     @Min(0)
     private Integer receiptItemIndex;
     @ApiField(description = "若該收據品項已建立過餐點紀錄，是否確認再次建立", example = "false")
     private Boolean confirmDuplicateReceiptItem;
-    @ApiField(description = "明確指定的私有店家據點識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000010")
+    @ApiField(description = "明確指定的私有店家據點識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
     private UUID restaurantLocationId;
     @ApiField(description = "Google 地圖網址", example = "https://maps.google.com/?q=place_id:ChIJN1t_tDeuEmsRUsoyG83frY4")
     @Size(max = 1024)
     private String googleMapsUrl;
-    @ApiField(description = "Google Place 識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000030")
+    @ApiField(description = "Google Place 識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
     @Size(max = 255)
     private String googlePlaceId;
     @ApiField(description = "當時自填店名（歷史快照）", example = "巷口麵店")
