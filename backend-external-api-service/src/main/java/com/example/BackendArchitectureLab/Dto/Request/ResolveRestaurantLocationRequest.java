@@ -36,7 +36,7 @@ public class ResolveRestaurantLocationRequest {
     @Size(max = 1024)
     private String googleMapsUrl;
 
-    @ApiField(description = "Google Place 識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
+    @ApiField(description = "Google Place 識別碼", example = "ChIJN1t_tDeuEmsRUsoyG83frY4")
     @Size(max = 255)
     private String googlePlaceId;
 

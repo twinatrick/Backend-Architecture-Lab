@@ -16,7 +16,7 @@ public class MealRestaurantLocationVo {
     @ApiField(description = "店家據點識別碼", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
     private UUID id;
 
-    @ApiField(description = "Google Place 識別碼（若有）", format = "uuid", example = "00000000-0000-0000-0000-000000000001")
+    @ApiField(description = "Google Place 識別碼（若有）", example = "ChIJN1t_tDeuEmsRUsoyG83frY4")
     private String googlePlaceId;
 
     @ApiField(description = "Google 地圖網址", example = "https://maps.google.com/?cid=123456")
