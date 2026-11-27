@@ -254,9 +254,13 @@ def check_dto_field_and_schema_contract(
                         "填入正確的欄位中文業務說明",
                     ))
 
-            # 檢查 UUID 欄位格式（排除第三方通訊軟體特定實體中的外部字串 ID 如 guildId, channelId, webhookId 等）
-            is_platform_external_id = (
-                field_name in ("guildId", "channelId", "webhookId", "lineUserId", "discordUserId")
+            # 檢查 UUID 欄位格式（排除第三方外部平台字串 ID 如 guildId, channelId, googlePlaceId 等）
+            external_id_names = (
+                "guildId", "channelId", "webhookId",
+                "lineUserId", "discordUserId", "googlePlaceId",
+            )
+            is_platform_external_id = field_type != "UUID" and (
+                field_name in external_id_names
                 or (("Discord" in class_name or "Line" in class_name) and field_name == "userId")
             )
             is_uuid_naming = (
