@@ -7,6 +7,7 @@ import com.example.BackendArchitectureLab.Repository.MealReceiptPhotoRepository;
 import com.example.BackendArchitectureLab.Repository.MealReceiptRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +59,7 @@ public class MealReceiptDataAccess {
         return receiptPhotoRepository.saveAndFlush(photo);
     }
 
+    @Transactional
     public void deletePhotosByReceipt(UUID receiptId) {
         receiptPhotoRepository.deleteByReceiptId(receiptId);
     }

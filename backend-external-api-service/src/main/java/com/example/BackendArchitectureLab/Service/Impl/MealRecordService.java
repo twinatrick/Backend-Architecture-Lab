@@ -71,6 +71,7 @@ public class MealRecordService implements IMealRecordService {
                 UUID locationId = locationService.resolveLocationForMeal(userId, request);
                 MealRecord meal = new MealRecord();
                 mapper.update(request, meal);
+                meal.setEatenAt(Date.from(request.getEatenAt().toInstant()));
                 meal.setRestaurantLocationId(locationId);
                 meal.setUserId(userId);
                 meal.setOperationId(request.getOperationId());
@@ -104,6 +105,7 @@ public class MealRecordService implements IMealRecordService {
             validateReceiptAndAmountExplanation(userId, id, request);
             UUID locationId = locationService.resolveLocationForMeal(userId, request);
             mapper.update(request, meal);
+            meal.setEatenAt(Date.from(request.getEatenAt().toInstant()));
             meal.setRestaurantLocationId(locationId);
             return enrichVo(userId, meals.save(meal));
         });

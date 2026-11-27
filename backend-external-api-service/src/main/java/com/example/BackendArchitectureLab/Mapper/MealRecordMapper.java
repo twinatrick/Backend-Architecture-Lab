@@ -8,9 +8,6 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
-import java.time.OffsetDateTime;
-import java.util.Date;
-
 @Mapper(componentModel = "spring")
 public interface MealRecordMapper {
     @Mapping(target = "revision", source = "version")
@@ -21,7 +18,7 @@ public interface MealRecordMapper {
 
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "mealName", source = "mealName")
-    @Mapping(target = "eatenAt", source = "eatenAt")
+    @Mapping(target = "eatenAt", ignore = true)
     @Mapping(target = "amount", source = "amount")
     @Mapping(target = "amountExplanation", source = "amountExplanation")
     @Mapping(target = "receiptId", source = "receiptId")
@@ -36,8 +33,4 @@ public interface MealRecordMapper {
     @Mapping(target = "rating", source = "rating")
     @Mapping(target = "review", source = "review")
     void update(MealDetailsRequest request, @MappingTarget MealRecord entity);
-
-    default Date toDate(OffsetDateTime value) {
-        return value == null ? null : Date.from(value.toInstant());
-    }
 }
