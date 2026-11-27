@@ -7,6 +7,7 @@ AI_REVIEW_DIR = Path(__file__).resolve().parents[1]
 if str(AI_REVIEW_DIR) not in sys.path:
     sys.path.insert(0, str(AI_REVIEW_DIR))
 
+import check_openapi_dto as dto_checker
 import check_openapi_models as models
 
 
@@ -136,3 +137,40 @@ def test_failed_required_read_aborts_without_caching_partial_models(
     assert "fake_test_secret" not in caplog.text
     monkeypatch.setattr(Path, "read_text", original_read)
     assert models.get_public_api_model_set(tmp_path) == {"ParentVo", "ChildVo"}
+
+
+def test_external_google_place_id_does_not_require_uuid_format():
+    content = (
+        '@ApiDto(description = "測試地點請求")\n'
+        "public class ResolveRestaurantLocationRequest {\n"
+        '    @ApiField(description = "Google Place 識別碼", example = "ChIJN1t_tDeuEmsRUsoyG83frY4")\n'
+        "    private String googlePlaceId;\n"
+        "}\n"
+    )
+    findings = dto_checker.check_dto_field_and_schema_contract(
+        "backend-external-api-service/src/main/java/com/example/Dto/Request/"
+        "ResolveRestaurantLocationRequest.java",
+        content,
+        content.splitlines(),
+    )
+    assert findings == []
+
+
+def test_internal_uuid_id_field_still_requires_uuid_format():
+    content = (
+        '@ApiDto(description = "測試地點請求")\n'
+        "public class ResolveRestaurantLocationRequest {\n"
+        '    @ApiField(description = "店家據點識別碼", example = "00000000-0000-0000-0000-000000000001")\n'
+        "    private UUID restaurantLocationId;\n"
+        "}\n"
+    )
+    findings = dto_checker.check_dto_field_and_schema_contract(
+        "backend-external-api-service/src/main/java/com/example/Dto/Request/"
+        "ResolveRestaurantLocationRequest.java",
+        content,
+        content.splitlines(),
+    )
+    assert len(findings) == 1
+    assert "restaurantLocationId" in findings[0]["problem"]
+    assert 'format = "uuid"' in findings[0]["problem"]
+
