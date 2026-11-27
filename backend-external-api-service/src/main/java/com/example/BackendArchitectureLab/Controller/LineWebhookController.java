@@ -6,6 +6,7 @@ import com.example.BackendArchitectureLab.Annotation.OpenApi.ApiPath;
 import com.example.BackendArchitectureLab.Service.ILineDiaryService;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
 import com.example.BackendArchitectureLab.Service.ILineWebhookService;
+import com.example.BackendArchitectureLab.Service.IMealLineService;
 import com.example.BackendArchitectureLab.Service.ITtsService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -28,6 +29,7 @@ public class LineWebhookController {
 
     private final ILineGfService lineGfService;
     private final ILineDiaryService lineDiaryService;
+    private final IMealLineService mealLineService;
     private final ILineWebhookService lineWebhookService;
     private final ITtsService ttsService;
 
@@ -36,6 +38,9 @@ public class LineWebhookController {
 
     @Value("${line.diary.channel-secret:}")
     private String diarySecret;
+
+    @Value("${meals.line-channel-secret:}")
+    private String mealLineSecret;
 
     @Ignore
     @PostMapping("/external/line/callback")
@@ -75,6 +80,24 @@ public class LineWebhookController {
             return ResponseEntity.ok("ok");
         } catch (Exception e) {
             log.warn("diaryCallback parse failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Parse failed: " + e.getMessage());
+        }
+    }
+
+    @Ignore
+    @PostMapping("/external/line/meals/callback")
+    public ResponseEntity<String> mealLineCallback(
+            @ApiBody(description = "LINE 個人飲食紀錄專用 Bot Webhook 原始位元組負載") byte[] bodyBytes,
+            @RequestHeader("X-Line-Signature") String signature) {
+        if (mealLineSecret.isBlank()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Meal LINE bot not configured");
+        }
+        try {
+            var events = lineWebhookService.parseEvents(mealLineSecret, bodyBytes, signature);
+            lineWebhookService.dispatchEvents(events, mealLineService);
+            return ResponseEntity.ok("ok");
+        } catch (Exception e) {
+            log.warn("mealLineCallback parse failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Parse failed: " + e.getMessage());
         }
     }

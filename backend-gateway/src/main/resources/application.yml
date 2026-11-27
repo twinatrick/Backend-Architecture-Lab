@@ -113,7 +113,7 @@ spring:
         - id: external-api-service
           uri: lb://external-api-service
           predicates:
-            - Path=/api/stt/**,/api/ai/**,/api/external/**
+            - Path=/api/stt/**,/api/ai/**,/api/external/**,/api/meals,/api/meals/**
           filters:
             - StripPrefix=1
             - name: CircuitBreaker

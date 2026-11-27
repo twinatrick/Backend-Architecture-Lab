@@ -3,6 +3,7 @@ package com.example.BackendArchitectureLab.Service.Impl;
 import com.example.BackendArchitectureLab.Service.ILineDiaryService;
 import com.example.BackendArchitectureLab.Service.ILineGfService;
 import com.example.BackendArchitectureLab.Service.ILineWebhookService;
+import com.example.BackendArchitectureLab.Service.IMealLineService;
 import com.linecorp.bot.model.event.Event;
 import com.linecorp.bot.model.event.MessageEvent;
 import com.linecorp.bot.model.event.message.AudioMessageContent;
@@ -47,6 +48,10 @@ public class LineWebhookService implements ILineWebhookService {
                         }
                     } else if (service instanceof ILineDiaryService diaryService) {
                         diaryService.handleText(replyToken, text);
+                    } else if (service instanceof IMealLineService mealLineService) {
+                        String userId = msgEvent.getSource() != null ? msgEvent.getSource().getUserId() : null;
+                        String eventKey = textContent.getId();
+                        mealLineService.handleIncomingCommand(eventKey, replyToken, userId, text);
                     }
                 }
                 case AudioMessageContent audioContent -> {
